@@ -85,15 +85,15 @@
 - `demos/paypal-retail-demo/web/tests/`: Playwright tests.
 
 ## Milestone 0: Review And Environment Gate
-- [ ] Review and approve all planning docs.
-- [ ] Confirm local Supabase project strategy: local CLI, remote project, or both.
+- [x] Review and approve all planning docs for Milestone 1 scaffold.
+- [x] Confirm local Supabase project strategy: local CLI and remote project.
 - [ ] Install or configure the selected Supabase access path before migrations are created.
-- [ ] Confirm PayPal sandbox app credentials are available through local env only.
+- [x] Confirm PayPal sandbox app credentials are available through local env only.
 - [ ] Review `PAYPAL_EVIDENCE.md` against final PayPal sandbox account capabilities.
-- [ ] Confirm whether Apple Pay/Google Pay local testing will use HTTPS/ngrok or remain manual eligibility-only until hosted.
-- [ ] Confirm POP MART asset handoff path and filename convention.
+- [x] Confirm Apple Pay/Google Pay local testing remains eligibility/debug/manual locally, with hosted preview or approved HTTPS tunnel for full wallet verification later.
+- [x] Confirm POP MART asset handoff path and filename convention.
 - [ ] Convert the env variable shape in `ENVIRONMENT.md` into `.env.example` during scaffold.
-- [ ] Update `tracking/todos.md` with any accepted changes from review.
+- [x] Update `tracking/todos.md` with accepted Milestone 0 decision changes.
 
 Verification:
 - `scripts/check-agent-system.sh` passes from repo root.

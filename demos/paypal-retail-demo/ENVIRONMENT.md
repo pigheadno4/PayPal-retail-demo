@@ -11,8 +11,16 @@ Observed on 2026-05-26:
 
 Implications:
 - The first implementation pass can scaffold Node/React/Express scripts locally.
-- Supabase migration work should wait until the Supabase CLI strategy is confirmed or an MCP/remote SQL path is available.
+- Supabase migration work should wait until the Supabase CLI is installed/configured or an approved remote SQL path is available.
 - After installing Supabase CLI, discover commands with `supabase --help` and `supabase <group> --help` before using it.
+
+## Confirmed Milestone 0 Decisions
+Confirmed on 2026-05-26:
+- Supabase uses both paths: local Supabase CLI for migration/test iteration, plus a remote Supabase project for stable presentation data.
+- PayPal sandbox credentials are supplied through local environment variables only. No PayPal or Supabase secrets are committed.
+- TypeScript strict mode is the default for web, server, shared modules, tests, and seed tooling.
+- Apple Pay and Google Pay do not block the core v1 demo. Local development verifies config, eligibility, fallback display, and Admin debug state; full wallet verification can use hosted preview or an approved HTTPS tunnel later.
+- POP MART assets are local app assets under `web/public/assets/popmart/` using the naming convention below.
 
 ## Recommended Supabase Strategy
 Use migrations and seed files in the repo as the source of truth.
@@ -21,6 +29,8 @@ Development options:
 - Local Supabase CLI for schema/migration iteration and seed validation.
 - Remote Supabase project for presentation-grade shared demo data.
 - Use the same migration and seed source for local and remote so demos do not depend on manually edited dashboard state.
+
+Selected approach: both local CLI and remote project.
 
 Security rules:
 - Browser uses Supabase publishable/anon credentials for Auth only.
@@ -52,6 +62,8 @@ Recommended v1 split:
 - Local development verifies config, eligibility calls, fallback display, and Admin debug state.
 - Full Apple Pay / Google Pay wallet verification should use an HTTPS origin such as a hosted preview or approved tunnel.
 
+Selected approach: eligibility/debug/manual verification locally; full wallet verification later through hosted preview or approved HTTPS tunnel.
+
 Reason:
 - Apple Pay and Google Pay have browser/device/origin prerequisites that may not be reliable on plain localhost.
 - The demo should not block core Delivery/BOPIS PayPal work on local wallet prerequisites.
@@ -82,9 +94,27 @@ Optional local testing variables:
 - `PAYPAL_APPLE_PAY_DOMAIN`
 - `PAYPAL_GOOGLE_PAY_MERCHANT_ID`
 
+## Local Asset Convention
+POP MART assets are customer-specific and stay local to this demo.
+
+POP MART target paths:
+- `web/public/assets/popmart/products/{product-slug}/01.webp`
+- `web/public/assets/popmart/products/{product-slug}/02.webp`
+- `web/public/assets/popmart/products/{product-slug}/03.webp`
+- `web/public/assets/popmart/products/{product-slug}/04.webp`
+- `web/public/assets/popmart/categories/{category-slug}.webp`
+- `web/public/assets/popmart/homepage/{section-slug}.webp`
+
+Generic profile target paths:
+- `web/public/assets/generic/products/{product-slug}/01.webp`
+- `web/public/assets/generic/categories/{category-slug}.webp`
+- `web/public/assets/generic/homepage/{section-slug}.webp`
+
 ## Milestone 0 Exit Criteria
-- Supabase strategy selected: local CLI, remote project, or both.
+- Supabase strategy selected: both local CLI and remote project.
 - PayPal sandbox credentials available through local env only.
+- TypeScript strict-mode scaffold approach confirmed.
+- POP MART asset handoff path and naming convention confirmed.
 - `.env.example` created without secrets.
 - Apple Pay / Google Pay local testing approach confirmed.
 - `scripts/check-agent-system.sh` passes.

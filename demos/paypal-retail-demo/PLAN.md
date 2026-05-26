@@ -23,15 +23,19 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 0: Review And Environment Gate**.
+Current phase: **Milestone 0 decisions closed; prepare Milestone 1 scaffold**.
 
-No application code should be scaffolded until these gates are closed:
-- Planning docs reviewed or explicitly accepted for v1.
-- Supabase local/remote strategy confirmed.
-- PayPal sandbox credential strategy confirmed.
-- TypeScript strict-mode scaffold approach confirmed.
-- POP MART asset handoff path and naming convention confirmed.
-- Apple Pay / Google Pay local testing approach confirmed.
+Milestone 0 decision gates confirmed on 2026-05-26:
+- Supabase strategy: both local CLI and remote project.
+- PayPal sandbox strategy: credentials through local env only, no committed secrets.
+- TypeScript scaffold: strict mode for app-owned web, server, shared, test, and seed code.
+- POP MART assets: local app assets under `web/public/assets/popmart/` with slug-based naming.
+- Apple Pay / Google Pay: local eligibility/debug/manual verification; full wallet verification later through hosted preview or approved HTTPS tunnel.
+
+Operational setup still required during Milestone 1 and before migrations:
+- Create `.env.example` without secrets during scaffold.
+- Install or configure Supabase CLI before Milestone 2 migrations.
+- Verify final PayPal sandbox account capabilities before payment implementation.
 
 ## Source Documents
 
@@ -64,7 +68,7 @@ Read these before implementation:
 - Modify only if decisions change: `demos/paypal-retail-demo/DESIGN.md`
 - Modify only if decisions change: `demos/paypal-retail-demo/IMPLEMENTATION_TASKS.md`
 
-- [ ] **Step 1: Review source docs**
+- [x] **Step 1: Review source docs**
 
 Read:
 ```bash
@@ -76,15 +80,15 @@ sed -n '1,220p' demos/paypal-retail-demo/IMPLEMENTATION_TASKS.md
 
 Expected: no contradictions with TypeScript, BOPIS v1 semantics, shared market/store/tax/shipping data, or UI/UX review rules.
 
-- [ ] **Step 2: Confirm Supabase strategy**
+- [x] **Step 2: Confirm Supabase strategy**
 
 Record the selected approach in `tracking/todos.md` and, if wording changes, `ENVIRONMENT.md`.
 
-Recommended v1 approach:
+Selected v1 approach:
 - local Supabase CLI for migrations and deterministic tests
 - remote Supabase project for stable demo data when presentation readiness begins
 
-- [ ] **Step 3: Confirm PayPal sandbox strategy**
+- [x] **Step 3: Confirm PayPal sandbox strategy**
 
 Record where local env values will come from without writing secrets into repo files.
 
@@ -92,11 +96,11 @@ Expected secret boundary:
 - browser receives only browser-safe client config from Express
 - PayPal client secret, webhook secret, access tokens, and Supabase service role stay server-only
 
-- [ ] **Step 4: Confirm wallet testing approach**
+- [x] **Step 4: Confirm wallet testing approach**
 
-Record whether Apple Pay and Google Pay use HTTPS/ngrok in v1 local testing or remain eligibility/manual verification until hosted.
+Apple Pay and Google Pay remain eligibility/debug/manual verification locally. Full wallet verification can use hosted preview or an approved HTTPS tunnel later.
 
-- [ ] **Step 5: Confirm POP MART asset handoff**
+- [x] **Step 5: Confirm POP MART asset handoff**
 
 Record source folder and filename convention for customer-specific POP MART assets.
 
@@ -105,7 +109,7 @@ Expected target folder:
 demos/paypal-retail-demo/web/public/assets/popmart/
 ```
 
-- [ ] **Step 6: Verify planning structure**
+- [x] **Step 6: Verify planning structure**
 
 Run:
 ```bash

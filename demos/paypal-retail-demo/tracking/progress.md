@@ -22,3 +22,4 @@
 - Locked the implementation language to TypeScript across web, server, shared modules, tests, and seed tooling.
 - Folded UI/UX review findings into the design and execution docs: POP MART visual contract, checkout states, mobile sticky payment rules, accessibility requirements, Admin information architecture, and visual QA gates.
 - Added `PLAN.md` as the active Superpowers-style execution router, with `IMPLEMENTATION_TASKS.md` as the canonical detailed implementation plan.
+- Closed Milestone 0 decision gates for Supabase, PayPal env handling, strict TypeScript scaffold, Apple Pay/Google Pay local testing, and POP MART asset naming.
