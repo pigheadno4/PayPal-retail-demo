@@ -18,11 +18,16 @@ npm run verify
 ```bash
 npm run dev:web
 npm run dev:server
+npm run db:start
+npm run db:reset
+npm run db:lint
 npm run typecheck
 npm test
 npm run lint
 npm run format:check
 ```
+
+Supabase local database commands require Docker Desktop or another compatible Docker daemon.
 
 ## Environment
 

@@ -6,11 +6,15 @@
   "scripts": {
     "dev:web": "vite --config vite.config.ts",
     "dev:server": "tsx watch server/src/server.ts",
+    "supabase": "supabase",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset --local",
+    "db:lint": "supabase db lint --local --schema app --fail-on error",
     "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p supabase/seed/tsconfig.json && tsc --noEmit -p tsconfig.tools.json",
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
-    "format": "prettier --write \"*.{js,json,ts}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\"",
-    "format:check": "prettier --check \"*.{js,json,ts}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\"",
+    "format": "prettier --write \"*.{js,json,ts}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
+    "format:check": "prettier --check \"*.{js,json,ts}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
     "verify": "npm run typecheck && npm test && npm run lint && npm run format:check"
   },
   "dependencies": {
@@ -30,6 +34,7 @@
     "@vitejs/plugin-react": "^4.5.0",
     "eslint": "^9.27.0",
     "prettier": "^3.5.0",
+    "supabase": "^2.101.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.32.0",

@@ -87,7 +87,7 @@
 ## Milestone 0: Review And Environment Gate
 - [x] Review and approve all planning docs for Milestone 1 scaffold.
 - [x] Confirm local Supabase project strategy: local CLI and remote project.
-- [ ] Install or configure the selected Supabase access path before migrations are created.
+- [x] Install or configure the selected Supabase access path before migrations are created.
 - [x] Confirm PayPal sandbox app credentials are available through local env only.
 - [ ] Review `PAYPAL_EVIDENCE.md` against final PayPal sandbox account capabilities.
 - [x] Confirm Apple Pay/Google Pay local testing remains eligibility/debug/manual locally, with hosted preview or approved HTTPS tunnel for full wallet verification later.
@@ -114,10 +114,10 @@ Verification:
 - Unit test command exists and runs with an empty or smoke test suite.
 
 ## Milestone 2: Supabase Schema And Seed
-- [ ] Create migration for private `app` schema.
-- [ ] Create profile, shared market/store/tax/shipping, product price, catalog, release, inventory, buyer, cart, checkout, promo, total snapshot, order, payment, webhook, review, admin, and debug tables from `DATA_MODEL.md`.
-- [ ] Add indexes for profile scoping, market lookup, user ownership, cart lookup, order lookup, payment session lookup, promo explanation lookup, and webhook event IDs.
-- [ ] Add migration-level comments for demo assumptions: tax estimate only, no inventory reservation, shipping excluded from tax/promo.
+- [x] Create migration for private `app` schema.
+- [x] Create profile, shared market/store/tax/shipping, product price, catalog, release, inventory, buyer, cart, checkout, promo, total snapshot, order, payment, webhook, review, admin, and debug tables from `DATA_MODEL.md`.
+- [x] Add indexes for profile scoping, market lookup, user ownership, cart lookup, order lookup, payment session lookup, promo explanation lookup, and webhook event IDs.
+- [x] Add migration-level comments for demo assumptions: tax estimate only, no inventory reservation, shipping excluded from tax/promo.
 - [ ] Create seed runner using service role env.
 - [ ] Seed `popmart` and `generic` profiles with shared markets/stores/tax/shipping, products, market-specific prices, categories, inventory, promos, reviews, and users.
 

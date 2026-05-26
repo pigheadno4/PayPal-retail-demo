@@ -27,3 +27,7 @@
 - Installed dependencies and generated `package-lock.json`. Local install resolved `@paypal/react-paypal-js@9.2.0` with transitive `@paypal/paypal-js@9.7.0`.
 - Verified installed PayPal SDK v6 types include `CreateInstanceOptions.testBuyerCountry?: string`, matching the sandbox buyer-country planning requirement.
 - Verified Milestone 1 commands: `npm run typecheck`, `npm test`, `npm run lint`, and `npm run format:check`.
+- Added local Supabase CLI tooling as a demo dev dependency and initialized `supabase/config.toml`.
+- Created the first Supabase migration through `npx supabase migration new init_app_schema`.
+- Drafted the private `app` schema migration with 38 app tables, RLS enabled on every app table, service-role-only grants, profile/market scoping constraints, promo explanation rows, total snapshots, PayPal invoice/webhook uniqueness, and comments for tax/shipping/inventory demo assumptions.
+- Local migration apply is not yet verified because Docker Desktop/daemon is unavailable in this environment.
