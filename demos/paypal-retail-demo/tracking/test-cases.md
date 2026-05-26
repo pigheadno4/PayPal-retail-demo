@@ -46,12 +46,12 @@
 - [ ] PayPal SDK config API returns sandbox test buyer country in sandbox and omits or nulls it in production.
 - [ ] PayPal SDK v6 provider maps backend `sandbox_test_buyer_country` to `createInstance({ testBuyerCountry })` in sandbox/test.
 - [ ] PayPal SDK v6 provider omits `testBuyerCountry` in production.
-- [ ] PayPal provider key changes when client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
+- [x] PayPal provider key changes when client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
 - [ ] PayPal client token API returns a short-lived client token only for vault-enabled logged-in flows.
 - [ ] Guest checkout cannot request PayPal client token for vaulting.
-- [ ] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
-- [ ] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
-- [ ] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
+- [x] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
+- [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
+- [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
 - [ ] Pending order resume keeps buyer-facing order number stable while generating a new PayPal invoice ID when a fresh PayPal order is required.
 - [ ] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
 - [ ] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.

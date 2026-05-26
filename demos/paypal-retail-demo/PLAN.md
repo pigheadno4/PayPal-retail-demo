@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 2 Supabase schema and seed complete on linked remote; local Supabase verification remains blocked until Docker is available**.
+Current phase: **Milestone 3 deterministic shared-domain logic TDD in progress; local Supabase verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.

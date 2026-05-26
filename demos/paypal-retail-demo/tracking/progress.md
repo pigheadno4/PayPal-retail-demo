@@ -40,3 +40,4 @@
 - Verified linked remote seed counts match the generated summary for profiles, markets, categories, products, product prices, product images, stores, pickup dates, inventory, tax, shipping, and promo tables.
 - Added guarded buyer/account/order seed data: 5 demo auth users, auth identities, user profiles, default addresses, saved payment placeholders, active carts, pending delivery/pickup orders, completed delivery/pickup orders, guest lookup data, payment sessions, total snapshots, PayPal snapshots, lifecycle events, webhooks, and reviews.
 - Verified the guarded seed slice with tests, applied it to the linked remote Supabase project, and confirmed linked remote counts match the generated summary for auth, account, cart, order, payment, webhook, and review tables.
+- Started Milestone 3 deterministic domain logic with TDD for shared money helpers, US/GB market config/provider keys, DO/PO order-number generation, and PayPal invoice attempt suffixes.

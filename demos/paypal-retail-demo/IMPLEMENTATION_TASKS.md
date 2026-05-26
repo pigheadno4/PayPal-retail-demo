@@ -129,8 +129,8 @@ Verification:
 - Seed does not require committed secrets.
 
 ## Milestone 3: Deterministic Domain Logic TDD
-- [ ] Implement money helpers first.
-- [ ] Implement market config helpers for currency, locale, buyer country, Pay Later buyer country, sandbox test buyer country, and PayPal provider key.
+- [x] Implement money helpers first.
+- [x] Implement market config helpers for currency, locale, buyer country, Pay Later buyer country, sandbox test buyer country, and PayPal provider key.
 - [ ] Implement market-scoped product price lookup.
 - [ ] Implement product purchasability and release calendar helpers.
 - [ ] Implement promo engine with auto/manual promos, expiry, compatibility, recommended set, rejected reasons, and snapshots.
@@ -141,8 +141,8 @@ Verification:
 - [ ] Implement cart merge and refresh semantics.
 - [ ] Implement market switch semantics: clear active browser cart binding, fetch/create cart for new market, never convert old cart prices.
 - [ ] Implement pending order resume revalidation rules.
-- [ ] Implement fulfillment-specific order number helpers: `DO-YYYYMMDD-000001` and `PO-YYYYMMDD-000001`.
-- [ ] Implement PayPal invoice ID helper that appends an attempt suffix when a fresh payment session is created for the same pending order.
+- [x] Implement fulfillment-specific order number helpers: `DO-YYYYMMDD-000001` and `PO-YYYYMMDD-000001`.
+- [x] Implement PayPal invoice ID helper that appends an attempt suffix when a fresh payment session is created for the same pending order.
 - [ ] Implement order status transition rules.
 
 Verification:
