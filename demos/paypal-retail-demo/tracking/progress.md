@@ -1,0 +1,21 @@
+# Progress
+
+## 2026-05-26
+- Brainstormed and approved the flagship PayPal retail demo direction.
+- Selected demo folder name: `paypal-retail-demo`.
+- Confirmed default POP MART profile and reusable MochiToy Studio profile.
+- Confirmed Vite React frontend, Node.js Express backend, Supabase Auth/database, local assets, PayPal JS SDK v6/npm v9.x.
+- Created initial protocol documentation and tracking structure.
+- Verified the initial files exist, contain no placeholder markers, and pass `scripts/check-agent-system.sh`.
+- Corrected BOPIS planning docs: v1 uses capture-at-checkout with specific Create Order pickup parameters, not the authorize-at-pickup guide.
+- Added `DATA_MODEL.md` with Supabase schema, profile scoping, snapshots, inventory, promo/tax/shipping, and seed plan.
+- Added `API_CONTRACT.md` with Express route draft, PayPal payload contracts, cart/checkout/payment rules, and Admin API scope.
+- Updated planning todos and test cases for the data/API contract review gate.
+- Added `IMPLEMENTATION_TASKS.md` with planned file structure, milestone sequencing, TDD gates, and QA milestones.
+- Refined PayPal API contract for SDK config/client token split, DO/PO order numbers, duplicate-safe PayPal invoice IDs, idempotency keys, and detailed line-item payloads.
+- Refined market-switch planning: markets now carry currency, locale, buyer country, Pay Later buyer country, sandbox test buyer country, component set, and provider key behavior; carts/prices/pending orders are market-scoped.
+- Confirmed from local `wiki-v2` PayPal JS SDK v6 type snapshot that sandbox buyer simulation maps to `createInstance({ testBuyerCountry })`; updated docs and tests to use backend `sandbox_test_buyer_country` as the stored/API field.
+- Filled schema gaps for guest order lookup, promo region/product scoping, and total snapshots; moved SDK `testBuyerCountry` frontend mapping from PayPal payload-builder milestone to payment UI milestone.
+- Added `ENVIRONMENT.md` with local tool probe, Supabase/PayPal environment strategy, secret boundaries, wallet testing approach, and initial env variable shape.
+- Added `PAYPAL_EVIDENCE.md` to map each planned PayPal capability to local `wiki-v2` source pages and distinguish PayPal-confirmed behavior from demo-specific BOPIS receiver-name convention.
+- Refined data model after database review: shared market/store/tax/shipping reference data, profile-scoped inventory/promos, checkout-capable total snapshots, promo explanation rows, and explicit constraint/index expectations.
