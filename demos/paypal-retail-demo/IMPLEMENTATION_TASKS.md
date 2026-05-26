@@ -131,8 +131,8 @@ Verification:
 ## Milestone 3: Deterministic Domain Logic TDD
 - [x] Implement money helpers first.
 - [x] Implement market config helpers for currency, locale, buyer country, Pay Later buyer country, sandbox test buyer country, and PayPal provider key.
-- [ ] Implement market-scoped product price lookup.
-- [ ] Implement product purchasability and release calendar helpers.
+- [x] Implement market-scoped product price lookup.
+- [x] Implement product purchasability and release calendar helpers.
 - [ ] Implement promo engine with auto/manual promos, expiry, compatibility, recommended set, rejected reasons, and snapshots.
 - [ ] Implement tax calculation after promo and excluding shipping.
 - [ ] Implement destination-based shipping option selection with cheapest default.

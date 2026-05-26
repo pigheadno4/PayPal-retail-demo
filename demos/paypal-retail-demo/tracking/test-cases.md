@@ -15,7 +15,8 @@
 - [ ] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
 - [ ] Market switch never converts existing cart prices or currency.
 - [ ] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.
-- [ ] Product price lookup returns the active `product_prices` row for the current profile and market.
+- [x] Product price lookup returns the active `product_prices` row for the current profile and market.
+- [x] Product purchase state blocks unreleased/future products from checkout and review eligibility.
 - [ ] Pending order resume uses order snapshot and revalidates current rules.
 - [ ] Pending order resume creates a fresh payment session if the old session is expired or invalid.
 - [ ] Promo evaluation supports automatic promos, manual codes, compatibility, expiry, and buyer selection.
