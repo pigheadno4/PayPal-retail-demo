@@ -23,3 +23,7 @@
 - Folded UI/UX review findings into the design and execution docs: POP MART visual contract, checkout states, mobile sticky payment rules, accessibility requirements, Admin information architecture, and visual QA gates.
 - Added `PLAN.md` as the active Superpowers-style execution router, with `IMPLEMENTATION_TASKS.md` as the canonical detailed implementation plan.
 - Closed Milestone 0 decision gates for Supabase, PayPal env handling, strict TypeScript scaffold, Apple Pay/Google Pay local testing, and POP MART asset naming.
+- Completed Milestone 1 scaffold: demo-level npm workspace, strict TypeScript project references, Vite React app shell, Express server shell, shared module/test smoke suite, Supabase seed folder, lint/test/typecheck scripts, `.env.example`, and README runbook stub.
+- Installed dependencies and generated `package-lock.json`. Local install resolved `@paypal/react-paypal-js@9.2.0` with transitive `@paypal/paypal-js@9.7.0`.
+- Verified installed PayPal SDK v6 types include `CreateInstanceOptions.testBuyerCountry?: string`, matching the sandbox buyer-country planning requirement.
+- Verified Milestone 1 commands: `npm run typecheck`, `npm test`, `npm run lint`, and `npm run format:check`.

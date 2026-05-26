@@ -11,7 +11,7 @@
 - [x] Review and approve `IMPLEMENTATION_TASKS.md` for Milestone 1 scaffold.
 - [x] Review and approve `PLAN.md` for Milestone 1 scaffold.
 - [x] Confirm final `wiki-v2` PayPal source references for SDK v6, Pay Later, card fields, Apple Pay, Google Pay, Venmo, vaulting, webhooks, and BOPIS payload fields.
-- [ ] During dependency install, verify the installed JS SDK v6 / `@paypal/react-paypal-js` v9 types still support `createInstance({ testBuyerCountry })`.
+- [x] During dependency install, verify the installed JS SDK v6 / `@paypal/react-paypal-js` v9 types still support `createInstance({ testBuyerCountry })`.
 - [ ] Confirm Supabase schema/RLS approach before migration files are created.
 - [x] Confirm local Supabase project/env setup approach: local CLI for migrations/tests and remote project for stable presentation data.
 - [x] Confirm PayPal sandbox app/env setup approach: local env only, no committed secrets.
@@ -21,4 +21,5 @@
 - [x] Confirm POP MART asset convention under `web/public/assets/popmart/`.
 
 ## Implementation
-- [ ] Begin Milestone 1 scaffold from `PLAN.md` Task 1.
+- [x] Complete Milestone 1 scaffold from `PLAN.md` Task 1.
+- [ ] Prepare Milestone 2 Supabase schema/RLS approach before migration files are created.

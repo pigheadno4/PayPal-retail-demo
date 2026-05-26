@@ -9,5 +9,6 @@ build/
 .next/
 .turbo/
 coverage/
+*.tsbuildinfo
 
 .superpowers/

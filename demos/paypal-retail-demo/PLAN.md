@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 0 decisions closed; prepare Milestone 1 scaffold**.
+Current phase: **Milestone 1 scaffold complete; prepare Milestone 2 Supabase schema**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.
@@ -134,15 +134,15 @@ Execute after Task 0 gates are closed.
 - Modify: `demos/paypal-retail-demo/tracking/progress.md`
 - Modify: `demos/paypal-retail-demo/tracking/todos.md`
 
-- [ ] **Step 1: Scaffold TypeScript workspace**
+- [x] **Step 1: Scaffold TypeScript workspace**
 
 Follow `IMPLEMENTATION_TASKS.md` Milestone 1. Use strict TypeScript for app-owned code unless a specific exception is documented.
 
-- [ ] **Step 2: Add environment example**
+- [x] **Step 2: Add environment example**
 
 Create `.env.example` from `ENVIRONMENT.md` with explicit browser-safe versus server-only variable names. Do not add real secrets.
 
-- [ ] **Step 3: Add smoke checks**
+- [x] **Step 3: Add smoke checks**
 
 Add package scripts for install verification, typecheck, and tests.
 
@@ -153,7 +153,7 @@ npm run typecheck
 npm test
 ```
 
-- [ ] **Step 4: Update tracking**
+- [x] **Step 4: Update tracking**
 
 Mark completed scaffold work in `tracking/progress.md` and keep remaining gates in `tracking/todos.md`.
 

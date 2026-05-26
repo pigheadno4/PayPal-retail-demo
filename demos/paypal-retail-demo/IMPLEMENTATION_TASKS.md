@@ -100,12 +100,12 @@ Verification:
 - No secrets are present in docs or tracked files.
 
 ## Milestone 1: Demo Scaffold
-- [ ] Create demo package/workspace scripts.
-- [ ] Create `web`, `server`, `shared`, and `supabase` folders.
-- [ ] Add TypeScript, lint, format, and test setup.
-- [ ] Add shared strict TypeScript config and package-level configs for web, server, shared, tests, and seed tooling.
-- [ ] Add `.env.example` with explicit browser-safe versus server-only variables.
-- [ ] Add README runbook stub with real commands once scripts exist.
+- [x] Create demo package/workspace scripts.
+- [x] Create `web`, `server`, `shared`, and `supabase` folders.
+- [x] Add TypeScript, lint, format, and test setup.
+- [x] Add shared strict TypeScript config and package-level configs for web, server, shared, tests, and seed tooling.
+- [x] Add `.env.example` with explicit browser-safe versus server-only variables.
+- [x] Add README runbook stub with real commands once scripts exist.
 
 Verification:
 - `npm install` succeeds in the demo folder after dependencies are chosen.
