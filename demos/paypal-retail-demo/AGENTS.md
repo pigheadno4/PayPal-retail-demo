@@ -8,6 +8,7 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 - Keep buyer UI retail-first; PayPal branding belongs in official payment surfaces, not hero/nav marketing.
 - Treat POP MART assets as customer-specific and not reusable outside this demo.
 - Keep the generic MochiToy Studio profile public-safe and fictional.
+- Use TypeScript for web, server, shared modules, tests, and seed tooling.
 - Ask before changing payment-flow semantics, BOPIS payload semantics, vaulting behavior, promo/tax rules, or cart/order lifecycle rules.
 - Update `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, and `tracking/test-cases.md` when payment behavior changes.
 - Verify affected behavior before reporting completion.

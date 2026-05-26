@@ -27,6 +27,8 @@ Create a customer-ready collectible retail demo that feels like a real POP MART 
 - Local assets live under `web/public/assets/popmart/`.
 - Requires 25 products, 5 categories, and 3-4 real images per product.
 - No product gallery placeholders.
+- Visual contract: clean retail storefront, white/light neutral content surfaces, image-led product grids, compact badges, simple category navigation, and strong product photography.
+- Do not apply the generic profile's vintage blue/amber/cream direction to the POP MART buyer storefront.
 
 ### Generic Profile
 - Brand: MochiToy Studio.
@@ -45,6 +47,22 @@ PayPal appears only in:
 - Admin Portal technical details
 
 No PayPal-heavy hero, header, nav, or promotional co-branding.
+
+## Visual System Rules
+- Favor product imagery, collectible character art, and retail merchandising density over abstract decorative effects.
+- Avoid heavy glassmorphism, blurred translucent panels, large gradients, and decorative orbs; these reduce readability and do not match the POP MART storefront goal.
+- Use restrained motion: hover/focus transitions around 150-300ms, with `prefers-reduced-motion` support.
+- Use icon buttons where the action is familiar, with accessible labels/tooltips.
+- Preserve space for async Pay Later messages and payment buttons so layout does not jump when PayPal eligibility finishes loading.
+- Text contrast must meet at least 4.5:1 for normal text. Do not communicate inventory, promo, release, or error state by color alone.
+
+## Accessibility And Form Rules
+- Every meaningful product, banner, and category image needs descriptive alt text.
+- Form errors use `role="alert"` or `aria-live` and should move focus to the first invalid field after submit.
+- Accordions move focus to the newly expanded step after successful submit.
+- Use appropriate mobile keyboards: `inputmode="numeric"` for ZIP/postcode where applicable, phone, quantity, and numeric verification fields.
+- Sticky header and sticky bottom payment bar must not cover page content; reserve matching top/bottom padding.
+- Calendar dates, inventory status, promo results, and lifecycle states must use text or icons in addition to color.
 
 ## Homepage
 Homepage includes:
@@ -65,6 +83,8 @@ Hot sales and popular series use curated seed flags.
 - Selected date shows related release products.
 - Product cards link to PDP.
 - Future release products are viewable but not purchasable.
+- Include a compact legend for release status markers so outlined circles and color dots are not the only explanation.
+- Keyboard users can move between dates and open the selected date's product list.
 
 Future-release PDP:
 - Status: not released / coming soon.
@@ -86,6 +106,7 @@ Filters:
 Pickup filter:
 - enabled for logged-in buyer with default address or guest with ZIP/postcode
 - disabled with hint if no location context exists
+- Filter drawers and chips show applied count and provide a clear reset action.
 
 ## Product Detail Page
 PDP focuses on the item.
@@ -131,6 +152,15 @@ Checkout is one `/checkout` page with top-level tabs:
 
 Each tab has its own accordion flow. Order Summary stays visible and reflects active tab draft totals/context.
 
+Checkout steps must define these UI states:
+- idle
+- saving
+- saved/collapsed
+- editing
+- recalculating totals
+- blocked/error
+- locked after payment session starts
+
 Before payment session:
 - buyer can switch tabs
 - Delivery/Pickup states are preserved separately
@@ -173,6 +203,8 @@ Unavailable items:
 - remain in original cart
 - do not decrement store inventory
 
+Store cards must show available and unavailable item counts before the buyer submits the store. If a store is partial, the callout must say that unavailable items stay in the original cart.
+
 ## Payment Method UX
 Payment section uses radio-first layout.
 
@@ -186,6 +218,9 @@ Rules:
 - Venmo selected: official Venmo button under Order Summary when eligible.
 - Card selected: card fields expand in payment section; card pay button is inside card box.
 - Mobile: selected non-card action appears in sticky bottom payment bar.
+- Mobile sticky bar shows only one selected non-card payment action at a time.
+- Mobile sticky bar reserves space for the selected method label, total, button, and any required Pay Later message without overlapping content.
+- Card payment never moves into the sticky bar; its pay button stays inside the card fields box.
 
 Guests cannot save payment methods.
 
@@ -227,6 +262,8 @@ Shipping fee is excluded from promo and tax calculations.
 - One eligible promo set auto-applies, buyer can remove/change.
 - Multiple valid sets show recommended best option and alternatives.
 - Manual code shows accepted/rejected/conflict result.
+- Recalculation states should use plain language such as "Checking offers for this address..." and must not block unrelated form edits.
+- Buyer-facing promo explanations stay concise; Admin Portal shows detailed selected/rejected promo reasons.
 
 Promo evaluation snapshots store matched/rejected promos, compatible sets, discount amounts, taxable effects, totals, and timestamp/version.
 
@@ -332,6 +369,14 @@ Scope:
 - verified webhook viewer
 - runtime debug logs
 
+Information architecture:
+- Orders: list, filters, status, fulfillment mode, payment status, and order detail.
+- Order detail: buyer/order summary, lifecycle timeline, total snapshots, promo evaluation lines, PayPal snapshot, inventory effect, and linked webhooks.
+- Webhooks: event list, verification status, linked order/payment session, processing result, and sanitized payload viewer.
+- Inventory: central inventory, store inventory, partial pickup scenarios, and pickup date capacity.
+- Lifecycle: manual delivery and pickup state controls with audit notes.
+- Debug: sanitized runtime logs and amount comparison snapshots.
+
 No admin user switcher. No reset tools in v1.
 
 Manual lifecycle:
@@ -342,14 +387,22 @@ Manual lifecycle:
 Profile-scoped:
 - products
 - categories
-- stores
-- inventory
-- carts
-- orders
 - reviews through products
-- promos
+
+Market reference data shared across profiles:
+- markets
+- stores
+- pickup dates
 - tax rules
 - shipping options
+
+Profile-and-market scoped:
+- product prices
+- inventory
+- carts
+- checkout drafts
+- orders
+- promos
 - homepage content
 
 User-level/shared:
@@ -358,6 +411,13 @@ User-level/shared:
 - saved payment methods
 
 Order snapshots store addresses, item prices, fulfillment mode, inventory context, promo evaluation, tax, shipping, and totals.
+
+## Visual QA Gates
+- Check responsive screenshots at 375px, 768px, 1024px, and 1440px.
+- Required screenshot pages: homepage, category, PDP, cart, minicart, delivery checkout payment step, pickup checkout partial inventory step, express Review and Confirm, order confirmation, account order detail, and Admin order detail.
+- Verify sticky header and sticky payment bar do not cover content.
+- Verify all text fits inside buttons, cards, accordions, and payment rows.
+- Verify PayPal buttons/messages render without causing major layout shift.
 
 ## Open Decisions
 - Exact PayPal JS SDK v6 APIs for each payment method.

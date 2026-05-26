@@ -53,10 +53,16 @@
 
 ## Buyer Flows
 - [ ] Homepage calendar marks release dates with outlined circles.
+- [ ] Homepage calendar includes a legend and does not rely on color alone.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
 - [ ] Cart and minicart show pickup hints without pickup buttons.
 - [ ] Delivery checkout completes all accordion steps.
 - [ ] Pickup checkout completes store, billing, pickup date, payment.
+- [ ] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
+- [ ] Checkout form errors are announced and focus moves to the first invalid field.
+- [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
+- [ ] Card payment button remains inside the card fields box on mobile and desktop.
+- [ ] Partial pickup store cards show available and unavailable counts before store submit.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.
 - [ ] Guest checkout completes and offers inline account creation.
 - [ ] Guest order lookup requires order number and email.
@@ -88,4 +94,13 @@
 - [ ] Manual delivery lifecycle updates order timeline.
 - [ ] Manual pickup lifecycle updates order timeline.
 - [ ] Admin inventory changes affect subsequent checkout/pending resume validation.
+- [ ] Admin order detail shows timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
 - [ ] Runtime debug logs are visible without exposing secrets.
+
+## Visual QA
+- [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
+- [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
+- [ ] Meaningful product, category, and banner images have descriptive alt text.
+- [ ] PayPal buttons and Pay Later messages render without major layout shift.
+- [ ] Sticky header and sticky payment bar do not obscure content.
+- [ ] Text fits inside buttons, cards, accordions, and payment rows.

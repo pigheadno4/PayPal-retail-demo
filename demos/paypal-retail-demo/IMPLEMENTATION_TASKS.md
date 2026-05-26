@@ -12,6 +12,7 @@
 
 ## Execution Rules
 - Do not start implementation until `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, `DATA_MODEL.md`, and `API_CONTRACT.md` are approved.
+- Use TypeScript for web, server, shared domain modules, tests, and seed tooling.
 - Start implementation with tests for deterministic business logic before UI.
 - Use `/Users/tengtao/Development/wiki-v2` for PayPal evidence.
 - Do not replace the v1 BOPIS Create Order contract with authorize-at-checkout/capture-at-pickup.
@@ -24,6 +25,7 @@
 - `demos/paypal-retail-demo/package.json`: demo-level workspace scripts.
 - `demos/paypal-retail-demo/.env.example`: browser-safe and server-only env names with no secrets.
 - `demos/paypal-retail-demo/README.md`: runbook after commands are real.
+- `demos/paypal-retail-demo/PLAN.md`: active Superpowers-style execution router.
 - `demos/paypal-retail-demo/DEMO.md`: business/product contract.
 - `demos/paypal-retail-demo/DESIGN.md`: UX contract.
 - `demos/paypal-retail-demo/IMPLEMENTATION_PLAN.md`: architecture/milestones.
@@ -101,12 +103,14 @@ Verification:
 - [ ] Create demo package/workspace scripts.
 - [ ] Create `web`, `server`, `shared`, and `supabase` folders.
 - [ ] Add TypeScript, lint, format, and test setup.
+- [ ] Add shared strict TypeScript config and package-level configs for web, server, shared, tests, and seed tooling.
 - [ ] Add `.env.example` with explicit browser-safe versus server-only variables.
 - [ ] Add README runbook stub with real commands once scripts exist.
 
 Verification:
 - `npm install` succeeds in the demo folder after dependencies are chosen.
 - Typecheck command exists and runs.
+- TypeScript strict mode is enabled for app-owned code unless a specific exception is documented.
 - Unit test command exists and runs with an empty or smoke test suite.
 
 ## Milestone 2: Supabase Schema And Seed
@@ -220,6 +224,8 @@ Verification:
 ## Milestone 8: Web App Shell And Design System
 - [ ] Build React app shell and routing.
 - [ ] Add POP MART-style design tokens and responsive layout primitives.
+- [ ] Add generic MochiToy visual tokens separately so POP MART mode does not inherit the generic blue/amber/cream direction.
+- [ ] Add accessibility primitives for focus-visible states, alert regions, form errors, and reduced-motion support.
 - [ ] Add profile-aware asset resolver.
 - [ ] Add market-aware config provider that remounts only the PayPal payment subtree when `provider_key` changes.
 - [ ] Add API client and state providers.
@@ -234,12 +240,14 @@ Verification:
 
 ## Milestone 9: Storefront And Catalog UI
 - [ ] Build homepage hero, hot sales, categories, release calendar, Pay Later promo, promo cards, popular series, and footer.
+- [ ] Build release calendar legend and color-independent release state labels.
 - [ ] Build category filters.
 - [ ] Build PDP gallery, product status, product details, price display, Pay Later message placement, add-to-cart, express buttons, and reviews.
 - [ ] Block unreleased product checkout actions and hide reviews.
 
 Verification:
 - Calendar release dates render as outlined/unfilled circles.
+- Calendar release state is understandable without relying on color alone.
 - PDP image switching works with 3-4 images.
 - PDP has no pickup hint.
 - Homepage/category Pay Later promo has no amount.
@@ -258,6 +266,9 @@ Verification:
 - [ ] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
 - [ ] Build Delivery accordion: shipping address, billing address, shipping option, payment.
 - [ ] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
+- [ ] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
+- [ ] Build focus movement and announced errors for checkout form validation.
+- [ ] Build partial pickup store card counts before store submit.
 - [ ] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
 - [ ] Build mobile sticky payment action for selected non-card methods.
 
@@ -265,6 +276,8 @@ Verification:
 - Buyer can switch tabs before payment session starts.
 - Fulfillment mode locks after payment session starts.
 - Pickup partial inventory excludes unavailable items from payment amount but leaves them in cart.
+- Sticky payment bar does not cover checkout content.
+- Card payment stays inside the expanded card fields box on mobile and desktop.
 
 ## Milestone 12: Payment UI Integration
 - [ ] Integrate PayPal SDK v6 provider/loading.
@@ -275,6 +288,7 @@ Verification:
 - [ ] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
 - [ ] Render card fields expanded in the payment step with save checkbox inside card box.
 - [ ] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
+- [ ] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
 - [ ] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
 
 Verification:
@@ -316,6 +330,7 @@ Verification:
 - [ ] Build `/admin` passcode gate.
 - [ ] Build profile/market global controls.
 - [ ] Build order list/detail and lifecycle controls.
+- [ ] Build Admin order detail sections for timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
 - [ ] Build inventory and pickup date controls.
 - [ ] Build webhook viewer.
 - [ ] Build payment/order debug viewer.
@@ -330,7 +345,12 @@ Verification:
 ## Milestone 16: QA, UX Review, And Demo Polish
 - [ ] Run unit/API/UI test suite.
 - [ ] Run manual PayPal sandbox checklist.
-- [ ] Run responsive visual QA for desktop and mobile.
+- [ ] Run responsive visual QA at 375px, 768px, 1024px, and 1440px.
+- [ ] Verify sticky header and sticky bottom payment bar do not cover content.
+- [ ] Verify checkout forms announce errors and move focus predictably.
+- [ ] Verify release calendar, promo, inventory, and lifecycle states do not rely on color alone.
+- [ ] Verify PayPal buttons/messages render without major layout shift.
+- [ ] Verify POP MART mode does not inherit generic profile colors or visual treatment.
 - [ ] Verify POP MART asset quality and replace weak images.
 - [ ] Verify generic MochiToy profile assets are public-safe.
 - [ ] Update runbook with exact commands.

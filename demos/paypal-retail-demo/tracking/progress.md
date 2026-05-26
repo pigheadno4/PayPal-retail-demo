@@ -19,3 +19,6 @@
 - Added `ENVIRONMENT.md` with local tool probe, Supabase/PayPal environment strategy, secret boundaries, wallet testing approach, and initial env variable shape.
 - Added `PAYPAL_EVIDENCE.md` to map each planned PayPal capability to local `wiki-v2` source pages and distinguish PayPal-confirmed behavior from demo-specific BOPIS receiver-name convention.
 - Refined data model after database review: shared market/store/tax/shipping reference data, profile-scoped inventory/promos, checkout-capable total snapshots, promo explanation rows, and explicit constraint/index expectations.
+- Locked the implementation language to TypeScript across web, server, shared modules, tests, and seed tooling.
+- Folded UI/UX review findings into the design and execution docs: POP MART visual contract, checkout states, mobile sticky payment rules, accessibility requirements, Admin information architecture, and visual QA gates.
+- Added `PLAN.md` as the active Superpowers-style execution router, with `IMPLEMENTATION_TASKS.md` as the canonical detailed implementation plan.

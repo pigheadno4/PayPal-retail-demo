@@ -15,8 +15,9 @@ Out of scope for v1:
 - reset/reseed tooling
 
 ## Technical Stack
-- Web: Vite React
-- Backend: Node.js Express
+- Web: Vite React with TypeScript
+- Backend: Node.js Express with TypeScript
+- Shared domain: TypeScript modules consumed by web, server, tests, and seed tooling
 - Database/Auth: Supabase
 - Assets: local app assets
 - Payments: PayPal JS SDK v6 and npm package v9.x
@@ -303,6 +304,9 @@ Use focused Playwright after core flow stabilizes:
 - guest order lookup
 - account order history
 - admin passcode gate
+- visual QA at 375px, 768px, 1024px, and 1440px for storefront, checkout, and Admin detail views
+- sticky header and sticky payment bar overlap checks
+- accessibility checks for focus order, announced errors, image alt text, and color-independent status labels
 
 ### Manual Sandbox Verification
 Required for:
@@ -325,6 +329,8 @@ Required for:
 - Build shared product/category/cart/checkout components.
 - Build account and guest order lookup pages.
 - Build `/admin` React portal.
+- Keep POP MART mode image-led and retail-first; do not apply heavy glassmorphism or generic profile colors to the POP MART storefront.
+- Reserve layout space for PayPal buttons and Pay Later messages to avoid large layout shifts after eligibility checks.
 
 ### Backend
 - Express API organized by domain:
@@ -347,7 +353,7 @@ Required for:
 ### Database
 - Supabase schema for profiles, shared markets/stores/tax/shipping, products, categories, inventory, carts, orders, promos, reviews, saved payments, webhooks, and debug logs.
 - Supabase Auth for buyers.
-- Seed script creates demo auth users with service role key from env.
+- TypeScript seed script creates demo auth users with service role key from env.
 - Initial seed required; reset/reseed deferred.
 
 ### Assets
@@ -364,6 +370,7 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 - Create demo docs and tracking files.
 - Confirm final docs with user.
 - Create web/server/shared/supabase structure.
+- Add TypeScript config for web, server, shared modules, tests, and seed tooling.
 - Add demo-specific AGENTS guardrails.
 
 ### M2: Supabase Schema And Seed
@@ -397,11 +404,13 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 ### M6: Checkout
 - Delivery/Pickup tabs.
 - Accordion flows.
+- Explicit loading, saving, recalculating, error, and locked states.
 - Delivery address/billing/shipping option.
 - Pickup ZIP/default address ranking, store selection, billing, pickup date.
 - Active tab Order Summary.
 - Promo selection inline.
 - Payment wall UI.
+- Mobile sticky payment bar with only one selected non-card action.
 
 ### M7: PayPal Delivery And Express
 - PayPal JS SDK v6 integration.
@@ -453,10 +462,11 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 - Inventory/pickup date controls.
 - Runtime debug logs.
 - Payment/order details.
+- Order detail information architecture for timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
 
 ### M14: QA And Polish
 - Manual sandbox checklist.
-- UI polish and responsive checks.
+- UI polish, accessibility checks, and responsive screenshot checks.
 - POP MART asset pass.
 - MochiToy generated asset review.
 - Tracking updates.
