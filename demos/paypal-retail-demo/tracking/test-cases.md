@@ -19,15 +19,15 @@
 - [x] Product purchase state blocks unreleased/future products from checkout and review eligibility.
 - [ ] Pending order resume uses order snapshot and revalidates current rules.
 - [ ] Pending order resume creates a fresh payment session if the old session is expired or invalid.
-- [ ] Promo evaluation supports automatic promos, manual codes, compatibility, expiry, and buyer selection.
-- [ ] Promo evaluation respects country/state/county/postal promo scopes.
-- [ ] Promo evaluation respects product/category promo scopes and exclusions.
-- [ ] Promo evaluation recommends the best compatible promo set, not simply the largest single promo.
+- [x] Promo evaluation supports automatic promos, manual codes, compatibility, expiry, and buyer selection.
+- [x] Promo evaluation respects country/state/county/postal promo scopes.
+- [x] Promo evaluation respects product/category promo scopes and exclusions.
+- [x] Promo evaluation recommends the best compatible promo set, not simply the largest single promo.
 - [ ] Promo evaluation records Admin-readable selected/rejected line reasons without exposing internal debug details in buyer UI.
-- [ ] Tax calculation excludes shipping and runs after eligible promo discounts.
+- [x] Tax calculation excludes shipping and runs after eligible promo discounts.
 - [ ] Total snapshots can be written before an order exists for checkout draft recalculation.
 - [ ] Total snapshots preserve calculation stage, promo evaluation, taxable subtotal, tax, shipping, and final total.
-- [ ] Shipping options are destination-based and cheapest option defaults.
+- [x] Shipping options are destination-based and cheapest option defaults.
 - [ ] Store records are market-scoped and shared across profiles, while store inventory remains profile-and-market scoped.
 - [ ] BOPIS store ranking preselects nearest store even if partial.
 - [ ] Partial BOPIS excludes unavailable items from payment amount and keeps them in cart.

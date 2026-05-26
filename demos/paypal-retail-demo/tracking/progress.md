@@ -42,3 +42,4 @@
 - Verified the guarded seed slice with tests, applied it to the linked remote Supabase project, and confirmed linked remote counts match the generated summary for auth, account, cart, order, payment, webhook, and review tables.
 - Started Milestone 3 deterministic domain logic with TDD for shared money helpers, US/GB market config/provider keys, DO/PO order-number generation, and PayPal invoice attempt suffixes.
 - Added shared catalog helpers with TDD for market-scoped active product price lookup, sale/current price normalization, product purchase state, and outlined release calendar entries.
+- Added shared promo, tax, and shipping helpers with TDD for best compatible promo-set recommendation, region/product promo scopes, tax after promo excluding shipping, and cheapest eligible shipping defaults.
