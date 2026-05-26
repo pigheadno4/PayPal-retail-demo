@@ -11,3 +11,5 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - Adding the Supabase CLI with `npm install supabase --save-dev` required network approval after an initial sandbox DNS failure.
 - Supabase CLI `2.101.0` needs access to `~/.supabase` for cache/telemetry files; CLI commands that touch that path require elevated execution in this sandbox.
 - `npx supabase db reset --local --no-seed` failed because Docker is not available/running: `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`. Migration apply verification is blocked until Docker Desktop/local Supabase is available.
+- `npx supabase migration list --linked` failed without `SUPABASE_DB_PASSWORD`, but `npx supabase db push --linked`, `npx supabase db advisors --linked`, and `npx supabase db query --linked ...` worked through the linked project login role.
+- Remote advisor pass initially found `app.set_updated_at` mutable search path and public execution on `public.rls_auto_enable()`. Migration `20260526094945_harden_function_search_paths.sql` fixed those; rerun returned `No issues found`.

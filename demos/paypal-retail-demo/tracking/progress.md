@@ -31,3 +31,6 @@
 - Created the first Supabase migration through `npx supabase migration new init_app_schema`.
 - Drafted the private `app` schema migration with 38 app tables, RLS enabled on every app table, service-role-only grants, profile/market scoping constraints, promo explanation rows, total snapshots, PayPal invoice/webhook uniqueness, and comments for tax/shipping/inventory demo assumptions.
 - Local migration apply is not yet verified because Docker Desktop/daemon is unavailable in this environment.
+- Linked a remote Supabase project and applied the initial schema migration with `npx supabase db push --linked`.
+- Added and applied a follow-up hardening migration for function search paths and public execution grants after Supabase advisors flagged security warnings.
+- Verified the linked remote database reports 38 `app` tables and `npx supabase db advisors --linked` returns no issues.

@@ -16,6 +16,6 @@ Local Supabase commands require Docker Desktop or another compatible Docker daem
 
 ## Current Status
 
-The initial private `app` schema migration has been drafted. Local apply verification is blocked until Docker is available.
+The initial private `app` schema migration has been drafted and applied to the linked remote Supabase project. Local apply verification is blocked until Docker is available.
 
 Do not commit Supabase service role credentials, database passwords, or project secrets.

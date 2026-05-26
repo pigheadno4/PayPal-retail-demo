@@ -23,5 +23,6 @@
 ## Implementation
 - [x] Complete Milestone 1 scaffold from `PLAN.md` Task 1.
 - [x] Prepare Milestone 2 Supabase schema/RLS approach before migration files are created.
-- [ ] Verify the initial Supabase migration applies once Docker Desktop/local Supabase is available.
+- [x] Verify the initial Supabase migration applies against the linked remote Supabase project.
+- [ ] Verify the Supabase migrations apply on local Supabase once Docker Desktop/local Supabase is available.
 - [ ] Build the TypeScript seed runner data for the two demo profiles.
