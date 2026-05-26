@@ -6,6 +6,7 @@ export default defineConfig({
     include: [
       "shared/src/**/*.test.ts",
       "server/tests/**/*.test.ts",
+      "supabase/seed/**/*.test.ts",
       "web/src/**/*.test.{ts,tsx}",
     ],
   },

@@ -52,7 +52,7 @@
 - `demos/paypal-retail-demo/supabase/config.toml`: local Supabase config if local CLI is used.
 - `demos/paypal-retail-demo/supabase/migrations/`: generated migrations.
 - `demos/paypal-retail-demo/supabase/seed/`: seed data source files.
-- `demos/paypal-retail-demo/supabase/seed/run-seed.ts`: seed runner using service role env.
+- `demos/paypal-retail-demo/supabase/seed/run-seed.ts`: deterministic TypeScript seed runner that can generate SQL and apply through linked/local Supabase CLI without committed secrets.
 
 ### Express Server
 - `demos/paypal-retail-demo/server/src/app.ts`: Express app wiring.
@@ -118,12 +118,14 @@ Verification:
 - [x] Create profile, shared market/store/tax/shipping, product price, catalog, release, inventory, buyer, cart, checkout, promo, total snapshot, order, payment, webhook, review, admin, and debug tables from `DATA_MODEL.md`.
 - [x] Add indexes for profile scoping, market lookup, user ownership, cart lookup, order lookup, payment session lookup, promo explanation lookup, and webhook event IDs.
 - [x] Add migration-level comments for demo assumptions: tax estimate only, no inventory reservation, shipping excluded from tax/promo.
-- [ ] Create seed runner using service role env.
-- [ ] Seed `popmart` and `generic` profiles with shared markets/stores/tax/shipping, products, market-specific prices, categories, inventory, promos, reviews, and users.
+- [x] Create deterministic TypeScript seed runner for generated SQL and linked/local Supabase CLI apply.
+- [x] Seed `popmart` and `generic` storefront/reference data with shared markets/stores/tax/shipping, products, market-specific prices, categories, release calendar data, inventory, homepage sections, and promos.
+- [ ] Seed guarded buyer/account/order data with auth users, default addresses, saved payment placeholders, reviews, pending orders, completed orders, and lifecycle snapshots.
 
 Verification:
-- Migration applies on a clean local database.
-- Seed creates 2 profiles, shared active markets, 5 categories/profile, 25 products/profile, one active price/product/market, 9 stores/market, and 5 shared auth users.
+- Migration applies on the linked remote database; clean local apply remains blocked until Docker/local Supabase is available.
+- Storefront/reference seed creates 2 profiles, shared active markets, 5 categories/profile, 25 products/profile, one active price/product/market, 9 stores/market, tax/shipping rows, promo rows, release events, and inventory.
+- Later guarded seed creates 5 shared auth users plus account, review, pending order, and completed order scenarios.
 - Seed does not require committed secrets.
 
 ## Milestone 3: Deterministic Domain Logic TDD

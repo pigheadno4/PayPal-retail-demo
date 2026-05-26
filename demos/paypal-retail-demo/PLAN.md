@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 1 scaffold complete; prepare Milestone 2 Supabase schema**.
+Current phase: **Milestone 2 Supabase schema complete on linked remote; storefront/reference seed slice complete; buyer/account/order seed slice remains open**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.

@@ -1,5 +1,13 @@
 # Test Cases
 
+## Seed And Database QA
+- [x] Storefront/reference seed summary includes 2 profiles, 2 markets, 5 categories/profile, 25 products/profile, 9 stores/market, inventory, tax, shipping, homepage, release, and promo rows.
+- [x] Seed row IDs are deterministic and unique within each seeded table.
+- [x] Generated seed SQL targets the private `app` schema and uses upserts for repeated apply attempts.
+- [x] Linked remote storefront/reference seed counts match the generated summary after apply.
+- [ ] Guarded seed slice creates 5 shared auth users with default addresses and demo-safe account data.
+- [ ] Guarded seed slice creates pending and completed orders that support resume, review, and Admin lifecycle demos.
+
 ## Core Business Logic
 - [ ] Cart merge/sync across guest, login, and multiple devices.
 - [ ] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.

@@ -34,3 +34,7 @@
 - Linked a remote Supabase project and applied the initial schema migration with `npx supabase db push --linked`.
 - Added and applied a follow-up hardening migration for function search paths and public execution grants after Supabase advisors flagged security warnings.
 - Verified the linked remote database reports 38 `app` tables and `npx supabase db advisors --linked` returns no issues.
+- Added deterministic TypeScript seed tooling for storefront/reference data with dry-run summary, SQL generation, linked apply, and local apply modes.
+- Added first seed dataset for 2 profiles, 2 markets, 5 categories/profile, 25 products/profile, active market prices, 9 stores/market, store pickup dates, central/store inventory, tax rates, shipping options, homepage sections, release events, and promo rules/compatibility data.
+- Verified seed tooling with `npm run verify` and applied the storefront/reference seed slice to the linked remote Supabase project.
+- Verified linked remote seed counts match the generated summary for profiles, markets, categories, products, product prices, product images, stores, pickup dates, inventory, tax, shipping, and promo tables.

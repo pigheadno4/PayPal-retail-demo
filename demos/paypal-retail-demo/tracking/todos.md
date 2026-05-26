@@ -25,4 +25,5 @@
 - [x] Prepare Milestone 2 Supabase schema/RLS approach before migration files are created.
 - [x] Verify the initial Supabase migration applies against the linked remote Supabase project.
 - [ ] Verify the Supabase migrations apply on local Supabase once Docker Desktop/local Supabase is available.
-- [ ] Build the TypeScript seed runner data for the two demo profiles.
+- [x] Build the TypeScript storefront/reference seed runner data for the two demo profiles.
+- [ ] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.

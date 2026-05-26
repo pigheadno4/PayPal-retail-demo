@@ -4,7 +4,7 @@ TypeScript scaffold for the POP MART-style PayPal retail demo.
 
 ## Status
 
-Milestone 1 scaffold is intentionally minimal. Payment, Supabase migrations, seed data, and buyer/admin UI flows are implemented in later milestones from `PLAN.md` and `IMPLEMENTATION_TASKS.md`.
+Milestone 1 scaffold is complete. Milestone 2 has the private Supabase `app` schema applied to the linked remote project, plus the first deterministic storefront/reference seed slice. Payment APIs, buyer/account seeds, sample orders, and buyer/admin UI flows are implemented in later milestones from `PLAN.md` and `IMPLEMENTATION_TASKS.md`.
 
 ## Local Setup
 
@@ -21,6 +21,8 @@ npm run dev:server
 npm run db:start
 npm run db:reset
 npm run db:lint
+npm run seed:summary
+npm run seed:linked
 npm run typecheck
 npm test
 npm run lint
