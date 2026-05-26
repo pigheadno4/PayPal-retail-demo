@@ -26,4 +26,4 @@
 - [x] Verify the initial Supabase migration applies against the linked remote Supabase project.
 - [ ] Verify the Supabase migrations apply on local Supabase once Docker Desktop/local Supabase is available.
 - [x] Build the TypeScript storefront/reference seed runner data for the two demo profiles.
-- [ ] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.
+- [x] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.

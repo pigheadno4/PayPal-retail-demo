@@ -120,12 +120,12 @@ Verification:
 - [x] Add migration-level comments for demo assumptions: tax estimate only, no inventory reservation, shipping excluded from tax/promo.
 - [x] Create deterministic TypeScript seed runner for generated SQL and linked/local Supabase CLI apply.
 - [x] Seed `popmart` and `generic` storefront/reference data with shared markets/stores/tax/shipping, products, market-specific prices, categories, release calendar data, inventory, homepage sections, and promos.
-- [ ] Seed guarded buyer/account/order data with auth users, default addresses, saved payment placeholders, reviews, pending orders, completed orders, and lifecycle snapshots.
+- [x] Seed guarded buyer/account/order data with auth users, default addresses, saved payment placeholders, reviews, pending orders, completed orders, and lifecycle snapshots.
 
 Verification:
 - Migration applies on the linked remote database; clean local apply remains blocked until Docker/local Supabase is available.
 - Storefront/reference seed creates 2 profiles, shared active markets, 5 categories/profile, 25 products/profile, one active price/product/market, 9 stores/market, tax/shipping rows, promo rows, release events, and inventory.
-- Later guarded seed creates 5 shared auth users plus account, review, pending order, and completed order scenarios.
+- Guarded seed creates 5 shared auth users plus account, review, pending order, and completed order scenarios.
 - Seed does not require committed secrets.
 
 ## Milestone 3: Deterministic Domain Logic TDD

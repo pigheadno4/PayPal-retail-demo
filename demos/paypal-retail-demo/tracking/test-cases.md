@@ -5,8 +5,8 @@
 - [x] Seed row IDs are deterministic and unique within each seeded table.
 - [x] Generated seed SQL targets the private `app` schema and uses upserts for repeated apply attempts.
 - [x] Linked remote storefront/reference seed counts match the generated summary after apply.
-- [ ] Guarded seed slice creates 5 shared auth users with default addresses and demo-safe account data.
-- [ ] Guarded seed slice creates pending and completed orders that support resume, review, and Admin lifecycle demos.
+- [x] Guarded seed slice creates 5 shared auth users with default addresses and demo-safe account data.
+- [x] Guarded seed slice creates pending and completed orders that support resume, review, and Admin lifecycle demos.
 
 ## Core Business Logic
 - [ ] Cart merge/sync across guest, login, and multiple devices.

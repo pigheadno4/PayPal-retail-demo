@@ -3,6 +3,7 @@ import type {
   SeedDataset,
   SeedRow,
   SeedTable,
+  SqlExpression,
 } from "./seed-data.js";
 
 export function buildSeedSql(dataset: SeedDataset): string {
@@ -60,6 +61,9 @@ function buildUpsert(table: SeedTable, rows: readonly SeedRow[]): string {
 }
 
 function toSql(value: SeedRow[string]): string {
+  if (isSqlExpression(value)) {
+    return value.sql;
+  }
   if (value === null) {
     return "null";
   }
@@ -73,6 +77,15 @@ function toSql(value: SeedRow[string]): string {
     return quoteLiteral(value);
   }
   return `${quoteLiteral(JSON.stringify(value satisfies JsonValue))}::jsonb`;
+}
+
+function isSqlExpression(value: unknown): value is SqlExpression {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "sql" in value &&
+    typeof value.sql === "string"
+  );
 }
 
 function quoteIdentifier(value: string): string {

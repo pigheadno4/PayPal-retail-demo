@@ -8,8 +8,18 @@ export type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue };
 
+export interface SqlExpression {
+  readonly sql: string;
+}
+
 export interface SeedRow {
-  readonly [column: string]: string | number | boolean | null | JsonValue;
+  readonly [column: string]:
+    | string
+    | number
+    | boolean
+    | null
+    | JsonValue
+    | SqlExpression;
 }
 
 export interface SeedTable {
@@ -78,6 +88,50 @@ interface StoreSeed {
   readonly countryCode: string;
   readonly latitude: number;
   readonly longitude: number;
+}
+
+interface DemoUserSeed {
+  readonly slug: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly phone: string;
+  readonly defaultProfile: "popmart" | "generic";
+  readonly defaultMarket: "US" | "GB";
+  readonly address: {
+    readonly label: string;
+    readonly recipientName: string;
+    readonly phone: string;
+    readonly addressLine1: string;
+    readonly city: string;
+    readonly state: string | null;
+    readonly postalCode: string;
+    readonly countryCode: "US" | "GB";
+  };
+}
+
+interface OrderScenario {
+  readonly key: string;
+  readonly profileSlug: "popmart" | "generic";
+  readonly marketCode: "US" | "GB";
+  readonly userSlug: string | null;
+  readonly guestEmail: string | null;
+  readonly fulfillmentMode: "delivery" | "pickup";
+  readonly status: "pending" | "delivered" | "picked_up";
+  readonly paymentStatus: "started" | "failed" | "captured";
+  readonly paymentMethod: "paypal" | "paylater" | "card";
+  readonly orderNumber: string;
+  readonly orderNumberPrefix: "DO" | "PO";
+  readonly orderNumberSequence: number;
+  readonly shippingMinor: number;
+  readonly storeSlug?: string;
+  readonly pickupDate?: string;
+  readonly lines: readonly {
+    readonly productOrdinal: number;
+    readonly quantity: number;
+    readonly fulfillableQuantity?: number;
+    readonly lineDiscountMinor?: number;
+    readonly lineTaxMinor: number;
+  }[];
 }
 
 const seedNamespace = "paypal-retail-demo-v1";
@@ -411,12 +465,109 @@ const stores: readonly StoreSeed[] = [
   },
 ];
 
+const demoUsers: readonly DemoUserSeed[] = [
+  {
+    slug: "alice-la",
+    email: "alice.la@example.test",
+    displayName: "Alice Lee",
+    phone: "+1 323 555 0201",
+    defaultProfile: "popmart",
+    defaultMarket: "US",
+    address: {
+      label: "Home",
+      recipientName: "Alice Lee",
+      phone: "+1 323 555 0201",
+      addressLine1: "742 N Fairfax Ave",
+      city: "Los Angeles",
+      state: "CA",
+      postalCode: "90046",
+      countryCode: "US",
+    },
+  },
+  {
+    slug: "ben-brooklyn",
+    email: "ben.brooklyn@example.test",
+    displayName: "Ben Carter",
+    phone: "+1 718 555 0202",
+    defaultProfile: "generic",
+    defaultMarket: "US",
+    address: {
+      label: "Apartment",
+      recipientName: "Ben Carter",
+      phone: "+1 718 555 0202",
+      addressLine1: "88 Bedford Ave",
+      city: "Brooklyn",
+      state: "NY",
+      postalCode: "11249",
+      countryCode: "US",
+    },
+  },
+  {
+    slug: "clara-london",
+    email: "clara.london@example.test",
+    displayName: "Clara Hughes",
+    phone: "+44 20 7946 0203",
+    defaultProfile: "generic",
+    defaultMarket: "GB",
+    address: {
+      label: "Flat",
+      recipientName: "Clara Hughes",
+      phone: "+44 20 7946 0203",
+      addressLine1: "24 Wardour St",
+      city: "London",
+      state: null,
+      postalCode: "W1D 6QJ",
+      countryCode: "GB",
+    },
+  },
+  {
+    slug: "dylan-manchester",
+    email: "dylan.manchester@example.test",
+    displayName: "Dylan Reed",
+    phone: "+44 161 555 0204",
+    defaultProfile: "popmart",
+    defaultMarket: "GB",
+    address: {
+      label: "Home",
+      recipientName: "Dylan Reed",
+      phone: "+44 161 555 0204",
+      addressLine1: "10 Oldham St",
+      city: "Manchester",
+      state: null,
+      postalCode: "M1 1JQ",
+      countryCode: "GB",
+    },
+  },
+  {
+    slug: "erin-sf",
+    email: "erin.sf@example.test",
+    displayName: "Erin Park",
+    phone: "+1 415 555 0205",
+    defaultProfile: "popmart",
+    defaultMarket: "US",
+    address: {
+      label: "Condo",
+      recipientName: "Erin Park",
+      phone: "+1 415 555 0205",
+      addressLine1: "300 Post St",
+      city: "San Francisco",
+      state: "CA",
+      postalCode: "94108",
+      countryCode: "US",
+    },
+  },
+];
+
 export function stableUuid(key: string): string {
   const hash = createHash("sha1").update(`${seedNamespace}:${key}`).digest();
   hash[6] = (hash[6]! & 0x0f) | 0x50;
   hash[8] = (hash[8]! & 0x3f) | 0x80;
   const hex = hash.subarray(0, 16).toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export function sqlExpression(sql: string): SqlExpression {
+  return { sql };
 }
 
 export function buildSeedDataset(): SeedDataset {
@@ -672,6 +823,334 @@ export function buildSeedDataset(): SeedDataset {
       ],
       rows.promoCompatibility,
     ),
+    table(
+      "auth.users",
+      [
+        "id",
+        "instance_id",
+        "aud",
+        "role",
+        "email",
+        "phone",
+        "encrypted_password",
+        "email_confirmed_at",
+        "raw_app_meta_data",
+        "raw_user_meta_data",
+        "created_at",
+        "updated_at",
+      ],
+      rows.authUsers,
+    ),
+    table(
+      "auth.identities",
+      [
+        "id",
+        "user_id",
+        "provider_id",
+        "identity_data",
+        "provider",
+        "last_sign_in_at",
+        "created_at",
+        "updated_at",
+      ],
+      rows.authIdentities,
+    ),
+    table(
+      "app.user_profiles",
+      ["id", "auth_user_id", "email", "display_name"],
+      rows.userProfiles,
+    ),
+    table(
+      "app.addresses",
+      [
+        "id",
+        "auth_user_id",
+        "label",
+        "recipient_name",
+        "phone",
+        "address_line1",
+        "address_line2",
+        "city",
+        "state",
+        "postal_code",
+        "country_code",
+        "is_default_shipping",
+        "is_default_billing",
+      ],
+      rows.addresses,
+    ),
+    table(
+      "app.saved_payment_methods",
+      [
+        "id",
+        "auth_user_id",
+        "provider",
+        "method_type",
+        "status",
+        "vault_id",
+        "paypal_customer_id",
+        "brand",
+        "last4",
+        "expiry_month",
+        "expiry_year",
+        "label",
+      ],
+      rows.savedPaymentMethods,
+    ),
+    table(
+      "app.carts",
+      [
+        "id",
+        "profile_id",
+        "market_id",
+        "auth_user_id",
+        "cart_public_id",
+        "cart_secret_hash",
+        "status",
+        "last_seen_at",
+      ],
+      rows.carts,
+    ),
+    table(
+      "app.cart_items",
+      ["id", "cart_id", "product_id", "quantity", "unit_price_minor_snapshot"],
+      rows.cartItems,
+    ),
+    table(
+      "app.checkout_drafts",
+      [
+        "id",
+        "profile_id",
+        "market_id",
+        "cart_id",
+        "auth_user_id",
+        "guest_email",
+        "fulfillment_mode",
+        "delivery_state_json",
+        "pickup_state_json",
+        "currency_code",
+        "locale",
+        "buyer_country",
+        "sandbox_test_buyer_country",
+        "status",
+      ],
+      rows.checkoutDrafts,
+    ),
+    table(
+      "app.orders",
+      [
+        "id",
+        "profile_id",
+        "market_id",
+        "order_number",
+        "order_number_prefix",
+        "order_number_sequence",
+        "auth_user_id",
+        "guest_email",
+        "cart_id",
+        "checkout_draft_id",
+        "fulfillment_mode",
+        "status",
+        "payment_status",
+        "currency_code",
+        "locale",
+        "buyer_country",
+        "sandbox_test_buyer_country",
+        "subtotal_minor",
+        "discount_minor",
+        "tax_minor",
+        "shipping_minor",
+        "total_minor",
+      ],
+      rows.orders,
+    ),
+    table(
+      "app.order_items",
+      [
+        "id",
+        "order_id",
+        "product_id",
+        "product_sku_snapshot",
+        "product_name_snapshot",
+        "product_description_snapshot",
+        "product_url_snapshot",
+        "product_image_url_snapshot",
+        "unit_price_minor",
+        "quantity",
+        "fulfillable_quantity",
+        "unavailable_quantity",
+        "line_subtotal_minor",
+        "line_discount_minor",
+        "line_tax_minor",
+        "line_total_minor",
+      ],
+      rows.orderItems,
+    ),
+    table(
+      "app.order_addresses",
+      [
+        "id",
+        "order_id",
+        "address_type",
+        "recipient_name",
+        "phone",
+        "address_line1",
+        "address_line2",
+        "city",
+        "state",
+        "postal_code",
+        "country_code",
+      ],
+      rows.orderAddresses,
+    ),
+    table(
+      "app.guest_order_access",
+      [
+        "id",
+        "order_id",
+        "guest_email_hash",
+        "lookup_token_hash",
+        "lookup_attempt_count",
+        "last_lookup_at",
+      ],
+      rows.guestOrderAccess,
+    ),
+    table(
+      "app.payment_sessions",
+      [
+        "id",
+        "order_id",
+        "provider",
+        "method",
+        "status",
+        "attempt_number",
+        "paypal_order_id",
+        "paypal_capture_id",
+        "paypal_invoice_id",
+        "paypal_request_id",
+        "vault_requested",
+        "merchant_total_minor",
+        "provider_total_minor",
+        "amount_consistency_status",
+        "currency_code",
+        "locale",
+        "buyer_country",
+        "sandbox_test_buyer_country",
+        "paypal_config_snapshot_json",
+      ],
+      rows.paymentSessions,
+    ),
+    table(
+      "app.promo_evaluations",
+      [
+        "id",
+        "profile_id",
+        "market_id",
+        "checkout_draft_id",
+        "order_id",
+        "evaluation_context_json",
+        "matched_promos_json",
+        "rejected_promos_json",
+        "candidate_sets_json",
+        "recommended_set_json",
+        "selected_set_json",
+        "merchandise_discount_minor",
+        "taxable_subtotal_minor",
+        "final_total_minor",
+      ],
+      rows.promoEvaluations,
+    ),
+    table(
+      "app.promo_evaluation_lines",
+      [
+        "id",
+        "promo_evaluation_id",
+        "promo_rule_id",
+        "code_snapshot",
+        "evaluation_status",
+        "rejection_reason",
+        "stack_group",
+        "discount_minor",
+        "taxable_subtotal_effect_minor",
+        "final_total_effect_minor",
+        "explanation",
+        "sort_order",
+      ],
+      rows.promoEvaluationLines,
+    ),
+    table(
+      "app.total_snapshots",
+      [
+        "id",
+        "checkout_draft_id",
+        "order_id",
+        "payment_session_id",
+        "fulfillment_mode",
+        "calculation_stage",
+        "currency_code",
+        "merchandise_subtotal_minor",
+        "product_discount_minor",
+        "promo_discount_minor",
+        "taxable_subtotal_minor",
+        "tax_minor",
+        "shipping_minor",
+        "total_minor",
+        "promo_evaluation_id",
+        "calculation_context_json",
+      ],
+      rows.totalSnapshots,
+    ),
+    table(
+      "app.paypal_order_snapshots",
+      [
+        "id",
+        "payment_session_id",
+        "paypal_invoice_id",
+        "paypal_request_id",
+        "request_json",
+        "response_json",
+        "merchant_snapshot_json",
+      ],
+      rows.paypalOrderSnapshots,
+    ),
+    table(
+      "app.webhook_events",
+      [
+        "id",
+        "provider",
+        "event_id",
+        "event_type",
+        "verification_status",
+        "headers_json",
+        "payload_json",
+        "linked_order_id",
+        "linked_payment_session_id",
+        "processing_status",
+        "processed_at",
+      ],
+      rows.webhookEvents,
+    ),
+    table(
+      "app.order_lifecycle_events",
+      ["id", "order_id", "from_status", "to_status", "actor_type", "note"],
+      rows.orderLifecycleEvents,
+    ),
+    table(
+      "app.reviews",
+      [
+        "id",
+        "profile_id",
+        "product_id",
+        "order_id",
+        "order_item_id",
+        "auth_user_id",
+        "rating",
+        "title",
+        "body",
+        "status",
+      ],
+      rows.reviews,
+    ),
   ];
 
   return {
@@ -889,6 +1368,7 @@ function createRows() {
   const promoRows = createPromoRules();
   const promoRegionRows = createPromoRegions();
   const promoCompatibilityRows = createPromoCompatibility();
+  const guardedRows = createGuardedRows(productRows);
 
   return {
     profiles: profileRows,
@@ -909,6 +1389,7 @@ function createRows() {
     promoRuleRegions: promoRegionRows,
     promoRuleProducts: promoRuleProductRows,
     promoCompatibility: promoCompatibilityRows,
+    ...guardedRows,
   };
 }
 
@@ -950,6 +1431,480 @@ function createProductsForProfile(profile: ProfileSeed): ProductSeedRow[] {
       };
     });
   });
+}
+
+function createGuardedRows(productRows: readonly ProductSeedRow[]) {
+  const authUserRows = demoUsers.map((user) => ({
+    id: authUserId(user.slug),
+    instance_id: "00000000-0000-0000-0000-000000000000",
+    aud: "authenticated",
+    role: "authenticated",
+    email: user.email,
+    phone: user.phone,
+    encrypted_password: sqlExpression(
+      "crypt('RetailDemo2026!', gen_salt('bf'))",
+    ),
+    email_confirmed_at: "2026-05-01T09:00:00.000Z",
+    raw_app_meta_data: {
+      provider: "email",
+      providers: ["email"],
+      demo_seed: true,
+    },
+    raw_user_meta_data: {
+      display_name: user.displayName,
+      default_profile: user.defaultProfile,
+      default_market: user.defaultMarket,
+    },
+    created_at: "2026-05-01T09:00:00.000Z",
+    updated_at: "2026-05-01T09:00:00.000Z",
+  }));
+
+  const authIdentityRows = demoUsers.map((user) => ({
+    id: stableUuid(`auth-identity:${user.slug}`),
+    user_id: authUserId(user.slug),
+    provider_id: authUserId(user.slug),
+    identity_data: {
+      sub: authUserId(user.slug),
+      email: user.email,
+      email_verified: true,
+      phone_verified: true,
+      name: user.displayName,
+    },
+    provider: "email",
+    last_sign_in_at: null,
+    created_at: "2026-05-01T09:00:00.000Z",
+    updated_at: "2026-05-01T09:00:00.000Z",
+  }));
+
+  const userProfileRows = demoUsers.map((user) => ({
+    id: stableUuid(`user-profile:${user.slug}`),
+    auth_user_id: authUserId(user.slug),
+    email: user.email,
+    display_name: user.displayName,
+  }));
+
+  const addressRows = demoUsers.map((user) => ({
+    id: addressId(user.slug),
+    auth_user_id: authUserId(user.slug),
+    label: user.address.label,
+    recipient_name: user.address.recipientName,
+    phone: user.address.phone,
+    address_line1: user.address.addressLine1,
+    address_line2: null,
+    city: user.address.city,
+    state: user.address.state,
+    postal_code: user.address.postalCode,
+    country_code: user.address.countryCode,
+    is_default_shipping: true,
+    is_default_billing: true,
+  }));
+
+  const savedPaymentRows = [
+    savedPaymentMethod("alice-la", "paypal_wallet", "PayPal wallet", {
+      vaultId: "demo-vault-paypal-alice-la",
+      paypalCustomerId: "demo-customer-alice-la",
+    }),
+    savedPaymentMethod("ben-brooklyn", "card", "Visa ending 4242", {
+      brand: "Visa",
+      last4: "4242",
+      expiryMonth: 12,
+      expiryYear: 2030,
+    }),
+    savedPaymentMethod("clara-london", "paypal_wallet", "PayPal wallet", {
+      vaultId: "demo-vault-paypal-clara-london",
+      paypalCustomerId: "demo-customer-clara-london",
+    }),
+    savedPaymentMethod("dylan-manchester", "card", "Mastercard ending 5454", {
+      brand: "Mastercard",
+      last4: "5454",
+      expiryMonth: 9,
+      expiryYear: 2031,
+    }),
+  ];
+
+  const cartRows: SeedRow[] = [];
+  const cartItemRows: SeedRow[] = [];
+  demoUsers.forEach((user, userIndex) => {
+    const product = productByOrdinal(
+      user.defaultProfile,
+      2 + (userIndex % 5),
+      productRows,
+    );
+    const secondProduct = productByOrdinal(
+      user.defaultProfile,
+      9 + (userIndex % 4),
+      productRows,
+    );
+    cartRows.push({
+      id: cartId(user.slug),
+      profile_id: profileId(user.defaultProfile),
+      market_id: marketId(user.defaultMarket),
+      auth_user_id: authUserId(user.slug),
+      cart_public_id: `cart_demo_${user.slug.replaceAll("-", "_")}`,
+      cart_secret_hash: null,
+      status: "active",
+      last_seen_at: "2026-05-26T09:00:00.000Z",
+    });
+    cartItemRows.push(
+      cartItem(user, product, user.defaultMarket, 1, "primary"),
+    );
+    if (userIndex < 2) {
+      cartItemRows.push(
+        cartItem(user, secondProduct, user.defaultMarket, 2, "secondary"),
+      );
+    }
+  });
+
+  const checkoutDraftRows: SeedRow[] = [];
+  const orderRows: SeedRow[] = [];
+  const orderItemRows: SeedRow[] = [];
+  const orderAddressRows: SeedRow[] = [];
+  const guestOrderAccessRows: SeedRow[] = [];
+  const paymentSessionRows: SeedRow[] = [];
+  const promoEvaluationRows: SeedRow[] = [];
+  const promoEvaluationLineRows: SeedRow[] = [];
+  const totalSnapshotRows: SeedRow[] = [];
+  const paypalOrderSnapshotRows: SeedRow[] = [];
+  const webhookEventRows: SeedRow[] = [];
+  const orderLifecycleEventRows: SeedRow[] = [];
+  const reviewRows: SeedRow[] = [];
+
+  for (const scenario of orderScenarios()) {
+    const orderDetails = buildOrderDetails(scenario, productRows);
+    const market = marketSeed(scenario.marketCode);
+    const user = scenario.userSlug ? demoUser(scenario.userSlug) : null;
+    const orderKey = scenario.key;
+    const currentOrderId = orderId(orderKey);
+    const currentCheckoutDraftId =
+      scenario.status === "pending" && user ? checkoutDraftId(orderKey) : null;
+    const currentPaymentSessionId = paymentSessionId(orderKey);
+    const currentPromoEvaluationId = promoEvaluationId(orderKey);
+
+    if (currentCheckoutDraftId && user) {
+      checkoutDraftRows.push({
+        id: currentCheckoutDraftId,
+        profile_id: profileId(scenario.profileSlug),
+        market_id: marketId(scenario.marketCode),
+        cart_id: cartId(user.slug),
+        auth_user_id: authUserId(user.slug),
+        guest_email: null,
+        fulfillment_mode: scenario.fulfillmentMode,
+        delivery_state_json:
+          scenario.fulfillmentMode === "delivery"
+            ? {
+                address_id: addressId(user.slug),
+                submitted: true,
+                shipping_option: "standard",
+              }
+            : {},
+        pickup_state_json:
+          scenario.fulfillmentMode === "pickup"
+            ? {
+                store_id: storeId(scenario.marketCode, scenario.storeSlug!),
+                pickup_date: scenario.pickupDate ?? null,
+                submitted: true,
+              }
+            : {},
+        currency_code: market.currencyCode,
+        locale: market.locale,
+        buyer_country: market.buyerCountry,
+        sandbox_test_buyer_country: market.sandboxTestBuyerCountry,
+        status: "payment_started",
+      });
+    }
+
+    orderRows.push({
+      id: currentOrderId,
+      profile_id: profileId(scenario.profileSlug),
+      market_id: marketId(scenario.marketCode),
+      order_number: scenario.orderNumber,
+      order_number_prefix: scenario.orderNumberPrefix,
+      order_number_sequence: scenario.orderNumberSequence,
+      auth_user_id: user ? authUserId(user.slug) : null,
+      guest_email: scenario.guestEmail,
+      cart_id: user && scenario.status === "pending" ? cartId(user.slug) : null,
+      checkout_draft_id: currentCheckoutDraftId,
+      fulfillment_mode: scenario.fulfillmentMode,
+      status: scenario.status,
+      payment_status: scenario.paymentStatus,
+      currency_code: market.currencyCode,
+      locale: market.locale,
+      buyer_country: market.buyerCountry,
+      sandbox_test_buyer_country: market.sandboxTestBuyerCountry,
+      subtotal_minor: orderDetails.subtotalMinor,
+      discount_minor: orderDetails.discountMinor,
+      tax_minor: orderDetails.taxMinor,
+      shipping_minor: scenario.shippingMinor,
+      total_minor: orderDetails.totalMinor,
+    });
+
+    orderDetails.lines.forEach((line, index) => {
+      orderItemRows.push({
+        id: orderItemId(orderKey, index),
+        order_id: currentOrderId,
+        product_id: line.product.id,
+        product_sku_snapshot: line.product.sku,
+        product_name_snapshot: line.product.name,
+        product_description_snapshot: line.product.short_description,
+        product_url_snapshot: `/${scenario.profileSlug}/products/${line.product.slug}`,
+        product_image_url_snapshot: `/${scenario.profileSlug}/products/${line.product.slug}-1.webp`,
+        unit_price_minor: line.unitPriceMinor,
+        quantity: line.quantity,
+        fulfillable_quantity: line.fulfillableQuantity,
+        unavailable_quantity: line.quantity - line.fulfillableQuantity,
+        line_subtotal_minor: line.lineSubtotalMinor,
+        line_discount_minor: line.lineDiscountMinor,
+        line_tax_minor: line.lineTaxMinor,
+        line_total_minor: line.lineTotalMinor,
+      });
+    });
+
+    orderAddressRows.push(
+      ...orderAddressesForScenario(scenario, currentOrderId, user),
+    );
+
+    if (scenario.guestEmail) {
+      guestOrderAccessRows.push({
+        id: stableUuid(`guest-order-access:${orderKey}`),
+        order_id: currentOrderId,
+        guest_email_hash: stableHash(scenario.guestEmail),
+        lookup_token_hash: stableHash(`${scenario.orderNumber}:guest-lookup`),
+        lookup_attempt_count: 0,
+        last_lookup_at: null,
+      });
+    }
+
+    paymentSessionRows.push({
+      id: currentPaymentSessionId,
+      order_id: currentOrderId,
+      provider: "paypal",
+      method: scenario.paymentMethod,
+      status:
+        scenario.paymentStatus === "captured"
+          ? "captured"
+          : scenario.paymentStatus === "failed"
+            ? "failed"
+            : "created",
+      attempt_number: 1,
+      paypal_order_id: `DEMO-PAYPAL-ORDER-${scenario.orderNumber}`,
+      paypal_capture_id:
+        scenario.paymentStatus === "captured"
+          ? `DEMO-CAPTURE-${scenario.orderNumber}`
+          : null,
+      paypal_invoice_id: `${scenario.orderNumber}-A1`,
+      paypal_request_id: stableHash(`paypal-request:${orderKey}`),
+      vault_requested: false,
+      merchant_total_minor: orderDetails.totalMinor,
+      provider_total_minor:
+        scenario.paymentStatus === "captured" ? orderDetails.totalMinor : null,
+      amount_consistency_status:
+        scenario.paymentStatus === "captured" ? "matched" : "not_checked",
+      currency_code: market.currencyCode,
+      locale: market.locale,
+      buyer_country: market.buyerCountry,
+      sandbox_test_buyer_country: market.sandboxTestBuyerCountry,
+      paypal_config_snapshot_json: {
+        environment: "sandbox",
+        profile: scenario.profileSlug,
+        market: scenario.marketCode,
+        currency_code: market.currencyCode,
+        buyer_country: market.buyerCountry,
+        sandbox_test_buyer_country: market.sandboxTestBuyerCountry,
+      },
+    });
+
+    promoEvaluationRows.push({
+      id: currentPromoEvaluationId,
+      profile_id: profileId(scenario.profileSlug),
+      market_id: marketId(scenario.marketCode),
+      checkout_draft_id: currentCheckoutDraftId,
+      order_id: currentOrderId,
+      evaluation_context_json: {
+        fulfillment_mode: scenario.fulfillmentMode,
+        order_number: scenario.orderNumber,
+        excludes_shipping_from_discount_base: true,
+      },
+      matched_promos_json:
+        orderDetails.discountMinor > 0
+          ? [
+              {
+                code:
+                  scenario.fulfillmentMode === "pickup" ? "BUNDLE8" : "AUTO10",
+              },
+            ]
+          : [],
+      rejected_promos_json: [
+        {
+          code: "BIG20",
+          reason: "Exclusive promo was not the best compatible set.",
+        },
+      ],
+      candidate_sets_json: [
+        ["BIG20"],
+        scenario.fulfillmentMode === "pickup"
+          ? ["BUNDLE8", "AUTO10"]
+          : ["AUTO10", "STATE5"],
+      ],
+      recommended_set_json:
+        orderDetails.discountMinor > 0
+          ? [scenario.fulfillmentMode === "pickup" ? "BUNDLE8" : "AUTO10"]
+          : [],
+      selected_set_json:
+        orderDetails.discountMinor > 0
+          ? [scenario.fulfillmentMode === "pickup" ? "BUNDLE8" : "AUTO10"]
+          : [],
+      merchandise_discount_minor: orderDetails.discountMinor,
+      taxable_subtotal_minor:
+        orderDetails.subtotalMinor - orderDetails.discountMinor,
+      final_total_minor: orderDetails.totalMinor,
+    });
+
+    promoEvaluationLineRows.push(
+      promoEvaluationLine(
+        orderKey,
+        scenario,
+        currentPromoEvaluationId,
+        "selected",
+        orderDetails.discountMinor,
+        1,
+      ),
+      promoEvaluationLine(
+        orderKey,
+        scenario,
+        currentPromoEvaluationId,
+        "rejected",
+        0,
+        2,
+      ),
+    );
+
+    totalSnapshotRows.push({
+      id: stableUuid(`total-snapshot:${orderKey}`),
+      checkout_draft_id: currentCheckoutDraftId,
+      order_id: currentOrderId,
+      payment_session_id: currentPaymentSessionId,
+      fulfillment_mode: scenario.fulfillmentMode,
+      calculation_stage:
+        scenario.status === "pending" ? "pending_resume" : "capture",
+      currency_code: market.currencyCode,
+      merchandise_subtotal_minor: orderDetails.subtotalMinor,
+      product_discount_minor: 0,
+      promo_discount_minor: orderDetails.discountMinor,
+      taxable_subtotal_minor:
+        orderDetails.subtotalMinor - orderDetails.discountMinor,
+      tax_minor: orderDetails.taxMinor,
+      shipping_minor: scenario.shippingMinor,
+      total_minor: orderDetails.totalMinor,
+      promo_evaluation_id: currentPromoEvaluationId,
+      calculation_context_json: {
+        tax_excludes_shipping: true,
+        promo_excludes_shipping: true,
+        source: scenario.status === "pending" ? "resume_seed" : "capture_seed",
+      },
+    });
+
+    paypalOrderSnapshotRows.push({
+      id: stableUuid(`paypal-order-snapshot:${orderKey}`),
+      payment_session_id: currentPaymentSessionId,
+      paypal_invoice_id: `${scenario.orderNumber}-A1`,
+      paypal_request_id: stableHash(`paypal-request:${orderKey}`),
+      request_json: {
+        intent: "CAPTURE",
+        invoice_id: `${scenario.orderNumber}-A1`,
+        fulfillment_mode: scenario.fulfillmentMode,
+        demo_snapshot: true,
+      },
+      response_json:
+        scenario.paymentStatus === "captured"
+          ? {
+              id: `DEMO-PAYPAL-ORDER-${scenario.orderNumber}`,
+              status: "COMPLETED",
+            }
+          : {
+              id: `DEMO-PAYPAL-ORDER-${scenario.orderNumber}`,
+              status:
+                scenario.paymentStatus === "failed" ? "FAILED" : "CREATED",
+            },
+      merchant_snapshot_json: {
+        order_number: scenario.orderNumber,
+        amount_minor: orderDetails.totalMinor,
+        currency_code: market.currencyCode,
+      },
+    });
+
+    if (scenario.paymentStatus === "captured" && user) {
+      webhookEventRows.push({
+        id: stableUuid(`webhook:${orderKey}:capture-completed`),
+        provider: "paypal",
+        event_id: `WH-DEMO-${scenario.orderNumber}`,
+        event_type: "PAYMENT.CAPTURE.COMPLETED",
+        verification_status: "valid",
+        headers_json: { demo: true },
+        payload_json: {
+          resource: {
+            id: `DEMO-CAPTURE-${scenario.orderNumber}`,
+            invoice_id: `${scenario.orderNumber}-A1`,
+          },
+        },
+        linked_order_id: currentOrderId,
+        linked_payment_session_id: currentPaymentSessionId,
+        processing_status: "processed",
+        processed_at: "2026-05-26T12:00:00.000Z",
+      });
+    }
+
+    orderLifecycleEventRows.push(
+      ...lifecycleEventsForScenario(orderKey, scenario, currentOrderId),
+    );
+
+    if (
+      scenario.paymentStatus === "captured" &&
+      user &&
+      (scenario.status === "delivered" || scenario.status === "picked_up")
+    ) {
+      reviewRows.push({
+        id: stableUuid(`review:${orderKey}:0`),
+        profile_id: profileId(scenario.profileSlug),
+        product_id: orderDetails.lines[0]!.product.id,
+        order_id: currentOrderId,
+        order_item_id: orderItemId(orderKey, 0),
+        auth_user_id: authUserId(user.slug),
+        rating: scenario.status === "picked_up" ? 5 : 4,
+        title:
+          scenario.status === "picked_up"
+            ? "Pickup was smooth"
+            : "Lovely shelf piece",
+        body:
+          scenario.status === "picked_up"
+            ? "The pickup flow was quick and the item was ready at the store."
+            : "Good packaging and the figure looks great in person.",
+        status: "active",
+      });
+    }
+  }
+
+  return {
+    authUsers: authUserRows,
+    authIdentities: authIdentityRows,
+    userProfiles: userProfileRows,
+    addresses: addressRows,
+    savedPaymentMethods: savedPaymentRows,
+    carts: cartRows,
+    cartItems: cartItemRows,
+    checkoutDrafts: checkoutDraftRows,
+    orders: orderRows,
+    orderItems: orderItemRows,
+    orderAddresses: orderAddressRows,
+    guestOrderAccess: guestOrderAccessRows,
+    paymentSessions: paymentSessionRows,
+    promoEvaluations: promoEvaluationRows,
+    promoEvaluationLines: promoEvaluationLineRows,
+    totalSnapshots: totalSnapshotRows,
+    paypalOrderSnapshots: paypalOrderSnapshotRows,
+    webhookEvents: webhookEventRows,
+    orderLifecycleEvents: orderLifecycleEventRows,
+    reviews: reviewRows,
+  };
 }
 
 function createHomepageSections(
@@ -1215,6 +2170,395 @@ function createPromoCompatibility(): SeedRow[] {
   return rows;
 }
 
+function orderScenarios(): readonly OrderScenario[] {
+  return [
+    {
+      key: "alice-pending-delivery",
+      profileSlug: "popmart",
+      marketCode: "US",
+      userSlug: "alice-la",
+      guestEmail: null,
+      fulfillmentMode: "delivery",
+      status: "pending",
+      paymentStatus: "started",
+      paymentMethod: "paypal",
+      orderNumber: "DO-20260526-000001",
+      orderNumberPrefix: "DO",
+      orderNumberSequence: 1,
+      shippingMinor: 595,
+      lines: [
+        {
+          productOrdinal: 2,
+          quantity: 1,
+          lineDiscountMinor: 197,
+          lineTaxMinor: 168,
+        },
+        {
+          productOrdinal: 3,
+          quantity: 2,
+          lineDiscountMinor: 488,
+          lineTaxMinor: 417,
+        },
+      ],
+    },
+    {
+      key: "ben-pending-pickup",
+      profileSlug: "generic",
+      marketCode: "US",
+      userSlug: "ben-brooklyn",
+      guestEmail: null,
+      fulfillmentMode: "pickup",
+      status: "pending",
+      paymentStatus: "failed",
+      paymentMethod: "paylater",
+      orderNumber: "PO-20260526-000001",
+      orderNumberPrefix: "PO",
+      orderNumberSequence: 1,
+      shippingMinor: 0,
+      storeSlug: "brooklyn-williamsburg",
+      pickupDate: "2026-05-20",
+      lines: [
+        {
+          productOrdinal: 4,
+          quantity: 2,
+          fulfillableQuantity: 1,
+          lineDiscountMinor: 233,
+          lineTaxMinor: 238,
+        },
+        {
+          productOrdinal: 5,
+          quantity: 1,
+          lineDiscountMinor: 229,
+          lineTaxMinor: 234,
+        },
+      ],
+    },
+    {
+      key: "clara-delivered",
+      profileSlug: "generic",
+      marketCode: "GB",
+      userSlug: "clara-london",
+      guestEmail: null,
+      fulfillmentMode: "delivery",
+      status: "delivered",
+      paymentStatus: "captured",
+      paymentMethod: "card",
+      orderNumber: "DO-20260526-000002",
+      orderNumberPrefix: "DO",
+      orderNumberSequence: 2,
+      shippingMinor: 395,
+      lines: [{ productOrdinal: 6, quantity: 1, lineTaxMinor: 507 }],
+    },
+    {
+      key: "dylan-picked-up",
+      profileSlug: "popmart",
+      marketCode: "GB",
+      userSlug: "dylan-manchester",
+      guestEmail: null,
+      fulfillmentMode: "pickup",
+      status: "picked_up",
+      paymentStatus: "captured",
+      paymentMethod: "paypal",
+      orderNumber: "PO-20260526-000002",
+      orderNumberPrefix: "PO",
+      orderNumberSequence: 2,
+      shippingMinor: 0,
+      storeSlug: "manchester-arndale",
+      pickupDate: "2026-05-24",
+      lines: [{ productOrdinal: 7, quantity: 1, lineTaxMinor: 580 }],
+    },
+    {
+      key: "guest-delivered",
+      profileSlug: "popmart",
+      marketCode: "US",
+      userSlug: null,
+      guestEmail: "guest.collector@example.test",
+      fulfillmentMode: "delivery",
+      status: "delivered",
+      paymentStatus: "captured",
+      paymentMethod: "paypal",
+      orderNumber: "DO-20260526-000003",
+      orderNumberPrefix: "DO",
+      orderNumberSequence: 3,
+      shippingMinor: 595,
+      lines: [
+        {
+          productOrdinal: 9,
+          quantity: 1,
+          lineDiscountMinor: 500,
+          lineTaxMinor: 242,
+        },
+      ],
+    },
+  ];
+}
+
+function buildOrderDetails(
+  scenario: OrderScenario,
+  productRows: readonly ProductSeedRow[],
+) {
+  const lines = scenario.lines.map((line) => {
+    const product = productByOrdinal(
+      scenario.profileSlug,
+      line.productOrdinal,
+      productRows,
+    );
+    const unitPriceMinor = productPriceMinor(product, scenario.marketCode);
+    const fulfillableQuantity = line.fulfillableQuantity ?? line.quantity;
+    const lineSubtotalMinor = unitPriceMinor * fulfillableQuantity;
+    const lineDiscountMinor = line.lineDiscountMinor ?? 0;
+    const lineTaxMinor = line.lineTaxMinor;
+    return {
+      product,
+      unitPriceMinor,
+      quantity: line.quantity,
+      fulfillableQuantity,
+      lineSubtotalMinor,
+      lineDiscountMinor,
+      lineTaxMinor,
+      lineTotalMinor: lineSubtotalMinor - lineDiscountMinor + lineTaxMinor,
+    };
+  });
+  const subtotalMinor = lines.reduce(
+    (total, line) => total + line.lineSubtotalMinor,
+    0,
+  );
+  const discountMinor = lines.reduce(
+    (total, line) => total + line.lineDiscountMinor,
+    0,
+  );
+  const taxMinor = lines.reduce((total, line) => total + line.lineTaxMinor, 0);
+
+  return {
+    lines,
+    subtotalMinor,
+    discountMinor,
+    taxMinor,
+    totalMinor:
+      subtotalMinor - discountMinor + taxMinor + scenario.shippingMinor,
+  };
+}
+
+function savedPaymentMethod(
+  userSlug: string,
+  methodType: "paypal_wallet" | "card",
+  label: string,
+  options: {
+    readonly vaultId?: string;
+    readonly paypalCustomerId?: string;
+    readonly brand?: string;
+    readonly last4?: string;
+    readonly expiryMonth?: number;
+    readonly expiryYear?: number;
+  },
+): SeedRow {
+  return {
+    id: stableUuid(`saved-payment:${userSlug}:${methodType}`),
+    auth_user_id: authUserId(userSlug),
+    provider: "paypal",
+    method_type: methodType,
+    status: "active",
+    vault_id: options.vaultId ?? null,
+    paypal_customer_id: options.paypalCustomerId ?? null,
+    brand: options.brand ?? null,
+    last4: options.last4 ?? null,
+    expiry_month: options.expiryMonth ?? null,
+    expiry_year: options.expiryYear ?? null,
+    label,
+  };
+}
+
+function cartItem(
+  user: DemoUserSeed,
+  product: ProductSeedRow,
+  marketCode: "US" | "GB",
+  quantity: number,
+  slot: string,
+): SeedRow {
+  return {
+    id: stableUuid(`cart-item:${user.slug}:${slot}`),
+    cart_id: cartId(user.slug),
+    product_id: product.id,
+    quantity,
+    unit_price_minor_snapshot: productPriceMinor(product, marketCode),
+  };
+}
+
+function orderAddressesForScenario(
+  scenario: OrderScenario,
+  currentOrderId: string,
+  user: DemoUserSeed | null,
+): SeedRow[] {
+  const billingAddress = user?.address ?? guestAddress();
+  const rows: SeedRow[] = [];
+
+  if (scenario.fulfillmentMode === "pickup") {
+    const store = storeSeed(scenario.marketCode, scenario.storeSlug!);
+    rows.push({
+      id: stableUuid(`order-address:${scenario.key}:pickup-store`),
+      order_id: currentOrderId,
+      address_type: "pickup_store",
+      recipient_name: `s2s ${store.name}`,
+      phone: store.phone,
+      address_line1: store.addressLine1,
+      address_line2: null,
+      city: store.city,
+      state: store.state,
+      postal_code: store.postalCode,
+      country_code: store.countryCode,
+    });
+  } else {
+    const shippingAddress = user?.address ?? guestAddress();
+    rows.push({
+      id: stableUuid(`order-address:${scenario.key}:shipping`),
+      order_id: currentOrderId,
+      address_type: "shipping",
+      recipient_name: shippingAddress.recipientName,
+      phone: shippingAddress.phone,
+      address_line1: shippingAddress.addressLine1,
+      address_line2: null,
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      postal_code: shippingAddress.postalCode,
+      country_code: shippingAddress.countryCode,
+    });
+  }
+
+  rows.push({
+    id: stableUuid(`order-address:${scenario.key}:billing`),
+    order_id: currentOrderId,
+    address_type: "billing",
+    recipient_name: billingAddress.recipientName,
+    phone: billingAddress.phone,
+    address_line1: billingAddress.addressLine1,
+    address_line2: null,
+    city: billingAddress.city,
+    state: billingAddress.state,
+    postal_code: billingAddress.postalCode,
+    country_code: billingAddress.countryCode,
+  });
+
+  return rows;
+}
+
+function promoEvaluationLine(
+  orderKey: string,
+  scenario: OrderScenario,
+  promoEvaluationIdValue: string,
+  status: "selected" | "rejected",
+  discountMinor: number,
+  sortOrder: number,
+): SeedRow {
+  const code =
+    status === "rejected"
+      ? "BIG20"
+      : scenario.fulfillmentMode === "pickup"
+        ? "BUNDLE8"
+        : "AUTO10";
+  return {
+    id: stableUuid(`promo-evaluation-line:${orderKey}:${status}`),
+    promo_evaluation_id: promoEvaluationIdValue,
+    promo_rule_id: promoRuleId(scenario.profileSlug, scenario.marketCode, code),
+    code_snapshot: code,
+    evaluation_status: status,
+    rejection_reason:
+      status === "rejected"
+        ? "Exclusive promo was not selected for this demo snapshot."
+        : null,
+    stack_group: status === "rejected" ? "exclusive" : "recommended",
+    discount_minor: status === "selected" ? discountMinor : 0,
+    taxable_subtotal_effect_minor: status === "selected" ? discountMinor : 0,
+    final_total_effect_minor: status === "selected" ? discountMinor : 0,
+    explanation:
+      status === "selected"
+        ? "Selected promo result stored for Admin explanation."
+        : "Rejected promo result stored for Admin explanation.",
+    sort_order: sortOrder,
+  };
+}
+
+function lifecycleEventsForScenario(
+  orderKey: string,
+  scenario: OrderScenario,
+  currentOrderId: string,
+): SeedRow[] {
+  const transitions =
+    scenario.status === "pending"
+      ? [
+          {
+            from: null,
+            to: "pending",
+            actor: "system",
+            note:
+              scenario.paymentStatus === "failed"
+                ? "Payment session failed; order remains resumable."
+                : "Payment session started; order remains pending.",
+          },
+        ]
+      : scenario.status === "delivered"
+        ? [
+            {
+              from: null,
+              to: "paid",
+              actor: "webhook",
+              note: "Demo capture webhook marked the order paid.",
+            },
+            {
+              from: "paid",
+              to: "processing",
+              actor: "admin",
+              note: "Admin moved delivery order to processing.",
+            },
+            {
+              from: "processing",
+              to: "shipped",
+              actor: "admin",
+              note: "Admin marked delivery order shipped.",
+            },
+            {
+              from: "shipped",
+              to: "delivered",
+              actor: "admin",
+              note: "Admin marked delivery order delivered.",
+            },
+          ]
+        : [
+            {
+              from: null,
+              to: "paid",
+              actor: "webhook",
+              note: "Demo capture webhook marked pickup order paid.",
+            },
+            {
+              from: "paid",
+              to: "preparing_pickup",
+              actor: "admin",
+              note: "Store started preparing pickup.",
+            },
+            {
+              from: "preparing_pickup",
+              to: "ready_for_pickup",
+              actor: "admin",
+              note: "Store marked pickup ready.",
+            },
+            {
+              from: "ready_for_pickup",
+              to: "picked_up",
+              actor: "admin",
+              note: "Admin marked pickup collected.",
+            },
+          ];
+
+  return transitions.map((transition, index) => ({
+    id: stableUuid(`order-lifecycle:${orderKey}:${index}`),
+    order_id: currentOrderId,
+    from_status: transition.from,
+    to_status: transition.to,
+    actor_type: transition.actor,
+    note: transition.note,
+  }));
+}
+
 function table(
   name: string,
   columns: readonly string[],
@@ -1225,6 +2569,10 @@ function table(
 
 function profileId(profileSlug: string): string {
   return stableUuid(`profile:${profileSlug}`);
+}
+
+function authUserId(userSlug: string): string {
+  return stableUuid(`auth-user:${userSlug}`);
 }
 
 function marketId(marketCode: string): string {
@@ -1251,6 +2599,34 @@ function productPriceId(
 
 function storeId(marketCode: string, storeSlug: string): string {
   return stableUuid(`store:${marketCode}:${storeSlug}`);
+}
+
+function addressId(userSlug: string): string {
+  return stableUuid(`address:${userSlug}:default`);
+}
+
+function cartId(userSlug: string): string {
+  return stableUuid(`cart:${userSlug}:active`);
+}
+
+function checkoutDraftId(orderKey: string): string {
+  return stableUuid(`checkout-draft:${orderKey}`);
+}
+
+function orderId(orderKey: string): string {
+  return stableUuid(`order:${orderKey}`);
+}
+
+function orderItemId(orderKey: string, index: number): string {
+  return stableUuid(`order-item:${orderKey}:${index}`);
+}
+
+function paymentSessionId(orderKey: string): string {
+  return stableUuid(`payment-session:${orderKey}`);
+}
+
+function promoEvaluationId(orderKey: string): string {
+  return stableUuid(`promo-evaluation:${orderKey}`);
 }
 
 function promoRuleId(
@@ -1311,6 +2687,87 @@ function compat(
     compatible_promo_rule_id: right,
     compatibility,
   };
+}
+
+function productByOrdinal(
+  profileSlug: "popmart" | "generic",
+  ordinal: number,
+  productRows: readonly ProductSeedRow[],
+): ProductSeedRow {
+  const category = categorySeeds[Math.floor((ordinal - 1) / 5)];
+  if (!category) {
+    throw new Error(`No seed category for product ordinal ${ordinal}`);
+  }
+  const productSlug = `${category.slug}-${ordinal}`;
+  const product = productRows.find(
+    (row) =>
+      row.profile_id === profileId(profileSlug) && row.slug === productSlug,
+  );
+  if (!product) {
+    throw new Error(`No seed product for ${profileSlug}/${productSlug}`);
+  }
+  return product;
+}
+
+function productPriceMinor(
+  product: ProductSeedRow,
+  marketCode: "US" | "GB",
+): number {
+  const ordinal = Number(String(product.slug).split("-").at(-1));
+  if (!Number.isInteger(ordinal) || ordinal <= 0) {
+    throw new Error(`Cannot infer product ordinal from slug ${product.slug}`);
+  }
+  const productIndex = ordinal - 1;
+  const regularUsd = 1499 + productIndex * 350 + (productIndex % 5) * 120;
+  const regular =
+    marketCode === "GB" ? Math.round(regularUsd * 0.78) : regularUsd;
+  return productIndex % 4 === 0 ? Math.round(regular * 0.85) : regular;
+}
+
+function demoUser(userSlug: string): DemoUserSeed {
+  const user = demoUsers.find((candidate) => candidate.slug === userSlug);
+  if (!user) {
+    throw new Error(`No demo user for slug ${userSlug}`);
+  }
+  return user;
+}
+
+function marketSeed(marketCode: "US" | "GB"): MarketSeed {
+  const market = markets.find((candidate) => candidate.code === marketCode);
+  if (!market) {
+    throw new Error(`No market seed for ${marketCode}`);
+  }
+  return market;
+}
+
+function storeSeed(marketCode: "US" | "GB", storeSlug: string): StoreSeed {
+  const store = stores.find(
+    (candidate) =>
+      candidate.marketCode === marketCode && candidate.slug === storeSlug,
+  );
+  if (!store) {
+    throw new Error(`No store seed for ${marketCode}/${storeSlug}`);
+  }
+  return store;
+}
+
+function guestAddress(): DemoUserSeed["address"] {
+  return {
+    label: "Guest",
+    recipientName: "Mia Guest",
+    phone: "+1 305 555 0301",
+    addressLine1: "250 NW 24th St",
+    city: "Miami",
+    state: "FL",
+    postalCode: "33127",
+    countryCode: "US",
+  };
+}
+
+function stableHash(value: string): string {
+  return `sha256:${createHash("sha256")
+    .update(`${seedNamespace}:${value.toLowerCase()}`)
+    .digest("hex")}`;
 }
 
 function taxRate(

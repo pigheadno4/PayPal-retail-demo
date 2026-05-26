@@ -20,6 +20,6 @@ Local Supabase commands require Docker Desktop or another compatible Docker daem
 
 The initial private `app` schema migration has been drafted and applied to the linked remote Supabase project. Local apply verification is blocked until Docker is available.
 
-The first seed runner slice covers storefront/reference data in the private `app` schema. Auth users, account addresses, saved payments, reviews, and sample orders remain a later guarded seed slice.
+The seed runner covers storefront/reference data plus guarded buyer/account/order scenarios in the private `app` schema and Supabase Auth tables. It includes deterministic demo users, addresses, saved payment placeholders, pending orders, completed orders, reviews, lifecycle events, and sanitized PayPal/webhook snapshots.
 
 Do not commit Supabase service role credentials, database passwords, or project secrets.
