@@ -44,3 +44,4 @@
 - Added shared catalog helpers with TDD for market-scoped active product price lookup, sale/current price normalization, product purchase state, and outlined release calendar entries.
 - Added shared promo, tax, and shipping helpers with TDD for best compatible promo-set recommendation, region/product promo scopes, tax after promo excluding shipping, and cheapest eligible shipping defaults.
 - Added shared BOPIS inventory helpers with TDD for Haversine store distance ranking, full-inventory fallback store selection, and partial pickup ready/unavailable item splits.
+- Added shared cart lifecycle helpers with TDD for guest-to-user cart merge, stale-cart refresh triggers, canonical quantity/price refresh, checkout blockers, and browser cart binding shape.

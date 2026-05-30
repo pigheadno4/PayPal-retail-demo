@@ -9,9 +9,9 @@
 - [x] Guarded seed slice creates pending and completed orders that support resume, review, and Admin lifecycle demos.
 
 ## Core Business Logic
-- [ ] Cart merge/sync across guest, login, and multiple devices.
-- [ ] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.
-- [ ] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
+- [x] Cart merge/sync across guest, login, and multiple devices.
+- [x] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.
+- [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
 - [ ] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
 - [ ] Market switch never converts existing cart prices or currency.
 - [ ] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.

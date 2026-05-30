@@ -7,3 +7,4 @@ export * from "./promos.js";
 export * from "./tax.js";
 export * from "./shipping.js";
 export * from "./inventory.js";
+export * from "./cart.js";

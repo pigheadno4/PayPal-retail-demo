@@ -138,7 +138,7 @@ Verification:
 - [x] Implement destination-based shipping option selection with cheapest default.
 - [x] Implement store distance ranking and fallback store behavior.
 - [x] Implement BOPIS partial inventory split.
-- [ ] Implement cart merge and refresh semantics.
+- [x] Implement cart merge and refresh semantics.
 - [ ] Implement market switch semantics: clear active browser cart binding, fetch/create cart for new market, never convert old cart prices.
 - [ ] Implement pending order resume revalidation rules.
 - [x] Implement fulfillment-specific order number helpers: `DO-YYYYMMDD-000001` and `PO-YYYYMMDD-000001`.
