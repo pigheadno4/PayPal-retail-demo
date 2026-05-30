@@ -143,7 +143,7 @@ Verification:
 - [x] Implement pending order resume revalidation rules.
 - [x] Implement fulfillment-specific order number helpers: `DO-YYYYMMDD-000001` and `PO-YYYYMMDD-000001`.
 - [x] Implement PayPal invoice ID helper that appends an attempt suffix when a fresh payment session is created for the same pending order.
-- [ ] Implement order status transition rules.
+- [x] Implement order status transition rules.
 
 Verification:
 - Unit tests cover every checked item in `tracking/test-cases.md` under Core Business Logic.

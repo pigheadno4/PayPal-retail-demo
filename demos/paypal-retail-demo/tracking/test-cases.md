@@ -100,8 +100,8 @@
 - [x] Profile/market switch resets active carts only.
 - [x] Profile/market switch does not reset orders, inventory, users, saved payments, reviews, or webhooks.
 - [x] Profile/market switch forces config, catalog, cart, and PayPal SDK config refresh.
-- [ ] Manual delivery lifecycle updates order timeline.
-- [ ] Manual pickup lifecycle updates order timeline.
+- [x] Manual delivery lifecycle updates order timeline.
+- [x] Manual pickup lifecycle updates order timeline.
 - [ ] Admin inventory changes affect subsequent checkout/pending resume validation.
 - [ ] Admin order detail shows timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
 - [ ] Runtime debug logs are visible without exposing secrets.

@@ -32,6 +32,46 @@ export type PendingOrderRevalidationAction =
   | "promos"
   | "total_snapshot";
 
+export type OrderStatusTransitionReason =
+  | "payment_captured"
+  | "payment_cancelled"
+  | "admin_lifecycle";
+
+export type OrderStatusTransitionActorType = "system" | "admin" | "webhook";
+
+export interface CanTransitionOrderStatusInput {
+  readonly fulfillmentMode: FulfillmentMode;
+  readonly currentStatus: OrderStatus;
+  readonly nextStatus: OrderStatus;
+}
+
+export interface PlanOrderStatusTransitionInput extends CanTransitionOrderStatusInput {
+  readonly reason: OrderStatusTransitionReason;
+  readonly actorType: OrderStatusTransitionActorType;
+  readonly actorId: string;
+  readonly note?: string | null;
+  readonly occurredAt: Date | string;
+}
+
+export interface OrderTimelineEventPlan {
+  readonly fromStatus: OrderStatus;
+  readonly toStatus: OrderStatus;
+  readonly title: string;
+  readonly note: string | null;
+  readonly occurredAt: string;
+}
+
+export interface OrderStatusTransitionPlan {
+  readonly fulfillmentMode: FulfillmentMode;
+  readonly fromStatus: OrderStatus;
+  readonly toStatus: OrderStatus;
+  readonly reason: OrderStatusTransitionReason;
+  readonly actorType: OrderStatusTransitionActorType;
+  readonly actorId: string;
+  readonly occurredAt: string;
+  readonly timelineEvent: OrderTimelineEventPlan;
+}
+
 export interface PendingOrderItemSnapshot {
   readonly productId: string;
   readonly productNameSnapshot: string;
@@ -161,6 +201,113 @@ export function planPendingOrderResume(
       now,
     ),
   };
+}
+
+export function canTransitionOrderStatus(
+  input: CanTransitionOrderStatusInput,
+): boolean {
+  return allowedNextStatuses(
+    input.fulfillmentMode,
+    input.currentStatus,
+  ).includes(input.nextStatus);
+}
+
+export function planOrderStatusTransition(
+  input: PlanOrderStatusTransitionInput,
+): OrderStatusTransitionPlan {
+  if (!canTransitionOrderStatus(input)) {
+    throw new Error("invalid order status transition");
+  }
+  validateTransitionReason(input);
+  const occurredAt = toDate(input.occurredAt).toISOString();
+  return {
+    fulfillmentMode: input.fulfillmentMode,
+    fromStatus: input.currentStatus,
+    toStatus: input.nextStatus,
+    reason: input.reason,
+    actorType: input.actorType,
+    actorId: input.actorId,
+    occurredAt,
+    timelineEvent: {
+      fromStatus: input.currentStatus,
+      toStatus: input.nextStatus,
+      title: orderStatusTimelineTitle(input.nextStatus),
+      note: input.note ?? null,
+      occurredAt,
+    },
+  };
+}
+
+function allowedNextStatuses(
+  fulfillmentMode: FulfillmentMode,
+  currentStatus: OrderStatus,
+): readonly OrderStatus[] {
+  if (currentStatus === "pending") {
+    return ["paid", "cancelled"];
+  }
+  if (fulfillmentMode === "delivery") {
+    return deliveryStatusTransitions[currentStatus] ?? [];
+  }
+  return pickupStatusTransitions[currentStatus] ?? [];
+}
+
+const deliveryStatusTransitions: Partial<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = {
+  paid: ["processing"],
+  processing: ["shipped"],
+  shipped: ["delivered"],
+};
+
+const pickupStatusTransitions: Partial<
+  Record<OrderStatus, readonly OrderStatus[]>
+> = {
+  paid: ["preparing_pickup"],
+  preparing_pickup: ["ready_for_pickup"],
+  ready_for_pickup: ["picked_up"],
+};
+
+function validateTransitionReason(input: PlanOrderStatusTransitionInput): void {
+  if (input.currentStatus === "pending" && input.nextStatus === "paid") {
+    if (input.reason !== "payment_captured") {
+      throw new Error("pending to paid requires payment_captured reason");
+    }
+    return;
+  }
+  if (input.currentStatus === "pending" && input.nextStatus === "cancelled") {
+    if (input.reason !== "payment_cancelled") {
+      throw new Error("pending to cancelled requires payment_cancelled reason");
+    }
+    return;
+  }
+  if (input.reason !== "admin_lifecycle") {
+    throw new Error(
+      "manual lifecycle transition requires admin_lifecycle reason",
+    );
+  }
+}
+
+function orderStatusTimelineTitle(status: OrderStatus): string {
+  switch (status) {
+    case "paid":
+      return "Payment captured";
+    case "processing":
+      return "Order processing";
+    case "shipped":
+      return "Order shipped";
+    case "delivered":
+      return "Delivered";
+    case "preparing_pickup":
+      return "Preparing pickup";
+    case "ready_for_pickup":
+      return "Ready for pickup";
+    case "picked_up":
+      return "Picked up";
+    case "cancelled":
+      return "Order cancelled";
+    case "pending":
+      return "Payment pending";
+  }
 }
 
 function validatePendingOrderSnapshot(order: PendingOrderSnapshot): void {

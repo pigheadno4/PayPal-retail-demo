@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getMarketConfig } from "./market.js";
 import {
+  canTransitionOrderStatus,
   planPendingOrderResume,
+  planOrderStatusTransition,
   type PendingOrderSnapshot,
   type ResumePaymentSessionSnapshot,
 } from "./orders.js";
@@ -200,5 +202,170 @@ describe("pending order resume", () => {
         now: "2026-05-30T10:00:00.000Z",
       }),
     ).toThrow("order currency must match locked market currency");
+  });
+});
+
+describe("order status transitions", () => {
+  it("plans payment capture from pending to paid for delivery and pickup orders", () => {
+    expect(
+      planOrderStatusTransition({
+        fulfillmentMode: "delivery",
+        currentStatus: "pending",
+        nextStatus: "paid",
+        reason: "payment_captured",
+        actorType: "system",
+        actorId: "paypal_capture",
+        occurredAt: "2026-05-30T12:00:00.000Z",
+      }),
+    ).toEqual({
+      fulfillmentMode: "delivery",
+      fromStatus: "pending",
+      toStatus: "paid",
+      reason: "payment_captured",
+      actorType: "system",
+      actorId: "paypal_capture",
+      occurredAt: "2026-05-30T12:00:00.000Z",
+      timelineEvent: {
+        fromStatus: "pending",
+        toStatus: "paid",
+        title: "Payment captured",
+        note: null,
+        occurredAt: "2026-05-30T12:00:00.000Z",
+      },
+    });
+
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "pickup",
+        currentStatus: "pending",
+        nextStatus: "paid",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows the delivery manual lifecycle and emits buyer timeline events", () => {
+    const processing = planOrderStatusTransition({
+      fulfillmentMode: "delivery",
+      currentStatus: "paid",
+      nextStatus: "processing",
+      reason: "admin_lifecycle",
+      actorType: "admin",
+      actorId: "admin_demo",
+      note: "Packed by demo staff",
+      occurredAt: "2026-05-30T13:00:00.000Z",
+    });
+
+    expect(processing.timelineEvent).toEqual({
+      fromStatus: "paid",
+      toStatus: "processing",
+      title: "Order processing",
+      note: "Packed by demo staff",
+      occurredAt: "2026-05-30T13:00:00.000Z",
+    });
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "delivery",
+        currentStatus: "processing",
+        nextStatus: "shipped",
+      }),
+    ).toBe(true);
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "delivery",
+        currentStatus: "shipped",
+        nextStatus: "delivered",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows the pickup manual lifecycle and emits buyer timeline events", () => {
+    const ready = planOrderStatusTransition({
+      fulfillmentMode: "pickup",
+      currentStatus: "preparing_pickup",
+      nextStatus: "ready_for_pickup",
+      reason: "admin_lifecycle",
+      actorType: "admin",
+      actorId: "admin_demo",
+      occurredAt: "2026-05-30T14:00:00.000Z",
+    });
+
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "pickup",
+        currentStatus: "paid",
+        nextStatus: "preparing_pickup",
+      }),
+    ).toBe(true);
+    expect(ready.timelineEvent).toEqual({
+      fromStatus: "preparing_pickup",
+      toStatus: "ready_for_pickup",
+      title: "Ready for pickup",
+      note: null,
+      occurredAt: "2026-05-30T14:00:00.000Z",
+    });
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "pickup",
+        currentStatus: "ready_for_pickup",
+        nextStatus: "picked_up",
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks cross-fulfillment and terminal status transitions", () => {
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "delivery",
+        currentStatus: "paid",
+        nextStatus: "preparing_pickup",
+      }),
+    ).toBe(false);
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "pickup",
+        currentStatus: "ready_for_pickup",
+        nextStatus: "shipped",
+      }),
+    ).toBe(false);
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "delivery",
+        currentStatus: "delivered",
+        nextStatus: "processing",
+      }),
+    ).toBe(false);
+    expect(
+      canTransitionOrderStatus({
+        fulfillmentMode: "pickup",
+        currentStatus: "picked_up",
+        nextStatus: "ready_for_pickup",
+      }),
+    ).toBe(false);
+  });
+
+  it("throws when planning an invalid transition or mismatched reason", () => {
+    expect(() =>
+      planOrderStatusTransition({
+        fulfillmentMode: "delivery",
+        currentStatus: "paid",
+        nextStatus: "ready_for_pickup",
+        reason: "admin_lifecycle",
+        actorType: "admin",
+        actorId: "admin_demo",
+        occurredAt: "2026-05-30T15:00:00.000Z",
+      }),
+    ).toThrow("invalid order status transition");
+
+    expect(() =>
+      planOrderStatusTransition({
+        fulfillmentMode: "delivery",
+        currentStatus: "pending",
+        nextStatus: "paid",
+        reason: "admin_lifecycle",
+        actorType: "admin",
+        actorId: "admin_demo",
+        occurredAt: "2026-05-30T15:00:00.000Z",
+      }),
+    ).toThrow("pending to paid requires payment_captured reason");
   });
 });
