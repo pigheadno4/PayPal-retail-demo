@@ -48,3 +48,5 @@
 - Added shared market switch planner with TDD for Admin profile/market switches, cart binding reset, fetch-or-create cart actions, config/catalog/cart/PayPal SDK refresh targets, preserved business resources, and no cart currency conversion.
 - Added shared pending order resume planner with TDD for locked order market/config snapshots, order item price snapshots, resume revalidation actions, expired/invalid payment-session replacement, stable buyer-facing order numbers, fresh PayPal invoice IDs, and pickup-date rebooking.
 - Added shared order status transition helpers with TDD for payment capture, delivery manual lifecycle, pickup manual lifecycle, timeline event plans, cross-fulfillment blocking, and terminal-state blocking.
+- Synchronized tracking after Milestone 3 completion and queued Milestone 4 PayPal payload/config helpers as the next active implementation stage.
+- Added the first Milestone 4 PayPal helper with TDD: full-checkout Delivery Create Order payload builder using `CAPTURE`, merchant-provided shipping address semantics, detailed physical-goods line items, item/shipping/tax/discount breakdown, and minor-unit amount reconciliation.

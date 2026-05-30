@@ -152,7 +152,7 @@ Verification:
 - Tax tests prove shipping fee is excluded.
 
 ## Milestone 4: PayPal Payload Builders And Capture Guard TDD
-- [ ] Implement PayPal delivery full-checkout Create Order builder.
+- [x] Implement PayPal delivery full-checkout Create Order builder.
 - [ ] Implement PayPal express delivery Create Order builder with server-side shipping callback config.
 - [ ] Implement PayPal BOPIS Create Order builder with mandatory v1 pickup fields.
 - [ ] Implement PayPal SDK config response builder with browser-safe client ID.

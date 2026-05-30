@@ -33,7 +33,7 @@
 - [x] Partial BOPIS excludes unavailable items from payment amount and keeps them in cart.
 - [ ] Delivery inventory decrements central inventory after payment.
 - [ ] BOPIS inventory decrements selected store inventory after payment.
-- [ ] PayPal delivery payload builder uses delivery semantics.
+- [x] PayPal delivery payload builder uses delivery semantics.
 - [ ] PayPal BOPIS payload builder uses pickup-store semantics.
 - [ ] PayPal BOPIS payload builder sets `intent: "CAPTURE"`.
 - [ ] PayPal BOPIS payload builder sets PayPal `shipping_preference: "SET_PROVIDED_ADDRESS"`.

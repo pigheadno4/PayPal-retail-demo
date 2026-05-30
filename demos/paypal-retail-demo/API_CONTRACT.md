@@ -413,6 +413,13 @@ Amount reconciliation:
 ### `POST /api/paypal/orders/delivery`
 Creates PayPal order for full checkout Delivery flow after checkout draft is finalized.
 
+Rules:
+- fulfillment mode is locked to `delivery`
+- full checkout uses the merchant-collected shipping address from the finalized checkout draft
+- use `shipping_preference: "SET_PROVIDED_ADDRESS"` so the selected checkout shipping address remains the order address
+- do not use server-side shipping callbacks in full checkout Delivery; address, shipping option, tax, promo, and amount are finalized before payment approval
+- include detailed item data when available and keep `items[]` reconciled with `amount.breakdown.item_total`
+
 ### `POST /api/paypal/orders/express-delivery`
 Creates PayPal order from PDP/cart/minicart delivery express.
 

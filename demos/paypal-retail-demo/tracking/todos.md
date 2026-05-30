@@ -27,3 +27,6 @@
 - [ ] Verify the Supabase migrations apply on local Supabase once Docker Desktop/local Supabase is available.
 - [x] Build the TypeScript storefront/reference seed runner data for the two demo profiles.
 - [x] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.
+- [x] Complete Milestone 3 shared business logic helpers with TDD for money, market, catalog, promo, tax, shipping, inventory, cart lifecycle, market switch, pending resume, order numbers, PayPal invoice IDs, and order status transitions.
+- [x] Start Milestone 4 PayPal payload/config helpers with local `wiki-v2` evidence and TDD.
+- [ ] Continue Milestone 4 with PayPal express delivery Create Order builder and server-side shipping callback config.
