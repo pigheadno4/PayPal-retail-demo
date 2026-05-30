@@ -14,11 +14,11 @@
 - [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
 - [x] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
 - [x] Market switch never converts existing cart prices or currency.
-- [ ] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.
+- [x] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.
 - [x] Product price lookup returns the active `product_prices` row for the current profile and market.
 - [x] Product purchase state blocks unreleased/future products from checkout and review eligibility.
-- [ ] Pending order resume uses order snapshot and revalidates current rules.
-- [ ] Pending order resume creates a fresh payment session if the old session is expired or invalid.
+- [x] Pending order resume uses order snapshot and revalidates current rules.
+- [x] Pending order resume creates a fresh payment session if the old session is expired or invalid.
 - [x] Promo evaluation supports automatic promos, manual codes, compatibility, expiry, and buyer selection.
 - [x] Promo evaluation respects country/state/county/postal promo scopes.
 - [x] Promo evaluation respects product/category promo scopes and exclusions.
@@ -53,7 +53,7 @@
 - [x] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
-- [ ] Pending order resume keeps buyer-facing order number stable while generating a new PayPal invoice ID when a fresh PayPal order is required.
+- [x] Pending order resume keeps buyer-facing order number stable while generating a new PayPal invoice ID when a fresh PayPal order is required.
 - [ ] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
 - [ ] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
 - [ ] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.

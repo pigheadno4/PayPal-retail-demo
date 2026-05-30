@@ -140,7 +140,7 @@ Verification:
 - [x] Implement BOPIS partial inventory split.
 - [x] Implement cart merge and refresh semantics.
 - [x] Implement market switch semantics: clear active browser cart binding, fetch/create cart for new market, never convert old cart prices.
-- [ ] Implement pending order resume revalidation rules.
+- [x] Implement pending order resume revalidation rules.
 - [x] Implement fulfillment-specific order number helpers: `DO-YYYYMMDD-000001` and `PO-YYYYMMDD-000001`.
 - [x] Implement PayPal invoice ID helper that appends an attempt suffix when a fresh payment session is created for the same pending order.
 - [ ] Implement order status transition rules.
