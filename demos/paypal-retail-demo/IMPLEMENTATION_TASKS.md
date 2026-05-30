@@ -136,8 +136,8 @@ Verification:
 - [x] Implement promo engine with auto/manual promos, expiry, compatibility, recommended set, rejected reasons, and snapshots.
 - [x] Implement tax calculation after promo and excluding shipping.
 - [x] Implement destination-based shipping option selection with cheapest default.
-- [ ] Implement store distance ranking and fallback store behavior.
-- [ ] Implement BOPIS partial inventory split.
+- [x] Implement store distance ranking and fallback store behavior.
+- [x] Implement BOPIS partial inventory split.
 - [ ] Implement cart merge and refresh semantics.
 - [ ] Implement market switch semantics: clear active browser cart binding, fetch/create cart for new market, never convert old cart prices.
 - [ ] Implement pending order resume revalidation rules.

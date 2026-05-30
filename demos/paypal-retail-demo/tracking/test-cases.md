@@ -29,8 +29,8 @@
 - [ ] Total snapshots preserve calculation stage, promo evaluation, taxable subtotal, tax, shipping, and final total.
 - [x] Shipping options are destination-based and cheapest option defaults.
 - [ ] Store records are market-scoped and shared across profiles, while store inventory remains profile-and-market scoped.
-- [ ] BOPIS store ranking preselects nearest store even if partial.
-- [ ] Partial BOPIS excludes unavailable items from payment amount and keeps them in cart.
+- [x] BOPIS store ranking preselects nearest store even if partial.
+- [x] Partial BOPIS excludes unavailable items from payment amount and keeps them in cart.
 - [ ] Delivery inventory decrements central inventory after payment.
 - [ ] BOPIS inventory decrements selected store inventory after payment.
 - [ ] PayPal delivery payload builder uses delivery semantics.
