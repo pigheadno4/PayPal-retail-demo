@@ -11,6 +11,9 @@ export type PayPalShippingPreference =
   | "GET_FROM_FILE"
   | "SET_PROVIDED_ADDRESS"
   | "NO_SHIPPING";
+export type PayPalShippingCallbackEvent =
+  | "SHIPPING_ADDRESS"
+  | "SHIPPING_OPTIONS";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -47,6 +50,17 @@ export interface BuildPayPalDeliveryCreateOrderInput {
   readonly shippingAddress: PayPalDeliveryAddressInput;
 }
 
+export interface BuildPayPalExpressDeliveryCreateOrderInput {
+  readonly orderNumber: string;
+  readonly currencyCode: PayPalCurrencyCode;
+  readonly items: readonly PayPalOrderLineItemInput[];
+  readonly shippingAmountMinor: number;
+  readonly taxAmountMinor: number;
+  readonly discountAmountMinor: number;
+  readonly shippingCallbackUrl: string;
+  readonly callbackEvents?: readonly PayPalShippingCallbackEvent[];
+}
+
 export interface PayPalCreateOrderPayload {
   readonly intent: "CAPTURE";
   readonly purchase_units: readonly PayPalPurchaseUnit[];
@@ -54,9 +68,15 @@ export interface PayPalCreateOrderPayload {
     readonly paypal: {
       readonly experience_context: {
         readonly shipping_preference: PayPalShippingPreference;
+        readonly order_update_callback_config?: PayPalOrderUpdateCallbackConfig;
       };
     };
   };
+}
+
+export interface PayPalOrderUpdateCallbackConfig {
+  readonly callback_events: readonly PayPalShippingCallbackEvent[];
+  readonly callback_url: string;
 }
 
 export interface PayPalPurchaseUnit {
@@ -67,7 +87,7 @@ export interface PayPalPurchaseUnit {
     readonly value: string;
     readonly breakdown: PayPalAmountBreakdown;
   };
-  readonly shipping: PayPalShipping;
+  readonly shipping?: PayPalShipping;
 }
 
 export interface PayPalOrderLineItem {
@@ -105,6 +125,49 @@ export interface PayPalShipping {
 export function buildPayPalDeliveryCreateOrderPayload(
   input: BuildPayPalDeliveryCreateOrderInput,
 ): PayPalCreateOrderPayload {
+  return {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        ...buildPayPalPurchaseUnitBase(input),
+        shipping: buildPayPalShipping(input.shippingAddress),
+      },
+    ],
+    payment_source: {
+      paypal: {
+        experience_context: {
+          shipping_preference: "SET_PROVIDED_ADDRESS",
+        },
+      },
+    },
+  };
+}
+
+export function buildPayPalExpressDeliveryCreateOrderPayload(
+  input: BuildPayPalExpressDeliveryCreateOrderInput,
+): PayPalCreateOrderPayload {
+  return {
+    intent: "CAPTURE",
+    purchase_units: [buildPayPalPurchaseUnitBase(input)],
+    payment_source: {
+      paypal: {
+        experience_context: {
+          shipping_preference: "GET_FROM_FILE",
+          order_update_callback_config: buildShippingCallbackConfig(input),
+        },
+      },
+    },
+  };
+}
+
+function buildPayPalPurchaseUnitBase(input: {
+  readonly orderNumber: string;
+  readonly currencyCode: PayPalCurrencyCode;
+  readonly items: readonly PayPalOrderLineItemInput[];
+  readonly shippingAmountMinor: number;
+  readonly taxAmountMinor: number;
+  readonly discountAmountMinor: number;
+}): PayPalPurchaseUnit {
   const items = input.items.map((item) =>
     buildPayPalLineItem(item, input.currencyCode),
   );
@@ -134,26 +197,36 @@ export function buildPayPalDeliveryCreateOrderPayload(
   };
 
   return {
-    intent: "CAPTURE",
-    purchase_units: [
-      {
-        invoice_id: input.orderNumber,
-        items,
-        amount: {
-          currency_code: input.currencyCode,
-          value: formatMinorUnit(orderTotalMinor),
-          breakdown,
-        },
-        shipping: buildPayPalShipping(input.shippingAddress),
-      },
-    ],
-    payment_source: {
-      paypal: {
-        experience_context: {
-          shipping_preference: "SET_PROVIDED_ADDRESS",
-        },
-      },
+    invoice_id: input.orderNumber,
+    items,
+    amount: {
+      currency_code: input.currencyCode,
+      value: formatMinorUnit(orderTotalMinor),
+      breakdown,
     },
+  };
+}
+
+function buildShippingCallbackConfig(
+  input: BuildPayPalExpressDeliveryCreateOrderInput,
+): PayPalOrderUpdateCallbackConfig {
+  assertHttpsUrl(input.shippingCallbackUrl);
+  const callbackEvents = input.callbackEvents ?? ["SHIPPING_ADDRESS"];
+  if (callbackEvents.length === 0) {
+    throw new Error("at least one shipping callback event is required");
+  }
+  for (const callbackEvent of callbackEvents) {
+    if (
+      callbackEvent !== "SHIPPING_ADDRESS" &&
+      callbackEvent !== "SHIPPING_OPTIONS"
+    ) {
+      throw new Error(`unsupported shipping callback event: ${callbackEvent}`);
+    }
+  }
+
+  return {
+    callback_events: [...new Set(callbackEvents)],
+    callback_url: input.shippingCallbackUrl,
   };
 }
 
@@ -229,4 +302,16 @@ function assertPositiveQuantity(value: number, label: string): number {
     throw new Error(`${label} must be a positive integer`);
   }
   return value;
+}
+
+function assertHttpsUrl(value: string): void {
+  try {
+    const parsedUrl = new URL(value);
+    if (parsedUrl.protocol === "https:") {
+      return;
+    }
+  } catch {
+    // Fall through to the shared validation error.
+  }
+  throw new Error("shipping callback URL must use https");
 }

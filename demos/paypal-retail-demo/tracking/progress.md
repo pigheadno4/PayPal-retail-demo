@@ -50,3 +50,4 @@
 - Added shared order status transition helpers with TDD for payment capture, delivery manual lifecycle, pickup manual lifecycle, timeline event plans, cross-fulfillment blocking, and terminal-state blocking.
 - Synchronized tracking after Milestone 3 completion and queued Milestone 4 PayPal payload/config helpers as the next active implementation stage.
 - Added the first Milestone 4 PayPal helper with TDD: full-checkout Delivery Create Order payload builder using `CAPTURE`, merchant-provided shipping address semantics, detailed physical-goods line items, item/shipping/tax/discount breakdown, and minor-unit amount reconciliation.
+- Added the express Delivery PayPal Create Order payload builder with TDD: `GET_FROM_FILE`, server-side shipping callback config, default `SHIPPING_ADDRESS` subscription, optional `SHIPPING_OPTIONS`, detailed physical-goods line items, and no locked merchant shipping address.

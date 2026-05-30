@@ -29,4 +29,5 @@
 - [x] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.
 - [x] Complete Milestone 3 shared business logic helpers with TDD for money, market, catalog, promo, tax, shipping, inventory, cart lifecycle, market switch, pending resume, order numbers, PayPal invoice IDs, and order status transitions.
 - [x] Start Milestone 4 PayPal payload/config helpers with local `wiki-v2` evidence and TDD.
-- [ ] Continue Milestone 4 with PayPal express delivery Create Order builder and server-side shipping callback config.
+- [x] Continue Milestone 4 with PayPal express delivery Create Order builder and server-side shipping callback config.
+- [ ] Continue Milestone 4 with PayPal BOPIS Create Order builder and mandatory v1 pickup fields.

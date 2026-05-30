@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPayPalDeliveryCreateOrderPayload,
+  buildPayPalExpressDeliveryCreateOrderPayload,
   type PayPalOrderLineItemInput,
 } from "./paypal.js";
 
@@ -156,9 +157,9 @@ describe("PayPal delivery full-checkout Create Order builder", () => {
         value: "4.40",
       },
     });
-    expect(payload.purchase_units[0]?.shipping.address).not.toHaveProperty(
-      "address_line_2",
-    );
+    const shipping = payload.purchase_units[0]?.shipping;
+    expect(shipping).toBeDefined();
+    expect(shipping?.address).not.toHaveProperty("address_line_2");
   });
 
   it("rejects invalid quantities and discounts larger than item plus shipping plus tax", () => {
@@ -211,5 +212,143 @@ describe("PayPal delivery full-checkout Create Order builder", () => {
         },
       }),
     ).toThrow("negative money result is not allowed");
+  });
+});
+
+describe("PayPal express delivery Create Order builder", () => {
+  it("uses wallet shipping with server-side shipping callbacks and detailed line items", () => {
+    const payload = buildPayPalExpressDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260530-000005",
+      currencyCode: "USD",
+      items: deliveryItems,
+      shippingAmountMinor: 500,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      shippingCallbackUrl:
+        "https://demo.example/api/paypal/orders/paypal_order_123/shipping-callback?cart_id=cart_123&session_id=session_456",
+    });
+
+    expect(payload).toEqual({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          invoice_id: "DO-20260530-000005",
+          items: [
+            {
+              name: "Labubu Have a Seat",
+              quantity: "2",
+              sku: "PM-LABUBU-HAS",
+              description: "Blind box figure",
+              url: "https://demo.example/products/labubu-have-a-seat",
+              image_url: "https://demo.example/assets/labubu.png",
+              category: "PHYSICAL_GOODS",
+              unit_amount: {
+                currency_code: "USD",
+                value: "15.99",
+              },
+            },
+            {
+              name: "Molly Anniversary",
+              quantity: "1",
+              sku: "PM-MOLLY-ANN",
+              category: "PHYSICAL_GOODS",
+              unit_amount: {
+                currency_code: "USD",
+                value: "12.99",
+              },
+            },
+          ],
+          amount: {
+            currency_code: "USD",
+            value: "43.37",
+            breakdown: {
+              item_total: {
+                currency_code: "USD",
+                value: "44.97",
+              },
+              shipping: {
+                currency_code: "USD",
+                value: "5.00",
+              },
+              tax_total: {
+                currency_code: "USD",
+                value: "3.40",
+              },
+              discount: {
+                currency_code: "USD",
+                value: "10.00",
+              },
+            },
+          },
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            shipping_preference: "GET_FROM_FILE",
+            order_update_callback_config: {
+              callback_events: ["SHIPPING_ADDRESS"],
+              callback_url:
+                "https://demo.example/api/paypal/orders/paypal_order_123/shipping-callback?cart_id=cart_123&session_id=session_456",
+            },
+          },
+        },
+      },
+    });
+    expect(payload.purchase_units[0]).not.toHaveProperty("shipping");
+  });
+
+  it("supports explicit shipping option callbacks and rejects invalid callback config", () => {
+    const payload = buildPayPalExpressDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260530-000006",
+      currencyCode: "GBP",
+      items: [
+        {
+          name: "Hirono Little Mischief",
+          quantity: 1,
+          unitAmountMinor: 2199,
+        },
+      ],
+      shippingAmountMinor: 0,
+      taxAmountMinor: 440,
+      discountAmountMinor: 0,
+      shippingCallbackUrl:
+        "https://demo.example/api/paypal/orders/paypal_order_456/shipping-callback",
+      callbackEvents: ["SHIPPING_ADDRESS", "SHIPPING_OPTIONS"],
+    });
+
+    expect(
+      payload.payment_source.paypal.experience_context
+        .order_update_callback_config,
+    ).toEqual({
+      callback_events: ["SHIPPING_ADDRESS", "SHIPPING_OPTIONS"],
+      callback_url:
+        "https://demo.example/api/paypal/orders/paypal_order_456/shipping-callback",
+    });
+
+    expect(() =>
+      buildPayPalExpressDeliveryCreateOrderPayload({
+        orderNumber: "DO-20260530-000007",
+        currencyCode: "USD",
+        items: deliveryItems,
+        shippingAmountMinor: 0,
+        taxAmountMinor: 0,
+        discountAmountMinor: 0,
+        shippingCallbackUrl: "http://demo.example/callback",
+      }),
+    ).toThrow("shipping callback URL must use https");
+
+    expect(() =>
+      buildPayPalExpressDeliveryCreateOrderPayload({
+        orderNumber: "DO-20260530-000008",
+        currencyCode: "USD",
+        items: deliveryItems,
+        shippingAmountMinor: 0,
+        taxAmountMinor: 0,
+        discountAmountMinor: 0,
+        shippingCallbackUrl: "https://demo.example/callback",
+        callbackEvents: [],
+      }),
+    ).toThrow("at least one shipping callback event is required");
   });
 });

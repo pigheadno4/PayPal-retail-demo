@@ -41,7 +41,7 @@
 - [ ] PayPal BOPIS payload builder sets purchase unit shipping address to the selected store address.
 - [ ] PayPal BOPIS payload builder sets receiver name to `s2s ${storeName}`.
 - [ ] PayPal BOPIS flow does not use authorize-at-checkout/capture-at-pickup in v1.
-- [ ] PayPal delivery express payload uses delivery semantics and server-side shipping callbacks.
+- [x] PayPal delivery express payload uses delivery semantics and server-side shipping callbacks.
 - [ ] PayPal SDK config API returns browser-safe client ID for basic flows and never returns client secret.
 - [ ] PayPal SDK config API returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
 - [ ] PayPal SDK config API returns sandbox test buyer country in sandbox and omits or nulls it in production.
