@@ -12,8 +12,8 @@
 - [x] Cart merge/sync across guest, login, and multiple devices.
 - [x] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.
 - [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
-- [ ] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
-- [ ] Market switch never converts existing cart prices or currency.
+- [x] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
+- [x] Market switch never converts existing cart prices or currency.
 - [ ] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.
 - [x] Product price lookup returns the active `product_prices` row for the current profile and market.
 - [x] Product purchase state blocks unreleased/future products from checkout and review eligibility.
@@ -97,9 +97,9 @@
 ## Admin Portal
 - [ ] `/admin` is hidden from buyer UI.
 - [ ] Admin passcode gate works independently from buyer auth.
-- [ ] Profile/market switch resets active carts only.
-- [ ] Profile/market switch does not reset orders, inventory, users, saved payments, reviews, or webhooks.
-- [ ] Profile/market switch forces config, catalog, cart, and PayPal SDK config refresh.
+- [x] Profile/market switch resets active carts only.
+- [x] Profile/market switch does not reset orders, inventory, users, saved payments, reviews, or webhooks.
+- [x] Profile/market switch forces config, catalog, cart, and PayPal SDK config refresh.
 - [ ] Manual delivery lifecycle updates order timeline.
 - [ ] Manual pickup lifecycle updates order timeline.
 - [ ] Admin inventory changes affect subsequent checkout/pending resume validation.

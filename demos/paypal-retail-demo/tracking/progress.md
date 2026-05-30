@@ -45,3 +45,4 @@
 - Added shared promo, tax, and shipping helpers with TDD for best compatible promo-set recommendation, region/product promo scopes, tax after promo excluding shipping, and cheapest eligible shipping defaults.
 - Added shared BOPIS inventory helpers with TDD for Haversine store distance ranking, full-inventory fallback store selection, and partial pickup ready/unavailable item splits.
 - Added shared cart lifecycle helpers with TDD for guest-to-user cart merge, stale-cart refresh triggers, canonical quantity/price refresh, checkout blockers, and browser cart binding shape.
+- Added shared market switch planner with TDD for Admin profile/market switches, cart binding reset, fetch-or-create cart actions, config/catalog/cart/PayPal SDK refresh targets, preserved business resources, and no cart currency conversion.
