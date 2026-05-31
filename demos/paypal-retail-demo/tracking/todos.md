@@ -38,4 +38,5 @@
 - [x] Continue Milestone 4 with Pay Later, Venmo, Apple Pay, Google Pay, and card method mapping.
 - [x] Continue Milestone 4 with vault attribute inclusion only for logged-in eligible buyers.
 - [x] Continue Milestone 4 with amount consistency guard for capture blocking.
-- [ ] Continue Milestone 4 with sanitized PayPal snapshot storage shape.
+- [x] Continue Milestone 4 with sanitized PayPal snapshot storage shape.
+- [ ] Start Milestone 5 Express API foundation with app shell and health endpoint.

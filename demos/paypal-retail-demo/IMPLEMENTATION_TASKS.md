@@ -163,7 +163,7 @@ Verification:
 - [x] Implement Pay Later, Venmo, Apple Pay, Google Pay, card method mapping.
 - [x] Implement vault attribute inclusion only for logged-in eligible buyers.
 - [x] Implement amount consistency guard.
-- [ ] Implement sanitized PayPal snapshot storage shape.
+- [x] Implement sanitized PayPal snapshot storage shape.
 
 Verification:
 - Tests assert BOPIS has `intent: "CAPTURE"`, `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, selected store address, and receiver name `s2s ${storeName}`.

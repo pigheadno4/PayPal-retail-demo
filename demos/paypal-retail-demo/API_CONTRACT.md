@@ -570,6 +570,13 @@ The capture guard returns an explainable decision shape for API/Admin use:
 - `tolerance_minor`
 - `mismatches[]`: reason, merchant expected amount/currency, provider actual amount/currency
 
+Snapshot storage:
+- PayPal request/response snapshots are sanitized before writing `app.paypal_order_snapshots`.
+- The storage row keeps `payment_session_id`, `paypal_invoice_id`, `paypal_request_id`, `request_json`, `response_json`, and `merchant_snapshot_json`.
+- `request_json` and `response_json` preserve item-level details and amount breakdowns for Admin explanation.
+- Sanitization redacts access tokens, refresh tokens, ID tokens, client secrets, authorization headers, PayPal auth assertions, payer email, phone, and phone-number fragments.
+- `merchant_snapshot_json` stores currency and minor-unit item total, shipping, tax, discount, and final total used by capture validation.
+
 ### `POST /api/paypal/webhooks`
 Verifies PayPal webhook signature before processing.
 

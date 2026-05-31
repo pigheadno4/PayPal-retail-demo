@@ -51,3 +51,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Capture should compare the locked merchant snapshot with the provider/PayPal amount snapshot, not browser-submitted totals.
 - The guard should block on currency, item total, shipping, tax, discount, or final total mismatches, except for explicitly configured rounding tolerance.
 - PayPal purchase-unit amount breakdown can be normalized into a provider amount snapshot for the later capture API route.
+
+## PayPal Snapshot Sanitization
+- Admin/debug snapshots should preserve PayPal request/response structure and item-level details but redact secrets before storage.
+- Redact obvious credential and privacy fields such as access tokens, client secrets, auth headers, payer email, and phone data.
+- Store merchant amount snapshots beside sanitized PayPal snapshots so capture/debug views can explain expected versus provider totals without recalculating from browser data.

@@ -78,6 +78,7 @@
 - [x] PayPal item-level tax allocation splits a same-product line when line tax cents cannot divide evenly by quantity.
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
+- [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

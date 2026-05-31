@@ -4,6 +4,7 @@ import {
   buildPayPalDeliveryCreateOrderPayload,
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
+  buildSanitizedPayPalOrderSnapshot,
   checkPayPalCreateOrderAmountConsistency,
   extractPayPalPurchaseUnitAmountSnapshot,
   guardPayPalCaptureAmountConsistency,
@@ -894,6 +895,105 @@ describe("PayPal SDK config builder", () => {
         method: "paypal",
       }),
     ).toThrow("PayPal client ID is required");
+  });
+});
+
+describe("PayPal snapshot sanitizer", () => {
+  it("builds storage-ready snapshots that redact secrets and buyer PII while preserving item details", () => {
+    const requestBody = buildPayPalDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260531-000013",
+      currencyCode: "USD",
+      items: deliveryItems,
+      shippingAmountMinor: 500,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      shippingAddress: {
+        fullName: "Taylor Buyer",
+        addressLine1: "221B Market Street",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+      },
+    });
+
+    expect(
+      buildSanitizedPayPalOrderSnapshot({
+        paymentSessionId: "payment_session_123",
+        paypalInvoiceId: "DO-20260531-000013",
+        paypalRequestId: "paypal_request_123",
+        merchantSnapshot: {
+          currencyCode: "USD",
+          itemTotalMinor: 4497,
+          shippingMinor: 500,
+          taxMinor: 340,
+          discountMinor: 1000,
+          totalMinor: 4337,
+        },
+        request: {
+          headers: {
+            Authorization: "DemoAuth secret-access-token",
+            "PayPal-Request-Id": "paypal_request_123",
+          },
+          body: requestBody,
+        },
+        response: {
+          id: "PAYPAL_ORDER_123",
+          access_token: "secret-access-token",
+          client_secret: "secret-client-secret",
+          payer: {
+            email_address: "buyer@example.com",
+            phone: {
+              phone_number: {
+                national_number: "5551234567",
+              },
+            },
+          },
+          purchase_units: [
+            {
+              invoice_id: "DO-20260531-000013",
+              items: requestBody.purchase_units[0]!.items,
+              amount: requestBody.purchase_units[0]!.amount,
+            },
+          ],
+        },
+      }),
+    ).toEqual({
+      payment_session_id: "payment_session_123",
+      paypal_invoice_id: "DO-20260531-000013",
+      paypal_request_id: "paypal_request_123",
+      request_json: {
+        headers: {
+          Authorization: "[redacted]",
+          "PayPal-Request-Id": "paypal_request_123",
+        },
+        body: requestBody,
+      },
+      response_json: {
+        id: "PAYPAL_ORDER_123",
+        access_token: "[redacted]",
+        client_secret: "[redacted]",
+        payer: {
+          email_address: "[redacted]",
+          phone: "[redacted]",
+        },
+        purchase_units: [
+          {
+            invoice_id: "DO-20260531-000013",
+            items: requestBody.purchase_units[0]!.items,
+            amount: requestBody.purchase_units[0]!.amount,
+          },
+        ],
+      },
+      merchant_snapshot_json: {
+        currency_code: "USD",
+        item_total_minor: 4497,
+        shipping_minor: 500,
+        tax_minor: 340,
+        discount_minor: 1000,
+        total_minor: 4337,
+      },
+    });
   });
 });
 

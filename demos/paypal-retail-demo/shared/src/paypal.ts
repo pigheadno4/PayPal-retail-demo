@@ -473,6 +473,39 @@ export interface PayPalCaptureAmountGuardResult {
   readonly mismatches: readonly PayPalCaptureAmountMismatch[];
 }
 
+export type PayPalSnapshotJson =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly PayPalSnapshotJson[]
+  | { readonly [key: string]: PayPalSnapshotJson };
+
+export interface BuildSanitizedPayPalOrderSnapshotInput {
+  readonly paymentSessionId: string;
+  readonly paypalInvoiceId: string;
+  readonly paypalRequestId: string;
+  readonly request: unknown;
+  readonly response: unknown;
+  readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+}
+
+export interface SanitizedPayPalOrderSnapshot {
+  readonly payment_session_id: string;
+  readonly paypal_invoice_id: string;
+  readonly paypal_request_id: string;
+  readonly request_json: PayPalSnapshotJson;
+  readonly response_json: PayPalSnapshotJson;
+  readonly merchant_snapshot_json: {
+    readonly currency_code: PayPalCurrencyCode;
+    readonly item_total_minor: number;
+    readonly shipping_minor: number;
+    readonly tax_minor: number;
+    readonly discount_minor: number;
+    readonly total_minor: number;
+  };
+}
+
 export function buildPayPalDeliveryCreateOrderPayload(
   input: BuildPayPalDeliveryCreateOrderInput,
 ): PayPalCreateOrderPayload {
@@ -1132,6 +1165,40 @@ export function guardPayPalCaptureAmountConsistency(
   };
 }
 
+export function buildSanitizedPayPalOrderSnapshot(
+  input: BuildSanitizedPayPalOrderSnapshotInput,
+): SanitizedPayPalOrderSnapshot {
+  const merchantSnapshot = normalizeCaptureAmountSnapshot(
+    input.merchantSnapshot,
+    "merchant",
+  );
+
+  return {
+    payment_session_id: assertNonEmptyString(
+      input.paymentSessionId,
+      "payment session ID",
+    ),
+    paypal_invoice_id: assertNonEmptyString(
+      input.paypalInvoiceId,
+      "PayPal invoice ID",
+    ),
+    paypal_request_id: assertNonEmptyString(
+      input.paypalRequestId,
+      "PayPal request ID",
+    ),
+    request_json: sanitizePayPalSnapshotValue(input.request),
+    response_json: sanitizePayPalSnapshotValue(input.response),
+    merchant_snapshot_json: {
+      currency_code: merchantSnapshot.currencyCode,
+      item_total_minor: merchantSnapshot.itemTotalMinor,
+      shipping_minor: merchantSnapshot.shippingMinor,
+      tax_minor: merchantSnapshot.taxMinor,
+      discount_minor: merchantSnapshot.discountMinor,
+      total_minor: merchantSnapshot.totalMinor,
+    },
+  };
+}
+
 function buildPayPalPurchaseUnitBase(input: {
   readonly orderNumber: string;
   readonly currencyCode: PayPalCurrencyCode;
@@ -1405,6 +1472,75 @@ function assertNonEmptyString(value: string, label: string): string {
 function normalizeOptionalString(value?: string | null): string | null {
   const trimmedValue = value?.trim();
   return trimmedValue ? trimmedValue : null;
+}
+
+const redactedSnapshotValue = "[redacted]";
+
+const sensitivePayPalSnapshotKeys = new Set([
+  "access_token",
+  "authorization",
+  "client_secret",
+  "cvc",
+  "cvv",
+  "email_address",
+  "id_token",
+  "national_number",
+  "password",
+  "paypal_auth_assertion",
+  "phone",
+  "phone_number",
+  "refresh_token",
+  "security_code",
+]);
+
+function sanitizePayPalSnapshotValue(value: unknown): PayPalSnapshotJson {
+  if (value === null) {
+    return null;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    typeof value === "number"
+  ) {
+    return typeof value === "number" && !Number.isFinite(value) ? null : value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePayPalSnapshotValue(item));
+  }
+
+  if (typeof value === "object") {
+    const sanitized: Record<string, PayPalSnapshotJson> = {};
+    for (const [key, childValue] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      if (childValue === undefined) {
+        continue;
+      }
+      sanitized[key] = isSensitivePayPalSnapshotKey(key)
+        ? redactedSnapshotValue
+        : sanitizePayPalSnapshotValue(childValue);
+    }
+    return sanitized;
+  }
+
+  return String(value);
+}
+
+function isSensitivePayPalSnapshotKey(key: string): boolean {
+  return sensitivePayPalSnapshotKeys.has(normalizePayPalSnapshotKey(key));
+}
+
+function normalizePayPalSnapshotKey(key: string): string {
+  return key
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
 }
 
 function normalizeClientTokenDomains(domains: readonly string[]): string[] {

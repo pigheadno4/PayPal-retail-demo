@@ -625,6 +625,12 @@ Key fields:
 
 Keep request/response snapshots for Admin debug. Do not store access tokens. Snapshots should include item-level fields passed to PayPal so Admin can explain what buyers see in PayPal.
 
+Sanitization rules:
+- Keep the storage row aligned with table fields: `payment_session_id`, `paypal_invoice_id`, `paypal_request_id`, `request_json`, `response_json`, and `merchant_snapshot_json`.
+- Preserve item-level request/response details such as names, SKU, quantity, unit amount, item tax, purchase-unit amount breakdown, invoice ID, and shipping semantics.
+- Redact credentials and buyer privacy fields before storage, including access tokens, refresh tokens, ID tokens, client secrets, authorization headers, PayPal auth assertions, payer email, phone, and phone-number fragments.
+- Store merchant amount snapshots in minor units with currency, item total, shipping, tax, discount, and final total.
+
 ### `app.webhook_events`
 Key fields:
 - `id`
