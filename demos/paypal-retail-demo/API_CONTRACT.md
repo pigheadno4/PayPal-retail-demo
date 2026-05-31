@@ -390,8 +390,10 @@ PayPal `purchase_units[].invoice_id` rules:
 - First PayPal payment attempt uses the internal order number as `invoice_id`.
 - If a pending order must create a fresh PayPal order after the prior PayPal order/session expired, was cancelled, or failed, append an attempt suffix to keep the PayPal invoice ID unique, for example `DO-20260526-000001-A2`.
 - Store the exact `paypal_invoice_id` on the payment session.
+- Store a canonical PayPal Create Order payload fingerprint with `paypal_invoice_id` and `paypal_request_id`.
 - Store and reuse the same `PayPal-Request-Id` only for retrying the same PayPal API request with the same payload.
 - Generate a new `PayPal-Request-Id` when the payload changes or a fresh payment session is created.
+- A changed payload must be treated as a fresh PayPal API request, even when it belongs to the same buyer-facing order.
 
 ### PayPal Line Item Rules
 Every PayPal Create Order payload should include detailed item-level information when available.

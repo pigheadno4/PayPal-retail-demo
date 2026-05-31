@@ -24,3 +24,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - JS SDK v6 client token authentication is for PayPal vaulting and Fastlane; standard one-time checkout should use client ID.
 - The PayPal OAuth client-token request uses `grant_type=client_credentials`, `response_type=client_token`, and `domains[]`.
 - V1 demo vaulting is limited to logged-in card and PayPal methods; guests and unsupported methods are rejected before the backend calls PayPal.
+
+## PayPal Request Idempotency Metadata
+- PayPal `PayPal-Request-Id` is an idempotency key for POST/PUT requests and should be reused only for retrying the same API payload.
+- Store a canonical payload fingerprint with the payment session so the backend can distinguish a true retry from a changed request.
+- When a fresh PayPal order/payment session is created for the same buyer-facing order, keep the buyer-facing order number stable and suffix the PayPal `invoice_id`.

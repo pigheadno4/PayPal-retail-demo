@@ -61,6 +61,9 @@
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
 - [x] Pending order resume keeps buyer-facing order number stable while generating a new PayPal invoice ID when a fresh PayPal order is required.
+- [x] PayPal request metadata planner assigns a fresh `PayPal-Request-Id` for the first payment attempt.
+- [x] PayPal request metadata planner reuses `PayPal-Request-Id` only for a same-payload retry.
+- [x] PayPal request metadata planner generates fresh request metadata when the payload changes.
 - [x] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
 - [x] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
 - [ ] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.

@@ -5,6 +5,7 @@ import {
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
   planPayPalClientTokenRequest,
+  planPayPalRequestMetadata,
   type PayPalOrderLineItemInput,
 } from "./paypal.js";
 import { getMarketConfig } from "./market.js";
@@ -730,5 +731,102 @@ describe("PayPal client token request planner", () => {
       message: "At least one client-token domain is required.",
       needs_client_token: true,
     });
+  });
+});
+
+describe("PayPal request metadata planner", () => {
+  it("assigns a fresh PayPal request ID and base invoice ID for the first payment attempt", () => {
+    expect(
+      planPayPalRequestMetadata({
+        orderNumber: "DO-20260531-000001",
+        attemptNumber: 1,
+        payloadFingerprint: "payload:v1",
+        nextPayPalRequestId: "req_create_order_001",
+      }),
+    ).toEqual({
+      action: "generate",
+      reason: "fresh_payment_session",
+      paypal_invoice_id: "DO-20260531-000001",
+      paypal_request_id: "req_create_order_001",
+      attempt_number: 1,
+      payload_fingerprint: "payload:v1",
+    });
+  });
+
+  it("reuses PayPal request ID only when retrying the same payload", () => {
+    expect(
+      planPayPalRequestMetadata({
+        orderNumber: "DO-20260531-000001",
+        attemptNumber: 1,
+        payloadFingerprint: "payload:v1",
+        nextPayPalRequestId: "req_create_order_should_not_use",
+        previousRequest: {
+          paypalInvoiceId: "DO-20260531-000001",
+          paypalRequestId: "req_create_order_001",
+          attemptNumber: 1,
+          payloadFingerprint: "payload:v1",
+        },
+      }),
+    ).toEqual({
+      action: "reuse",
+      reason: "same_payload_retry",
+      paypal_invoice_id: "DO-20260531-000001",
+      paypal_request_id: "req_create_order_001",
+      attempt_number: 1,
+      payload_fingerprint: "payload:v1",
+    });
+  });
+
+  it("generates new metadata when payload changes or a fresh attempt is created", () => {
+    expect(
+      planPayPalRequestMetadata({
+        orderNumber: "DO-20260531-000001",
+        attemptNumber: 2,
+        payloadFingerprint: "payload:v2",
+        nextPayPalRequestId: "req_create_order_002",
+        previousRequest: {
+          paypalInvoiceId: "DO-20260531-000001",
+          paypalRequestId: "req_create_order_001",
+          attemptNumber: 1,
+          payloadFingerprint: "payload:v1",
+        },
+      }),
+    ).toEqual({
+      action: "generate",
+      reason: "payload_changed",
+      paypal_invoice_id: "DO-20260531-000001-A2",
+      paypal_request_id: "req_create_order_002",
+      attempt_number: 2,
+      payload_fingerprint: "payload:v2",
+    });
+
+    expect(
+      planPayPalRequestMetadata({
+        orderNumber: "PO-20260531-000002",
+        attemptNumber: 3,
+        payloadFingerprint: "payload:pickup:v3",
+        nextPayPalRequestId: "req_create_order_003",
+      }).paypal_invoice_id,
+    ).toBe("PO-20260531-000002-A3");
+  });
+
+  it("rejects missing fingerprints and request IDs before calling PayPal", () => {
+    expect(() =>
+      planPayPalRequestMetadata({
+        orderNumber: "DO-20260531-000001",
+        attemptNumber: 1,
+        payloadFingerprint: " ",
+        nextPayPalRequestId: "req_create_order_001",
+      }),
+    ).toThrow("payload fingerprint is required");
+
+    expect(() =>
+      planPayPalRequestMetadata({
+        orderNumber: "DO-20260531-000001",
+        attemptNumber: 1,
+        payloadFingerprint: "payload:v1",
+        nextPayPalRequestId: " ",
+      }),
+    ).toThrow("PayPal request ID is required");
   });
 });

@@ -33,4 +33,5 @@
 - [x] Continue Milestone 4 with PayPal BOPIS Create Order builder and mandatory v1 pickup fields.
 - [x] Continue Milestone 4 with PayPal SDK config response builder and browser-safe client ID.
 - [x] Continue Milestone 4 with PayPal client token request rules for vault-enabled flows.
-- [ ] Continue Milestone 4 with PayPal request metadata assignment for `PayPal-Request-Id`.
+- [x] Continue Milestone 4 with PayPal request metadata assignment for `PayPal-Request-Id`.
+- [ ] Continue Milestone 4 with PayPal detailed line-item tax allocation and amount mismatch guard prep.

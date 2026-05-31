@@ -5,6 +5,7 @@ import {
   subtractMinor,
   type MinorUnit,
 } from "./money.js";
+import { buildPayPalInvoiceId } from "./orderNumbers.js";
 import {
   buildPayPalProviderKey,
   normalizePaymentComponents,
@@ -42,6 +43,11 @@ export type PayPalClientTokenErrorCode =
   | "GUEST_VAULTING_NOT_ALLOWED"
   | "UNSUPPORTED_VAULTING_METHOD"
   | "CLIENT_TOKEN_DOMAIN_REQUIRED";
+export type PayPalRequestMetadataAction = "generate" | "reuse";
+export type PayPalRequestMetadataReason =
+  | "fresh_payment_session"
+  | "same_payload_retry"
+  | "payload_changed";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -180,6 +186,30 @@ export type PayPalClientTokenRequestPlan =
       readonly expires_in_seconds: 900;
       readonly needs_client_token: true;
     };
+
+export interface PreviousPayPalRequestMetadata {
+  readonly paypalInvoiceId: string;
+  readonly paypalRequestId: string;
+  readonly attemptNumber: number;
+  readonly payloadFingerprint: string;
+}
+
+export interface PlanPayPalRequestMetadataInput {
+  readonly orderNumber: string;
+  readonly attemptNumber: number;
+  readonly payloadFingerprint: string;
+  readonly nextPayPalRequestId: string;
+  readonly previousRequest?: PreviousPayPalRequestMetadata | null;
+}
+
+export interface PayPalRequestMetadataPlan {
+  readonly action: PayPalRequestMetadataAction;
+  readonly reason: PayPalRequestMetadataReason;
+  readonly paypal_invoice_id: string;
+  readonly paypal_request_id: string;
+  readonly attempt_number: number;
+  readonly payload_fingerprint: string;
+}
 
 export interface PayPalCreateOrderPayload {
   readonly intent: "CAPTURE";
@@ -396,6 +426,47 @@ export function planPayPalClientTokenRequest(
     },
     expires_in_seconds: 900,
     needs_client_token: true,
+  };
+}
+
+export function planPayPalRequestMetadata(
+  input: PlanPayPalRequestMetadataInput,
+): PayPalRequestMetadataPlan {
+  const payloadFingerprint = assertNonEmptyString(
+    input.payloadFingerprint,
+    "payload fingerprint",
+  );
+  const previousRequest = input.previousRequest ?? null;
+
+  if (
+    previousRequest &&
+    previousRequest.payloadFingerprint.trim() === payloadFingerprint
+  ) {
+    return {
+      action: "reuse",
+      reason: "same_payload_retry",
+      paypal_invoice_id: previousRequest.paypalInvoiceId,
+      paypal_request_id: previousRequest.paypalRequestId,
+      attempt_number: previousRequest.attemptNumber,
+      payload_fingerprint: payloadFingerprint,
+    };
+  }
+
+  const paypalRequestId = assertNonEmptyString(
+    input.nextPayPalRequestId,
+    "PayPal request ID",
+  );
+
+  return {
+    action: "generate",
+    reason: previousRequest ? "payload_changed" : "fresh_payment_session",
+    paypal_invoice_id: buildPayPalInvoiceId(
+      input.orderNumber,
+      input.attemptNumber,
+    ),
+    paypal_request_id: paypalRequestId,
+    attempt_number: input.attemptNumber,
+    payload_fingerprint: payloadFingerprint,
   };
 }
 
