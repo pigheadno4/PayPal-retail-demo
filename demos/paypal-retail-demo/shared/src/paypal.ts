@@ -83,6 +83,16 @@ export type PayPalPaymentSaveCheckboxPlacement =
   | "under_button"
   | "inside_card_box";
 export type PayPalPayLaterMessageMode = "none" | "amount_aware";
+export type PayPalVaultAttributeAction = "include" | "omit" | "reject";
+export type PayPalVaultAttributeReason =
+  | "logged_in_save_requested"
+  | "not_requested"
+  | "guest_vaulting_not_allowed"
+  | "unsupported_vaulting_method";
+export type PayPalVaultStoreInVault = "ON_SUCCESS";
+export type PayPalVaultUsageType = "MERCHANT" | "PLATFORM";
+export type PayPalVaultCustomerType = "CONSUMER";
+export type PayPalCardVerificationMethod = "SCA_WHEN_REQUIRED" | "SCA_ALWAYS";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -226,6 +236,51 @@ export interface PayPalPaymentMethodPlan {
   readonly required_components: readonly PaymentComponent[];
   readonly rows: readonly PayPalPaymentMethodRow[];
   readonly hidden_methods: readonly PayPalHiddenPaymentMethod[];
+}
+
+export interface PlanPayPalVaultAttributesInput {
+  readonly method: PayPalPaymentMethod;
+  readonly saveForFutureRequested: boolean;
+  readonly buyer: PayPalClientTokenBuyer;
+}
+
+export interface PayPalWalletVaultAttributes {
+  readonly vault: {
+    readonly store_in_vault: PayPalVaultStoreInVault;
+    readonly usage_type: "MERCHANT";
+    readonly customer_type: PayPalVaultCustomerType;
+  };
+}
+
+export interface PayPalCardVaultAttributes {
+  readonly customer?: {
+    readonly id: string;
+  };
+  readonly vault: {
+    readonly store_in_vault: PayPalVaultStoreInVault;
+  };
+  readonly verification: {
+    readonly method: PayPalCardVerificationMethod;
+  };
+}
+
+export interface PayPalVaultPaymentSourceAttributes {
+  readonly paypal?: {
+    readonly attributes: PayPalWalletVaultAttributes;
+  };
+  readonly card?: {
+    readonly attributes: PayPalCardVaultAttributes;
+  };
+}
+
+export interface PayPalVaultAttributePlan {
+  readonly action: PayPalVaultAttributeAction;
+  readonly reason: PayPalVaultAttributeReason;
+  readonly method: PayPalPaymentMethod;
+  readonly vault_requested: boolean;
+  readonly requires_client_token: boolean;
+  readonly target_customer_id: string | null;
+  readonly payment_source: PayPalVaultPaymentSourceAttributes | null;
 }
 
 export type PayPalClientTokenBuyer =
@@ -526,6 +581,54 @@ export function planPayPalPaymentMethods(
   };
 }
 
+export function planPayPalVaultAttributes(
+  input: PlanPayPalVaultAttributesInput,
+): PayPalVaultAttributePlan {
+  if (!input.saveForFutureRequested) {
+    return buildVaultAttributePlan({
+      action: "omit",
+      reason: "not_requested",
+      method: input.method,
+      vaultRequested: false,
+    });
+  }
+
+  if (input.buyer.kind === "guest") {
+    return buildVaultAttributePlan({
+      action: "reject",
+      reason: "guest_vaulting_not_allowed",
+      method: input.method,
+      vaultRequested: true,
+    });
+  }
+
+  if (!isVaultingPaymentMethod(input.method)) {
+    return buildVaultAttributePlan({
+      action: "reject",
+      reason: "unsupported_vaulting_method",
+      method: input.method,
+      vaultRequested: true,
+    });
+  }
+
+  const targetCustomerId = normalizeOptionalString(
+    input.buyer.paypalCustomerId,
+  );
+
+  return buildVaultAttributePlan({
+    action: "include",
+    reason: "logged_in_save_requested",
+    method: input.method,
+    vaultRequested: true,
+    requiresClientToken: true,
+    targetCustomerId,
+    paymentSource:
+      input.method === "paypal"
+        ? buildPayPalWalletVaultPaymentSource()
+        : buildCardVaultPaymentSource(targetCustomerId),
+  });
+}
+
 export function planPayPalClientTokenRequest(
   input: PlanPayPalClientTokenRequestInput,
 ): PayPalClientTokenRequestPlan {
@@ -775,6 +878,58 @@ function getPayLaterDetails(
   return {
     product_code: productCode,
     country_code: countryCode,
+  };
+}
+
+function buildVaultAttributePlan(input: {
+  readonly action: PayPalVaultAttributeAction;
+  readonly reason: PayPalVaultAttributeReason;
+  readonly method: PayPalPaymentMethod;
+  readonly vaultRequested: boolean;
+  readonly requiresClientToken?: boolean;
+  readonly targetCustomerId?: string | null;
+  readonly paymentSource?: PayPalVaultPaymentSourceAttributes | null;
+}): PayPalVaultAttributePlan {
+  return {
+    action: input.action,
+    reason: input.reason,
+    method: input.method,
+    vault_requested: input.vaultRequested,
+    requires_client_token: input.requiresClientToken ?? false,
+    target_customer_id: input.targetCustomerId ?? null,
+    payment_source: input.paymentSource ?? null,
+  };
+}
+
+function buildPayPalWalletVaultPaymentSource(): PayPalVaultPaymentSourceAttributes {
+  return {
+    paypal: {
+      attributes: {
+        vault: {
+          store_in_vault: "ON_SUCCESS",
+          usage_type: "MERCHANT",
+          customer_type: "CONSUMER",
+        },
+      },
+    },
+  };
+}
+
+function buildCardVaultPaymentSource(
+  targetCustomerId: string | null,
+): PayPalVaultPaymentSourceAttributes {
+  return {
+    card: {
+      attributes: {
+        ...(targetCustomerId ? { customer: { id: targetCustomerId } } : {}),
+        vault: {
+          store_in_vault: "ON_SUCCESS",
+        },
+        verification: {
+          method: "SCA_WHEN_REQUIRED",
+        },
+      },
+    },
   };
 }
 
@@ -1102,6 +1257,11 @@ function assertNonEmptyString(value: string, label: string): string {
     throw new Error(`${label} is required`);
   }
   return trimmedValue;
+}
+
+function normalizeOptionalString(value?: string | null): string | null {
+  const trimmedValue = value?.trim();
+  return trimmedValue ? trimmedValue : null;
 }
 
 function normalizeClientTokenDomains(domains: readonly string[]): string[] {

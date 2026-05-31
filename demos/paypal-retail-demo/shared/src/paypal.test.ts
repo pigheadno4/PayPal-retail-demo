@@ -6,6 +6,7 @@ import {
   buildPayPalSdkConfig,
   checkPayPalCreateOrderAmountConsistency,
   planPayPalPaymentMethods,
+  planPayPalVaultAttributes,
   planPayPalClientTokenRequest,
   planPayPalRequestMetadata,
   type PayPalOrderLineItemInput,
@@ -1014,6 +1015,128 @@ describe("PayPal payment method mapper", () => {
           eligibility_key: "paylater",
         },
       ]),
+    });
+  });
+});
+
+describe("PayPal vault attribute planner", () => {
+  it("includes PayPal wallet vault attributes only for logged-in save requests", () => {
+    expect(
+      planPayPalVaultAttributes({
+        method: "paypal",
+        saveForFutureRequested: true,
+        buyer: {
+          kind: "authenticated",
+          userId: "user_123",
+          paypalCustomerId: "paypal_customer_123",
+        },
+      }),
+    ).toEqual({
+      action: "include",
+      reason: "logged_in_save_requested",
+      method: "paypal",
+      vault_requested: true,
+      requires_client_token: true,
+      target_customer_id: "paypal_customer_123",
+      payment_source: {
+        paypal: {
+          attributes: {
+            vault: {
+              store_in_vault: "ON_SUCCESS",
+              usage_type: "MERCHANT",
+              customer_type: "CONSUMER",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("includes card vault, customer, and 3DS verification attributes for logged-in card saves", () => {
+    expect(
+      planPayPalVaultAttributes({
+        method: "card",
+        saveForFutureRequested: true,
+        buyer: {
+          kind: "authenticated",
+          userId: "user_123",
+          paypalCustomerId: "paypal_customer_123",
+        },
+      }),
+    ).toEqual({
+      action: "include",
+      reason: "logged_in_save_requested",
+      method: "card",
+      vault_requested: true,
+      requires_client_token: true,
+      target_customer_id: "paypal_customer_123",
+      payment_source: {
+        card: {
+          attributes: {
+            customer: {
+              id: "paypal_customer_123",
+            },
+            vault: {
+              store_in_vault: "ON_SUCCESS",
+            },
+            verification: {
+              method: "SCA_WHEN_REQUIRED",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("omits vault attributes when save for future is not requested", () => {
+    expect(
+      planPayPalVaultAttributes({
+        method: "paypal",
+        saveForFutureRequested: false,
+        buyer: { kind: "authenticated", userId: "user_123" },
+      }),
+    ).toEqual({
+      action: "omit",
+      reason: "not_requested",
+      method: "paypal",
+      vault_requested: false,
+      requires_client_token: false,
+      target_customer_id: null,
+      payment_source: null,
+    });
+  });
+
+  it("rejects guest and unsupported-method vault requests before PayPal calls", () => {
+    expect(
+      planPayPalVaultAttributes({
+        method: "card",
+        saveForFutureRequested: true,
+        buyer: { kind: "guest" },
+      }),
+    ).toEqual({
+      action: "reject",
+      reason: "guest_vaulting_not_allowed",
+      method: "card",
+      vault_requested: true,
+      requires_client_token: false,
+      target_customer_id: null,
+      payment_source: null,
+    });
+
+    expect(
+      planPayPalVaultAttributes({
+        method: "paylater",
+        saveForFutureRequested: true,
+        buyer: { kind: "authenticated", userId: "user_123" },
+      }),
+    ).toEqual({
+      action: "reject",
+      reason: "unsupported_vaulting_method",
+      method: "paylater",
+      vault_requested: true,
+      requires_client_token: false,
+      target_customer_id: null,
+      payment_source: null,
     });
   });
 });

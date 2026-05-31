@@ -161,7 +161,7 @@ Verification:
 - [x] Implement PayPal invoice ID and `PayPal-Request-Id` assignment.
 - [x] Implement PayPal detailed line-item builder and amount breakdown reconciliation.
 - [x] Implement Pay Later, Venmo, Apple Pay, Google Pay, card method mapping.
-- [ ] Implement vault attribute inclusion only for logged-in eligible buyers.
+- [x] Implement vault attribute inclusion only for logged-in eligible buyers.
 - [ ] Implement amount consistency guard.
 - [ ] Implement sanitized PayPal snapshot storage shape.
 

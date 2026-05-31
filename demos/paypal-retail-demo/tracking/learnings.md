@@ -40,3 +40,9 @@ Reusable implementation lessons from this demo should be added here during miles
 - Card fields are eligible through `advanced_cards` and should stay inside the card-fields box instead of using the Order Summary/sticky-button placement.
 - Pay Later needs both eligibility and method details such as product/country before rendering its official button.
 - Venmo is constrained to US/USD for this demo and should be hidden outside that market even when local test stubs mark it eligible.
+
+## PayPal Vault Attribute Planning
+- V1 save-for-future should emit Create Order vault attributes only for authenticated buyers who explicitly opt in.
+- PayPal wallet save-for-future uses `payment_source.paypal.attributes.vault.store_in_vault: "ON_SUCCESS"` with wallet vault metadata.
+- Card save-for-future uses `payment_source.card.attributes.vault.store_in_vault: "ON_SUCCESS"` plus card verification, defaulting to `SCA_WHEN_REQUIRED`.
+- Pay Later, Apple Pay, Google Pay, and Venmo save-for-future controls remain out of v1 unless official support is separately confirmed.

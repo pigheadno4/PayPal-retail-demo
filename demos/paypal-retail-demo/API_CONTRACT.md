@@ -390,6 +390,16 @@ Rules:
 - Backend generates token using server-side PayPal credentials.
 - Token response must not include client secret or OAuth access token.
 
+Vault attribute rules:
+- Vault attributes are included only when the buyer explicitly requests save-for-future and is authenticated.
+- Guests cannot request vault attributes; guest UI must hide/disable save-for-future controls.
+- V1 save-for-future Create Order attributes are supported only for `paypal` and `card`.
+- PayPal wallet save-for-future uses `payment_source.paypal.attributes.vault.store_in_vault: "ON_SUCCESS"` with PayPal wallet vault metadata.
+- Card save-for-future uses `payment_source.card.attributes.vault.store_in_vault: "ON_SUCCESS"` and `payment_source.card.attributes.verification.method: "SCA_WHEN_REQUIRED"` by default.
+- If a PayPal-generated customer ID exists for the buyer, card vault attributes can include `payment_source.card.attributes.customer.id`; the same customer ID can also be sent as `target_customer_id` in the client-token request.
+- Pay Later, Apple Pay, Google Pay, and Venmo save-for-future controls remain disabled in v1 unless official support is separately confirmed and the plan is updated.
+- Capture/webhook handling must treat vault status `APPROVED` as pending until a verified vault/payment-token webhook confirms the token.
+
 ### PayPal Order Number And Invoice ID Rules
 Internal order numbers use fulfillment-specific prefixes:
 - Delivery order: `DO-YYYYMMDD-000001`

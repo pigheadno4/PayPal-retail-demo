@@ -61,6 +61,10 @@
 - [x] PayPal payment method mapper maps PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo to the expected SDK component/session/UI surface.
 - [x] PayPal payment method mapper keeps card payment action inside the card box and out of the mobile sticky bar.
 - [x] PayPal payment method mapper hides Venmo outside US/USD and records hidden-method reasons for debug/Admin display.
+- [x] PayPal vault attribute planner includes PayPal wallet vault attributes only for logged-in save requests.
+- [x] PayPal vault attribute planner includes card vault, customer, and 3DS verification attributes only for logged-in card save requests.
+- [x] PayPal vault attribute planner omits vault attributes when save-for-future is not requested.
+- [x] PayPal vault attribute planner rejects guest and unsupported-method vault requests before PayPal calls.
 - [x] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
@@ -92,7 +96,7 @@
 - [ ] Guest checkout completes and offers inline account creation.
 - [ ] Guest order lookup requires order number and email.
 - [ ] Guest order lookup uses normalized email matching and does not expose internal order IDs.
-- [ ] Guest buyer cannot enable save-for-future/vaulting.
+- [x] Guest buyer cannot enable save-for-future/vaulting in shared PayPal vault planning.
 - [ ] Completed order allows review submission per item.
 - [ ] Review edit/delete updates PDP display.
 
