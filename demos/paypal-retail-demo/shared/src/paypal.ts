@@ -420,6 +420,15 @@ export type PayPalAmountMismatchReason =
   | "item_total_mismatch"
   | "tax_total_mismatch"
   | "amount_total_mismatch";
+export type PayPalCaptureAmountGuardAction = "allow_capture" | "block_capture";
+export type PayPalCaptureAmountGuardStatus = "matched" | "mismatch";
+export type PayPalCaptureAmountMismatchReason =
+  | "currency_code_mismatch"
+  | "item_total_mismatch"
+  | "shipping_mismatch"
+  | "tax_total_mismatch"
+  | "discount_mismatch"
+  | "total_mismatch";
 
 export interface PayPalAmountMismatch {
   readonly purchase_unit_index: number;
@@ -431,6 +440,37 @@ export interface PayPalAmountMismatch {
 export interface PayPalAmountConsistencyCheckResult {
   readonly status: "matched" | "mismatch";
   readonly mismatches: readonly PayPalAmountMismatch[];
+}
+
+export interface PayPalCaptureAmountSnapshot {
+  readonly currencyCode: PayPalCurrencyCode;
+  readonly itemTotalMinor: number;
+  readonly shippingMinor: number;
+  readonly taxMinor: number;
+  readonly discountMinor: number;
+  readonly totalMinor: number;
+}
+
+export interface GuardPayPalCaptureAmountConsistencyInput {
+  readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+  readonly providerSnapshot: PayPalCaptureAmountSnapshot;
+  readonly toleranceMinor?: number;
+}
+
+export interface PayPalCaptureAmountMismatch {
+  readonly reason: PayPalCaptureAmountMismatchReason;
+  readonly expected_minor: number | null;
+  readonly actual_minor: number | null;
+  readonly expected_currency_code: PayPalCurrencyCode;
+  readonly actual_currency_code: PayPalCurrencyCode;
+}
+
+export interface PayPalCaptureAmountGuardResult {
+  readonly action: PayPalCaptureAmountGuardAction;
+  readonly status: PayPalCaptureAmountGuardStatus;
+  readonly can_capture: boolean;
+  readonly tolerance_minor: number;
+  readonly mismatches: readonly PayPalCaptureAmountMismatch[];
 }
 
 export function buildPayPalDeliveryCreateOrderPayload(
@@ -989,6 +1029,109 @@ export function checkPayPalCreateOrderAmountConsistency(
   };
 }
 
+export function extractPayPalPurchaseUnitAmountSnapshot(
+  purchaseUnit: PayPalPurchaseUnit,
+): PayPalCaptureAmountSnapshot {
+  const breakdown = purchaseUnit.amount.breakdown;
+
+  return {
+    currencyCode: purchaseUnit.amount.currency_code,
+    itemTotalMinor: parsePayPalMoneyMinor(breakdown.item_total),
+    shippingMinor: breakdown.shipping
+      ? parsePayPalMoneyMinor(breakdown.shipping)
+      : 0,
+    taxMinor: parsePayPalMoneyMinor(breakdown.tax_total),
+    discountMinor: breakdown.discount
+      ? parsePayPalMoneyMinor(breakdown.discount)
+      : 0,
+    totalMinor: parsePayPalMoneyMinor(purchaseUnit.amount),
+  };
+}
+
+export function guardPayPalCaptureAmountConsistency(
+  input: GuardPayPalCaptureAmountConsistencyInput,
+): PayPalCaptureAmountGuardResult {
+  const toleranceMinor = assertMinorUnit(
+    input.toleranceMinor ?? 0,
+    "amount tolerance",
+  );
+  const merchantSnapshot = normalizeCaptureAmountSnapshot(
+    input.merchantSnapshot,
+    "merchant",
+  );
+  const providerSnapshot = normalizeCaptureAmountSnapshot(
+    input.providerSnapshot,
+    "provider",
+  );
+  const mismatches: PayPalCaptureAmountMismatch[] = [];
+
+  if (merchantSnapshot.currencyCode !== providerSnapshot.currencyCode) {
+    mismatches.push({
+      reason: "currency_code_mismatch",
+      expected_minor: null,
+      actual_minor: null,
+      expected_currency_code: merchantSnapshot.currencyCode,
+      actual_currency_code: providerSnapshot.currencyCode,
+    });
+  }
+
+  pushCaptureAmountMismatch(
+    mismatches,
+    "item_total_mismatch",
+    merchantSnapshot.itemTotalMinor,
+    providerSnapshot.itemTotalMinor,
+    merchantSnapshot.currencyCode,
+    providerSnapshot.currencyCode,
+    toleranceMinor,
+  );
+  pushCaptureAmountMismatch(
+    mismatches,
+    "shipping_mismatch",
+    merchantSnapshot.shippingMinor,
+    providerSnapshot.shippingMinor,
+    merchantSnapshot.currencyCode,
+    providerSnapshot.currencyCode,
+    toleranceMinor,
+  );
+  pushCaptureAmountMismatch(
+    mismatches,
+    "tax_total_mismatch",
+    merchantSnapshot.taxMinor,
+    providerSnapshot.taxMinor,
+    merchantSnapshot.currencyCode,
+    providerSnapshot.currencyCode,
+    toleranceMinor,
+  );
+  pushCaptureAmountMismatch(
+    mismatches,
+    "discount_mismatch",
+    merchantSnapshot.discountMinor,
+    providerSnapshot.discountMinor,
+    merchantSnapshot.currencyCode,
+    providerSnapshot.currencyCode,
+    toleranceMinor,
+  );
+  pushCaptureAmountMismatch(
+    mismatches,
+    "total_mismatch",
+    merchantSnapshot.totalMinor,
+    providerSnapshot.totalMinor,
+    merchantSnapshot.currencyCode,
+    providerSnapshot.currencyCode,
+    toleranceMinor,
+  );
+
+  const status = mismatches.length === 0 ? "matched" : "mismatch";
+
+  return {
+    action: status === "matched" ? "allow_capture" : "block_capture",
+    status,
+    can_capture: status === "matched",
+    tolerance_minor: toleranceMinor,
+    mismatches,
+  };
+}
+
 function buildPayPalPurchaseUnitBase(input: {
   readonly orderNumber: string;
   readonly currencyCode: PayPalCurrencyCode;
@@ -1350,6 +1493,49 @@ function checkPurchaseUnitAmountConsistency(
   );
 
   return mismatches;
+}
+
+function normalizeCaptureAmountSnapshot(
+  snapshot: PayPalCaptureAmountSnapshot,
+  label: string,
+): PayPalCaptureAmountSnapshot {
+  return {
+    currencyCode: snapshot.currencyCode,
+    itemTotalMinor: assertMinorUnit(
+      snapshot.itemTotalMinor,
+      `${label} item total`,
+    ),
+    shippingMinor: assertMinorUnit(
+      snapshot.shippingMinor,
+      `${label} shipping amount`,
+    ),
+    taxMinor: assertMinorUnit(snapshot.taxMinor, `${label} tax total`),
+    discountMinor: assertMinorUnit(
+      snapshot.discountMinor,
+      `${label} discount amount`,
+    ),
+    totalMinor: assertMinorUnit(snapshot.totalMinor, `${label} total`),
+  };
+}
+
+function pushCaptureAmountMismatch(
+  mismatches: PayPalCaptureAmountMismatch[],
+  reason: PayPalCaptureAmountMismatchReason,
+  expectedMinor: number,
+  actualMinor: number,
+  expectedCurrencyCode: PayPalCurrencyCode,
+  actualCurrencyCode: PayPalCurrencyCode,
+  toleranceMinor: number,
+): void {
+  if (Math.abs(expectedMinor - actualMinor) > toleranceMinor) {
+    mismatches.push({
+      reason,
+      expected_minor: expectedMinor,
+      actual_minor: actualMinor,
+      expected_currency_code: expectedCurrencyCode,
+      actual_currency_code: actualCurrencyCode,
+    });
+  }
 }
 
 function pushAmountMismatch(

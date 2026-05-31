@@ -555,11 +555,20 @@ Before capture:
 1. Fetch local payment session and order.
 2. Recompute or load final locked merchant snapshot.
 3. Compare merchant total and PayPal/provider amount.
-4. Allow only known rounding tolerance.
-5. Capture if consistent.
-6. Mark order paid.
-7. Decrement inventory.
-8. Clear paid cart items.
+4. Normalize the PayPal/provider amount into item total, shipping, tax, discount, final total, and currency fields.
+5. Block capture on currency, item total, shipping, tax, discount, or final-total mismatch beyond configured rounding tolerance.
+6. Allow only known rounding tolerance.
+7. Capture if consistent.
+8. Mark order paid.
+9. Decrement inventory.
+10. Clear paid cart items.
+
+The capture guard returns an explainable decision shape for API/Admin use:
+- `action`: `allow_capture` or `block_capture`
+- `status`: `matched` or `mismatch`
+- `can_capture`: boolean
+- `tolerance_minor`
+- `mismatches[]`: reason, merchant expected amount/currency, provider actual amount/currency
 
 ### `POST /api/paypal/webhooks`
 Verifies PayPal webhook signature before processing.

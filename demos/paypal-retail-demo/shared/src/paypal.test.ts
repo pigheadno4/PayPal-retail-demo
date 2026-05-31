@@ -5,6 +5,8 @@ import {
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
   checkPayPalCreateOrderAmountConsistency,
+  extractPayPalPurchaseUnitAmountSnapshot,
+  guardPayPalCaptureAmountConsistency,
   planPayPalPaymentMethods,
   planPayPalVaultAttributes,
   planPayPalClientTokenRequest,
@@ -410,6 +412,89 @@ describe("PayPal delivery full-checkout Create Order builder", () => {
           actual_minor: 4338,
         },
       ],
+    });
+  });
+
+  it("blocks capture on provider amount mismatch except allowed rounding tolerance", () => {
+    const payload = buildPayPalDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260531-000012",
+      currencyCode: "USD",
+      items: deliveryItems,
+      shippingAmountMinor: 500,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      shippingAddress: {
+        fullName: "Taylor Buyer",
+        addressLine1: "221B Market Street",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+      },
+    });
+    const merchantSnapshot = {
+      currencyCode: "USD" as const,
+      itemTotalMinor: 4497,
+      shippingMinor: 500,
+      taxMinor: 340,
+      discountMinor: 1000,
+      totalMinor: 4337,
+    };
+    const providerSnapshot = extractPayPalPurchaseUnitAmountSnapshot(
+      payload.purchase_units[0]!,
+    );
+
+    expect(
+      guardPayPalCaptureAmountConsistency({
+        merchantSnapshot,
+        providerSnapshot,
+      }),
+    ).toEqual({
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 0,
+      mismatches: [],
+    });
+
+    const mismatchedProviderSnapshot = {
+      ...providerSnapshot,
+      totalMinor: 4338,
+    };
+
+    expect(
+      guardPayPalCaptureAmountConsistency({
+        merchantSnapshot,
+        providerSnapshot: mismatchedProviderSnapshot,
+      }),
+    ).toEqual({
+      action: "block_capture",
+      status: "mismatch",
+      can_capture: false,
+      tolerance_minor: 0,
+      mismatches: [
+        {
+          reason: "total_mismatch",
+          expected_minor: 4337,
+          actual_minor: 4338,
+          expected_currency_code: "USD",
+          actual_currency_code: "USD",
+        },
+      ],
+    });
+
+    expect(
+      guardPayPalCaptureAmountConsistency({
+        merchantSnapshot,
+        providerSnapshot: mismatchedProviderSnapshot,
+        toleranceMinor: 1,
+      }),
+    ).toEqual({
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 1,
+      mismatches: [],
     });
   });
 });

@@ -37,4 +37,5 @@
 - [x] Continue Milestone 4 with PayPal detailed line-item tax allocation and amount mismatch guard prep.
 - [x] Continue Milestone 4 with Pay Later, Venmo, Apple Pay, Google Pay, and card method mapping.
 - [x] Continue Milestone 4 with vault attribute inclusion only for logged-in eligible buyers.
-- [ ] Continue Milestone 4 with amount consistency guard for capture blocking.
+- [x] Continue Milestone 4 with amount consistency guard for capture blocking.
+- [ ] Continue Milestone 4 with sanitized PayPal snapshot storage shape.

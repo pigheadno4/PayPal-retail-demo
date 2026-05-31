@@ -46,3 +46,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - PayPal wallet save-for-future uses `payment_source.paypal.attributes.vault.store_in_vault: "ON_SUCCESS"` with wallet vault metadata.
 - Card save-for-future uses `payment_source.card.attributes.vault.store_in_vault: "ON_SUCCESS"` plus card verification, defaulting to `SCA_WHEN_REQUIRED`.
 - Pay Later, Apple Pay, Google Pay, and Venmo save-for-future controls remain out of v1 unless official support is separately confirmed.
+
+## PayPal Capture Amount Guard
+- Capture should compare the locked merchant snapshot with the provider/PayPal amount snapshot, not browser-submitted totals.
+- The guard should block on currency, item total, shipping, tax, discount, or final total mismatches, except for explicitly configured rounding tolerance.
+- PayPal purchase-unit amount breakdown can be normalized into a provider amount snapshot for the later capture API route.
