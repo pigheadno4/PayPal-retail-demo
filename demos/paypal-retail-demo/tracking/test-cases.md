@@ -52,8 +52,11 @@
 - [ ] PayPal SDK v6 provider maps backend `sandbox_test_buyer_country` to `createInstance({ testBuyerCountry })` in sandbox/test.
 - [ ] PayPal SDK v6 provider omits `testBuyerCountry` in production.
 - [x] PayPal provider key changes when client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
+- [x] PayPal client token request planner skips standard one-time flows.
+- [x] PayPal client token request planner allows logged-in card and PayPal vaulting only.
+- [x] PayPal client token request planner normalizes client-token domains and forms the PayPal OAuth client-token request fields.
 - [ ] PayPal client token API returns a short-lived client token only for vault-enabled logged-in flows.
-- [ ] Guest checkout cannot request PayPal client token for vaulting.
+- [x] Guest checkout cannot request PayPal client token for vaulting.
 - [x] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.

@@ -37,6 +37,11 @@ export type PayPalPaymentMethod =
   | "apple_pay"
   | "google_pay"
   | "venmo";
+export type PayPalVaultingPaymentMethod = "paypal" | "card";
+export type PayPalClientTokenErrorCode =
+  | "GUEST_VAULTING_NOT_ALLOWED"
+  | "UNSUPPORTED_VAULTING_METHOD"
+  | "CLIENT_TOKEN_DOMAIN_REQUIRED";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -129,6 +134,52 @@ export interface PayPalSdkConfig {
   readonly provider_key: string;
   readonly needs_client_token: boolean;
 }
+
+export type PayPalClientTokenBuyer =
+  | {
+      readonly kind: "guest";
+    }
+  | {
+      readonly kind: "authenticated";
+      readonly userId: string;
+      readonly paypalCustomerId?: string | null;
+    };
+
+export interface PlanPayPalClientTokenRequestInput {
+  readonly flow: PayPalSdkFlow;
+  readonly method: PayPalPaymentMethod;
+  readonly buyer: PayPalClientTokenBuyer;
+  readonly domains: readonly string[];
+}
+
+export type PayPalClientTokenRequestPlan =
+  | {
+      readonly action: "not_required";
+      readonly reason: "standard_flow_uses_client_id";
+      readonly needs_client_token: false;
+    }
+  | {
+      readonly action: "reject";
+      readonly http_status: 400 | 403;
+      readonly error_code: PayPalClientTokenErrorCode;
+      readonly message: string;
+      readonly needs_client_token: true;
+    }
+  | {
+      readonly action: "generate";
+      readonly method: PayPalVaultingPaymentMethod;
+      readonly buyer_user_id: string;
+      readonly paypal_customer_id?: string;
+      readonly domains: readonly string[];
+      readonly paypal_oauth_form: {
+        readonly grant_type: "client_credentials";
+        readonly response_type: "client_token";
+        readonly domains: readonly string[];
+        readonly target_customer_id?: string;
+      };
+      readonly expires_in_seconds: 900;
+      readonly needs_client_token: true;
+    };
 
 export interface PayPalCreateOrderPayload {
   readonly intent: "CAPTURE";
@@ -284,6 +335,67 @@ export function buildPayPalSdkConfig(
       components,
     }),
     needs_client_token: input.flow === "vaulting",
+  };
+}
+
+export function planPayPalClientTokenRequest(
+  input: PlanPayPalClientTokenRequestInput,
+): PayPalClientTokenRequestPlan {
+  if (input.flow === "standard") {
+    return {
+      action: "not_required",
+      reason: "standard_flow_uses_client_id",
+      needs_client_token: false,
+    };
+  }
+
+  if (input.buyer.kind === "guest") {
+    return {
+      action: "reject",
+      http_status: 403,
+      error_code: "GUEST_VAULTING_NOT_ALLOWED",
+      message: "Sign in to save a payment method.",
+      needs_client_token: true,
+    };
+  }
+
+  if (!isVaultingPaymentMethod(input.method)) {
+    return {
+      action: "reject",
+      http_status: 400,
+      error_code: "UNSUPPORTED_VAULTING_METHOD",
+      message: "Client token vaulting is supported for card and PayPal only.",
+      needs_client_token: true,
+    };
+  }
+
+  const domains = normalizeClientTokenDomains(input.domains);
+  if (domains.length === 0) {
+    return {
+      action: "reject",
+      http_status: 400,
+      error_code: "CLIENT_TOKEN_DOMAIN_REQUIRED",
+      message: "At least one client-token domain is required.",
+      needs_client_token: true,
+    };
+  }
+
+  const paypalCustomerId = input.buyer.paypalCustomerId?.trim();
+
+  return {
+    action: "generate",
+    method: input.method,
+    buyer_user_id: input.buyer.userId,
+    ...(paypalCustomerId ? { paypal_customer_id: paypalCustomerId } : {}),
+    domains,
+    paypal_oauth_form: {
+      grant_type: "client_credentials",
+      response_type: "client_token",
+      domains,
+      ...(paypalCustomerId ? { target_customer_id: paypalCustomerId } : {}),
+    },
+    expires_in_seconds: 900,
+    needs_client_token: true,
   };
 }
 
@@ -482,4 +594,20 @@ function assertNonEmptyString(value: string, label: string): string {
     throw new Error(`${label} is required`);
   }
   return trimmedValue;
+}
+
+function normalizeClientTokenDomains(domains: readonly string[]): string[] {
+  return Array.from(
+    new Set(
+      domains
+        .map((domain) => domain.trim())
+        .filter((domain) => domain.length > 0),
+    ),
+  );
+}
+
+function isVaultingPaymentMethod(
+  method: PayPalPaymentMethod,
+): method is PayPalVaultingPaymentMethod {
+  return method === "card" || method === "paypal";
 }

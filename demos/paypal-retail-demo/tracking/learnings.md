@@ -19,3 +19,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - V1 BOPIS in this demo uses capture-at-checkout, not authorize-at-checkout/capture-at-pickup.
 - The local `wiki-v2` Orders API spec confirms `purchase_units[].shipping.type` can be `PICKUP_IN_STORE`, and the shipping address is required when `shipping_preference` is `SET_PROVIDED_ADDRESS`.
 - Receiver name `s2s ${storeName}` is a demo-specific contract from prior implementation experience, not a general PayPal documentation claim.
+
+## PayPal Client Token Rules
+- JS SDK v6 client token authentication is for PayPal vaulting and Fastlane; standard one-time checkout should use client ID.
+- The PayPal OAuth client-token request uses `grant_type=client_credentials`, `response_type=client_token`, and `domains[]`.
+- V1 demo vaulting is limited to logged-in card and PayPal methods; guests and unsupported methods are rejected before the backend calls PayPal.

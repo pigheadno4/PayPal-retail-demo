@@ -4,6 +4,7 @@ import {
   buildPayPalDeliveryCreateOrderPayload,
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
+  planPayPalClientTokenRequest,
   type PayPalOrderLineItemInput,
 } from "./paypal.js";
 import { getMarketConfig } from "./market.js";
@@ -613,5 +614,121 @@ describe("PayPal SDK config builder", () => {
         method: "paypal",
       }),
     ).toThrow("PayPal client ID is required");
+  });
+});
+
+describe("PayPal client token request planner", () => {
+  it("skips client token generation for standard one-time flows", () => {
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "standard",
+        method: "paypal",
+        buyer: { kind: "guest" },
+        domains: ["localhost"],
+      }),
+    ).toEqual({
+      action: "not_required",
+      reason: "standard_flow_uses_client_id",
+      needs_client_token: false,
+    });
+  });
+
+  it("rejects guest vaulting before any server-side PayPal token request", () => {
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "vaulting",
+        method: "card",
+        buyer: { kind: "guest" },
+        domains: ["localhost"],
+      }),
+    ).toEqual({
+      action: "reject",
+      http_status: 403,
+      error_code: "GUEST_VAULTING_NOT_ALLOWED",
+      message: "Sign in to save a payment method.",
+      needs_client_token: true,
+    });
+  });
+
+  it("allows logged-in card and PayPal vaulting with normalized client-token form fields", () => {
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "vaulting",
+        method: "card",
+        buyer: { kind: "authenticated", userId: "user_123" },
+        domains: [" localhost ", "checkout.demo.example"],
+      }),
+    ).toEqual({
+      action: "generate",
+      method: "card",
+      buyer_user_id: "user_123",
+      domains: ["localhost", "checkout.demo.example"],
+      paypal_oauth_form: {
+        grant_type: "client_credentials",
+        response_type: "client_token",
+        domains: ["localhost", "checkout.demo.example"],
+      },
+      expires_in_seconds: 900,
+      needs_client_token: true,
+    });
+
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "vaulting",
+        method: "paypal",
+        buyer: {
+          kind: "authenticated",
+          userId: "user_456",
+          paypalCustomerId: "paypal_customer_123",
+        },
+        domains: ["checkout.demo.example", "checkout.demo.example"],
+      }),
+    ).toEqual({
+      action: "generate",
+      method: "paypal",
+      buyer_user_id: "user_456",
+      paypal_customer_id: "paypal_customer_123",
+      domains: ["checkout.demo.example"],
+      paypal_oauth_form: {
+        grant_type: "client_credentials",
+        response_type: "client_token",
+        domains: ["checkout.demo.example"],
+        target_customer_id: "paypal_customer_123",
+      },
+      expires_in_seconds: 900,
+      needs_client_token: true,
+    });
+  });
+
+  it("rejects unsupported vaulting methods and missing domains", () => {
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "vaulting",
+        method: "paylater",
+        buyer: { kind: "authenticated", userId: "user_123" },
+        domains: ["localhost"],
+      }),
+    ).toEqual({
+      action: "reject",
+      http_status: 400,
+      error_code: "UNSUPPORTED_VAULTING_METHOD",
+      message: "Client token vaulting is supported for card and PayPal only.",
+      needs_client_token: true,
+    });
+
+    expect(
+      planPayPalClientTokenRequest({
+        flow: "vaulting",
+        method: "card",
+        buyer: { kind: "authenticated", userId: "user_123" },
+        domains: [" "],
+      }),
+    ).toEqual({
+      action: "reject",
+      http_status: 400,
+      error_code: "CLIENT_TOKEN_DOMAIN_REQUIRED",
+      message: "At least one client-token domain is required.",
+      needs_client_token: true,
+    });
   });
 });
