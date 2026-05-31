@@ -3,8 +3,10 @@ import {
   buildPayPalBopisCreateOrderPayload,
   buildPayPalDeliveryCreateOrderPayload,
   buildPayPalExpressDeliveryCreateOrderPayload,
+  buildPayPalSdkConfig,
   type PayPalOrderLineItemInput,
 } from "./paypal.js";
+import { getMarketConfig } from "./market.js";
 
 const deliveryItems: PayPalOrderLineItemInput[] = [
   {
@@ -509,5 +511,107 @@ describe("PayPal BOPIS Create Order builder", () => {
         },
       }),
     ).toThrow("negative money result is not allowed");
+  });
+});
+
+describe("PayPal SDK config builder", () => {
+  it("returns browser-safe sandbox config for standard one-time flows", () => {
+    const config = buildPayPalSdkConfig({
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      environment: "sandbox",
+      market: getMarketConfig("US"),
+      pageType: "checkout",
+      flow: "standard",
+      method: "paypal",
+    });
+
+    expect(config).toEqual({
+      client_id: "PAYPAL_PUBLIC_CLIENT_ID",
+      environment: "sandbox",
+      sdk_url: "https://www.sandbox.paypal.com/web-sdk/v6/core",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      paylater_buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      components: [
+        "applepay-payments",
+        "card-fields",
+        "googlepay-payments",
+        "paypal-messages",
+        "paypal-payments",
+        "venmo-payments",
+      ],
+      page_type: "checkout",
+      provider_key:
+        "paypal:sandbox:PAYPAL_PUBLIC_CLIENT_ID:US:USD:en-US:US:US:US:1:applepay-payments,card-fields,googlepay-payments,paypal-messages,paypal-payments,venmo-payments",
+      needs_client_token: false,
+    });
+    expect(config).not.toHaveProperty("client_secret");
+    expect(config).not.toHaveProperty("access_token");
+  });
+
+  it("nulls sandbox-only buyer country in production and requests client token for vaulting", () => {
+    const config = buildPayPalSdkConfig({
+      clientId: "PAYPAL_LIVE_CLIENT_ID",
+      environment: "production",
+      market: getMarketConfig("GB"),
+      pageType: "product-details",
+      flow: "vaulting",
+      method: "card",
+      components: ["paypal-payments", "card-fields"],
+    });
+
+    expect(config).toMatchObject({
+      client_id: "PAYPAL_LIVE_CLIENT_ID",
+      environment: "production",
+      sdk_url: "https://www.paypal.com/web-sdk/v6/core",
+      currency_code: "GBP",
+      locale: "en-GB",
+      buyer_country: "GB",
+      paylater_buyer_country: "GB",
+      sandbox_test_buyer_country: null,
+      components: ["card-fields", "paypal-payments"],
+      page_type: "product-details",
+      needs_client_token: true,
+    });
+    expect(config.provider_key).toBe(
+      "paypal:production:PAYPAL_LIVE_CLIENT_ID:GB:GBP:en-GB:GB:GB:GB:1:card-fields,paypal-payments",
+    );
+  });
+
+  it("changes provider key when component set changes and rejects empty browser client ID", () => {
+    const market = getMarketConfig("US");
+    const paypalOnly = buildPayPalSdkConfig({
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      environment: "sandbox",
+      market,
+      pageType: "cart",
+      flow: "standard",
+      method: "paypal",
+      components: ["paypal-payments"],
+    });
+    const paypalAndMessages = buildPayPalSdkConfig({
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      environment: "sandbox",
+      market,
+      pageType: "cart",
+      flow: "standard",
+      method: "paylater",
+      components: ["paypal-payments", "paypal-messages"],
+    });
+
+    expect(paypalOnly.provider_key).not.toBe(paypalAndMessages.provider_key);
+
+    expect(() =>
+      buildPayPalSdkConfig({
+        clientId: " ",
+        environment: "sandbox",
+        market,
+        pageType: "checkout",
+        flow: "standard",
+        method: "paypal",
+      }),
+    ).toThrow("PayPal client ID is required");
   });
 });

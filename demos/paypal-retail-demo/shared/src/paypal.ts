@@ -5,6 +5,13 @@ import {
   subtractMinor,
   type MinorUnit,
 } from "./money.js";
+import {
+  buildPayPalProviderKey,
+  normalizePaymentComponents,
+  type MarketConfig,
+  type PayPalEnvironment,
+  type PaymentComponent,
+} from "./market.js";
 
 export type PayPalCurrencyCode = "USD" | "GBP";
 export type PayPalShippingPreference =
@@ -15,6 +22,21 @@ export type PayPalShippingCallbackEvent =
   | "SHIPPING_ADDRESS"
   | "SHIPPING_OPTIONS";
 export type PayPalShippingType = "PICKUP_IN_STORE";
+export type PayPalSdkPageType =
+  | "home"
+  | "product-details"
+  | "cart"
+  | "mini-cart"
+  | "checkout"
+  | "admin";
+export type PayPalSdkFlow = "standard" | "vaulting";
+export type PayPalPaymentMethod =
+  | "paypal"
+  | "paylater"
+  | "card"
+  | "apple_pay"
+  | "google_pay"
+  | "venmo";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -79,6 +101,33 @@ export interface BuildPayPalBopisCreateOrderInput {
   readonly taxAmountMinor: number;
   readonly discountAmountMinor: number;
   readonly pickupStore: PayPalPickupStoreInput;
+}
+
+export interface BuildPayPalSdkConfigInput {
+  readonly clientId: string;
+  readonly environment: PayPalEnvironment;
+  readonly market: MarketConfig;
+  readonly pageType: PayPalSdkPageType;
+  readonly flow: PayPalSdkFlow;
+  readonly method: PayPalPaymentMethod;
+  readonly components?: readonly PaymentComponent[];
+}
+
+export interface PayPalSdkConfig {
+  readonly client_id: string;
+  readonly environment: PayPalEnvironment;
+  readonly sdk_url: string;
+  readonly currency_code: PayPalCurrencyCode;
+  readonly locale: string;
+  readonly buyer_country: MarketConfig["buyerCountry"];
+  readonly paylater_buyer_country: MarketConfig["payLaterBuyerCountry"];
+  readonly sandbox_test_buyer_country:
+    | MarketConfig["sandboxTestBuyerCountry"]
+    | null;
+  readonly components: readonly PaymentComponent[];
+  readonly page_type: PayPalSdkPageType;
+  readonly provider_key: string;
+  readonly needs_client_token: boolean;
 }
 
 export interface PayPalCreateOrderPayload {
@@ -203,6 +252,38 @@ export function buildPayPalBopisCreateOrderPayload(
         },
       },
     },
+  };
+}
+
+export function buildPayPalSdkConfig(
+  input: BuildPayPalSdkConfigInput,
+): PayPalSdkConfig {
+  const clientId = assertNonEmptyString(input.clientId, "PayPal client ID");
+  const components = normalizePaymentComponents(
+    input.components ?? input.market.paymentComponents,
+  );
+
+  return {
+    client_id: clientId,
+    environment: input.environment,
+    sdk_url: getPayPalSdkUrl(input.environment),
+    currency_code: input.market.currencyCode,
+    locale: input.market.locale,
+    buyer_country: input.market.buyerCountry,
+    paylater_buyer_country: input.market.payLaterBuyerCountry,
+    sandbox_test_buyer_country:
+      input.environment === "sandbox"
+        ? input.market.sandboxTestBuyerCountry
+        : null,
+    components,
+    page_type: input.pageType,
+    provider_key: buildPayPalProviderKey({
+      clientId,
+      environment: input.environment,
+      market: input.market,
+      components,
+    }),
+    needs_client_token: input.flow === "vaulting",
   };
 }
 
@@ -387,4 +468,18 @@ function assertHttpsUrl(value: string): void {
     // Fall through to the shared validation error.
   }
   throw new Error("shipping callback URL must use https");
+}
+
+function getPayPalSdkUrl(environment: PayPalEnvironment): string {
+  return environment === "sandbox"
+    ? "https://www.sandbox.paypal.com/web-sdk/v6/core"
+    : "https://www.paypal.com/web-sdk/v6/core";
+}
+
+function assertNonEmptyString(value: string, label: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    throw new Error(`${label} is required`);
+  }
+  return trimmedValue;
 }

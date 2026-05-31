@@ -321,15 +321,15 @@ Response:
   "paylater_buyer_country": "US",
   "sandbox_test_buyer_country": "US",
   "components": [
-    "paypal-payments",
-    "paypal-messages",
-    "card-fields",
-    "venmo-payments",
     "applepay-payments",
-    "googlepay-payments"
+    "card-fields",
+    "googlepay-payments",
+    "paypal-messages",
+    "paypal-payments",
+    "venmo-payments"
   ],
   "page_type": "checkout",
-  "provider_key": "PAYPAL_PUBLIC_CLIENT_ID:sandbox:market_us:USD:en-US:US:US:1",
+  "provider_key": "paypal:sandbox:PAYPAL_PUBLIC_CLIENT_ID:US:USD:en-US:US:US:US:1:applepay-payments,card-fields,googlepay-payments,paypal-messages,paypal-payments,venmo-payments",
   "needs_client_token": false
 }
 ```
@@ -339,6 +339,7 @@ Rules:
 - Return `client_id` for basic PayPal, Pay Later, Venmo, Apple Pay, Google Pay, and non-vault one-time card flows.
 - Set `needs_client_token: true` when the selected flow requires a client token, including card vaulting and PayPal wallet vaulting.
 - The frontend must call `POST /api/paypal/client-token` only when `needs_client_token` is true.
+- Normalize SDK component lists for deterministic response and `provider_key` generation.
 - JS SDK v6 uses a static loader URL and runtime configuration. The frontend should remount only the PayPal provider/payment subtree when `provider_key` changes.
 - `currency_code` is used for eligibility checks such as `findEligibleMethods({ currencyCode })`.
 - `locale` is used for SDK/provider instance creation.
