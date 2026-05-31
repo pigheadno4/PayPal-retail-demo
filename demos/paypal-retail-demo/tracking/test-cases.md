@@ -66,7 +66,9 @@
 - [x] PayPal request metadata planner generates fresh request metadata when the payload changes.
 - [x] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
 - [x] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
-- [ ] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.
+- [x] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.
+- [x] PayPal item-level tax allocation splits a same-product line when line tax cents cannot divide evenly by quantity.
+- [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [ ] Amount mismatch blocks capture except allowed rounding tolerance.
 - [ ] Completed payment clears only paid cart items from the active cart.
 

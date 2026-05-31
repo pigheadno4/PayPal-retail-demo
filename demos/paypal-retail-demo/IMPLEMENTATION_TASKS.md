@@ -159,7 +159,7 @@ Verification:
 - [x] Include `buyer_country`, `paylater_buyer_country`, sandbox-only `sandbox_test_buyer_country`, SDK components, and deterministic `provider_key` in the SDK config builder.
 - [x] Implement PayPal client token request rules for vault-enabled flows.
 - [x] Implement PayPal invoice ID and `PayPal-Request-Id` assignment.
-- [ ] Implement PayPal detailed line-item builder and amount breakdown reconciliation.
+- [x] Implement PayPal detailed line-item builder and amount breakdown reconciliation.
 - [ ] Implement Pay Later, Venmo, Apple Pay, Google Pay, card method mapping.
 - [ ] Implement vault attribute inclusion only for logged-in eligible buyers.
 - [ ] Implement amount consistency guard.

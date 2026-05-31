@@ -34,4 +34,5 @@
 - [x] Continue Milestone 4 with PayPal SDK config response builder and browser-safe client ID.
 - [x] Continue Milestone 4 with PayPal client token request rules for vault-enabled flows.
 - [x] Continue Milestone 4 with PayPal request metadata assignment for `PayPal-Request-Id`.
-- [ ] Continue Milestone 4 with PayPal detailed line-item tax allocation and amount mismatch guard prep.
+- [x] Continue Milestone 4 with PayPal detailed line-item tax allocation and amount mismatch guard prep.
+- [ ] Continue Milestone 4 with Pay Later, Venmo, Apple Pay, Google Pay, and card method mapping.

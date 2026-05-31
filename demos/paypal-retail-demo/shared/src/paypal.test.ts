@@ -4,6 +4,7 @@ import {
   buildPayPalDeliveryCreateOrderPayload,
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
+  checkPayPalCreateOrderAmountConsistency,
   planPayPalClientTokenRequest,
   planPayPalRequestMetadata,
   type PayPalOrderLineItemInput,
@@ -217,6 +218,197 @@ describe("PayPal delivery full-checkout Create Order builder", () => {
         },
       }),
     ).toThrow("negative money result is not allowed");
+  });
+
+  it("includes item-level tax when order line taxes reconcile with purchase unit tax", () => {
+    const payload = buildPayPalDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260531-000009",
+      currencyCode: "USD",
+      items: [
+        {
+          name: "Labubu Have a Seat",
+          quantity: 2,
+          unitAmountMinor: 1599,
+          lineTaxAmountMinor: 241,
+          sku: "PM-LABUBU-HAS",
+        },
+        {
+          name: "Molly Anniversary",
+          quantity: 1,
+          unitAmountMinor: 1299,
+          lineTaxAmountMinor: 99,
+          sku: "PM-MOLLY-ANN",
+        },
+      ],
+      shippingAmountMinor: 500,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      shippingAddress: {
+        fullName: "Taylor Buyer",
+        addressLine1: "221B Market Street",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+      },
+    });
+
+    expect(payload.purchase_units[0]?.items).toEqual([
+      {
+        name: "Labubu Have a Seat",
+        quantity: "1",
+        sku: "PM-LABUBU-HAS",
+        category: "PHYSICAL_GOODS",
+        unit_amount: {
+          currency_code: "USD",
+          value: "15.99",
+        },
+        tax: {
+          currency_code: "USD",
+          value: "1.21",
+        },
+      },
+      {
+        name: "Labubu Have a Seat",
+        quantity: "1",
+        sku: "PM-LABUBU-HAS",
+        category: "PHYSICAL_GOODS",
+        unit_amount: {
+          currency_code: "USD",
+          value: "15.99",
+        },
+        tax: {
+          currency_code: "USD",
+          value: "1.20",
+        },
+      },
+      {
+        name: "Molly Anniversary",
+        quantity: "1",
+        sku: "PM-MOLLY-ANN",
+        category: "PHYSICAL_GOODS",
+        unit_amount: {
+          currency_code: "USD",
+          value: "12.99",
+        },
+        tax: {
+          currency_code: "USD",
+          value: "0.99",
+        },
+      },
+    ]);
+    expect(payload.purchase_units[0]?.amount.breakdown.tax_total).toEqual({
+      currency_code: "USD",
+      value: "3.40",
+    });
+  });
+
+  it("rejects incomplete or mismatched item-level tax before calling PayPal", () => {
+    const input = {
+      orderNumber: "DO-20260531-000010",
+      currencyCode: "USD" as const,
+      shippingAmountMinor: 0,
+      taxAmountMinor: 340,
+      discountAmountMinor: 0,
+      shippingAddress: {
+        fullName: "Taylor Buyer",
+        addressLine1: "221B Market Street",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+      },
+    };
+
+    expect(() =>
+      buildPayPalDeliveryCreateOrderPayload({
+        ...input,
+        items: [
+          {
+            name: "Labubu Have a Seat",
+            quantity: 2,
+            unitAmountMinor: 1599,
+            lineTaxAmountMinor: 241,
+          },
+          {
+            name: "Molly Anniversary",
+            quantity: 1,
+            unitAmountMinor: 1299,
+          },
+        ],
+      }),
+    ).toThrow(
+      "line tax must be provided for every PayPal line item or omitted for all",
+    );
+
+    expect(() =>
+      buildPayPalDeliveryCreateOrderPayload({
+        ...input,
+        items: [
+          {
+            name: "Labubu Have a Seat",
+            quantity: 2,
+            unitAmountMinor: 1599,
+            lineTaxAmountMinor: 241,
+          },
+          {
+            name: "Molly Anniversary",
+            quantity: 1,
+            unitAmountMinor: 1299,
+            lineTaxAmountMinor: 100,
+          },
+        ],
+      }),
+    ).toThrow("line item tax total must equal purchase-unit tax total");
+  });
+
+  it("checks PayPal amount consistency before capture guard integration", () => {
+    const payload = buildPayPalDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260531-000011",
+      currencyCode: "USD",
+      items: deliveryItems,
+      shippingAmountMinor: 500,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      shippingAddress: {
+        fullName: "Taylor Buyer",
+        addressLine1: "221B Market Street",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+      },
+    });
+
+    expect(checkPayPalCreateOrderAmountConsistency(payload)).toEqual({
+      status: "matched",
+      mismatches: [],
+    });
+
+    const tamperedPayload = {
+      ...payload,
+      purchase_units: [
+        {
+          ...payload.purchase_units[0]!,
+          amount: {
+            ...payload.purchase_units[0]!.amount,
+            value: "43.38",
+          },
+        },
+      ],
+    };
+
+    expect(checkPayPalCreateOrderAmountConsistency(tamperedPayload)).toEqual({
+      status: "mismatch",
+      mismatches: [
+        {
+          purchase_unit_index: 0,
+          reason: "amount_total_mismatch",
+          expected_minor: 4337,
+          actual_minor: 4338,
+        },
+      ],
+    });
   });
 });
 

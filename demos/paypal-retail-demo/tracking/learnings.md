@@ -29,3 +29,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - PayPal `PayPal-Request-Id` is an idempotency key for POST/PUT requests and should be reused only for retrying the same API payload.
 - Store a canonical payload fingerprint with the payment session so the backend can distinguish a true retry from a changed request.
 - When a fresh PayPal order/payment session is created for the same buyer-facing order, keep the buyer-facing order number stable and suffix the PayPal `invoice_id`.
+
+## PayPal Line-Item Tax Reconciliation
+- PayPal item tax is represented as per-unit `items[].tax`; the sum of item tax times quantity must reconcile with `amount.breakdown.tax_total`.
+- Demo order rows keep aggregate `line_tax_minor`, so the PayPal payload builder may split a same-product line into multiple grouped quantities when cents do not divide evenly across quantity.
+- Generated payloads should treat item-level tax as all-or-none: send `items[].tax` only when every item has a line-tax allocation that reconciles exactly.

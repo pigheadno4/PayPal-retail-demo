@@ -414,9 +414,12 @@ Preferred item fields:
 Amount reconciliation:
 - `sum(items[].unit_amount.value * quantity)` must equal `purchase_units[].amount.breakdown.item_total.value`.
 - If item-level `tax` is passed, sum item taxes must equal `purchase_units[].amount.breakdown.tax_total.value`.
+- Demo order rows store aggregate `order_items.line_tax_minor`; the backend may split a same-product PayPal line into multiple grouped quantities when cents cannot divide evenly across quantity.
+- Item-level tax is all-or-none for a generated PayPal payload: either every order item provides `line_tax_minor`, or no PayPal `items[].tax` fields are sent.
 - Promo discounts are represented in `amount.breakdown.discount`, not by reducing item names or hiding the original item total.
 - Shipping fee is represented in `amount.breakdown.shipping`.
 - BOPIS payload includes only pickup-available quantities in `items[]`; unavailable quantities remain in the cart and are excluded from the PayPal order amount.
+- The backend must run an amount consistency check before capture: item total, optional item-level tax total, and final purchase-unit total must match the merchant-calculated snapshot within the configured rounding tolerance.
 
 ### `POST /api/paypal/orders/delivery`
 Creates PayPal order for full checkout Delivery flow after checkout draft is finalized.

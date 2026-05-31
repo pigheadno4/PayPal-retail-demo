@@ -58,6 +58,7 @@ export interface PayPalOrderLineItemInput {
   readonly name: string;
   readonly quantity: number;
   readonly unitAmountMinor: number;
+  readonly lineTaxAmountMinor?: number | null;
   readonly sku?: string | null;
   readonly description?: string | null;
   readonly url?: string | null;
@@ -249,6 +250,7 @@ export interface PayPalOrderLineItem {
   readonly image_url?: string;
   readonly category: "PHYSICAL_GOODS";
   readonly unit_amount: PayPalMoney;
+  readonly tax?: PayPalMoney;
 }
 
 export interface PayPalAmountBreakdown {
@@ -271,6 +273,23 @@ export interface PayPalShipping {
     readonly postal_code: string;
     readonly country_code: string;
   };
+}
+
+export type PayPalAmountMismatchReason =
+  | "item_total_mismatch"
+  | "tax_total_mismatch"
+  | "amount_total_mismatch";
+
+export interface PayPalAmountMismatch {
+  readonly purchase_unit_index: number;
+  readonly reason: PayPalAmountMismatchReason;
+  readonly expected_minor: number;
+  readonly actual_minor: number;
+}
+
+export interface PayPalAmountConsistencyCheckResult {
+  readonly status: "matched" | "mismatch";
+  readonly mismatches: readonly PayPalAmountMismatch[];
 }
 
 export function buildPayPalDeliveryCreateOrderPayload(
@@ -470,6 +489,21 @@ export function planPayPalRequestMetadata(
   };
 }
 
+export function checkPayPalCreateOrderAmountConsistency(
+  payload: PayPalCreateOrderPayload,
+  toleranceMinor = 0,
+): PayPalAmountConsistencyCheckResult {
+  const tolerance = assertMinorUnit(toleranceMinor, "amount tolerance");
+  const mismatches = payload.purchase_units.flatMap((purchaseUnit, index) =>
+    checkPurchaseUnitAmountConsistency(purchaseUnit, index, tolerance),
+  );
+
+  return {
+    status: mismatches.length === 0 ? "matched" : "mismatch",
+    mismatches,
+  };
+}
+
 function buildPayPalPurchaseUnitBase(input: {
   readonly orderNumber: string;
   readonly currencyCode: PayPalCurrencyCode;
@@ -479,15 +513,13 @@ function buildPayPalPurchaseUnitBase(input: {
   readonly discountAmountMinor: number;
   readonly includeShippingBreakdown?: boolean;
 }): PayPalPurchaseUnit {
-  const items = input.items.map((item) =>
-    buildPayPalLineItem(item, input.currencyCode),
-  );
   const itemTotalMinor = calculateItemTotalMinor(input.items);
   const shippingMinor = assertMinorUnit(
     input.shippingAmountMinor,
     "shipping amount",
   );
   const taxMinor = assertMinorUnit(input.taxAmountMinor, "tax amount");
+  const items = buildPayPalLineItems(input.items, input.currencyCode, taxMinor);
   const discountMinor = assertMinorUnit(
     input.discountAmountMinor,
     "discount amount",
@@ -547,8 +579,15 @@ function buildShippingCallbackConfig(
 function buildPayPalLineItem(
   item: PayPalOrderLineItemInput,
   currencyCode: PayPalCurrencyCode,
+  options?: {
+    readonly quantity?: number;
+    readonly unitTaxAmountMinor?: number;
+  },
 ): PayPalOrderLineItem {
-  const quantity = assertPositiveQuantity(item.quantity, "quantity");
+  const quantity = assertPositiveQuantity(
+    options?.quantity ?? item.quantity,
+    "quantity",
+  );
   const unitAmountMinor = assertMinorUnit(item.unitAmountMinor, "unit amount");
   return {
     name: item.name,
@@ -559,7 +598,75 @@ function buildPayPalLineItem(
     ...(item.imageUrl ? { image_url: item.imageUrl } : {}),
     category: "PHYSICAL_GOODS",
     unit_amount: toPayPalMoney(currencyCode, unitAmountMinor),
+    ...(options?.unitTaxAmountMinor !== undefined
+      ? {
+          tax: toPayPalMoney(currencyCode, options.unitTaxAmountMinor),
+        }
+      : {}),
   };
+}
+
+function buildPayPalLineItems(
+  items: readonly PayPalOrderLineItemInput[],
+  currencyCode: PayPalCurrencyCode,
+  taxAmountMinor: number,
+): PayPalOrderLineItem[] {
+  const hasLineTax = items.some((item) => item.lineTaxAmountMinor != null);
+  if (!hasLineTax) {
+    return items.map((item) => buildPayPalLineItem(item, currencyCode));
+  }
+
+  if (items.some((item) => item.lineTaxAmountMinor == null)) {
+    throw new Error(
+      "line tax must be provided for every PayPal line item or omitted for all",
+    );
+  }
+
+  const lineTaxTotalMinor = addMinor(
+    items.map((item) =>
+      assertMinorUnit(item.lineTaxAmountMinor ?? 0, "line tax amount"),
+    ),
+  );
+  if (lineTaxTotalMinor !== taxAmountMinor) {
+    throw new Error("line item tax total must equal purchase-unit tax total");
+  }
+
+  return items.flatMap((item) => buildTaxedPayPalLineItems(item, currencyCode));
+}
+
+function buildTaxedPayPalLineItems(
+  item: PayPalOrderLineItemInput,
+  currencyCode: PayPalCurrencyCode,
+): PayPalOrderLineItem[] {
+  const quantity = assertPositiveQuantity(item.quantity, "quantity");
+  const lineTaxAmountMinor = assertMinorUnit(
+    item.lineTaxAmountMinor ?? 0,
+    "line tax amount",
+  );
+  const baseUnitTaxMinor = Math.floor(lineTaxAmountMinor / quantity);
+  const remainderQuantity = lineTaxAmountMinor % quantity;
+  const groupedItems: PayPalOrderLineItem[] = [];
+
+  if (remainderQuantity > 0) {
+    groupedItems.push(
+      buildPayPalLineItem(item, currencyCode, {
+        quantity: remainderQuantity,
+        unitTaxAmountMinor: baseUnitTaxMinor + 1,
+      }),
+    );
+  }
+
+  const baseQuantity = quantity - remainderQuantity;
+  if (baseQuantity > 0) {
+    groupedItems.push(
+      buildPayPalLineItem(item, currencyCode, {
+        quantity: baseQuantity,
+        unitTaxAmountMinor: baseUnitTaxMinor,
+      }),
+    );
+  }
+
+  return groupedItems;
 }
 
 function calculateItemTotalMinor(
@@ -681,4 +788,110 @@ function isVaultingPaymentMethod(
   method: PayPalPaymentMethod,
 ): method is PayPalVaultingPaymentMethod {
   return method === "card" || method === "paypal";
+}
+
+function checkPurchaseUnitAmountConsistency(
+  purchaseUnit: PayPalPurchaseUnit,
+  purchaseUnitIndex: number,
+  toleranceMinor: number,
+): PayPalAmountMismatch[] {
+  const mismatches: PayPalAmountMismatch[] = [];
+  const itemTotalMinor = addMinor(
+    purchaseUnit.items.map((item) =>
+      multiplyMinor(
+        parsePayPalMoneyMinor(item.unit_amount),
+        parsePayPalQuantity(item.quantity),
+      ),
+    ),
+  );
+  const declaredItemTotalMinor = parsePayPalMoneyMinor(
+    purchaseUnit.amount.breakdown.item_total,
+  );
+  pushAmountMismatch(
+    mismatches,
+    purchaseUnitIndex,
+    "item_total_mismatch",
+    itemTotalMinor,
+    declaredItemTotalMinor,
+    toleranceMinor,
+  );
+
+  const hasItemTax = purchaseUnit.items.some((item) => item.tax !== undefined);
+  if (hasItemTax) {
+    const itemTaxTotalMinor = addMinor(
+      purchaseUnit.items.map((item) =>
+        multiplyMinor(
+          item.tax ? parsePayPalMoneyMinor(item.tax) : 0,
+          parsePayPalQuantity(item.quantity),
+        ),
+      ),
+    );
+    pushAmountMismatch(
+      mismatches,
+      purchaseUnitIndex,
+      "tax_total_mismatch",
+      itemTaxTotalMinor,
+      parsePayPalMoneyMinor(purchaseUnit.amount.breakdown.tax_total),
+      toleranceMinor,
+    );
+  }
+
+  const shippingMinor = purchaseUnit.amount.breakdown.shipping
+    ? parsePayPalMoneyMinor(purchaseUnit.amount.breakdown.shipping)
+    : 0;
+  const taxMinor = parsePayPalMoneyMinor(
+    purchaseUnit.amount.breakdown.tax_total,
+  );
+  const discountMinor = purchaseUnit.amount.breakdown.discount
+    ? parsePayPalMoneyMinor(purchaseUnit.amount.breakdown.discount)
+    : 0;
+  const expectedTotalMinor = subtractMinor(
+    addMinor([declaredItemTotalMinor, shippingMinor, taxMinor]),
+    discountMinor,
+  );
+
+  pushAmountMismatch(
+    mismatches,
+    purchaseUnitIndex,
+    "amount_total_mismatch",
+    expectedTotalMinor,
+    parsePayPalMoneyMinor(purchaseUnit.amount),
+    toleranceMinor,
+  );
+
+  return mismatches;
+}
+
+function pushAmountMismatch(
+  mismatches: PayPalAmountMismatch[],
+  purchaseUnitIndex: number,
+  reason: PayPalAmountMismatchReason,
+  expectedMinor: number,
+  actualMinor: number,
+  toleranceMinor: number,
+): void {
+  if (Math.abs(expectedMinor - actualMinor) > toleranceMinor) {
+    mismatches.push({
+      purchase_unit_index: purchaseUnitIndex,
+      reason,
+      expected_minor: expectedMinor,
+      actual_minor: actualMinor,
+    });
+  }
+}
+
+function parsePayPalQuantity(value: string): number {
+  const quantity = Number(value);
+  return assertPositiveQuantity(quantity, "PayPal item quantity");
+}
+
+function parsePayPalMoneyMinor(money: PayPalMoney): MinorUnit {
+  if (!/^\d+\.\d{2}$/.test(money.value)) {
+    throw new Error(`invalid PayPal money value: ${money.value}`);
+  }
+  const [majorPart, minorPart] = money.value.split(".");
+  return assertMinorUnit(
+    Number(majorPart) * 100 + Number(minorPart),
+    "PayPal money value",
+  );
 }
