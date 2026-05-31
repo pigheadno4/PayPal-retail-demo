@@ -48,6 +48,41 @@ export type PayPalRequestMetadataReason =
   | "fresh_payment_session"
   | "same_payload_retry"
   | "payload_changed";
+export type PayPalPaymentEligibilityKey =
+  | "paypal"
+  | "paylater"
+  | "advanced_cards"
+  | "applepay"
+  | "googlepay"
+  | "venmo";
+export type PayPalPaymentEligibilitySource =
+  | "findEligibleMethods"
+  | "applepay_config"
+  | "googlepay_config";
+export type PayPalPaymentMethodActionSurface = "order_summary" | "card_box";
+export type PayPalPaymentMethodButtonElement =
+  | "paypal-button"
+  | "paypal-pay-later-button"
+  | "card-fields"
+  | "apple_pay_button"
+  | "google_pay_button"
+  | "venmo-button";
+export type PayPalPaymentSessionMethod =
+  | "createPayPalOneTimePaymentSession"
+  | "createPayLaterOneTimePaymentSession"
+  | "createCardFieldsOneTimePaymentSession"
+  | "createApplePayOneTimePaymentSession"
+  | "createGooglePayOneTimePaymentSession"
+  | "createVenmoOneTimePaymentSession";
+export type PayPalPaymentMethodHiddenReason =
+  | "market_unsupported"
+  | "sdk_component_missing"
+  | "runtime_ineligible"
+  | "runtime_details_missing";
+export type PayPalPaymentSaveCheckboxPlacement =
+  | "under_button"
+  | "inside_card_box";
+export type PayPalPayLaterMessageMode = "none" | "amount_aware";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -140,6 +175,57 @@ export interface PayPalSdkConfig {
   readonly page_type: PayPalSdkPageType;
   readonly provider_key: string;
   readonly needs_client_token: boolean;
+}
+
+export interface PayPalRuntimeEligibility {
+  readonly key: PayPalPaymentEligibilityKey;
+  readonly isEligible: boolean;
+  readonly details?: {
+    readonly productCode?: string | null;
+    readonly countryCode?: string | null;
+  } | null;
+}
+
+export interface PlanPayPalPaymentMethodsInput {
+  readonly market: MarketConfig;
+  readonly components: readonly PaymentComponent[];
+  readonly runtimeEligibility: readonly PayPalRuntimeEligibility[];
+  readonly selectedMethod?: PayPalPaymentMethod | null;
+}
+
+export interface PayPalPaymentMethodPayLaterDetails {
+  readonly product_code: string;
+  readonly country_code: string;
+}
+
+export interface PayPalPaymentMethodRow {
+  readonly method: PayPalPaymentMethod;
+  readonly label: string;
+  readonly eligibility_key: PayPalPaymentEligibilityKey;
+  readonly eligibility_source: PayPalPaymentEligibilitySource;
+  readonly required_components: readonly PaymentComponent[];
+  readonly sdk_session_method: PayPalPaymentSessionMethod;
+  readonly button_element: PayPalPaymentMethodButtonElement;
+  readonly action_surface: PayPalPaymentMethodActionSurface;
+  readonly mobile_sticky_eligible: boolean;
+  readonly paylater_message: PayPalPayLaterMessageMode;
+  readonly paylater_details: PayPalPaymentMethodPayLaterDetails | null;
+  readonly supports_save_for_future: boolean;
+  readonly save_checkbox_placement: PayPalPaymentSaveCheckboxPlacement | null;
+}
+
+export interface PayPalHiddenPaymentMethod {
+  readonly method: PayPalPaymentMethod;
+  readonly reason: PayPalPaymentMethodHiddenReason;
+  readonly eligibility_key: PayPalPaymentEligibilityKey;
+}
+
+export interface PayPalPaymentMethodPlan {
+  readonly selected_method: PayPalPaymentMethod | null;
+  readonly default_method: PayPalPaymentMethod | null;
+  readonly required_components: readonly PaymentComponent[];
+  readonly rows: readonly PayPalPaymentMethodRow[];
+  readonly hidden_methods: readonly PayPalHiddenPaymentMethod[];
 }
 
 export type PayPalClientTokenBuyer =
@@ -387,6 +473,59 @@ export function buildPayPalSdkConfig(
   };
 }
 
+export function planPayPalPaymentMethods(
+  input: PlanPayPalPaymentMethodsInput,
+): PayPalPaymentMethodPlan {
+  const availableComponents = new Set(
+    normalizePaymentComponents(input.components),
+  );
+  const runtimeEligibility = new Map(
+    input.runtimeEligibility.map((eligibility) => [
+      eligibility.key,
+      eligibility,
+    ]),
+  );
+  const rows: PayPalPaymentMethodRow[] = [];
+  const hiddenMethods: PayPalHiddenPaymentMethod[] = [];
+
+  for (const definition of paypalPaymentMethodDefinitions) {
+    const hiddenReason = getPaymentMethodHiddenReason(
+      definition,
+      input.market,
+      availableComponents,
+      runtimeEligibility,
+    );
+
+    if (hiddenReason) {
+      hiddenMethods.push({
+        method: definition.method,
+        reason: hiddenReason,
+        eligibility_key: definition.eligibilityKey,
+      });
+      continue;
+    }
+
+    rows.push(buildPaymentMethodRow(definition, runtimeEligibility));
+  }
+
+  const defaultMethod = rows[0]?.method ?? null;
+  const selectedMethod =
+    rows.some((row) => row.method === input.selectedMethod) &&
+    input.selectedMethod
+      ? input.selectedMethod
+      : defaultMethod;
+
+  return {
+    selected_method: selectedMethod,
+    default_method: defaultMethod,
+    required_components: normalizePaymentComponents(
+      rows.flatMap((row) => row.required_components),
+    ),
+    rows,
+    hidden_methods: hiddenMethods,
+  };
+}
+
 export function planPayPalClientTokenRequest(
   input: PlanPayPalClientTokenRequestInput,
 ): PayPalClientTokenRequestPlan {
@@ -445,6 +584,197 @@ export function planPayPalClientTokenRequest(
     },
     expires_in_seconds: 900,
     needs_client_token: true,
+  };
+}
+
+interface PayPalPaymentMethodDefinition {
+  readonly method: PayPalPaymentMethod;
+  readonly label: string;
+  readonly eligibilityKey: PayPalPaymentEligibilityKey;
+  readonly eligibilitySource: PayPalPaymentEligibilitySource;
+  readonly requiredComponents: readonly PaymentComponent[];
+  readonly sdkSessionMethod: PayPalPaymentSessionMethod;
+  readonly buttonElement: PayPalPaymentMethodButtonElement;
+  readonly actionSurface: PayPalPaymentMethodActionSurface;
+  readonly mobileStickyEligible: boolean;
+  readonly payLaterMessage: PayPalPayLaterMessageMode;
+  readonly supportsSaveForFuture: boolean;
+  readonly saveCheckboxPlacement: PayPalPaymentSaveCheckboxPlacement | null;
+}
+
+const paypalPaymentMethodDefinitions: readonly PayPalPaymentMethodDefinition[] =
+  [
+    {
+      method: "paypal",
+      label: "PayPal",
+      eligibilityKey: "paypal",
+      eligibilitySource: "findEligibleMethods",
+      requiredComponents: ["paypal-payments"],
+      sdkSessionMethod: "createPayPalOneTimePaymentSession",
+      buttonElement: "paypal-button",
+      actionSurface: "order_summary",
+      mobileStickyEligible: true,
+      payLaterMessage: "none",
+      supportsSaveForFuture: true,
+      saveCheckboxPlacement: "under_button",
+    },
+    {
+      method: "paylater",
+      label: "Pay Later",
+      eligibilityKey: "paylater",
+      eligibilitySource: "findEligibleMethods",
+      requiredComponents: ["paypal-payments", "paypal-messages"],
+      sdkSessionMethod: "createPayLaterOneTimePaymentSession",
+      buttonElement: "paypal-pay-later-button",
+      actionSurface: "order_summary",
+      mobileStickyEligible: true,
+      payLaterMessage: "amount_aware",
+      supportsSaveForFuture: false,
+      saveCheckboxPlacement: null,
+    },
+    {
+      method: "card",
+      label: "Credit or debit card",
+      eligibilityKey: "advanced_cards",
+      eligibilitySource: "findEligibleMethods",
+      requiredComponents: ["card-fields"],
+      sdkSessionMethod: "createCardFieldsOneTimePaymentSession",
+      buttonElement: "card-fields",
+      actionSurface: "card_box",
+      mobileStickyEligible: false,
+      payLaterMessage: "none",
+      supportsSaveForFuture: true,
+      saveCheckboxPlacement: "inside_card_box",
+    },
+    {
+      method: "apple_pay",
+      label: "Apple Pay",
+      eligibilityKey: "applepay",
+      eligibilitySource: "applepay_config",
+      requiredComponents: ["applepay-payments"],
+      sdkSessionMethod: "createApplePayOneTimePaymentSession",
+      buttonElement: "apple_pay_button",
+      actionSurface: "order_summary",
+      mobileStickyEligible: true,
+      payLaterMessage: "none",
+      supportsSaveForFuture: false,
+      saveCheckboxPlacement: null,
+    },
+    {
+      method: "google_pay",
+      label: "Google Pay",
+      eligibilityKey: "googlepay",
+      eligibilitySource: "googlepay_config",
+      requiredComponents: ["googlepay-payments"],
+      sdkSessionMethod: "createGooglePayOneTimePaymentSession",
+      buttonElement: "google_pay_button",
+      actionSurface: "order_summary",
+      mobileStickyEligible: true,
+      payLaterMessage: "none",
+      supportsSaveForFuture: false,
+      saveCheckboxPlacement: null,
+    },
+    {
+      method: "venmo",
+      label: "Venmo",
+      eligibilityKey: "venmo",
+      eligibilitySource: "findEligibleMethods",
+      requiredComponents: ["venmo-payments"],
+      sdkSessionMethod: "createVenmoOneTimePaymentSession",
+      buttonElement: "venmo-button",
+      actionSurface: "order_summary",
+      mobileStickyEligible: true,
+      payLaterMessage: "none",
+      supportsSaveForFuture: false,
+      saveCheckboxPlacement: null,
+    },
+  ];
+
+function getPaymentMethodHiddenReason(
+  definition: PayPalPaymentMethodDefinition,
+  market: MarketConfig,
+  availableComponents: ReadonlySet<PaymentComponent>,
+  runtimeEligibility: ReadonlyMap<
+    PayPalPaymentEligibilityKey,
+    PayPalRuntimeEligibility
+  >,
+): PayPalPaymentMethodHiddenReason | null {
+  if (
+    definition.method === "venmo" &&
+    (market.code !== "US" || market.currencyCode !== "USD")
+  ) {
+    return "market_unsupported";
+  }
+
+  if (
+    definition.requiredComponents.some(
+      (component) => !availableComponents.has(component),
+    )
+  ) {
+    return "sdk_component_missing";
+  }
+
+  const eligibility = runtimeEligibility.get(definition.eligibilityKey);
+  if (!eligibility?.isEligible) {
+    return "runtime_ineligible";
+  }
+
+  if (
+    definition.method === "paylater" &&
+    !getPayLaterDetails(runtimeEligibility)
+  ) {
+    return "runtime_details_missing";
+  }
+
+  return null;
+}
+
+function buildPaymentMethodRow(
+  definition: PayPalPaymentMethodDefinition,
+  runtimeEligibility: ReadonlyMap<
+    PayPalPaymentEligibilityKey,
+    PayPalRuntimeEligibility
+  >,
+): PayPalPaymentMethodRow {
+  return {
+    method: definition.method,
+    label: definition.label,
+    eligibility_key: definition.eligibilityKey,
+    eligibility_source: definition.eligibilitySource,
+    required_components: normalizePaymentComponents(
+      definition.requiredComponents,
+    ),
+    sdk_session_method: definition.sdkSessionMethod,
+    button_element: definition.buttonElement,
+    action_surface: definition.actionSurface,
+    mobile_sticky_eligible: definition.mobileStickyEligible,
+    paylater_message: definition.payLaterMessage,
+    paylater_details:
+      definition.method === "paylater"
+        ? getPayLaterDetails(runtimeEligibility)
+        : null,
+    supports_save_for_future: definition.supportsSaveForFuture,
+    save_checkbox_placement: definition.saveCheckboxPlacement,
+  };
+}
+
+function getPayLaterDetails(
+  runtimeEligibility: ReadonlyMap<
+    PayPalPaymentEligibilityKey,
+    PayPalRuntimeEligibility
+  >,
+): PayPalPaymentMethodPayLaterDetails | null {
+  const details = runtimeEligibility.get("paylater")?.details;
+  const productCode = details?.productCode?.trim();
+  const countryCode = details?.countryCode?.trim();
+
+  if (!productCode || !countryCode) {
+    return null;
+  }
+
+  return {
+    product_code: productCode,
+    country_code: countryCode,
   };
 }
 

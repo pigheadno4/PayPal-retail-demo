@@ -348,6 +348,15 @@ Rules:
 - Before coding against the installed package, verify `testBuyerCountry` still exists in the local `@paypal/react-paypal-js` v9 / SDK v6 types. If the installed type differs from the `wiki-v2` snapshot, stop and update this contract before implementing the provider.
 - Pay Later, Venmo, Apple Pay, and Google Pay UI rows must be hidden unless runtime eligibility says they can render.
 
+Payment method mapping rules:
+- PayPal maps to `paypal-payments`, `findEligibleMethods().isEligible("paypal")`, `createPayPalOneTimePaymentSession`, and `<paypal-button>`.
+- Pay Later maps to `paypal-payments` plus `paypal-messages`, `findEligibleMethods().isEligible("paylater")`, `getDetails("paylater")`, `createPayLaterOneTimePaymentSession`, `<paypal-pay-later-button>`, and amount-aware messages.
+- Card maps to `card-fields`, `findEligibleMethods().isEligible("advanced_cards")`, `createCardFieldsOneTimePaymentSession`, and hosted card fields. Its pay button stays inside the card box, including mobile.
+- Apple Pay maps to `applepay-payments`, Apple Pay config eligibility, `createApplePayOneTimePaymentSession`, and an official Apple Pay button surface.
+- Google Pay maps to `googlepay-payments`, Google Pay config eligibility, `createGooglePayOneTimePaymentSession`, and an official Google Pay button surface.
+- Venmo maps to `venmo-payments`, `findEligibleMethods().isEligible("venmo")`, `createVenmoOneTimePaymentSession`, and `<venmo-button>`. V1 demo hides Venmo outside US/USD even if generic runtime checks are stubbed as eligible.
+- The method plan returns renderable rows, the selected/default method, required components for renderable rows, and hidden methods with debug reasons.
+
 ### `POST /api/paypal/client-token`
 Generates a short-lived PayPal client token for vault-enabled flows.
 

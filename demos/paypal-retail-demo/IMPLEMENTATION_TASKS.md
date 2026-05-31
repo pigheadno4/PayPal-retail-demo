@@ -160,7 +160,7 @@ Verification:
 - [x] Implement PayPal client token request rules for vault-enabled flows.
 - [x] Implement PayPal invoice ID and `PayPal-Request-Id` assignment.
 - [x] Implement PayPal detailed line-item builder and amount breakdown reconciliation.
-- [ ] Implement Pay Later, Venmo, Apple Pay, Google Pay, card method mapping.
+- [x] Implement Pay Later, Venmo, Apple Pay, Google Pay, card method mapping.
 - [ ] Implement vault attribute inclusion only for logged-in eligible buyers.
 - [ ] Implement amount consistency guard.
 - [ ] Implement sanitized PayPal snapshot storage shape.

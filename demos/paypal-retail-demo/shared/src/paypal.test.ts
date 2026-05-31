@@ -5,6 +5,7 @@ import {
   buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
   checkPayPalCreateOrderAmountConsistency,
+  planPayPalPaymentMethods,
   planPayPalClientTokenRequest,
   planPayPalRequestMetadata,
   type PayPalOrderLineItemInput,
@@ -807,6 +808,213 @@ describe("PayPal SDK config builder", () => {
         method: "paypal",
       }),
     ).toThrow("PayPal client ID is required");
+  });
+});
+
+describe("PayPal payment method mapper", () => {
+  it("maps eligible checkout methods to SDK components, sessions, and UI placements", () => {
+    expect(
+      planPayPalPaymentMethods({
+        market: getMarketConfig("US"),
+        components: getMarketConfig("US").paymentComponents,
+        runtimeEligibility: [
+          { key: "paypal", isEligible: true },
+          {
+            key: "paylater",
+            isEligible: true,
+            details: { productCode: "PAY_IN_4", countryCode: "US" },
+          },
+          { key: "advanced_cards", isEligible: true },
+          { key: "applepay", isEligible: true },
+          { key: "googlepay", isEligible: true },
+          { key: "venmo", isEligible: true },
+        ],
+      }),
+    ).toEqual({
+      selected_method: "paypal",
+      default_method: "paypal",
+      required_components: [
+        "applepay-payments",
+        "card-fields",
+        "googlepay-payments",
+        "paypal-messages",
+        "paypal-payments",
+        "venmo-payments",
+      ],
+      rows: [
+        {
+          method: "paypal",
+          label: "PayPal",
+          eligibility_key: "paypal",
+          eligibility_source: "findEligibleMethods",
+          required_components: ["paypal-payments"],
+          sdk_session_method: "createPayPalOneTimePaymentSession",
+          button_element: "paypal-button",
+          action_surface: "order_summary",
+          mobile_sticky_eligible: true,
+          paylater_message: "none",
+          paylater_details: null,
+          supports_save_for_future: true,
+          save_checkbox_placement: "under_button",
+        },
+        {
+          method: "paylater",
+          label: "Pay Later",
+          eligibility_key: "paylater",
+          eligibility_source: "findEligibleMethods",
+          required_components: ["paypal-messages", "paypal-payments"],
+          sdk_session_method: "createPayLaterOneTimePaymentSession",
+          button_element: "paypal-pay-later-button",
+          action_surface: "order_summary",
+          mobile_sticky_eligible: true,
+          paylater_message: "amount_aware",
+          paylater_details: {
+            product_code: "PAY_IN_4",
+            country_code: "US",
+          },
+          supports_save_for_future: false,
+          save_checkbox_placement: null,
+        },
+        {
+          method: "card",
+          label: "Credit or debit card",
+          eligibility_key: "advanced_cards",
+          eligibility_source: "findEligibleMethods",
+          required_components: ["card-fields"],
+          sdk_session_method: "createCardFieldsOneTimePaymentSession",
+          button_element: "card-fields",
+          action_surface: "card_box",
+          mobile_sticky_eligible: false,
+          paylater_message: "none",
+          paylater_details: null,
+          supports_save_for_future: true,
+          save_checkbox_placement: "inside_card_box",
+        },
+        {
+          method: "apple_pay",
+          label: "Apple Pay",
+          eligibility_key: "applepay",
+          eligibility_source: "applepay_config",
+          required_components: ["applepay-payments"],
+          sdk_session_method: "createApplePayOneTimePaymentSession",
+          button_element: "apple_pay_button",
+          action_surface: "order_summary",
+          mobile_sticky_eligible: true,
+          paylater_message: "none",
+          paylater_details: null,
+          supports_save_for_future: false,
+          save_checkbox_placement: null,
+        },
+        {
+          method: "google_pay",
+          label: "Google Pay",
+          eligibility_key: "googlepay",
+          eligibility_source: "googlepay_config",
+          required_components: ["googlepay-payments"],
+          sdk_session_method: "createGooglePayOneTimePaymentSession",
+          button_element: "google_pay_button",
+          action_surface: "order_summary",
+          mobile_sticky_eligible: true,
+          paylater_message: "none",
+          paylater_details: null,
+          supports_save_for_future: false,
+          save_checkbox_placement: null,
+        },
+        {
+          method: "venmo",
+          label: "Venmo",
+          eligibility_key: "venmo",
+          eligibility_source: "findEligibleMethods",
+          required_components: ["venmo-payments"],
+          sdk_session_method: "createVenmoOneTimePaymentSession",
+          button_element: "venmo-button",
+          action_surface: "order_summary",
+          mobile_sticky_eligible: true,
+          paylater_message: "none",
+          paylater_details: null,
+          supports_save_for_future: false,
+          save_checkbox_placement: null,
+        },
+      ],
+      hidden_methods: [],
+    });
+  });
+
+  it("hides methods when runtime eligibility, component, market, or details are missing", () => {
+    expect(
+      planPayPalPaymentMethods({
+        market: getMarketConfig("GB"),
+        components: ["paypal-payments", "paypal-messages", "card-fields"],
+        runtimeEligibility: [
+          { key: "paypal", isEligible: true },
+          { key: "paylater", isEligible: true },
+          { key: "advanced_cards", isEligible: true },
+          { key: "applepay", isEligible: true },
+          { key: "googlepay", isEligible: false },
+          { key: "venmo", isEligible: true },
+        ],
+      }),
+    ).toEqual({
+      selected_method: "paypal",
+      default_method: "paypal",
+      required_components: ["card-fields", "paypal-payments"],
+      rows: [
+        expect.objectContaining({ method: "paypal" }),
+        expect.objectContaining({ method: "card" }),
+      ],
+      hidden_methods: [
+        {
+          method: "paylater",
+          reason: "runtime_details_missing",
+          eligibility_key: "paylater",
+        },
+        {
+          method: "apple_pay",
+          reason: "sdk_component_missing",
+          eligibility_key: "applepay",
+        },
+        {
+          method: "google_pay",
+          reason: "sdk_component_missing",
+          eligibility_key: "googlepay",
+        },
+        {
+          method: "venmo",
+          reason: "market_unsupported",
+          eligibility_key: "venmo",
+        },
+      ],
+    });
+  });
+
+  it("falls back to the first eligible row when the selected method is hidden", () => {
+    expect(
+      planPayPalPaymentMethods({
+        market: getMarketConfig("US"),
+        components: ["paypal-payments", "card-fields"],
+        selectedMethod: "paylater",
+        runtimeEligibility: [
+          { key: "paypal", isEligible: false },
+          { key: "advanced_cards", isEligible: true },
+        ],
+      }),
+    ).toMatchObject({
+      selected_method: "card",
+      default_method: "card",
+      rows: [expect.objectContaining({ method: "card" })],
+      hidden_methods: expect.arrayContaining([
+        {
+          method: "paypal",
+          reason: "runtime_ineligible",
+          eligibility_key: "paypal",
+        },
+        {
+          method: "paylater",
+          reason: "sdk_component_missing",
+          eligibility_key: "paylater",
+        },
+      ]),
+    });
   });
 });
 

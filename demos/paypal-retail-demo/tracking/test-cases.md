@@ -57,6 +57,10 @@
 - [x] PayPal client token request planner normalizes client-token domains and forms the PayPal OAuth client-token request fields.
 - [ ] PayPal client token API returns a short-lived client token only for vault-enabled logged-in flows.
 - [x] Guest checkout cannot request PayPal client token for vaulting.
+- [x] PayPal payment method mapper returns only runtime-eligible renderable payment rows.
+- [x] PayPal payment method mapper maps PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo to the expected SDK component/session/UI surface.
+- [x] PayPal payment method mapper keeps card payment action inside the card box and out of the mobile sticky bar.
+- [x] PayPal payment method mapper hides Venmo outside US/USD and records hidden-method reasons for debug/Admin display.
 - [x] Delivery order number generator uses `DO-YYYYMMDD-000001` format.
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.

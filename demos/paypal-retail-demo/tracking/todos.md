@@ -35,4 +35,5 @@
 - [x] Continue Milestone 4 with PayPal client token request rules for vault-enabled flows.
 - [x] Continue Milestone 4 with PayPal request metadata assignment for `PayPal-Request-Id`.
 - [x] Continue Milestone 4 with PayPal detailed line-item tax allocation and amount mismatch guard prep.
-- [ ] Continue Milestone 4 with Pay Later, Venmo, Apple Pay, Google Pay, and card method mapping.
+- [x] Continue Milestone 4 with Pay Later, Venmo, Apple Pay, Google Pay, and card method mapping.
+- [ ] Continue Milestone 4 with vault attribute inclusion only for logged-in eligible buyers.

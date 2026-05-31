@@ -34,3 +34,9 @@ Reusable implementation lessons from this demo should be added here during miles
 - PayPal item tax is represented as per-unit `items[].tax`; the sum of item tax times quantity must reconcile with `amount.breakdown.tax_total`.
 - Demo order rows keep aggregate `line_tax_minor`, so the PayPal payload builder may split a same-product line into multiple grouped quantities when cents do not divide evenly across quantity.
 - Generated payloads should treat item-level tax as all-or-none: send `items[].tax` only when every item has a line-tax allocation that reconciles exactly.
+
+## PayPal Payment Method Mapping
+- JS SDK v6 payment rows should be driven by runtime eligibility, not only static market configuration.
+- Card fields are eligible through `advanced_cards` and should stay inside the card-fields box instead of using the Order Summary/sticky-button placement.
+- Pay Later needs both eligibility and method details such as product/country before rendering its official button.
+- Venmo is constrained to US/USD for this demo and should be hidden outside that market even when local test stubs mark it eligible.
