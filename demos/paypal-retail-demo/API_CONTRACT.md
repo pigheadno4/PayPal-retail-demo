@@ -146,6 +146,12 @@ Query params:
 
 Returns product cards and filter counts.
 
+Route behavior:
+- `profile` and `market` query params are accepted for demo context routing until Admin profile/market state is implemented.
+- Missing `profile` defaults to `popmart`; missing `market` defaults to `US`.
+- `market` is normalized to uppercase before repository lookup.
+- `pickup_available=true|false` is normalized to boolean; invalid boolean and invalid price filters are ignored for the first route-contract slice.
+
 ### `GET /api/catalog/products/:slug`
 Returns PDP data:
 - product details
@@ -157,6 +163,8 @@ Returns PDP data:
 - payment placement eligibility hints
 
 Future release products return `purchasable: false`.
+
+Missing products return `PRODUCT_NOT_FOUND` in the standard error envelope with the requested slug in `details.slug`.
 
 ### `GET /api/catalog/release-events`
 Returns calendar events and related PDP links.

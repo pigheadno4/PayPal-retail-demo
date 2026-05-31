@@ -41,4 +41,5 @@
 - [x] Continue Milestone 4 with sanitized PayPal snapshot storage shape.
 - [x] Start Milestone 5 Express API foundation with app shell and health endpoint.
 - [x] Complete Milestone 5 Express API foundation middleware, env, Supabase, and debug logger slice.
-- [ ] Start Milestone 6 catalog/storefront API routes.
+- [x] Start Milestone 6 catalog/storefront API routes with route contract tests.
+- [ ] Add Supabase-backed catalog repository for Milestone 6 storefront APIs.

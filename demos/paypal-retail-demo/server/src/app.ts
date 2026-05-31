@@ -5,8 +5,16 @@ import {
   sendApiError,
   sendApiSuccess,
 } from "./http/responses.js";
+import {
+  createCatalogRouter,
+  type CatalogRepository,
+} from "./routes/catalog.js";
 
-export function createApp() {
+export interface CreateAppInput {
+  readonly catalogRepository?: CatalogRepository;
+}
+
+export function createApp(input: CreateAppInput = {}) {
   const app = express();
 
   app.disable("x-powered-by");
@@ -29,6 +37,13 @@ export function createApp() {
       status: "ok",
     });
   });
+
+  if (input.catalogRepository) {
+    app.use(
+      "/api",
+      createCatalogRouter({ catalogRepository: input.catalogRepository }),
+    );
+  }
 
   app.use("/api", (request, response) => {
     sendApiError(response, 404, {

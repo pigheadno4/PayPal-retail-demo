@@ -87,6 +87,10 @@
 - [x] Guest cart middleware parses paired cart ID/secret headers and rejects incomplete guest cart headers.
 - [x] Admin session guard accepts signed unexpired admin session tokens and rejects invalid or expired tokens.
 - [x] Runtime debug logger recursively redacts secrets, access tokens, service-role keys, auth headers, and card-like fields.
+- [x] Storefront API route contracts return config, homepage, categories, products, PDP, and release events in the standard response envelope.
+- [x] Storefront product list API normalizes category, release status, pickup availability, price, and sort filters before repository lookup.
+- [x] Storefront PDP API returns released/unreleased checkout and review visibility states from repository data, and buyer-safe 404 for missing products.
+- [x] Storefront release-events API returns PDP-linked calendar events with outlined markers.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows
