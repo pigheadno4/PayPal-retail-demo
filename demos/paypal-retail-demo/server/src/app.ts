@@ -5,13 +5,23 @@ import {
   sendApiError,
   sendApiSuccess,
 } from "./http/responses.js";
+import { createAdminSessionGuard } from "./middleware/admin.js";
+import type { AdminProfileMarketRepository } from "./repositories/adminRepository.js";
+import { createAdminRouter } from "./routes/admin.js";
 import {
   createCatalogRouter,
   type CatalogRepository,
 } from "./routes/catalog.js";
+import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 export interface CreateAppInput {
   readonly catalogRepository?: CatalogRepository;
+  readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
+  readonly admin?: {
+    readonly adminPasscode: string;
+    readonly profileMarketRepository: AdminProfileMarketRepository;
+    readonly activeStorefrontContextStore: ActiveStorefrontContextStore;
+  };
 }
 
 export function createApp(input: CreateAppInput = {}) {
@@ -39,9 +49,31 @@ export function createApp(input: CreateAppInput = {}) {
   });
 
   if (input.catalogRepository) {
+    const activeStorefrontContextStore =
+      input.activeStorefrontContextStore ??
+      input.admin?.activeStorefrontContextStore;
     app.use(
       "/api",
-      createCatalogRouter({ catalogRepository: input.catalogRepository }),
+      createCatalogRouter({
+        catalogRepository: input.catalogRepository,
+        ...(activeStorefrontContextStore
+          ? { activeStorefrontContextStore }
+          : {}),
+      }),
+    );
+  }
+
+  if (input.catalogRepository && input.admin) {
+    app.use(
+      "/api",
+      createAdminRouter({
+        adminSessionGuard: createAdminSessionGuard({
+          adminPasscode: input.admin.adminPasscode,
+        }),
+        catalogRepository: input.catalogRepository,
+        profileMarketRepository: input.admin.profileMarketRepository,
+        activeStorefrontContextStore: input.admin.activeStorefrontContextStore,
+      }),
     );
   }
 

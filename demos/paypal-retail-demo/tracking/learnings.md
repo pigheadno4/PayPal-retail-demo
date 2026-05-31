@@ -68,3 +68,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Storefront routes should stay repository-driven so the buyer/mobile API contract can remain stable while the data source evolves.
 - The repository maps Supabase app-schema rows into API DTOs and keeps release-state behavior centralized: unreleased products are non-purchasable and hide reviews.
 - Server TypeScript now includes shared source in its project boundary because the catalog repository consumes shared catalog helpers directly.
+
+## Admin Profile/Market Switch API
+- Admin profile/market switching updates an in-memory active storefront context for the running demo API; explicit `profile` and `market` query params still override it for route-contract compatibility.
+- The switch endpoint returns the same data shape as `GET /api/config`, so the frontend can refresh config/catalog/cart/PayPal SDK data without a separate response model.
+- Test requests with JSON bodies need the in-process request harness to emit `data` and `end`; this environment does not expose a usable port from `app.listen(0)`.

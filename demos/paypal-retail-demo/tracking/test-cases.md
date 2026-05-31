@@ -93,6 +93,9 @@
 - [x] Storefront release-events API returns PDP-linked calendar events with outlined markers.
 - [x] Supabase-backed catalog repository maps app-schema rows into storefront config, homepage, categories, products, PDP, and release-events DTOs.
 - [x] Supabase-backed catalog repository blocks unreleased PDP checkout and hides reviews from row-level release state.
+- [x] Admin profile/market switch API requires a signed admin session before changing active storefront context.
+- [x] Admin profile/market switch API returns the refreshed `GET /api/config` shape and updates no-query storefront config lookup.
+- [x] Admin profile/market switch API returns buyer-safe errors for missing profile or market IDs.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

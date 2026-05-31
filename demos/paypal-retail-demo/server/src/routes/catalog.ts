@@ -1,6 +1,7 @@
 import { Router, type Request, type RequestHandler } from "express";
 
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
+import type { ActiveStorefrontContextStore } from "../state/storefrontContext.js";
 
 export type StorefrontProfileSlug = "popmart" | "generic" | string;
 export type StorefrontMarketCode = "US" | "GB" | string;
@@ -52,6 +53,7 @@ export interface CatalogRepository {
 
 export function createCatalogRouter(input: {
   readonly catalogRepository: CatalogRepository;
+  readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
 }): Router {
   const router = Router();
 
@@ -61,7 +63,7 @@ export function createCatalogRouter(input: {
       sendApiSuccess(
         response,
         await input.catalogRepository.getConfig(
-          resolveStorefrontContext(request),
+          resolveStorefrontContext(request, input.activeStorefrontContextStore),
         ),
       );
     }),
@@ -73,7 +75,7 @@ export function createCatalogRouter(input: {
       sendApiSuccess(
         response,
         await input.catalogRepository.getHome(
-          resolveStorefrontContext(request),
+          resolveStorefrontContext(request, input.activeStorefrontContextStore),
         ),
       );
     }),
@@ -85,7 +87,7 @@ export function createCatalogRouter(input: {
       sendApiSuccess(
         response,
         await input.catalogRepository.getCategories(
-          resolveStorefrontContext(request),
+          resolveStorefrontContext(request, input.activeStorefrontContextStore),
         ),
       );
     }),
@@ -97,7 +99,7 @@ export function createCatalogRouter(input: {
       sendApiSuccess(
         response,
         await input.catalogRepository.getProducts(
-          resolveStorefrontContext(request),
+          resolveStorefrontContext(request, input.activeStorefrontContextStore),
           parseProductListFilters(request),
         ),
       );
@@ -109,7 +111,7 @@ export function createCatalogRouter(input: {
     asyncRoute(async (request, response) => {
       const slug = firstRouteParamValue(request, "slug") ?? "";
       const product = await input.catalogRepository.getProductBySlug(
-        resolveStorefrontContext(request),
+        resolveStorefrontContext(request, input.activeStorefrontContextStore),
         slug,
       );
 
@@ -134,7 +136,7 @@ export function createCatalogRouter(input: {
       sendApiSuccess(
         response,
         await input.catalogRepository.getReleaseEvents(
-          resolveStorefrontContext(request),
+          resolveStorefrontContext(request, input.activeStorefrontContextStore),
           {
             from: firstQueryValue(request, "from"),
             to: firstQueryValue(request, "to"),
@@ -147,10 +149,21 @@ export function createCatalogRouter(input: {
   return router;
 }
 
-function resolveStorefrontContext(request: Request): StorefrontContext {
+function resolveStorefrontContext(
+  request: Request,
+  activeStorefrontContextStore: ActiveStorefrontContextStore | undefined,
+): StorefrontContext {
+  const activeContext = activeStorefrontContextStore?.get() ?? {
+    profileSlug: "popmart",
+    marketCode: "US",
+  };
+
   return {
-    profileSlug: firstQueryValue(request, "profile") ?? "popmart",
-    marketCode: (firstQueryValue(request, "market") ?? "US").toUpperCase(),
+    profileSlug:
+      firstQueryValue(request, "profile") ?? activeContext.profileSlug,
+    marketCode: (
+      firstQueryValue(request, "market") ?? activeContext.marketCode
+    ).toUpperCase(),
   };
 }
 

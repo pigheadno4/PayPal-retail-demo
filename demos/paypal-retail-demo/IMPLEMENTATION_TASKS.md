@@ -193,7 +193,7 @@ Verification:
 
 ## Milestone 6: Catalog, Cart, Checkout Draft APIs
 - [ ] Implement storefront config, homepage, categories, product list, PDP, and release events APIs.
-- [ ] Implement Admin profile/market switch API and active config refresh behavior.
+- [x] Implement Admin profile/market switch API and active config refresh behavior.
 - [ ] Implement cart create/read/add/update/delete/merge/refresh APIs.
 - [ ] Implement checkout draft create/update APIs for Delivery and Pickup tabs.
 - [ ] Implement promo evaluate/apply/remove APIs.

@@ -67,3 +67,4 @@
 - Added the Supabase-backed catalog repository with TDD: profile/market config mapping, homepage sections, categories, product filters, unreleased PDP checkout/review blocking, and PDP-linked release calendar events.
 - Wired the Express server startup to create a service-role Supabase client, attach the app-schema catalog data source, and serve storefront catalog APIs from real Supabase rows.
 - Adjusted the server TypeScript project boundary so server code can consume shared catalog helpers while preserving strict typecheck.
+- Added the Admin profile/market switch API with TDD: signed admin-session protection, profile/market ID lookup, same-shape config response, active no-query storefront config refresh, and buyer-safe missing-context errors.
