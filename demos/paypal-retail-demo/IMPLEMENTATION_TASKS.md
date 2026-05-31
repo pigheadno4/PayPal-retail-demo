@@ -195,6 +195,8 @@ Verification:
 - [ ] Implement storefront config, homepage, categories, product list, PDP, and release events APIs.
 - [x] Implement Admin profile/market switch API and active config refresh behavior.
 - [ ] Implement cart create/read/add/update/delete/merge/refresh APIs.
+  - [x] Cart route contracts and repository boundary.
+  - [ ] Supabase-backed cart repository and live server wiring.
 - [ ] Implement checkout draft create/update APIs for Delivery and Pickup tabs.
 - [ ] Implement promo evaluate/apply/remove APIs.
 - [ ] Implement guest order lookup API.

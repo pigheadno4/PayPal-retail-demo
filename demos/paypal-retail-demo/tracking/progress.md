@@ -68,3 +68,4 @@
 - Wired the Express server startup to create a service-role Supabase client, attach the app-schema catalog data source, and serve storefront catalog APIs from real Supabase rows.
 - Adjusted the server TypeScript project boundary so server code can consume shared catalog helpers while preserving strict typecheck.
 - Added the Admin profile/market switch API with TDD: signed admin-session protection, profile/market ID lookup, same-shape config response, active no-query storefront config refresh, and buyer-safe missing-context errors.
+- Added the cart API route surface with TDD: active cart read/create contract, add/update/delete item inputs, merge after login/register, refresh triggers, buyer auth context, guest cart binding headers, and buyer-safe validation errors. Supabase-backed cart persistence remains queued as the next slice.

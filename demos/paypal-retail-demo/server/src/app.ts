@@ -5,9 +5,15 @@ import {
   sendApiError,
   sendApiSuccess,
 } from "./http/responses.js";
+import {
+  createBuyerAuthMiddleware,
+  type SupabaseAuthVerifier,
+} from "./middleware/auth.js";
 import { createAdminSessionGuard } from "./middleware/admin.js";
+import { guestCartMiddleware } from "./middleware/guestCart.js";
 import type { AdminProfileMarketRepository } from "./repositories/adminRepository.js";
 import { createAdminRouter } from "./routes/admin.js";
+import { createCartRouter, type CartRepository } from "./routes/cart.js";
 import {
   createCatalogRouter,
   type CatalogRepository,
@@ -21,6 +27,11 @@ export interface CreateAppInput {
     readonly adminPasscode: string;
     readonly profileMarketRepository: AdminProfileMarketRepository;
     readonly activeStorefrontContextStore: ActiveStorefrontContextStore;
+  };
+  readonly cart?: {
+    readonly cartRepository: CartRepository;
+    readonly authVerifier: SupabaseAuthVerifier;
+    readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   };
 }
 
@@ -73,6 +84,23 @@ export function createApp(input: CreateAppInput = {}) {
         catalogRepository: input.catalogRepository,
         profileMarketRepository: input.admin.profileMarketRepository,
         activeStorefrontContextStore: input.admin.activeStorefrontContextStore,
+      }),
+    );
+  }
+
+  if (input.cart) {
+    app.use(
+      "/api",
+      createBuyerAuthMiddleware({ supabase: input.cart.authVerifier }),
+      guestCartMiddleware,
+      createCartRouter({
+        cartRepository: input.cart.cartRepository,
+        ...(input.cart.activeStorefrontContextStore
+          ? {
+              activeStorefrontContextStore:
+                input.cart.activeStorefrontContextStore,
+            }
+          : {}),
       }),
     );
   }

@@ -73,3 +73,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Admin profile/market switching updates an in-memory active storefront context for the running demo API; explicit `profile` and `market` query params still override it for route-contract compatibility.
 - The switch endpoint returns the same data shape as `GET /api/config`, so the frontend can refresh config/catalog/cart/PayPal SDK data without a separate response model.
 - Test requests with JSON bodies need the in-process request harness to emit `data` and `end`; this environment does not expose a usable port from `app.listen(0)`.
+
+## Cart API Surface
+- Cart routes should receive `buyer`, `guestCart`, and active storefront context from middleware/state, then delegate persistence and rule enforcement to a cart repository.
+- The initial route surface intentionally does not implement Supabase persistence; the next slice should store/verify guest cart secrets, create signed-in carts, and apply shared cart merge/refresh helpers against canonical product rules.
+- Route-level validation should catch malformed quantities and unsupported refresh triggers before repository calls; product purchase, inventory cap, and price refresh rules belong in the repository/domain layer.

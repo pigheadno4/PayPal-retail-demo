@@ -96,6 +96,9 @@
 - [x] Admin profile/market switch API requires a signed admin session before changing active storefront context.
 - [x] Admin profile/market switch API returns the refreshed `GET /api/config` shape and updates no-query storefront config lookup.
 - [x] Admin profile/market switch API returns buyer-safe errors for missing profile or market IDs.
+- [x] Cart API route contracts cover active cart read/create, add item, update quantity, remove item, merge, and refresh.
+- [x] Cart API route contracts pass buyer auth context and guest cart binding headers to the repository boundary.
+- [x] Cart API route contracts reject invalid quantities and unsupported refresh triggers with buyer-safe errors.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows
