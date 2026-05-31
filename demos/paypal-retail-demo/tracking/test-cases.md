@@ -91,6 +91,8 @@
 - [x] Storefront product list API normalizes category, release status, pickup availability, price, and sort filters before repository lookup.
 - [x] Storefront PDP API returns released/unreleased checkout and review visibility states from repository data, and buyer-safe 404 for missing products.
 - [x] Storefront release-events API returns PDP-linked calendar events with outlined markers.
+- [x] Supabase-backed catalog repository maps app-schema rows into storefront config, homepage, categories, products, PDP, and release-events DTOs.
+- [x] Supabase-backed catalog repository blocks unreleased PDP checkout and hides reviews from row-level release state.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

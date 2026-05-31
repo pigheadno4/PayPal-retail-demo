@@ -62,3 +62,8 @@
 - Added the sanitized PayPal snapshot storage helper with TDD: builds the `paypal_order_snapshots` row shape, preserves explainable item-level request/response details, stores merchant amount snapshots, and redacts tokens, client secrets, auth headers, payer email, and phone data.
 - Completed Milestone 5 Express API foundation with TDD: `/api/health` success shape, standard API 404 shape, env validation, server Supabase client factory, buyer auth middleware, guest cart middleware, signed admin session guard, reusable API response helpers, and sanitized debug logger.
 - Started Milestone 6 storefront APIs with TDD route contracts: `/api/config`, homepage, categories, products, PDP, and release-events routes resolve profile/market context, preserve filter inputs, return standard response envelopes, and handle missing PDP products with buyer-safe 404s.
+
+## 2026-05-31
+- Added the Supabase-backed catalog repository with TDD: profile/market config mapping, homepage sections, categories, product filters, unreleased PDP checkout/review blocking, and PDP-linked release calendar events.
+- Wired the Express server startup to create a service-role Supabase client, attach the app-schema catalog data source, and serve storefront catalog APIs from real Supabase rows.
+- Adjusted the server TypeScript project boundary so server code can consume shared catalog helpers while preserving strict typecheck.

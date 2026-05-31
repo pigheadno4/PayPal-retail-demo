@@ -63,3 +63,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Supabase service-role clients stay server-only, use the private `app` schema, and disable browser-style auth session persistence.
 - Middleware should attach explicit request contexts: `buyer`, `guestCart`, and `admin`, so later route handlers do not parse headers repeatedly.
 - Debug logging must sanitize context recursively before writing or printing; useful IDs and amounts can stay, but tokens, service-role keys, auth headers, client secrets, and card-like fields are redacted.
+
+## Supabase Catalog Repository
+- Storefront routes should stay repository-driven so the buyer/mobile API contract can remain stable while the data source evolves.
+- The repository maps Supabase app-schema rows into API DTOs and keeps release-state behavior centralized: unreleased products are non-purchasable and hide reviews.
+- Server TypeScript now includes shared source in its project boundary because the catalog repository consumes shared catalog helpers directly.

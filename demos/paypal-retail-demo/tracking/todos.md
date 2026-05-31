@@ -42,4 +42,5 @@
 - [x] Start Milestone 5 Express API foundation with app shell and health endpoint.
 - [x] Complete Milestone 5 Express API foundation middleware, env, Supabase, and debug logger slice.
 - [x] Start Milestone 6 catalog/storefront API routes with route contract tests.
-- [ ] Add Supabase-backed catalog repository for Milestone 6 storefront APIs.
+- [x] Add Supabase-backed catalog repository for Milestone 6 storefront APIs.
+- [ ] Add Admin profile/market switch API surface for Milestone 6.
