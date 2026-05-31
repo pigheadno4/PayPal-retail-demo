@@ -1,14 +1,14 @@
 import { pathToFileURL } from "node:url";
 
 import { createApp } from "./app.js";
+import { parseServerEnv, type RawServerEnv } from "./config/env.js";
 
-const defaultPort = Number.parseInt(process.env.PORT ?? "3000", 10);
-
-export function startServer(port = defaultPort) {
+export function startServer(env: RawServerEnv = process.env) {
+  const config = parseServerEnv(env);
   const app = createApp();
 
-  return app.listen(port, () => {
-    console.log(`PayPal retail demo API listening on ${port}`);
+  return app.listen(config.port, () => {
+    console.log(`PayPal retail demo API listening on ${config.port}`);
   });
 }
 

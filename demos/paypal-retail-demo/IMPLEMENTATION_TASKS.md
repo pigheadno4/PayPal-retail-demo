@@ -178,13 +178,13 @@ Verification:
 - Tests assert capture is blocked on amount mismatch outside rounding tolerance.
 
 ## Milestone 5: Express API Foundation
-- [ ] Build Express app shell and health endpoint.
-- [ ] Add env validation.
-- [ ] Add Supabase server client.
-- [ ] Add buyer auth middleware.
-- [ ] Add guest cart middleware.
-- [ ] Add admin passcode session middleware.
-- [ ] Add error response format and sanitized debug logger.
+- [x] Build Express app shell and health endpoint.
+- [x] Add env validation.
+- [x] Add Supabase server client.
+- [x] Add buyer auth middleware.
+- [x] Add guest cart middleware.
+- [x] Add admin passcode session middleware.
+- [x] Add error response format and sanitized debug logger.
 
 Verification:
 - API smoke tests cover success and error shapes.

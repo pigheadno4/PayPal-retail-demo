@@ -56,3 +56,10 @@ Reusable implementation lessons from this demo should be added here during miles
 - Admin/debug snapshots should preserve PayPal request/response structure and item-level details but redact secrets before storage.
 - Redact obvious credential and privacy fields such as access tokens, client secrets, auth headers, payer email, and phone data.
 - Store merchant amount snapshots beside sanitized PayPal snapshots so capture/debug views can explain expected versus provider totals without recalculating from browser data.
+
+## Express API Foundation
+- Keep API responses in the planned `{ ok, data|error, debug_id }` envelope from the first route so future buyer/mobile clients share one contract.
+- Server env parsing should fail before listen when required secrets/config are missing, and error messages should name missing variables without echoing values.
+- Supabase service-role clients stay server-only, use the private `app` schema, and disable browser-style auth session persistence.
+- Middleware should attach explicit request contexts: `buyer`, `guestCart`, and `admin`, so later route handlers do not parse headers repeatedly.
+- Debug logging must sanitize context recursively before writing or printing; useful IDs and amounts can stay, but tokens, service-role keys, auth headers, client secrets, and card-like fields are redacted.

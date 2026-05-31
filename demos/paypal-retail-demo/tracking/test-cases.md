@@ -79,6 +79,14 @@
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
+- [x] Express `/api/health` returns the standard API success shape with a debug ID.
+- [x] Express unknown API routes return the standard API error shape with a debug ID.
+- [x] Server env validation requires server-only config before startup and does not echo secret values in validation errors.
+- [x] Supabase server client factory uses the private `app` schema, service role key, and disabled browser session persistence.
+- [x] Buyer auth middleware supports guest context, verified Supabase bearer tokens, and standard 401 errors.
+- [x] Guest cart middleware parses paired cart ID/secret headers and rejects incomplete guest cart headers.
+- [x] Admin session guard accepts signed unexpired admin session tokens and rejects invalid or expired tokens.
+- [x] Runtime debug logger recursively redacts secrets, access tokens, service-role keys, auth headers, and card-like fields.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

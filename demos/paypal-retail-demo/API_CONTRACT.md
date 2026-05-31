@@ -53,6 +53,28 @@ Default error shape:
 }
 ```
 
+### `GET /api/health`
+Returns API liveness in the standard success envelope.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "service": "paypal-retail-demo",
+    "status": "ok"
+  },
+  "debug_id": "dbg_123"
+}
+```
+
+Unknown `/api/*` routes return the standard error envelope with `code: "NOT_FOUND"` and the original request path in `details.path`.
+
+Middleware context:
+- Buyer auth middleware sets `request.buyer` to guest when no bearer token exists, or authenticated buyer context after Supabase verifies the bearer token.
+- Guest cart middleware sets `request.guestCart` from paired `x-cart-id` and `x-cart-secret` headers; if only one is present, it returns `GUEST_CART_HEADERS_INCOMPLETE`.
+- Admin session middleware verifies signed `x-admin-session` tokens and sets `request.admin`; invalid or expired tokens return `ADMIN_SESSION_REQUIRED`.
+- Runtime debug logging must sanitize context recursively before storage/output and redact tokens, service-role keys, authorization headers, client secrets, and card-like fields.
+
 ## Public Storefront APIs
 
 ### `GET /api/config`

@@ -39,4 +39,6 @@
 - [x] Continue Milestone 4 with vault attribute inclusion only for logged-in eligible buyers.
 - [x] Continue Milestone 4 with amount consistency guard for capture blocking.
 - [x] Continue Milestone 4 with sanitized PayPal snapshot storage shape.
-- [ ] Start Milestone 5 Express API foundation with app shell and health endpoint.
+- [x] Start Milestone 5 Express API foundation with app shell and health endpoint.
+- [x] Complete Milestone 5 Express API foundation middleware, env, Supabase, and debug logger slice.
+- [ ] Start Milestone 6 catalog/storefront API routes.

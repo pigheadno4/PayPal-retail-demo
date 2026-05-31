@@ -17,3 +17,8 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - Second storefront seed apply failed with `ON CONFLICT DO UPDATE command cannot affect row a second time`. Root cause: product image IDs were keyed by product slug only, and product slugs repeat across profiles. Fix: include profile slug in generated product image IDs and add a duplicate-ID regression test.
 - `npm run seed:summary` can fail in the sandbox with `listen EPERM` on a `tsx` IPC pipe under `/var/folders/...`. Rerun outside the sandbox for seed-runner verification; the generated data is deterministic and does not need network access.
 - First guarded auth seed apply failed because `auth.users.confirmed_at` is a generated column in the linked Supabase project. A follow-up generated-column check also showed `auth.identities.email` is generated from `identity_data`. Fix: do not insert generated auth columns and keep regression coverage in seed SQL tests.
+
+## 2026-05-31
+
+- Express app tests cannot bind a TCP listener in this sandbox: `listen EPERM: operation not permitted 0.0.0.0`. Fix: use an in-process `IncomingMessage`/`ServerResponse` harness for API smoke tests instead of opening a local port.
+- Avoid `npx tsx ...` probes when `tsx` is already installed locally but `npx` still attempts registry resolution; network-restricted runs can fail with `ENOTFOUND registry.npmjs.org`.
