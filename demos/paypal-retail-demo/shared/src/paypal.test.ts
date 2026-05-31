@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPayPalBopisCreateOrderPayload,
   buildPayPalDeliveryCreateOrderPayload,
   buildPayPalExpressDeliveryCreateOrderPayload,
   type PayPalOrderLineItemInput,
@@ -350,5 +351,163 @@ describe("PayPal express delivery Create Order builder", () => {
         callbackEvents: [],
       }),
     ).toThrow("at least one shipping callback event is required");
+  });
+});
+
+describe("PayPal BOPIS Create Order builder", () => {
+  it("builds a CAPTURE pickup order with selected store shipping semantics", () => {
+    const payload = buildPayPalBopisCreateOrderPayload({
+      orderNumber: "PO-20260531-000001",
+      currencyCode: "USD",
+      items: deliveryItems,
+      taxAmountMinor: 340,
+      discountAmountMinor: 1000,
+      pickupStore: {
+        storeName: "POP MART San Francisco Centre",
+        addressLine1: "865 Market Street",
+        addressLine2: "Suite C12",
+        adminArea2: "San Francisco",
+        adminArea1: "CA",
+        postalCode: "94103",
+        countryCode: "US",
+      },
+    });
+
+    expect(payload).toEqual({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          invoice_id: "PO-20260531-000001",
+          items: [
+            {
+              name: "Labubu Have a Seat",
+              quantity: "2",
+              sku: "PM-LABUBU-HAS",
+              description: "Blind box figure",
+              url: "https://demo.example/products/labubu-have-a-seat",
+              image_url: "https://demo.example/assets/labubu.png",
+              category: "PHYSICAL_GOODS",
+              unit_amount: {
+                currency_code: "USD",
+                value: "15.99",
+              },
+            },
+            {
+              name: "Molly Anniversary",
+              quantity: "1",
+              sku: "PM-MOLLY-ANN",
+              category: "PHYSICAL_GOODS",
+              unit_amount: {
+                currency_code: "USD",
+                value: "12.99",
+              },
+            },
+          ],
+          amount: {
+            currency_code: "USD",
+            value: "38.37",
+            breakdown: {
+              item_total: {
+                currency_code: "USD",
+                value: "44.97",
+              },
+              tax_total: {
+                currency_code: "USD",
+                value: "3.40",
+              },
+              discount: {
+                currency_code: "USD",
+                value: "10.00",
+              },
+            },
+          },
+          shipping: {
+            type: "PICKUP_IN_STORE",
+            name: {
+              full_name: "s2s POP MART San Francisco Centre",
+            },
+            address: {
+              address_line_1: "865 Market Street",
+              address_line_2: "Suite C12",
+              admin_area_2: "San Francisco",
+              admin_area_1: "CA",
+              postal_code: "94103",
+              country_code: "US",
+            },
+          },
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            shipping_preference: "SET_PROVIDED_ADDRESS",
+          },
+        },
+      },
+    });
+  });
+
+  it("omits optional pickup address fields and rejects invalid pickup amounts", () => {
+    const payload = buildPayPalBopisCreateOrderPayload({
+      orderNumber: "PO-20260531-000002",
+      currencyCode: "GBP",
+      items: [
+        {
+          name: "Hirono Little Mischief",
+          quantity: 1,
+          unitAmountMinor: 2199,
+        },
+      ],
+      taxAmountMinor: 440,
+      discountAmountMinor: 0,
+      pickupStore: {
+        storeName: "POP MART London Soho",
+        addressLine1: "30 Brewer Street",
+        adminArea2: "London",
+        postalCode: "W1F 0SS",
+        countryCode: "GB",
+      },
+    });
+
+    expect(payload.purchase_units[0]?.amount.breakdown).toEqual({
+      item_total: {
+        currency_code: "GBP",
+        value: "21.99",
+      },
+      tax_total: {
+        currency_code: "GBP",
+        value: "4.40",
+      },
+    });
+    expect(payload.purchase_units[0]?.shipping?.address).not.toHaveProperty(
+      "address_line_2",
+    );
+    expect(payload.purchase_units[0]?.shipping?.address).not.toHaveProperty(
+      "admin_area_1",
+    );
+
+    expect(() =>
+      buildPayPalBopisCreateOrderPayload({
+        orderNumber: "PO-20260531-000003",
+        currencyCode: "USD",
+        items: [
+          {
+            name: "Labubu Have a Seat",
+            quantity: 1,
+            unitAmountMinor: 1000,
+          },
+        ],
+        taxAmountMinor: 0,
+        discountAmountMinor: 1001,
+        pickupStore: {
+          storeName: "POP MART San Francisco Centre",
+          addressLine1: "865 Market Street",
+          adminArea2: "San Francisco",
+          adminArea1: "CA",
+          postalCode: "94103",
+          countryCode: "US",
+        },
+      }),
+    ).toThrow("negative money result is not allowed");
   });
 });

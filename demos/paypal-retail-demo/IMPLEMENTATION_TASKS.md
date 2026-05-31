@@ -154,7 +154,7 @@ Verification:
 ## Milestone 4: PayPal Payload Builders And Capture Guard TDD
 - [x] Implement PayPal delivery full-checkout Create Order builder.
 - [x] Implement PayPal express delivery Create Order builder with server-side shipping callback config.
-- [ ] Implement PayPal BOPIS Create Order builder with mandatory v1 pickup fields.
+- [x] Implement PayPal BOPIS Create Order builder with mandatory v1 pickup fields.
 - [ ] Implement PayPal SDK config response builder with browser-safe client ID.
 - [ ] Include `buyer_country`, `paylater_buyer_country`, sandbox-only `sandbox_test_buyer_country`, SDK components, and deterministic `provider_key` in the SDK config builder.
 - [ ] Implement PayPal client token request rules for vault-enabled flows.

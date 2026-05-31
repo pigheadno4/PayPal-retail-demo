@@ -497,6 +497,11 @@ Mandatory payload semantics:
 
 Do not use authorize-at-checkout/capture-at-pickup for v1 BOPIS.
 
+Rules:
+- BOPIS uses the selected store as the PayPal purchase unit shipping address.
+- BOPIS amount breakdown excludes shipping fee.
+- Do not attach server-side shipping callback config to v1 BOPIS orders.
+
 ### `POST /api/paypal/orders/:paypalOrderId/shipping-callback`
 Handles PayPal server-side shipping updates for delivery express.
 

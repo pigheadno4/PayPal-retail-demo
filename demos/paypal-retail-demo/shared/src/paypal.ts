@@ -14,6 +14,7 @@ export type PayPalShippingPreference =
 export type PayPalShippingCallbackEvent =
   | "SHIPPING_ADDRESS"
   | "SHIPPING_OPTIONS";
+export type PayPalShippingType = "PICKUP_IN_STORE";
 
 export interface PayPalMoney {
   readonly currency_code: PayPalCurrencyCode;
@@ -32,6 +33,16 @@ export interface PayPalOrderLineItemInput {
 
 export interface PayPalDeliveryAddressInput {
   readonly fullName: string;
+  readonly addressLine1: string;
+  readonly addressLine2?: string | null;
+  readonly adminArea2: string;
+  readonly adminArea1?: string | null;
+  readonly postalCode: string;
+  readonly countryCode: string;
+}
+
+export interface PayPalPickupStoreInput {
+  readonly storeName: string;
   readonly addressLine1: string;
   readonly addressLine2?: string | null;
   readonly adminArea2: string;
@@ -59,6 +70,15 @@ export interface BuildPayPalExpressDeliveryCreateOrderInput {
   readonly discountAmountMinor: number;
   readonly shippingCallbackUrl: string;
   readonly callbackEvents?: readonly PayPalShippingCallbackEvent[];
+}
+
+export interface BuildPayPalBopisCreateOrderInput {
+  readonly orderNumber: string;
+  readonly currencyCode: PayPalCurrencyCode;
+  readonly items: readonly PayPalOrderLineItemInput[];
+  readonly taxAmountMinor: number;
+  readonly discountAmountMinor: number;
+  readonly pickupStore: PayPalPickupStoreInput;
 }
 
 export interface PayPalCreateOrderPayload {
@@ -103,12 +123,13 @@ export interface PayPalOrderLineItem {
 
 export interface PayPalAmountBreakdown {
   readonly item_total: PayPalMoney;
-  readonly shipping: PayPalMoney;
+  readonly shipping?: PayPalMoney;
   readonly tax_total: PayPalMoney;
   readonly discount?: PayPalMoney;
 }
 
 export interface PayPalShipping {
+  readonly type?: PayPalShippingType;
   readonly name: {
     readonly full_name: string;
   };
@@ -160,6 +181,31 @@ export function buildPayPalExpressDeliveryCreateOrderPayload(
   };
 }
 
+export function buildPayPalBopisCreateOrderPayload(
+  input: BuildPayPalBopisCreateOrderInput,
+): PayPalCreateOrderPayload {
+  return {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        ...buildPayPalPurchaseUnitBase({
+          ...input,
+          shippingAmountMinor: 0,
+          includeShippingBreakdown: false,
+        }),
+        shipping: buildPayPalPickupStoreShipping(input.pickupStore),
+      },
+    ],
+    payment_source: {
+      paypal: {
+        experience_context: {
+          shipping_preference: "SET_PROVIDED_ADDRESS",
+        },
+      },
+    },
+  };
+}
+
 function buildPayPalPurchaseUnitBase(input: {
   readonly orderNumber: string;
   readonly currencyCode: PayPalCurrencyCode;
@@ -167,6 +213,7 @@ function buildPayPalPurchaseUnitBase(input: {
   readonly shippingAmountMinor: number;
   readonly taxAmountMinor: number;
   readonly discountAmountMinor: number;
+  readonly includeShippingBreakdown?: boolean;
 }): PayPalPurchaseUnit {
   const items = input.items.map((item) =>
     buildPayPalLineItem(item, input.currencyCode),
@@ -187,9 +234,12 @@ function buildPayPalPurchaseUnitBase(input: {
     taxMinor,
   ]);
   const orderTotalMinor = subtractMinor(totalBeforeDiscount, discountMinor);
+  const includeShippingBreakdown = input.includeShippingBreakdown ?? true;
   const breakdown: PayPalAmountBreakdown = {
     item_total: toPayPalMoney(input.currencyCode, itemTotalMinor),
-    shipping: toPayPalMoney(input.currencyCode, shippingMinor),
+    ...(includeShippingBreakdown
+      ? { shipping: toPayPalMoney(input.currencyCode, shippingMinor) }
+      : {}),
     tax_total: toPayPalMoney(input.currencyCode, taxMinor),
     ...(discountMinor > 0
       ? { discount: toPayPalMoney(input.currencyCode, discountMinor) }
@@ -278,6 +328,29 @@ function buildPayPalShipping(
       ...(address.adminArea1 ? { admin_area_1: address.adminArea1 } : {}),
       postal_code: address.postalCode,
       country_code: address.countryCode,
+    },
+  };
+}
+
+function buildPayPalPickupStoreShipping(
+  pickupStore: PayPalPickupStoreInput,
+): PayPalShipping {
+  return {
+    type: "PICKUP_IN_STORE",
+    name: {
+      full_name: `s2s ${pickupStore.storeName}`,
+    },
+    address: {
+      address_line_1: pickupStore.addressLine1,
+      ...(pickupStore.addressLine2
+        ? { address_line_2: pickupStore.addressLine2 }
+        : {}),
+      admin_area_2: pickupStore.adminArea2,
+      ...(pickupStore.adminArea1
+        ? { admin_area_1: pickupStore.adminArea1 }
+        : {}),
+      postal_code: pickupStore.postalCode,
+      country_code: pickupStore.countryCode,
     },
   };
 }

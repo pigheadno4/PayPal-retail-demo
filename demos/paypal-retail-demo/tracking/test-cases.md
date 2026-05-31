@@ -34,13 +34,13 @@
 - [ ] Delivery inventory decrements central inventory after payment.
 - [ ] BOPIS inventory decrements selected store inventory after payment.
 - [x] PayPal delivery payload builder uses delivery semantics.
-- [ ] PayPal BOPIS payload builder uses pickup-store semantics.
-- [ ] PayPal BOPIS payload builder sets `intent: "CAPTURE"`.
-- [ ] PayPal BOPIS payload builder sets PayPal `shipping_preference: "SET_PROVIDED_ADDRESS"`.
-- [ ] PayPal BOPIS payload builder sets `purchase_units[].shipping.type: "PICKUP_IN_STORE"`.
-- [ ] PayPal BOPIS payload builder sets purchase unit shipping address to the selected store address.
-- [ ] PayPal BOPIS payload builder sets receiver name to `s2s ${storeName}`.
-- [ ] PayPal BOPIS flow does not use authorize-at-checkout/capture-at-pickup in v1.
+- [x] PayPal BOPIS payload builder uses pickup-store semantics.
+- [x] PayPal BOPIS payload builder sets `intent: "CAPTURE"`.
+- [x] PayPal BOPIS payload builder sets PayPal `shipping_preference: "SET_PROVIDED_ADDRESS"`.
+- [x] PayPal BOPIS payload builder sets `purchase_units[].shipping.type: "PICKUP_IN_STORE"`.
+- [x] PayPal BOPIS payload builder sets purchase unit shipping address to the selected store address.
+- [x] PayPal BOPIS payload builder sets receiver name to `s2s ${storeName}`.
+- [x] PayPal BOPIS flow does not use authorize-at-checkout/capture-at-pickup in v1.
 - [x] PayPal delivery express payload uses delivery semantics and server-side shipping callbacks.
 - [ ] PayPal SDK config API returns browser-safe client ID for basic flows and never returns client secret.
 - [ ] PayPal SDK config API returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
@@ -54,8 +54,8 @@
 - [x] Pickup order number generator uses `PO-YYYYMMDD-000001` format.
 - [x] PayPal `invoice_id` is unique per fresh PayPal payment attempt.
 - [x] Pending order resume keeps buyer-facing order number stable while generating a new PayPal invoice ID when a fresh PayPal order is required.
-- [ ] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
-- [ ] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
+- [x] PayPal Create Order payload includes detailed item data: name, quantity, unit amount, SKU, description, PDP URL, image URL, and physical goods category where available.
+- [x] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
 - [ ] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.
 - [ ] Amount mismatch blocks capture except allowed rounding tolerance.
 - [ ] Completed payment clears only paid cart items from the active cart.
