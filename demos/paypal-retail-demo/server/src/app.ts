@@ -22,6 +22,7 @@ import {
   createCatalogRouter,
   type CatalogRepository,
 } from "./routes/catalog.js";
+import { createOrderRouter, type OrderRepository } from "./routes/orders.js";
 import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 export interface CreateAppInput {
@@ -41,6 +42,9 @@ export interface CreateAppInput {
     readonly checkoutRepository: CheckoutRepository;
     readonly authVerifier: SupabaseAuthVerifier;
     readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
+  };
+  readonly orders?: {
+    readonly orderRepository: OrderRepository;
   };
 }
 
@@ -127,6 +131,15 @@ export function createApp(input: CreateAppInput = {}) {
                 input.checkout.activeStorefrontContextStore,
             }
           : {}),
+      }),
+    );
+  }
+
+  if (input.orders) {
+    app.use(
+      "/api",
+      createOrderRouter({
+        orderRepository: input.orders.orderRepository,
       }),
     );
   }

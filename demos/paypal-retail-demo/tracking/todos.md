@@ -49,4 +49,5 @@
 - [x] Start Milestone 6 checkout draft API surface for Delivery and Pickup accordion flows.
 - [x] Add Supabase-backed checkout draft repository and live server wiring.
 - [x] Add promo evaluate/apply/remove APIs for checkout draft recalculation.
-- [ ] Add guest order lookup API.
+- [x] Add guest order lookup API.
+- [ ] Start Milestone 7 PayPal SDK config/client token/payment API routes.

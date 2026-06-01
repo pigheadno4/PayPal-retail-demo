@@ -201,7 +201,7 @@ Verification:
   - [x] Checkout route contracts and repository boundary.
   - [x] Supabase-backed checkout draft repository and live server wiring.
 - [x] Implement promo evaluate/apply/remove APIs.
-- [ ] Implement guest order lookup API.
+- [x] Implement guest order lookup API.
 
 Verification:
 - API tests cover released/unreleased PDP behavior.

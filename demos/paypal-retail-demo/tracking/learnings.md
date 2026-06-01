@@ -99,3 +99,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Promo evaluation can be persisted even before the buyer applies it; only apply/remove should update `checkout_drafts.selected_promo_evaluation_id`.
 - Apply/remove should create fresh promo snapshots rather than mutating old ones, so pending-order resume and Admin Portal can explain which promo rules changed over time.
 - Checkout summaries should read discount from the selected promo evaluation, then calculate tax on discounted merchandise only; shipping remains a separate total line and is excluded from both promo and tax bases.
+
+## Guest Order Lookup
+- Guest order lookup should normalize order numbers and emails at the route boundary, then use a hashed normalized email in the repository so raw lookup emails are not needed for matching.
+- Return a generic not-found response for any mismatch to avoid revealing whether an order number exists or which email belongs to it.
+- Buyer-facing guest order detail should omit internal order, item, address, and guest-access IDs; keep those for Admin Portal only.

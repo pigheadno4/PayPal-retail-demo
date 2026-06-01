@@ -20,11 +20,17 @@ import {
   createSupabaseCheckoutRepository,
   type SupabaseCheckoutClient,
 } from "./repositories/checkoutRepository.js";
+import {
+  createSupabaseOrderDataSource,
+  createSupabaseOrderRepository,
+  type SupabaseOrderClient,
+} from "./repositories/orderRepository.js";
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 type SupabaseRuntimeClient = SupabaseCatalogClient &
   SupabaseCartClient &
   SupabaseCheckoutClient &
+  SupabaseOrderClient &
   SupabaseAuthVerifier;
 
 export function startServer(env: RawServerEnv = process.env) {
@@ -40,6 +46,9 @@ export function startServer(env: RawServerEnv = process.env) {
   });
   const checkoutRepository = createSupabaseCheckoutRepository({
     dataSource: createSupabaseCheckoutDataSource(supabase),
+  });
+  const orderRepository = createSupabaseOrderRepository({
+    dataSource: createSupabaseOrderDataSource(supabase),
   });
   const app = createApp({
     catalogRepository,
@@ -59,6 +68,9 @@ export function startServer(env: RawServerEnv = process.env) {
       checkoutRepository,
       authVerifier: supabase,
       activeStorefrontContextStore,
+    },
+    orders: {
+      orderRepository,
     },
   });
 

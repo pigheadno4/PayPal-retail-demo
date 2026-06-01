@@ -131,8 +131,10 @@
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.
 - [ ] Guest checkout completes and offers inline account creation.
-- [ ] Guest order lookup requires order number and email.
-- [ ] Guest order lookup uses normalized email matching and does not expose internal order IDs.
+- [x] Guest order lookup requires order number and email.
+- [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
+- [x] Guest order lookup returns the same not-found response for wrong email or missing guest access.
+- [x] Guest order lookup updates attempt metadata without exposing whether order number or email failed.
 - [x] Guest buyer cannot enable save-for-future/vaulting in shared PayPal vault planning.
 - [ ] Completed order allows review submission per item.
 - [ ] Review edit/delete updates PDP display.

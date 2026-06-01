@@ -30,3 +30,4 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - Checkout repository typecheck/lint caught two useful boundaries: Supabase database rows should stay snake_case and map into shared camelCase helpers explicitly, and repository imports should avoid route input types unless they are referenced directly.
 - A linked Supabase read query briefly failed with a TLS handshake timeout while initializing the CLI login role; a single retry succeeded and returned `checkout_drafts = 2`.
 - Checkout promo implementation caught an `exactOptionalPropertyTypes` issue: build `PromoEvaluationInput` without `selectedCodes` when no explicit selection exists, rather than passing `selectedCodes: undefined`.
+- Guest order lookup remote verification hit the same transient Supabase CLI login-role TLS handshake timeout once; a single retry succeeded and returned `orders = 5` and `guest_order_access = 1`.
