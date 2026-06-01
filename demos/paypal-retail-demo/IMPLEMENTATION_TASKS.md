@@ -211,9 +211,9 @@ Verification:
 - API tests cover Delivery and Pickup checkout draft recalculation.
 
 ## Milestone 7: PayPal And Payment APIs
-- [ ] Implement PayPal auth/client wrapper.
-- [ ] Implement PayPal SDK config API.
-- [ ] Implement PayPal client token API.
+- [x] Implement PayPal auth/client wrapper.
+- [x] Implement PayPal SDK config API.
+- [x] Implement PayPal client token API.
 - [ ] Implement delivery order create API.
 - [ ] Implement express delivery order create API.
 - [ ] Implement BOPIS order create API.

@@ -94,6 +94,8 @@ Optional local testing variables:
 - `PAYPAL_APPLE_PAY_DOMAIN`
 - `PAYPAL_GOOGLE_PAY_MERCHANT_ID`
 
+For PayPal SDK v6 client-token flows, prefer setting `PUBLIC_HTTPS_ORIGIN` to the browser-facing HTTPS preview or tunnel origin. Client tokens are domain-bound, and sandbox may reject localhost origins for vaulting/token authentication.
+
 ## Local Asset Convention
 POP MART assets are customer-specific and stay local to this demo.
 

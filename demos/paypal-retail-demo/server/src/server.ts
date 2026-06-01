@@ -4,6 +4,7 @@ import { createApp } from "./app.js";
 import { parseServerEnv, type RawServerEnv } from "./config/env.js";
 import { createSupabaseServerClient } from "./db/supabase.js";
 import type { SupabaseAuthVerifier } from "./middleware/auth.js";
+import { createPayPalClientTokenGateway } from "./paypal/client.js";
 import { createSupabaseAdminProfileMarketRepository } from "./repositories/adminRepository.js";
 import {
   createSupabaseCartDataSource,
@@ -50,6 +51,11 @@ export function startServer(env: RawServerEnv = process.env) {
   const orderRepository = createSupabaseOrderRepository({
     dataSource: createSupabaseOrderDataSource(supabase),
   });
+  const paypalClientTokenGateway = createPayPalClientTokenGateway({
+    environment: config.paypalEnvironment,
+    clientId: config.paypalClientId,
+    clientSecret: config.paypalClientSecret,
+  });
   const app = createApp({
     catalogRepository,
     activeStorefrontContextStore,
@@ -71,6 +77,16 @@ export function startServer(env: RawServerEnv = process.env) {
     },
     orders: {
       orderRepository,
+    },
+    paypal: {
+      environment: config.paypalEnvironment,
+      clientId: config.paypalClientId,
+      defaultClientTokenDomains: [
+        config.publicHttpsOrigin ?? config.appBaseUrl,
+      ],
+      clientTokenGateway: paypalClientTokenGateway,
+      authVerifier: supabase,
+      activeStorefrontContextStore,
     },
   });
 

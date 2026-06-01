@@ -396,7 +396,7 @@ Request:
 {
   "flow": "vaulting",
   "method": "card",
-  "domains": ["localhost"]
+  "domains": ["https://checkout.example.test"]
 }
 ```
 
@@ -414,7 +414,7 @@ Rules:
 - Guest checkout must receive `403 GUEST_VAULTING_NOT_ALLOWED`.
 - Standard one-time flows do not call this endpoint; they use the SDK config `client_id`.
 - V1 vaulting client-token requests are supported for `card` and `paypal` methods.
-- Request `domains` are normalized before the backend calls PayPal.
+- Request `domains` are normalized before the backend calls PayPal. If omitted, the backend uses the configured public HTTPS origin, falling back to app base URL for local development.
 - Backend calls PayPal OAuth with `grant_type=client_credentials`, `response_type=client_token`, and `domains[]`.
 - If a saved PayPal customer ID exists, backend can include it as `target_customer_id` in the PayPal token request.
 - Backend generates token using server-side PayPal credentials.

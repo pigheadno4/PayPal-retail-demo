@@ -46,16 +46,16 @@
 - [x] PayPal SDK config builder returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
 - [x] PayPal SDK config builder returns sandbox test buyer country in sandbox and nulls it in production.
 - [x] PayPal SDK config builder marks vaulting flows as needing a client token.
-- [ ] PayPal SDK config API returns browser-safe client ID for basic flows and never returns client secret.
-- [ ] PayPal SDK config API returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
-- [ ] PayPal SDK config API returns sandbox test buyer country in sandbox and omits or nulls it in production.
+- [x] PayPal SDK config API returns browser-safe client ID for basic flows and never returns client secret.
+- [x] PayPal SDK config API returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
+- [x] PayPal SDK config API returns sandbox test buyer country in sandbox and omits or nulls it in production.
 - [ ] PayPal SDK v6 provider maps backend `sandbox_test_buyer_country` to `createInstance({ testBuyerCountry })` in sandbox/test.
 - [ ] PayPal SDK v6 provider omits `testBuyerCountry` in production.
 - [x] PayPal provider key changes when client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
 - [x] PayPal client token request planner skips standard one-time flows.
 - [x] PayPal client token request planner allows logged-in card and PayPal vaulting only.
 - [x] PayPal client token request planner normalizes client-token domains and forms the PayPal OAuth client-token request fields.
-- [ ] PayPal client token API returns a short-lived client token only for vault-enabled logged-in flows.
+- [x] PayPal client token API returns a short-lived client token only for vault-enabled logged-in flows.
 - [x] Guest checkout cannot request PayPal client token for vaulting.
 - [x] PayPal payment method mapper returns only runtime-eligible renderable payment rows.
 - [x] PayPal payment method mapper maps PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo to the expected SDK component/session/UI surface.

@@ -104,3 +104,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Guest order lookup should normalize order numbers and emails at the route boundary, then use a hashed normalized email in the repository so raw lookup emails are not needed for matching.
 - Return a generic not-found response for any mismatch to avoid revealing whether an order number exists or which email belongs to it.
 - Buyer-facing guest order detail should omit internal order, item, address, and guest-access IDs; keep those for Admin Portal only.
+
+## PayPal API Routes
+- The SDK config route should stay browser-safe: return client ID, market, component, provider-key, and token-required flags, but never client secret or OAuth/token internals.
+- Client-token generation should be a server-side PayPal OAuth wrapper that maps PayPal's `access_token` field into our buyer-facing `client_token` field.
+- Use `PUBLIC_HTTPS_ORIGIN` as the preferred default client-token domain, falling back to `APP_BASE_URL` only for local/basic development; PayPal may reject localhost domains for domain-bound token flows.

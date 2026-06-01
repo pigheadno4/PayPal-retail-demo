@@ -50,4 +50,5 @@
 - [x] Add Supabase-backed checkout draft repository and live server wiring.
 - [x] Add promo evaluate/apply/remove APIs for checkout draft recalculation.
 - [x] Add guest order lookup API.
-- [ ] Start Milestone 7 PayPal SDK config/client token/payment API routes.
+- [x] Start Milestone 7 PayPal SDK config/client token/payment API routes.
+- [ ] Continue Milestone 7 with delivery, express delivery, and BOPIS PayPal order create APIs.
