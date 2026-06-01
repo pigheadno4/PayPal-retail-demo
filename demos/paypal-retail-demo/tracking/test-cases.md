@@ -106,6 +106,10 @@
 - [x] Checkout draft API route contracts cover draft create/refresh, fulfillment switch, delivery address/option updates, and pickup location/store/date updates.
 - [x] Checkout draft API route contracts pass buyer auth context and guest cart binding headers to the repository boundary.
 - [x] Checkout draft API route contracts reject malformed fulfillment, address, and pickup-date input with buyer-safe errors.
+- [x] Supabase-backed checkout repository creates or reuses drafts from verified guest/authenticated active carts.
+- [x] Supabase-backed checkout repository defaults the cheapest eligible delivery shipping option and recalculates tax with shipping excluded.
+- [x] Supabase-backed checkout repository persists pickup store/date choices and excludes unavailable pickup quantities from the payable pickup amount while preserving cart intent.
+- [x] Supabase-backed checkout repository rejects ineligible shipping options and unavailable pickup dates before persisting draft state.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

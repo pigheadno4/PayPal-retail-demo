@@ -27,3 +27,5 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 
 - During the cart repository TDD pass, the first green attempt preserved stale merged cart price snapshots. Fix: run shared cart refresh immediately after guest-to-authenticated merge and persist the refreshed line prices before returning the cart.
 - Server typecheck caught that `CartApiResponse` is currently the generic catalog JSON type; nested typed DTOs such as the cart binding need JSON-compatible index signatures or explicit JSON mapping.
+- Checkout repository typecheck/lint caught two useful boundaries: Supabase database rows should stay snake_case and map into shared camelCase helpers explicitly, and repository imports should avoid route input types unless they are referenced directly.
+- A linked Supabase read query briefly failed with a TLS handshake timeout while initializing the CLI login role; a single retry succeeded and returned `checkout_drafts = 2`.

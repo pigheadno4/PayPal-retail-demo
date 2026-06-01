@@ -15,10 +15,16 @@ import {
   createSupabaseCatalogRepository,
   type SupabaseCatalogClient,
 } from "./repositories/catalogRepository.js";
+import {
+  createSupabaseCheckoutDataSource,
+  createSupabaseCheckoutRepository,
+  type SupabaseCheckoutClient,
+} from "./repositories/checkoutRepository.js";
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 type SupabaseRuntimeClient = SupabaseCatalogClient &
   SupabaseCartClient &
+  SupabaseCheckoutClient &
   SupabaseAuthVerifier;
 
 export function startServer(env: RawServerEnv = process.env) {
@@ -32,6 +38,9 @@ export function startServer(env: RawServerEnv = process.env) {
   const cartRepository = createSupabaseCartRepository({
     dataSource: createSupabaseCartDataSource(supabase),
   });
+  const checkoutRepository = createSupabaseCheckoutRepository({
+    dataSource: createSupabaseCheckoutDataSource(supabase),
+  });
   const app = createApp({
     catalogRepository,
     activeStorefrontContextStore,
@@ -43,6 +52,11 @@ export function startServer(env: RawServerEnv = process.env) {
     },
     cart: {
       cartRepository,
+      authVerifier: supabase,
+      activeStorefrontContextStore,
+    },
+    checkout: {
+      checkoutRepository,
       authVerifier: supabase,
       activeStorefrontContextStore,
     },

@@ -89,3 +89,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Checkout draft routes should mirror the planned accordion steps so the web UI and future mobile clients can call the same step-specific endpoints.
 - Route-level validation should normalize address and pickup-location country codes before the repository performs tax, shipping, promo, inventory, or store-distance calculations.
 - Delivery and Pickup tab state should remain separate in the repository response; the route layer only validates inputs and passes buyer/cart/storefront context through.
+
+## Supabase Checkout Repository
+- Checkout drafts should reuse the active cart's profile/market/currency snapshots and validate ownership through either Supabase auth user ID or guest cart public ID plus hashed client secret.
+- Delivery recalculation can default the cheapest eligible shipping option after shipping address submit, then keep tax calculation based on merchandise subtotal and promo discount only; shipping remains excluded.
+- Pickup recalculation should keep the full cart intact while the payable checkout summary uses only store-available quantities, with unavailable quantities returned for the order summary strike-through UI.
