@@ -78,3 +78,9 @@ Reusable implementation lessons from this demo should be added here during miles
 - Cart routes should receive `buyer`, `guestCart`, and active storefront context from middleware/state, then delegate persistence and rule enforcement to a cart repository.
 - The initial route surface intentionally does not implement Supabase persistence; the next slice should store/verify guest cart secrets, create signed-in carts, and apply shared cart merge/refresh helpers against canonical product rules.
 - Route-level validation should catch malformed quantities and unsupported refresh triggers before repository calls; product purchase, inventory cap, and price refresh rules belong in the repository/domain layer.
+
+## Supabase Cart Repository
+- Guest carts should store only `cart_public_id` plus a hashed client secret server-side; the raw client secret is returned only in the creation binding and then lives in the browser as the opaque cart credential.
+- Cart repository responses should always return the full cart snapshot after a mutation, because the UI needs refreshed item IDs, prices, checkout eligibility, totals, and adjustment explanations.
+- Login/register merge should refresh the merged cart against canonical product rules before returning it, so stale guest-cart price snapshots do not survive into the authenticated checkout path.
+- Unreleased or otherwise non-purchasable items can remain in the cart but must return `checkout_eligible: false`; checkout/payment flows can then block the action without silently deleting buyer intent.

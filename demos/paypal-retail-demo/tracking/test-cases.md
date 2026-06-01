@@ -99,6 +99,10 @@
 - [x] Cart API route contracts cover active cart read/create, add item, update quantity, remove item, merge, and refresh.
 - [x] Cart API route contracts pass buyer auth context and guest cart binding headers to the repository boundary.
 - [x] Cart API route contracts reject invalid quantities and unsupported refresh triggers with buyer-safe errors.
+- [x] Supabase-backed cart repository creates guest carts with opaque browser bindings and stores only hashed cart client secrets.
+- [x] Supabase-backed cart repository adds released products with current prices, caps quantities, and returns updated cart totals.
+- [x] Supabase-backed cart repository merges guest carts into authenticated carts, refreshes merged prices, and marks the guest cart merged.
+- [x] Supabase-backed cart repository refreshes stale prices and keeps unreleased items in cart with checkout blocked.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

@@ -22,3 +22,8 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 
 - Express app tests cannot bind a TCP listener in this sandbox: `listen EPERM: operation not permitted 0.0.0.0`. Fix: use an in-process `IncomingMessage`/`ServerResponse` harness for API smoke tests instead of opening a local port.
 - Avoid `npx tsx ...` probes when `tsx` is already installed locally but `npx` still attempts registry resolution; network-restricted runs can fail with `ENOTFOUND registry.npmjs.org`.
+
+## 2026-06-01
+
+- During the cart repository TDD pass, the first green attempt preserved stale merged cart price snapshots. Fix: run shared cart refresh immediately after guest-to-authenticated merge and persist the refreshed line prices before returning the cart.
+- Server typecheck caught that `CartApiResponse` is currently the generic catalog JSON type; nested typed DTOs such as the cart binding need JSON-compatible index signatures or explicit JSON mapping.

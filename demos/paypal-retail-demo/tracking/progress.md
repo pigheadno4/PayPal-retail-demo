@@ -69,3 +69,8 @@
 - Adjusted the server TypeScript project boundary so server code can consume shared catalog helpers while preserving strict typecheck.
 - Added the Admin profile/market switch API with TDD: signed admin-session protection, profile/market ID lookup, same-shape config response, active no-query storefront config refresh, and buyer-safe missing-context errors.
 - Added the cart API route surface with TDD: active cart read/create contract, add/update/delete item inputs, merge after login/register, refresh triggers, buyer auth context, guest cart binding headers, and buyer-safe validation errors. Supabase-backed cart persistence remains queued as the next slice.
+
+## 2026-06-01
+- Added the Supabase-backed cart repository with TDD: guest cart creation with hashed client-secret storage, existing guest cart verification, current-price add-to-cart with quantity caps, authenticated cart merge, stale-price refresh, and unreleased checkout blockers.
+- Wired live server startup to attach buyer auth, guest cart middleware, and the Supabase cart repository so `/api/cart` uses real app-schema persistence.
+- Kept merge behavior aligned with login/register cart sync by refreshing merged lines against canonical product rules before returning the authenticated cart.

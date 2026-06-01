@@ -3,7 +3,13 @@ import { pathToFileURL } from "node:url";
 import { createApp } from "./app.js";
 import { parseServerEnv, type RawServerEnv } from "./config/env.js";
 import { createSupabaseServerClient } from "./db/supabase.js";
+import type { SupabaseAuthVerifier } from "./middleware/auth.js";
 import { createSupabaseAdminProfileMarketRepository } from "./repositories/adminRepository.js";
+import {
+  createSupabaseCartDataSource,
+  createSupabaseCartRepository,
+  type SupabaseCartClient,
+} from "./repositories/cartRepository.js";
 import {
   createSupabaseCatalogDataSource,
   createSupabaseCatalogRepository,
@@ -11,13 +17,20 @@ import {
 } from "./repositories/catalogRepository.js";
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
+type SupabaseRuntimeClient = SupabaseCatalogClient &
+  SupabaseCartClient &
+  SupabaseAuthVerifier;
+
 export function startServer(env: RawServerEnv = process.env) {
   const config = parseServerEnv(env);
-  const supabase = createSupabaseServerClient<SupabaseCatalogClient>(config);
+  const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
   const activeStorefrontContextStore =
     createInMemoryActiveStorefrontContextStore();
   const catalogRepository = createSupabaseCatalogRepository({
     dataSource: createSupabaseCatalogDataSource(supabase),
+  });
+  const cartRepository = createSupabaseCartRepository({
+    dataSource: createSupabaseCartDataSource(supabase),
   });
   const app = createApp({
     catalogRepository,
@@ -26,6 +39,11 @@ export function startServer(env: RawServerEnv = process.env) {
       adminPasscode: config.adminPasscode,
       profileMarketRepository:
         createSupabaseAdminProfileMarketRepository(supabase),
+      activeStorefrontContextStore,
+    },
+    cart: {
+      cartRepository,
+      authVerifier: supabase,
       activeStorefrontContextStore,
     },
   });
