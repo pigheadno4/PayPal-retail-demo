@@ -6,22 +6,103 @@ import {
   type PayPalEnvironment,
 } from "../../../shared/src/market.js";
 import {
+  buildPayPalBopisCreateOrderPayload,
+  buildPayPalDeliveryCreateOrderPayload,
+  buildPayPalExpressDeliveryCreateOrderPayload,
   buildPayPalSdkConfig,
+  checkPayPalCreateOrderAmountConsistency,
+  extractPayPalPurchaseUnitAmountSnapshot,
   planPayPalClientTokenRequest,
+  type BuildPayPalBopisCreateOrderInput,
+  type BuildPayPalDeliveryCreateOrderInput,
+  type BuildPayPalExpressDeliveryCreateOrderInput,
+  type PayPalCaptureAmountSnapshot,
+  type PayPalCreateOrderPayload,
   type PayPalPaymentMethod,
   type PayPalSdkFlow,
   type PayPalSdkPageType,
 } from "../../../shared/src/paypal.js";
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import type { BuyerRequest } from "../middleware/auth.js";
-import type { PayPalClientTokenGateway } from "../paypal/client.js";
+import type {
+  PayPalClientTokenGateway,
+  PayPalCreateOrderGateway,
+  PayPalCreateOrderGatewayResponse,
+} from "../paypal/client.js";
+import type {
+  GuestCartContext,
+  GuestCartRequest,
+} from "../middleware/guestCart.js";
 import type { ActiveStorefrontContextStore } from "../state/storefrontContext.js";
+import type { BuyerContext } from "../middleware/auth.js";
+import type { StorefrontContext } from "./catalog.js";
+
+export type PayPalOrderKind = "delivery" | "express_delivery" | "bopis";
+
+export interface PayPalCreateOrderOperationContext {
+  readonly storefrontContext: StorefrontContext;
+  readonly buyer: BuyerContext;
+  readonly guestCart: GuestCartContext | null;
+}
+
+export interface PreparePayPalCreateOrderInput {
+  readonly kind: PayPalOrderKind;
+  readonly method: PayPalPaymentMethod;
+  readonly checkoutDraftId?: string;
+  readonly cartId?: string;
+}
+
+interface PreparedPayPalCreateOrderBase {
+  readonly orderNumber: string;
+  readonly paymentSessionId: string;
+  readonly paypalInvoiceId: string;
+  readonly paypalRequestId: string;
+  readonly method: PayPalPaymentMethod;
+}
+
+export type PreparedPayPalCreateOrder =
+  | (PreparedPayPalCreateOrderBase &
+      Omit<BuildPayPalDeliveryCreateOrderInput, "orderNumber"> & {
+        readonly kind: "delivery";
+      })
+  | (PreparedPayPalCreateOrderBase &
+      Omit<BuildPayPalExpressDeliveryCreateOrderInput, "orderNumber"> & {
+        readonly kind: "express_delivery";
+      })
+  | (PreparedPayPalCreateOrderBase &
+      Omit<BuildPayPalBopisCreateOrderInput, "orderNumber"> & {
+        readonly kind: "bopis";
+      });
+
+export interface RecordPayPalCreateOrderResultInput {
+  readonly paymentSessionId: string;
+  readonly paypalOrderId: string;
+  readonly paypalOrderStatus: string;
+  readonly paypalInvoiceId: string;
+  readonly paypalRequestId: string;
+  readonly requestPayload: PayPalCreateOrderPayload;
+  readonly response: PayPalCreateOrderGatewayResponse;
+  readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+}
+
+export interface PayPalOrderPreparationRepository {
+  readonly prepareCreateOrder: (
+    context: PayPalCreateOrderOperationContext,
+    input: PreparePayPalCreateOrderInput,
+  ) => Promise<PreparedPayPalCreateOrder>;
+  readonly recordCreateOrderResult: (
+    context: PayPalCreateOrderOperationContext,
+    input: RecordPayPalCreateOrderResultInput,
+  ) => Promise<void>;
+}
 
 export interface CreatePayPalRouterInput {
   readonly environment: PayPalEnvironment;
   readonly clientId: string;
   readonly defaultClientTokenDomains: readonly string[];
   readonly clientTokenGateway: PayPalClientTokenGateway;
+  readonly orderGateway?: PayPalCreateOrderGateway;
+  readonly orderRepository?: PayPalOrderPreparationRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
 }
 
@@ -134,7 +215,210 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
     }),
   );
 
+  router.post(
+    "/paypal/orders/delivery",
+    asyncRoute(async (request, response) => {
+      await handleCreateOrderRoute(request, response, input, "delivery");
+    }),
+  );
+
+  router.post(
+    "/paypal/orders/express-delivery",
+    asyncRoute(async (request, response) => {
+      await handleCreateOrderRoute(
+        request,
+        response,
+        input,
+        "express_delivery",
+      );
+    }),
+  );
+
+  router.post(
+    "/paypal/orders/bopis",
+    asyncRoute(async (request, response) => {
+      await handleCreateOrderRoute(request, response, input, "bopis");
+    }),
+  );
+
   return router;
+}
+
+async function handleCreateOrderRoute(
+  request: Request,
+  response: Parameters<typeof sendApiSuccess>[0],
+  input: CreatePayPalRouterInput,
+  kind: PayPalOrderKind,
+): Promise<void> {
+  const orderGateway = input.orderGateway;
+  const orderRepository = input.orderRepository;
+
+  if (!orderGateway || !orderRepository) {
+    sendApiError(response, 503, {
+      code: "PAYPAL_ORDER_CREATE_UNAVAILABLE",
+      message: "PayPal order creation is not configured.",
+    });
+    return;
+  }
+
+  const createOrderInput = parseCreateOrderInput(request, kind);
+
+  if (!createOrderInput) {
+    sendApiError(response, 400, {
+      code: "INVALID_PAYPAL_CREATE_ORDER_REQUEST",
+      message:
+        "A supported payment method and checkout/cart source are required.",
+    });
+    return;
+  }
+
+  const context = resolveCreateOrderContext(
+    request,
+    input.activeStorefrontContextStore,
+  );
+  const preparedOrder = await orderRepository.prepareCreateOrder(
+    context,
+    createOrderInput,
+  );
+  const payload = buildCreateOrderPayload(preparedOrder);
+  const amountConsistency = checkPayPalCreateOrderAmountConsistency(payload);
+
+  if (amountConsistency.status !== "matched") {
+    sendApiError(response, 409, {
+      code: "PAYPAL_ORDER_AMOUNT_MISMATCH",
+      message: "Merchant-calculated PayPal order amounts did not reconcile.",
+      details: {
+        mismatches: amountConsistency.mismatches.map((mismatch) => ({
+          purchase_unit_index: mismatch.purchase_unit_index,
+          reason: mismatch.reason,
+          expected_minor: mismatch.expected_minor,
+          actual_minor: mismatch.actual_minor,
+        })),
+      },
+    });
+    return;
+  }
+
+  const createOrderResponse = await orderGateway.createOrder({
+    paypalRequestId: preparedOrder.paypalRequestId,
+    payload,
+  });
+  const merchantSnapshot = extractPayPalPurchaseUnitAmountSnapshot(
+    payload.purchase_units[0]!,
+  );
+
+  await orderRepository.recordCreateOrderResult(context, {
+    paymentSessionId: preparedOrder.paymentSessionId,
+    paypalOrderId: createOrderResponse.paypalOrderId,
+    paypalOrderStatus: createOrderResponse.status,
+    paypalInvoiceId: preparedOrder.paypalInvoiceId,
+    paypalRequestId: preparedOrder.paypalRequestId,
+    requestPayload: payload,
+    response: createOrderResponse,
+    merchantSnapshot,
+  });
+
+  sendApiSuccess(response, {
+    order_number: preparedOrder.orderNumber,
+    payment_session_id: preparedOrder.paymentSessionId,
+    paypal_order_id: createOrderResponse.paypalOrderId,
+    paypal_order_status: createOrderResponse.status,
+    paypal_invoice_id: preparedOrder.paypalInvoiceId,
+    paypal_request_id: preparedOrder.paypalRequestId,
+    approval_url: createOrderResponse.approvalUrl,
+  });
+}
+
+function parseCreateOrderInput(
+  request: Request,
+  kind: PayPalOrderKind,
+): PreparePayPalCreateOrderInput | null {
+  const body = request.body as Record<string, unknown> | undefined;
+  const method = parseSupportedValue(body?.method, supportedPaymentMethods);
+  const checkoutDraftId = normalizeBodyString(body?.checkout_draft_id);
+  const cartId = normalizeBodyString(body?.cart_id);
+
+  if (!method) {
+    return null;
+  }
+
+  if (kind === "delivery" || kind === "bopis") {
+    return checkoutDraftId
+      ? {
+          kind,
+          method,
+          checkoutDraftId,
+        }
+      : null;
+  }
+
+  return cartId
+    ? {
+        kind,
+        method,
+        cartId,
+      }
+    : null;
+}
+
+function buildCreateOrderPayload(
+  input: PreparedPayPalCreateOrder,
+): PayPalCreateOrderPayload {
+  if (input.kind === "delivery") {
+    return buildPayPalDeliveryCreateOrderPayload({
+      orderNumber: input.paypalInvoiceId,
+      currencyCode: input.currencyCode,
+      items: input.items,
+      shippingAmountMinor: input.shippingAmountMinor,
+      taxAmountMinor: input.taxAmountMinor,
+      discountAmountMinor: input.discountAmountMinor,
+      shippingAddress: input.shippingAddress,
+    });
+  }
+
+  if (input.kind === "express_delivery") {
+    return buildPayPalExpressDeliveryCreateOrderPayload({
+      orderNumber: input.paypalInvoiceId,
+      currencyCode: input.currencyCode,
+      items: input.items,
+      shippingAmountMinor: input.shippingAmountMinor,
+      taxAmountMinor: input.taxAmountMinor,
+      discountAmountMinor: input.discountAmountMinor,
+      shippingCallbackUrl: input.shippingCallbackUrl,
+      ...(input.callbackEvents ? { callbackEvents: input.callbackEvents } : {}),
+    });
+  }
+
+  return buildPayPalBopisCreateOrderPayload({
+    orderNumber: input.paypalInvoiceId,
+    currencyCode: input.currencyCode,
+    items: input.items,
+    taxAmountMinor: input.taxAmountMinor,
+    discountAmountMinor: input.discountAmountMinor,
+    pickupStore: input.pickupStore,
+  });
+}
+
+function resolveCreateOrderContext(
+  request: Request,
+  activeStorefrontContextStore: ActiveStorefrontContextStore | undefined,
+): PayPalCreateOrderOperationContext {
+  const activeContext = activeStorefrontContextStore?.get() ?? {
+    profileSlug: "popmart",
+    marketCode: "US",
+  };
+
+  return {
+    storefrontContext: {
+      profileSlug:
+        firstQueryValue(request, "profile") ?? activeContext.profileSlug,
+      marketCode: (
+        firstQueryValue(request, "market") ?? activeContext.marketCode
+      ).toUpperCase(),
+    },
+    buyer: (request as BuyerRequest).buyer ?? { kind: "guest" },
+    guestCart: (request as GuestCartRequest).guestCart ?? null,
+  };
 }
 
 function parseSdkConfigRequest(
@@ -226,6 +510,14 @@ function parseClientTokenDomains(
     return "invalid";
   }
   return value;
+}
+
+function normalizeBodyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : null;
 }
 
 function firstQueryValue(request: Request, key: string): string | null {

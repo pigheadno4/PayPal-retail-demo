@@ -5,7 +5,15 @@ import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
   PayPalClientTokenGatewayInput,
+  PayPalCreateOrderGatewayInput,
+  PayPalCreateOrderGatewayResponse,
 } from "../src/paypal/client.js";
+import type {
+  PayPalCreateOrderOperationContext,
+  PayPalOrderPreparationRepository,
+  PreparedPayPalCreateOrder,
+  RecordPayPalCreateOrderResultInput,
+} from "../src/routes/paypal.js";
 import { requestApp } from "./helpers/requestApp.js";
 
 describe("PayPal routes", () => {
@@ -129,16 +137,273 @@ describe("PayPal routes", () => {
       },
     ]);
   });
+
+  it("creates a full-checkout delivery PayPal order with provided shipping address", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/delivery?market=us",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+        json: {
+          checkout_draft_id: "draft_delivery_123",
+          method: "paypal",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order_number: "DO-20260601-000001",
+        payment_session_id: "payment_session_delivery",
+        paypal_order_id: "PAYPAL_ORDER_DELIVERY",
+        paypal_order_status: "CREATED",
+        paypal_invoice_id: "DO-20260601-000001",
+        paypal_request_id: "request-delivery",
+        approval_url: "https://www.sandbox.paypal.com/checkoutnow?token=1",
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(orderRepository.prepareCalls).toEqual([
+      {
+        context: authenticatedContext(),
+        input: {
+          kind: "delivery",
+          checkoutDraftId: "draft_delivery_123",
+          method: "paypal",
+        },
+      },
+    ]);
+    expect(gateway.createOrderCalls[0]?.paypalRequestId).toBe(
+      "request-delivery",
+    );
+    expect(gateway.createOrderCalls[0]?.payload).toMatchObject({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          invoice_id: "DO-20260601-000001",
+          shipping: {
+            name: {
+              full_name: "Delivery Buyer",
+            },
+            address: {
+              address_line_1: "100 Market St",
+              admin_area_2: "San Francisco",
+              admin_area_1: "CA",
+              postal_code: "94105",
+              country_code: "US",
+            },
+          },
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            shipping_preference: "SET_PROVIDED_ADDRESS",
+          },
+        },
+      },
+    });
+    expect(orderRepository.recordCalls[0]).toMatchObject({
+      paymentSessionId: "payment_session_delivery",
+      paypalOrderId: "PAYPAL_ORDER_DELIVERY",
+      paypalInvoiceId: "DO-20260601-000001",
+      paypalRequestId: "request-delivery",
+      merchantSnapshot: {
+        currencyCode: "USD",
+        itemTotalMinor: 2999,
+        shippingMinor: 595,
+        taxMinor: 268,
+        discountMinor: 500,
+        totalMinor: 3362,
+      },
+    });
+  });
+
+  it("creates an express delivery PayPal order with shipping callback config", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/express-delivery",
+      {
+        json: {
+          cart_id: "cart_public_guest",
+          method: "paypal",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toMatchObject({
+      ok: true,
+      data: {
+        order_number: "DO-20260601-000002",
+        payment_session_id: "payment_session_express",
+        paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+        paypal_invoice_id: "DO-20260601-000002-A2",
+        paypal_request_id: "request-express",
+      },
+    });
+    expect(orderRepository.prepareCalls).toEqual([
+      {
+        context: guestContext(),
+        input: {
+          kind: "express_delivery",
+          cartId: "cart_public_guest",
+          method: "paypal",
+        },
+      },
+    ]);
+    expect(gateway.createOrderCalls[0]?.payload).toMatchObject({
+      purchase_units: [
+        {
+          invoice_id: "DO-20260601-000002-A2",
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            shipping_preference: "GET_FROM_FILE",
+            order_update_callback_config: {
+              callback_events: ["SHIPPING_ADDRESS"],
+              callback_url:
+                "https://api.example.test/api/paypal/orders/PAYPAL_ORDER_EXPRESS/shipping-callback",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("creates a BOPIS PayPal order with pickup-in-store shipping semantics", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(app, "POST", "/api/paypal/orders/bopis", {
+      headers: {
+        authorization: "Bearer buyer-token",
+      },
+      json: {
+        checkout_draft_id: "draft_pickup_123",
+        method: "paypal",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toMatchObject({
+      ok: true,
+      data: {
+        order_number: "PO-20260601-000001",
+        payment_session_id: "payment_session_bopis",
+        paypal_order_id: "PAYPAL_ORDER_BOPIS",
+        paypal_invoice_id: "PO-20260601-000001",
+        paypal_request_id: "request-bopis",
+      },
+    });
+    expect(gateway.createOrderCalls[0]?.payload).toMatchObject({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          invoice_id: "PO-20260601-000001",
+          shipping: {
+            type: "PICKUP_IN_STORE",
+            name: {
+              full_name: "s2s POP MART San Francisco Centre",
+            },
+            address: {
+              address_line_1: "865 Market Street",
+              admin_area_2: "San Francisco",
+              admin_area_1: "CA",
+              postal_code: "94103",
+              country_code: "US",
+            },
+          },
+          amount: {
+            breakdown: {
+              item_total: {
+                value: "29.99",
+              },
+              tax_total: {
+                value: "2.68",
+              },
+            },
+          },
+        },
+      ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            shipping_preference: "SET_PROVIDED_ADDRESS",
+          },
+        },
+      },
+    });
+    const breakdown =
+      gateway.createOrderCalls[0]?.payload.purchase_units[0]?.amount.breakdown;
+    expect(breakdown).not.toHaveProperty("shipping");
+    expect(gateway.createOrderCalls[0]?.payload).not.toHaveProperty(
+      "order_update_callback_config",
+    );
+  });
+
+  it("validates create-order requests before repository and PayPal calls", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/delivery",
+      {
+        json: {
+          method: "paylater",
+        },
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_PAYPAL_CREATE_ORDER_REQUEST",
+        message:
+          "A supported payment method and checkout/cart source are required.",
+        details: {},
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(orderRepository.prepareCalls).toEqual([]);
+    expect(gateway.createOrderCalls).toEqual([]);
+  });
 });
 
-function createPayPalApp(gateway: FakeClientTokenGateway) {
+function createPayPalApp(
+  gateway: FakePayPalGateway,
+  orderRepository?: FakeOrderRepository,
+) {
   return createApp({
     paypal: {
       environment: "sandbox",
       clientId: "PAYPAL_PUBLIC_CLIENT_ID",
       defaultClientTokenDomains: ["https://checkout.example.test"],
       clientTokenGateway: gateway,
+      orderGateway: gateway,
       authVerifier: createAuthVerifier(),
+      ...(orderRepository ? { orderRepository } : {}),
     },
   });
 }
@@ -168,15 +433,22 @@ function createAuthVerifier(): SupabaseAuthVerifier {
   };
 }
 
-interface FakeClientTokenGateway extends PayPalClientTokenGateway {
+interface FakePayPalGateway extends PayPalClientTokenGateway {
   readonly calls: PayPalClientTokenGatewayInput[];
+  readonly createOrderCalls: PayPalCreateOrderGatewayInput[];
 }
 
-function createClientTokenGateway(): FakeClientTokenGateway {
+function createClientTokenGateway(): FakePayPalGateway {
+  return createPayPalGateway();
+}
+
+function createPayPalGateway(): FakePayPalGateway {
   const calls: PayPalClientTokenGatewayInput[] = [];
+  const createOrderCalls: PayPalCreateOrderGatewayInput[] = [];
 
   return {
     calls,
+    createOrderCalls,
     async generateClientToken(input) {
       calls.push(input);
       return {
@@ -184,5 +456,166 @@ function createClientTokenGateway(): FakeClientTokenGateway {
         expiresInSeconds: 900,
       };
     },
+    async createOrder(input): Promise<PayPalCreateOrderGatewayResponse> {
+      createOrderCalls.push(input);
+      const invoiceId = input.payload.purchase_units[0]?.invoice_id ?? "";
+      const orderIdByInvoice: Record<string, string> = {
+        "DO-20260601-000001": "PAYPAL_ORDER_DELIVERY",
+        "DO-20260601-000002-A2": "PAYPAL_ORDER_EXPRESS",
+        "PO-20260601-000001": "PAYPAL_ORDER_BOPIS",
+      };
+      return {
+        paypalOrderId: orderIdByInvoice[invoiceId] ?? "PAYPAL_ORDER_UNKNOWN",
+        status: "CREATED",
+        approvalUrl:
+          "https://www.sandbox.paypal.com/checkoutnow?token=1",
+        rawResponse: {
+          id: orderIdByInvoice[invoiceId] ?? "PAYPAL_ORDER_UNKNOWN",
+          status: "CREATED",
+        },
+      };
+    },
+  };
+}
+
+interface FakeOrderRepository extends PayPalOrderPreparationRepository {
+  readonly prepareCalls: {
+    readonly context: PayPalCreateOrderOperationContext;
+    readonly input: unknown;
+  }[];
+  readonly recordCalls: RecordPayPalCreateOrderResultInput[];
+}
+
+function createOrderRepository(): FakeOrderRepository {
+  const prepareCalls: FakeOrderRepository["prepareCalls"] = [];
+  const recordCalls: RecordPayPalCreateOrderResultInput[] = [];
+
+  return {
+    prepareCalls,
+    recordCalls,
+    async prepareCreateOrder(context, input) {
+      prepareCalls.push({ context, input });
+      if (input.kind === "delivery") {
+        return preparedDeliveryOrder();
+      }
+      if (input.kind === "express_delivery") {
+        return preparedExpressDeliveryOrder();
+      }
+      return preparedBopisOrder();
+    },
+    async recordCreateOrderResult(_context, input) {
+      recordCalls.push(input);
+    },
+  };
+}
+
+function preparedDeliveryOrder(): PreparedPayPalCreateOrder {
+  return {
+    kind: "delivery",
+    orderNumber: "DO-20260601-000001",
+    paymentSessionId: "payment_session_delivery",
+    paypalInvoiceId: "DO-20260601-000001",
+    paypalRequestId: "request-delivery",
+    method: "paypal",
+    currencyCode: "USD",
+    items: [labubuLineItem()],
+    shippingAmountMinor: 595,
+    taxAmountMinor: 268,
+    discountAmountMinor: 500,
+    shippingAddress: {
+      fullName: "Delivery Buyer",
+      addressLine1: "100 Market St",
+      adminArea2: "San Francisco",
+      adminArea1: "CA",
+      postalCode: "94105",
+      countryCode: "US",
+    },
+  };
+}
+
+function preparedExpressDeliveryOrder(): PreparedPayPalCreateOrder {
+  return {
+    kind: "express_delivery",
+    orderNumber: "DO-20260601-000002",
+    paymentSessionId: "payment_session_express",
+    paypalInvoiceId: "DO-20260601-000002-A2",
+    paypalRequestId: "request-express",
+    method: "paypal",
+    currencyCode: "USD",
+    items: [labubuLineItem({ lineTaxAmountMinor: null })],
+    shippingAmountMinor: 0,
+    taxAmountMinor: 0,
+    discountAmountMinor: 0,
+    shippingCallbackUrl:
+      "https://api.example.test/api/paypal/orders/PAYPAL_ORDER_EXPRESS/shipping-callback",
+  };
+}
+
+function preparedBopisOrder(): PreparedPayPalCreateOrder {
+  return {
+    kind: "bopis",
+    orderNumber: "PO-20260601-000001",
+    paymentSessionId: "payment_session_bopis",
+    paypalInvoiceId: "PO-20260601-000001",
+    paypalRequestId: "request-bopis",
+    method: "paypal",
+    currencyCode: "USD",
+    items: [labubuLineItem()],
+    taxAmountMinor: 268,
+    discountAmountMinor: 0,
+    pickupStore: {
+      storeName: "POP MART San Francisco Centre",
+      addressLine1: "865 Market Street",
+      adminArea2: "San Francisco",
+      adminArea1: "CA",
+      postalCode: "94103",
+      countryCode: "US",
+    },
+  };
+}
+
+function labubuLineItem(
+  overrides: Partial<{
+    readonly lineTaxAmountMinor: number | null;
+  }> = {},
+) {
+  return {
+    name: "Labubu Macaron Vinyl Face",
+    quantity: 1,
+    unitAmountMinor: 2999,
+    lineTaxAmountMinor: Object.hasOwn(overrides, "lineTaxAmountMinor")
+      ? overrides.lineTaxAmountMinor
+      : 268,
+    sku: "POP-LABUBU-009",
+    url: "/popmart/products/labubu-macaron-vinyl-face",
+    imageUrl: "/popmart/products/labubu-macaron-vinyl-face-1.webp",
+  };
+}
+
+function authenticatedContext(): PayPalCreateOrderOperationContext {
+  return {
+    storefrontContext: {
+      profileSlug: "popmart",
+      marketCode: "US",
+    },
+    buyer: {
+      kind: "authenticated",
+      userId: "user_123",
+      email: "buyer@example.test",
+    },
+    guestCart: null,
+  };
+}
+
+function guestContext(): PayPalCreateOrderOperationContext {
+  return {
+    storefrontContext: {
+      profileSlug: "popmart",
+      marketCode: "US",
+    },
+    buyer: {
+      kind: "guest",
+    },
+    guestCart: null,
   };
 }

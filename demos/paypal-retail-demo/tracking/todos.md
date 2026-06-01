@@ -51,4 +51,5 @@
 - [x] Add promo evaluate/apply/remove APIs for checkout draft recalculation.
 - [x] Add guest order lookup API.
 - [x] Start Milestone 7 PayPal SDK config/client token/payment API routes.
-- [ ] Continue Milestone 7 with delivery, express delivery, and BOPIS PayPal order create APIs.
+- [x] Add Milestone 7 PayPal create-order route/gateway boundaries for delivery, express delivery, and BOPIS.
+- [ ] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.

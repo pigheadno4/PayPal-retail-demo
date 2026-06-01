@@ -109,3 +109,5 @@ Reusable implementation lessons from this demo should be added here during miles
 - The SDK config route should stay browser-safe: return client ID, market, component, provider-key, and token-required flags, but never client secret or OAuth/token internals.
 - Client-token generation should be a server-side PayPal OAuth wrapper that maps PayPal's `access_token` field into our buyer-facing `client_token` field.
 - Use `PUBLIC_HTTPS_ORIGIN` as the preferred default client-token domain, falling back to `APP_BASE_URL` only for local/basic development; PayPal may reject localhost domains for domain-bound token flows.
+- Keep PayPal order creation split into three layers: route validates buyer/source context, repository prepares merchant-locked order inputs from Supabase, and gateway performs OAuth plus `/v2/checkout/orders`.
+- Full checkout Delivery, express Delivery, and BOPIS should share one route orchestration shape, but the payload builder must stay fulfillment-specific so BOPIS never accidentally receives delivery shipping callbacks or shipping fee breakdown.

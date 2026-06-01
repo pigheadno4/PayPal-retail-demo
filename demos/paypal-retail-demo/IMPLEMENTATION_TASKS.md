@@ -215,8 +215,14 @@ Verification:
 - [x] Implement PayPal SDK config API.
 - [x] Implement PayPal client token API.
 - [ ] Implement delivery order create API.
+  - [x] Add route/gateway boundary and payload-builder coverage.
+  - [ ] Add Supabase-backed order/payment-session preparation and snapshot persistence.
 - [ ] Implement express delivery order create API.
+  - [x] Add route/gateway boundary and shipping callback payload coverage.
+  - [ ] Add Supabase-backed express order/payment-session preparation and review-confirm persistence.
 - [ ] Implement BOPIS order create API.
+  - [x] Add route/gateway boundary and pickup-in-store payload coverage.
+  - [ ] Add Supabase-backed pickup order/payment-session preparation and snapshot persistence.
 - [ ] Implement PayPal shipping callback API for express delivery.
 - [ ] Implement capture API with amount consistency guard.
 - [ ] Implement webhook verification and processing.

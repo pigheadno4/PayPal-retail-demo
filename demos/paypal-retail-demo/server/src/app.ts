@@ -23,8 +23,14 @@ import {
   type CatalogRepository,
 } from "./routes/catalog.js";
 import { createOrderRouter, type OrderRepository } from "./routes/orders.js";
-import { createPayPalRouter } from "./routes/paypal.js";
-import type { PayPalClientTokenGateway } from "./paypal/client.js";
+import {
+  createPayPalRouter,
+  type PayPalOrderPreparationRepository,
+} from "./routes/paypal.js";
+import type {
+  PayPalClientTokenGateway,
+  PayPalCreateOrderGateway,
+} from "./paypal/client.js";
 import type { PayPalEnvironment } from "../../shared/src/market.js";
 import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
@@ -54,6 +60,8 @@ export interface CreateAppInput {
     readonly clientId: string;
     readonly defaultClientTokenDomains: readonly string[];
     readonly clientTokenGateway: PayPalClientTokenGateway;
+    readonly orderGateway?: PayPalCreateOrderGateway;
+    readonly orderRepository?: PayPalOrderPreparationRepository;
     readonly authVerifier: SupabaseAuthVerifier;
     readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   };
@@ -164,6 +172,12 @@ export function createApp(input: CreateAppInput = {}) {
         clientId: input.paypal.clientId,
         defaultClientTokenDomains: input.paypal.defaultClientTokenDomains,
         clientTokenGateway: input.paypal.clientTokenGateway,
+        ...(input.paypal.orderGateway
+          ? { orderGateway: input.paypal.orderGateway }
+          : {}),
+        ...(input.paypal.orderRepository
+          ? { orderRepository: input.paypal.orderRepository }
+          : {}),
         ...(input.paypal.activeStorefrontContextStore
           ? {
               activeStorefrontContextStore:

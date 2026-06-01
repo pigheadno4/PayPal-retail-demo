@@ -1,4 +1,8 @@
 import type { PayPalEnvironment } from "../../../shared/src/market.js";
+import type {
+  PayPalCreateOrderPayload,
+  PayPalSnapshotJson,
+} from "../../../shared/src/paypal.js";
 
 export interface PayPalClientTokenGatewayInput {
   readonly domains: readonly string[];
@@ -16,10 +20,31 @@ export interface PayPalClientTokenGateway {
   ) => Promise<PayPalClientTokenGatewayResponse>;
 }
 
+export interface PayPalCreateOrderGatewayInput {
+  readonly paypalRequestId: string;
+  readonly payload: PayPalCreateOrderPayload;
+}
+
+export interface PayPalCreateOrderGatewayResponse {
+  readonly paypalOrderId: string;
+  readonly status: string;
+  readonly approvalUrl: string | null;
+  readonly rawResponse: PayPalSnapshotJson;
+}
+
+export interface PayPalCreateOrderGateway {
+  readonly createOrder: (
+    input: PayPalCreateOrderGatewayInput,
+  ) => Promise<PayPalCreateOrderGatewayResponse>;
+}
+
+export type PayPalGateway = PayPalClientTokenGateway & PayPalCreateOrderGateway;
+
 export interface CreatePayPalClientTokenGatewayInput {
   readonly environment: PayPalEnvironment;
   readonly clientId: string;
   readonly clientSecret: string;
+  readonly bnCode?: string | null;
   readonly fetch?: typeof fetch;
 }
 
@@ -30,9 +55,17 @@ interface PayPalOAuthResponseBody {
   readonly error?: unknown;
 }
 
+interface PayPalCreateOrderResponseBody {
+  readonly id?: unknown;
+  readonly status?: unknown;
+  readonly name?: unknown;
+  readonly error?: unknown;
+  readonly links?: unknown;
+}
+
 export function createPayPalClientTokenGateway(
   input: CreatePayPalClientTokenGatewayInput,
-): PayPalClientTokenGateway {
+): PayPalGateway {
   const fetchClient = input.fetch ?? globalThis.fetch;
 
   return {
@@ -80,6 +113,91 @@ export function createPayPalClientTokenGateway(
         expiresInSeconds: responseBody.expires_in,
       };
     },
+    async createOrder(orderInput) {
+      const accessToken = await requestAccessToken(input, fetchClient);
+      const response = await fetchClient(
+        `${getPayPalApiBaseUrl(input.environment)}/v2/checkout/orders`,
+        {
+          method: "POST",
+          headers: buildCreateOrderHeaders({
+            accessToken,
+            paypalRequestId: orderInput.paypalRequestId,
+            bnCode: input.bnCode ?? null,
+          }),
+          body: JSON.stringify(orderInput.payload),
+        },
+      );
+      const responseBody =
+        (await response.json()) as PayPalCreateOrderResponseBody;
+
+      if (!response.ok) {
+        throw new Error(
+          `PayPal create order request failed: ${extractPayPalErrorName(
+            responseBody,
+          )}`,
+        );
+      }
+
+      if (typeof responseBody.id !== "string") {
+        throw new Error("PayPal create order response is missing id");
+      }
+
+      return {
+        paypalOrderId: responseBody.id,
+        status:
+          typeof responseBody.status === "string"
+            ? responseBody.status
+            : "UNKNOWN",
+        approvalUrl: extractApprovalUrl(responseBody.links),
+        rawResponse: sanitizeJsonCompatible(responseBody),
+      };
+    },
+  };
+}
+
+async function requestAccessToken(
+  input: CreatePayPalClientTokenGatewayInput,
+  fetchClient: typeof fetch,
+): Promise<string> {
+  const response = await fetchClient(
+    `${getPayPalApiBaseUrl(input.environment)}/v1/oauth2/token`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${Buffer.from(
+          `${input.clientId}:${input.clientSecret}`,
+        ).toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+      }),
+    },
+  );
+  const responseBody = (await response.json()) as PayPalOAuthResponseBody;
+
+  if (!response.ok) {
+    throw new Error(
+      `PayPal OAuth request failed: ${extractPayPalErrorName(responseBody)}`,
+    );
+  }
+  if (typeof responseBody.access_token !== "string") {
+    throw new Error("PayPal OAuth response is missing access_token");
+  }
+
+  return responseBody.access_token;
+}
+
+function buildCreateOrderHeaders(input: {
+  readonly accessToken: string;
+  readonly paypalRequestId: string;
+  readonly bnCode: string | null;
+}): Record<string, string> {
+  return {
+    authorization: `Bearer ${input.accessToken}`,
+    "content-type": "application/json",
+    "paypal-request-id": input.paypalRequestId,
+    ...(input.bnCode ? { "paypal-partner-attribution-id": input.bnCode } : {}),
   };
 }
 
@@ -97,4 +215,47 @@ function extractPayPalErrorName(body: PayPalOAuthResponseBody): string {
     return body.error.trim();
   }
   return "unknown";
+}
+
+function extractApprovalUrl(links: unknown): string | null {
+  if (!Array.isArray(links)) {
+    return null;
+  }
+
+  const payerActionLink = links.find(
+    (link): link is { readonly rel: string; readonly href: string } =>
+      typeof link === "object" &&
+      link !== null &&
+      "rel" in link &&
+      "href" in link &&
+      (link as { readonly rel?: unknown }).rel === "payer-action" &&
+      typeof (link as { readonly href?: unknown }).href === "string",
+  );
+
+  return payerActionLink?.href ?? null;
+}
+
+function sanitizeJsonCompatible(value: unknown): PayPalSnapshotJson {
+  if (value === null) {
+    return null;
+  }
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeJsonCompatible);
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [
+        key,
+        sanitizeJsonCompatible(entryValue),
+      ]),
+    );
+  }
+  return null;
 }

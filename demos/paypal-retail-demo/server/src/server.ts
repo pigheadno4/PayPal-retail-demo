@@ -85,6 +85,7 @@ export function startServer(env: RawServerEnv = process.env) {
         config.publicHttpsOrigin ?? config.appBaseUrl,
       ],
       clientTokenGateway: paypalClientTokenGateway,
+      orderGateway: paypalClientTokenGateway,
       authVerifier: supabase,
       activeStorefrontContextStore,
     },

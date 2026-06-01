@@ -76,6 +76,10 @@
 - [x] PayPal Create Order amount breakdown item total equals sum of line item unit amounts times quantities.
 - [x] PayPal Create Order tax total equals line item tax sum when item-level tax is sent.
 - [x] PayPal item-level tax allocation splits a same-product line when line tax cents cannot divide evenly by quantity.
+- [x] PayPal delivery create-order API uses `SET_PROVIDED_ADDRESS`, merchant shipping address, detailed line items, `PayPal-Request-Id`, and records merchant snapshots.
+- [x] PayPal express delivery create-order API uses `GET_FROM_FILE` and server-side shipping callback config.
+- [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
+- [ ] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
