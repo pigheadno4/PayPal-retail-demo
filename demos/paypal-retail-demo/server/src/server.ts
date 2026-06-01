@@ -26,12 +26,18 @@ import {
   createSupabaseOrderRepository,
   type SupabaseOrderClient,
 } from "./repositories/orderRepository.js";
+import {
+  createSupabasePayPalOrderDataSource,
+  createSupabasePayPalOrderRepository,
+  type SupabasePayPalOrderClient,
+} from "./repositories/paypalOrderRepository.js";
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 type SupabaseRuntimeClient = SupabaseCatalogClient &
   SupabaseCartClient &
   SupabaseCheckoutClient &
   SupabaseOrderClient &
+  SupabasePayPalOrderClient &
   SupabaseAuthVerifier;
 
 export function startServer(env: RawServerEnv = process.env) {
@@ -50,6 +56,10 @@ export function startServer(env: RawServerEnv = process.env) {
   });
   const orderRepository = createSupabaseOrderRepository({
     dataSource: createSupabaseOrderDataSource(supabase),
+  });
+  const paypalOrderRepository = createSupabasePayPalOrderRepository({
+    dataSource: createSupabasePayPalOrderDataSource(supabase),
+    publicApiBaseUrl: config.publicHttpsOrigin ?? config.appBaseUrl,
   });
   const paypalClientTokenGateway = createPayPalClientTokenGateway({
     environment: config.paypalEnvironment,
@@ -86,6 +96,7 @@ export function startServer(env: RawServerEnv = process.env) {
       ],
       clientTokenGateway: paypalClientTokenGateway,
       orderGateway: paypalClientTokenGateway,
+      orderRepository: paypalOrderRepository,
       authVerifier: supabase,
       activeStorefrontContextStore,
     },

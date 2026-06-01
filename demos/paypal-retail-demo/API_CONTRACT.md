@@ -490,7 +490,7 @@ Rules:
 - use `shipping_preference: "GET_FROM_FILE"`
 - include `payment_source.paypal.experience_context.order_update_callback_config`
 - default callback subscription is `["SHIPPING_ADDRESS"]`; add `SHIPPING_OPTIONS` only when the selected shipping option must trigger a fresh amount/promo recalculation
-- callback URL points to `POST /api/paypal/orders/:paypalOrderId/shipping-callback` with enough internal cart/session context for server-side recalculation
+- callback URL points to `POST /api/paypal/orders/:callbackContextId/shipping-callback` with enough internal cart/session context for server-side recalculation. Because PayPal order ID is not known until Create Order returns, the initial callback context can be the merchant order/payment-session identifier; the callback handler should also read the PayPal order ID from PayPal's callback payload when present.
 - return buyer to merchant Review and Confirm after PayPal approval
 
 ### `POST /api/paypal/orders/bopis`
@@ -562,7 +562,7 @@ Rules:
 - BOPIS amount breakdown excludes shipping fee.
 - Do not attach server-side shipping callback config to v1 BOPIS orders.
 
-### `POST /api/paypal/orders/:paypalOrderId/shipping-callback`
+### `POST /api/paypal/orders/:callbackContextId/shipping-callback`
 Handles PayPal server-side shipping updates for delivery express.
 
 Server recalculates:

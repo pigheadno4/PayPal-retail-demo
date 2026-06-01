@@ -167,6 +167,7 @@ export function createApp(input: CreateAppInput = {}) {
     app.use(
       "/api",
       createBuyerAuthMiddleware({ supabase: input.paypal.authVerifier }),
+      guestCartMiddleware,
       createPayPalRouter({
         environment: input.paypal.environment,
         clientId: input.paypal.clientId,

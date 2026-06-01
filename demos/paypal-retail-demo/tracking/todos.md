@@ -52,4 +52,5 @@
 - [x] Add guest order lookup API.
 - [x] Start Milestone 7 PayPal SDK config/client token/payment API routes.
 - [x] Add Milestone 7 PayPal create-order route/gateway boundaries for delivery, express delivery, and BOPIS.
-- [ ] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.
+- [x] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.
+- [ ] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.

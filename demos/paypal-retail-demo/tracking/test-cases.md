@@ -26,7 +26,7 @@
 - [ ] Promo evaluation records Admin-readable selected/rejected line reasons without exposing internal debug details in buyer UI.
 - [x] Tax calculation excludes shipping and runs after eligible promo discounts.
 - [ ] Total snapshots can be written before an order exists for checkout draft recalculation.
-- [ ] Total snapshots preserve calculation stage, promo evaluation, taxable subtotal, tax, shipping, and final total.
+- [x] Total snapshots preserve calculation stage, promo evaluation, taxable subtotal, tax, shipping, and final total.
 - [x] Shipping options are destination-based and cheapest option defaults.
 - [ ] Store records are market-scoped and shared across profiles, while store inventory remains profile-and-market scoped.
 - [x] BOPIS store ranking preselects nearest store even if partial.
@@ -79,7 +79,7 @@
 - [x] PayPal delivery create-order API uses `SET_PROVIDED_ADDRESS`, merchant shipping address, detailed line items, `PayPal-Request-Id`, and records merchant snapshots.
 - [x] PayPal express delivery create-order API uses `GET_FROM_FILE` and server-side shipping callback config.
 - [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
-- [ ] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
+- [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
