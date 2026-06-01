@@ -29,3 +29,4 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - Server typecheck caught that `CartApiResponse` is currently the generic catalog JSON type; nested typed DTOs such as the cart binding need JSON-compatible index signatures or explicit JSON mapping.
 - Checkout repository typecheck/lint caught two useful boundaries: Supabase database rows should stay snake_case and map into shared camelCase helpers explicitly, and repository imports should avoid route input types unless they are referenced directly.
 - A linked Supabase read query briefly failed with a TLS handshake timeout while initializing the CLI login role; a single retry succeeded and returned `checkout_drafts = 2`.
+- Checkout promo implementation caught an `exactOptionalPropertyTypes` issue: build `PromoEvaluationInput` without `selectedCodes` when no explicit selection exists, rather than passing `selectedCodes: undefined`.

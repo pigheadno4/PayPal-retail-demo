@@ -8,6 +8,12 @@ import {
   type CheckoutDraftRow,
   type CheckoutMarketRow,
   type CheckoutPickupDateRow,
+  type CheckoutPromoCompatibilityRow,
+  type CheckoutPromoEvaluationLineRow,
+  type CheckoutPromoEvaluationRow,
+  type CheckoutPromoRuleProductRow,
+  type CheckoutPromoRuleRegionRow,
+  type CheckoutPromoRuleRow,
   type CheckoutProfileRow,
   type CheckoutShippingOptionRow,
   type CheckoutStoreInventoryRow,
@@ -70,6 +76,7 @@ describe("Supabase-backed checkout repository", () => {
         promo: {
           status: "pending",
           recommended_codes: [],
+          selected_codes: [],
         },
       },
     });
@@ -269,13 +276,157 @@ describe("Supabase-backed checkout repository", () => {
       }),
     ).rejects.toThrow("Pickup date 2026-06-30 is not available");
   });
+
+  it("evaluates, applies, and removes checkout promos with recalculated totals", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      delivery_state_json: {
+        shipping_address: addressDto(),
+        selected_shipping_option_id: "ship_ground_ca",
+      },
+    });
+    const repository = createRepository(dataSource);
+
+    const evaluationResponse = await repository.evaluatePromos(
+      authenticatedContext(),
+      {
+        draftId: "draft_delivery",
+        manualCodes: ["BUNDLE10", "BIG20", "EXPIRED20"],
+      },
+    );
+    expect(
+      dataSource.drafts.find((draft) => draft.id === "draft_delivery")
+        ?.selected_promo_evaluation_id,
+    ).toBeNull();
+
+    const applyResponse = await repository.applyPromos(authenticatedContext(), {
+      draftId: "draft_delivery",
+      selectedCodes: ["AUTO5", "BUNDLE10"],
+      manualCodes: ["BUNDLE10", "BIG20"],
+    });
+    const removeResponse = await repository.removePromo(
+      authenticatedContext(),
+      {
+        draftId: "draft_delivery",
+        code: "BUNDLE10",
+      },
+    );
+
+    expect(evaluationResponse).toMatchObject({
+      promo: {
+        evaluation_id: "promo_eval_1",
+        recommended_set: ["AUTO5", "BUNDLE10"],
+        selected_set: ["AUTO5", "BUNDLE10"],
+        candidate_sets: expect.arrayContaining([
+          expect.objectContaining({
+            codes: ["AUTO5", "BUNDLE10"],
+            discount_minor: 910,
+            final_total_minor: 3187,
+            recommended: true,
+          }),
+          expect.objectContaining({
+            codes: ["BIG20"],
+            discount_minor: 800,
+            final_total_minor: 3297,
+            recommended: false,
+          }),
+        ]),
+        rejected: expect.arrayContaining([
+          {
+            code: "EXPIRED20",
+            reason: "expired",
+          },
+        ]),
+      },
+    });
+    expect(applyResponse).toMatchObject({
+      draft: {
+        promo: {
+          status: "selected",
+          evaluation_id: "promo_eval_2",
+          selected_codes: ["AUTO5", "BUNDLE10"],
+          recommended_codes: ["AUTO5", "BUNDLE10"],
+        },
+        summary: {
+          merchandise_subtotal_minor: 4097,
+          discount_minor: 910,
+          tax_minor: 279,
+          shipping_minor: 500,
+          total_minor: 3966,
+        },
+      },
+    });
+    expect(removeResponse).toMatchObject({
+      draft: {
+        promo: {
+          status: "selected",
+          evaluation_id: "promo_eval_3",
+          selected_codes: ["AUTO5"],
+          recommended_codes: ["AUTO5"],
+        },
+        summary: {
+          discount_minor: 500,
+          tax_minor: 315,
+          shipping_minor: 500,
+          total_minor: 4412,
+        },
+      },
+    });
+    expect(dataSource.promoEvaluations).toHaveLength(3);
+    expect(dataSource.promoEvaluationLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          promo_evaluation_id: "promo_eval_2",
+          code_snapshot: "AUTO5",
+          evaluation_status: "selected",
+          discount_minor: 500,
+        }),
+        expect.objectContaining({
+          promo_evaluation_id: "promo_eval_2",
+          code_snapshot: "EXPIRED20",
+          evaluation_status: "rejected",
+          rejection_reason: "expired",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects applying a selected promo set that is no longer eligible", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      delivery_state_json: {
+        shipping_address: addressDto(),
+        selected_shipping_option_id: "ship_ground_ca",
+      },
+    });
+    const repository = createRepository(dataSource);
+
+    await expect(
+      repository.applyPromos(authenticatedContext(), {
+        draftId: "draft_delivery",
+        selectedCodes: ["EXPIRED20"],
+        manualCodes: ["EXPIRED20"],
+      }),
+    ).rejects.toThrow("Selected promo set is not eligible");
+    expect(dataSource.promoEvaluations).toHaveLength(0);
+  });
 });
 
 function createRepository(dataSource: FakeCheckoutDataSource) {
+  let promoEvaluationLineSequence = 0;
+
   return createSupabaseCheckoutRepository({
     dataSource,
     now: "2026-06-01T10:00:00.000Z",
     createDraftId: () => "draft_new",
+    createPromoEvaluationId: () =>
+      `promo_eval_${dataSource.promoEvaluations.length + 1}`,
+    createPromoEvaluationLineId: () => {
+      promoEvaluationLineSequence += 1;
+      return `promo_line_${promoEvaluationLineSequence}`;
+    },
     hashCartClientSecret: (secret) => `hash:${secret}`,
   });
 }
@@ -404,6 +555,7 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
       id: "cart_item_labubu",
       cart_id: "cart_guest",
       product_id: "product_labubu",
+      category_id: "category_blind_box",
       quantity: 2,
       unit_price_minor_snapshot: 1399,
     },
@@ -411,6 +563,7 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
       id: "cart_item_dimoo",
       cart_id: "cart_guest",
       product_id: "product_dimoo",
+      category_id: "category_blind_box",
       quantity: 1,
       unit_price_minor_snapshot: 1299,
     },
@@ -513,6 +666,111 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
     },
   ];
 
+  readonly promoRules: CheckoutPromoRuleRow[] = [
+    {
+      id: "promo_auto5",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "AUTO5",
+      promo_type: "auto",
+      discount_type: "fixed_amount",
+      discount_value: 500,
+      min_merchandise_subtotal_minor: 2000,
+      starts_at: "2026-01-01T00:00:00.000Z",
+      ends_at: "2027-01-01T00:00:00.000Z",
+      is_stackable: true,
+      priority: 10,
+      is_active: true,
+    },
+    {
+      id: "promo_bundle10",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "BUNDLE10",
+      promo_type: "manual",
+      discount_type: "percent",
+      discount_value: 1000,
+      min_merchandise_subtotal_minor: 3000,
+      starts_at: "2026-01-01T00:00:00.000Z",
+      ends_at: "2027-01-01T00:00:00.000Z",
+      is_stackable: true,
+      priority: 20,
+      is_active: true,
+    },
+    {
+      id: "promo_big20",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "BIG20",
+      promo_type: "manual",
+      discount_type: "fixed_amount",
+      discount_value: 800,
+      min_merchandise_subtotal_minor: 3000,
+      starts_at: "2026-01-01T00:00:00.000Z",
+      ends_at: "2027-01-01T00:00:00.000Z",
+      is_stackable: false,
+      priority: 30,
+      is_active: true,
+    },
+    {
+      id: "promo_expired20",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "EXPIRED20",
+      promo_type: "manual",
+      discount_type: "percent",
+      discount_value: 2000,
+      min_merchandise_subtotal_minor: 1000,
+      starts_at: "2025-01-01T00:00:00.000Z",
+      ends_at: "2025-12-31T00:00:00.000Z",
+      is_stackable: true,
+      priority: 40,
+      is_active: true,
+    },
+  ];
+
+  readonly promoRuleRegions: CheckoutPromoRuleRegionRow[] = [
+    {
+      promo_rule_id: "promo_auto5",
+      country_code: "US",
+      state: "CA",
+      county: null,
+      postal_code_prefix: "94",
+      include_exclude: "include",
+    },
+  ];
+
+  readonly promoRuleProducts: CheckoutPromoRuleProductRow[] = [
+    {
+      promo_rule_id: "promo_bundle10",
+      product_id: null,
+      category_id: "category_blind_box",
+      include_exclude: "include",
+    },
+  ];
+
+  readonly promoCompatibility: CheckoutPromoCompatibilityRow[] = [
+    {
+      promo_rule_id: "promo_auto5",
+      compatible_promo_rule_id: "promo_bundle10",
+      compatibility: "compatible",
+    },
+    {
+      promo_rule_id: "promo_big20",
+      compatible_promo_rule_id: "promo_auto5",
+      compatibility: "exclusive",
+    },
+    {
+      promo_rule_id: "promo_big20",
+      compatible_promo_rule_id: "promo_bundle10",
+      compatibility: "exclusive",
+    },
+  ];
+
+  readonly promoEvaluations: CheckoutPromoEvaluationRow[] = [];
+
+  readonly promoEvaluationLines: CheckoutPromoEvaluationLineRow[] = [];
+
   async getProfileBySlug(slug: string): Promise<CheckoutProfileRow | null> {
     return this.profiles.find((profile) => profile.slug === slug) ?? null;
   }
@@ -611,5 +869,75 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
     storeId: string,
   ): Promise<readonly CheckoutStoreInventoryRow[]> {
     return this.storeInventory.filter((row) => row.store_id === storeId);
+  }
+
+  async listPromoRules(input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }): Promise<readonly CheckoutPromoRuleRow[]> {
+    return this.promoRules.filter(
+      (rule) =>
+        rule.profile_id === input.profileId &&
+        rule.market_id === input.marketId,
+    );
+  }
+
+  async listPromoRuleRegions(input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }): Promise<readonly CheckoutPromoRuleRegionRow[]> {
+    return this.promoRuleRegions.filter((region) =>
+      this.promoRules.some(
+        (rule) =>
+          rule.id === region.promo_rule_id &&
+          rule.profile_id === input.profileId &&
+          rule.market_id === input.marketId,
+      ),
+    );
+  }
+
+  async listPromoRuleProducts(input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }): Promise<readonly CheckoutPromoRuleProductRow[]> {
+    return this.promoRuleProducts.filter((product) =>
+      this.promoRules.some(
+        (rule) =>
+          rule.id === product.promo_rule_id &&
+          rule.profile_id === input.profileId &&
+          rule.market_id === input.marketId,
+      ),
+    );
+  }
+
+  async listPromoCompatibility(input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }): Promise<readonly CheckoutPromoCompatibilityRow[]> {
+    return this.promoCompatibility.filter((compatibility) =>
+      this.promoRules.some(
+        (rule) =>
+          rule.id === compatibility.promo_rule_id &&
+          rule.profile_id === input.profileId &&
+          rule.market_id === input.marketId,
+      ),
+    );
+  }
+
+  async getPromoEvaluationById(
+    id: string,
+  ): Promise<CheckoutPromoEvaluationRow | null> {
+    return (
+      this.promoEvaluations.find((evaluation) => evaluation.id === id) ?? null
+    );
+  }
+
+  async createPromoEvaluation(
+    evaluation: CheckoutPromoEvaluationRow,
+    lines: readonly CheckoutPromoEvaluationLineRow[],
+  ): Promise<CheckoutPromoEvaluationRow> {
+    this.promoEvaluations.push(evaluation);
+    this.promoEvaluationLines.push(...lines);
+    return evaluation;
   }
 }

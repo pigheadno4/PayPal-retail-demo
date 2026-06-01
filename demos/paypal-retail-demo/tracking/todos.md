@@ -48,4 +48,5 @@
 - [x] Add Supabase-backed cart repository for Milestone 6 cart APIs.
 - [x] Start Milestone 6 checkout draft API surface for Delivery and Pickup accordion flows.
 - [x] Add Supabase-backed checkout draft repository and live server wiring.
-- [ ] Add promo evaluate/apply/remove APIs for checkout draft recalculation.
+- [x] Add promo evaluate/apply/remove APIs for checkout draft recalculation.
+- [ ] Add guest order lookup API.

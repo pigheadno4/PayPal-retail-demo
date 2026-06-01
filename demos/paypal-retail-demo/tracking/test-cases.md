@@ -110,6 +110,11 @@
 - [x] Supabase-backed checkout repository defaults the cheapest eligible delivery shipping option and recalculates tax with shipping excluded.
 - [x] Supabase-backed checkout repository persists pickup store/date choices and excludes unavailable pickup quantities from the payable pickup amount while preserving cart intent.
 - [x] Supabase-backed checkout repository rejects ineligible shipping options and unavailable pickup dates before persisting draft state.
+- [x] Checkout promo API route contracts cover evaluate, apply, and remove with normalized promo code inputs and buyer-safe validation errors.
+- [x] Supabase-backed checkout promo repository persists evaluation snapshots and Admin-readable selected/rejected promo lines.
+- [x] Applied checkout promos recalculate discount, tax after discount, shipping-excluded tax base, and final draft total.
+- [x] Removing a promo code creates a fresh evaluation and updates the selected draft promo snapshot.
+- [x] Applying an expired or otherwise ineligible selected promo set is rejected instead of silently applying the recommended set.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

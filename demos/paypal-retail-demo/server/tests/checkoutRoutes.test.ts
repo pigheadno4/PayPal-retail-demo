@@ -222,6 +222,69 @@ describe("checkout draft routes", () => {
     ]);
   });
 
+  it("evaluates, applies, and removes promo codes for a checkout draft", async () => {
+    const repository = createCheckoutRepository();
+    const app = createCheckoutApp(repository);
+
+    const evaluate = await requestApp(
+      app,
+      "POST",
+      "/api/checkout/drafts/draft_123/promos/evaluate",
+      {
+        json: {
+          manual_codes: [" bundle8 ", "state15"],
+        },
+      },
+    );
+    const apply = await requestApp(
+      app,
+      "POST",
+      "/api/checkout/drafts/draft_123/promos/apply",
+      {
+        json: {
+          selected_codes: ["state15", " bundle8 "],
+          manual_codes: ["bundle8"],
+        },
+      },
+    );
+    const remove = await requestApp(
+      app,
+      "DELETE",
+      "/api/checkout/drafts/draft_123/promos/bundle8",
+    );
+
+    expect(evaluate.status).toBe(200);
+    expect(apply.status).toBe(200);
+    expect(remove.status).toBe(200);
+    expect(repository.calls).toEqual([
+      {
+        method: "evaluatePromos",
+        context: guestContext(),
+        input: {
+          draftId: "draft_123",
+          manualCodes: ["BUNDLE8", "STATE15"],
+        },
+      },
+      {
+        method: "applyPromos",
+        context: guestContext(),
+        input: {
+          draftId: "draft_123",
+          selectedCodes: ["STATE15", "BUNDLE8"],
+          manualCodes: ["BUNDLE8"],
+        },
+      },
+      {
+        method: "removePromo",
+        context: guestContext(),
+        input: {
+          draftId: "draft_123",
+          code: "BUNDLE8",
+        },
+      },
+    ]);
+  });
+
   it("returns buyer-safe validation errors before repository calls", async () => {
     const repository = createCheckoutRepository();
     const app = createCheckoutApp(repository);
@@ -256,6 +319,16 @@ describe("checkout draft routes", () => {
         },
       },
     );
+    const invalidPromoCodes = await requestApp(
+      app,
+      "POST",
+      "/api/checkout/drafts/draft_123/promos/apply",
+      {
+        json: {
+          selected_codes: ["ok", 123],
+        },
+      },
+    );
 
     expect(invalidFulfillment.status).toBe(400);
     expect(invalidFulfillment.json).toEqual({
@@ -287,13 +360,28 @@ describe("checkout draft routes", () => {
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
+    expect(invalidPromoCodes.status).toBe(400);
+    expect(invalidPromoCodes.json).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_CHECKOUT_PROMO_REQUEST",
+        message: "Promo codes must be non-empty strings.",
+        details: {},
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
     expect(repository.calls).toEqual([]);
   });
 });
 
-function createCheckoutApp(
-  repository: CheckoutRepository & { readonly calls: unknown[] },
-) {
+type TestCheckoutRepository = CheckoutRepository & {
+  readonly calls: unknown[];
+  readonly evaluatePromos: CheckoutRepository["evaluatePromos"];
+  readonly applyPromos: CheckoutRepository["applyPromos"];
+  readonly removePromo: CheckoutRepository["removePromo"];
+};
+
+function createCheckoutApp(repository: TestCheckoutRepository) {
   return createApp({
     checkout: {
       checkoutRepository: repository,
@@ -302,9 +390,7 @@ function createCheckoutApp(
   });
 }
 
-function createCheckoutRepository(): CheckoutRepository & {
-  readonly calls: unknown[];
-} {
+function createCheckoutRepository(): TestCheckoutRepository {
   const calls: unknown[] = [];
 
   return {
@@ -346,6 +432,18 @@ function createCheckoutRepository(): CheckoutRepository & {
         fulfillmentMode: "pickup",
         activeStep: "payment_method",
       });
+    },
+    async evaluatePromos(context, input) {
+      calls.push({ method: "evaluatePromos", context, input });
+      return promoEvaluationResponse();
+    },
+    async applyPromos(context, input) {
+      calls.push({ method: "applyPromos", context, input });
+      return draftResponse({ activeStep: "payment_method" });
+    },
+    async removePromo(context, input) {
+      calls.push({ method: "removePromo", context, input });
+      return draftResponse({ activeStep: "payment_method" });
     },
   };
 }
@@ -475,6 +573,23 @@ function draftResponse(input: {
         status: "pending",
         recommended_codes: [],
       },
+    },
+  };
+}
+
+function promoEvaluationResponse(): CheckoutApiResponse {
+  return {
+    promo: {
+      recommended_set: ["STATE15", "BUNDLE8"],
+      candidate_sets: [
+        {
+          codes: ["STATE15", "BUNDLE8"],
+          discount_minor: 2300,
+          final_total_minor: 7700,
+          recommended: true,
+        },
+      ],
+      rejected: [],
     },
   };
 }

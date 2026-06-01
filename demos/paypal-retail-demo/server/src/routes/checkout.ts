@@ -79,6 +79,22 @@ export interface CheckoutPickupDateInput {
   readonly pickupDate: string;
 }
 
+export interface CheckoutPromoEvaluateInput {
+  readonly draftId: string;
+  readonly manualCodes: readonly string[];
+}
+
+export interface CheckoutPromoApplyInput {
+  readonly draftId: string;
+  readonly selectedCodes: readonly string[];
+  readonly manualCodes: readonly string[];
+}
+
+export interface CheckoutPromoRemoveInput {
+  readonly draftId: string;
+  readonly code: string;
+}
+
 export interface CheckoutRepository {
   readonly createDraft: (
     context: CheckoutOperationContext,
@@ -111,6 +127,18 @@ export interface CheckoutRepository {
   readonly selectPickupDate: (
     context: CheckoutOperationContext,
     input: CheckoutPickupDateInput,
+  ) => Promise<CheckoutApiResponse>;
+  readonly evaluatePromos: (
+    context: CheckoutOperationContext,
+    input: CheckoutPromoEvaluateInput,
+  ) => Promise<CheckoutApiResponse>;
+  readonly applyPromos: (
+    context: CheckoutOperationContext,
+    input: CheckoutPromoApplyInput,
+  ) => Promise<CheckoutApiResponse>;
+  readonly removePromo: (
+    context: CheckoutOperationContext,
+    input: CheckoutPromoRemoveInput,
   ) => Promise<CheckoutApiResponse>;
 }
 
@@ -370,6 +398,94 @@ export function createCheckoutRouter(input: CreateCheckoutRouterInput): Router {
     }),
   );
 
+  router.post(
+    "/checkout/drafts/:id/promos/evaluate",
+    asyncRoute(async (request, response) => {
+      const draftId = firstRouteParamValue(request, "id");
+      const manualCodes = parsePromoCodeArray(
+        (request.body as { manual_codes?: unknown } | undefined)?.manual_codes,
+        true,
+      );
+
+      if (!draftId || !manualCodes) {
+        sendApiError(response, 400, {
+          code: "INVALID_CHECKOUT_PROMO_REQUEST",
+          message: "Promo codes must be non-empty strings.",
+        });
+        return;
+      }
+
+      sendApiSuccess(
+        response,
+        await input.checkoutRepository.evaluatePromos(
+          resolveCheckoutOperationContext(
+            request,
+            input.activeStorefrontContextStore,
+          ),
+          { draftId, manualCodes },
+        ),
+      );
+    }),
+  );
+
+  router.post(
+    "/checkout/drafts/:id/promos/apply",
+    asyncRoute(async (request, response) => {
+      const draftId = firstRouteParamValue(request, "id");
+      const body = request.body as
+        | { selected_codes?: unknown; manual_codes?: unknown }
+        | undefined;
+      const selectedCodes = parsePromoCodeArray(body?.selected_codes, false);
+      const manualCodes = parsePromoCodeArray(body?.manual_codes, true);
+
+      if (!draftId || !selectedCodes || !manualCodes) {
+        sendApiError(response, 400, {
+          code: "INVALID_CHECKOUT_PROMO_REQUEST",
+          message: "Promo codes must be non-empty strings.",
+        });
+        return;
+      }
+
+      sendApiSuccess(
+        response,
+        await input.checkoutRepository.applyPromos(
+          resolveCheckoutOperationContext(
+            request,
+            input.activeStorefrontContextStore,
+          ),
+          { draftId, selectedCodes, manualCodes },
+        ),
+      );
+    }),
+  );
+
+  router.delete(
+    "/checkout/drafts/:id/promos/:code",
+    asyncRoute(async (request, response) => {
+      const draftId = firstRouteParamValue(request, "id");
+      const code = normalizePromoCode(firstRouteParamValue(request, "code"));
+
+      if (!draftId || !code) {
+        sendApiError(response, 400, {
+          code: "INVALID_CHECKOUT_PROMO_REQUEST",
+          message: "Promo codes must be non-empty strings.",
+        });
+        return;
+      }
+
+      sendApiSuccess(
+        response,
+        await input.checkoutRepository.removePromo(
+          resolveCheckoutOperationContext(
+            request,
+            input.activeStorefrontContextStore,
+          ),
+          { draftId, code },
+        ),
+      );
+    }),
+  );
+
   return router;
 }
 
@@ -470,6 +586,26 @@ function parseDateOnly(value: unknown): string | null {
 
 function parseOptionalBoolean(value: unknown, defaultValue: boolean): boolean {
   return typeof value === "boolean" ? value : defaultValue;
+}
+
+function parsePromoCodeArray(
+  value: unknown,
+  allowMissing: boolean,
+): readonly string[] | null {
+  if (value === undefined || value === null) {
+    return allowMissing ? [] : null;
+  }
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const codes = value.map(normalizePromoCode);
+  return codes.every((code): code is string => Boolean(code)) ? codes : null;
+}
+
+function normalizePromoCode(value: unknown): string | null {
+  const code = normalizeBodyString(value)?.toUpperCase();
+  return code && /^[A-Z0-9_-]+$/.test(code) ? code : null;
 }
 
 function normalizeCountryCode(value: unknown): string | null {

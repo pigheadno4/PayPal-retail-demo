@@ -94,3 +94,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Checkout drafts should reuse the active cart's profile/market/currency snapshots and validate ownership through either Supabase auth user ID or guest cart public ID plus hashed client secret.
 - Delivery recalculation can default the cheapest eligible shipping option after shipping address submit, then keep tax calculation based on merchandise subtotal and promo discount only; shipping remains excluded.
 - Pickup recalculation should keep the full cart intact while the payable checkout summary uses only store-available quantities, with unavailable quantities returned for the order summary strike-through UI.
+
+## Checkout Promo APIs
+- Promo evaluation can be persisted even before the buyer applies it; only apply/remove should update `checkout_drafts.selected_promo_evaluation_id`.
+- Apply/remove should create fresh promo snapshots rather than mutating old ones, so pending-order resume and Admin Portal can explain which promo rules changed over time.
+- Checkout summaries should read discount from the selected promo evaluation, then calculate tax on discounted merchandise only; shipping remains a separate total line and is excluded from both promo and tax bases.

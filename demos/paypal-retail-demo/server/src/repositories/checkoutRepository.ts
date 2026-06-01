@@ -4,6 +4,19 @@ import {
   calculatePickupInventorySplit,
   type PickupInventorySplit,
 } from "../../../shared/src/inventory.js";
+import { multiplyMinor } from "../../../shared/src/money.js";
+import {
+  evaluatePromos,
+  type PromoCandidateSet,
+  type PromoCompatibilityRow,
+  type PromoEvaluationInput,
+  type PromoEvaluationResult,
+  type PromoLineInput,
+  type PromoRejectedResult,
+  type PromoRuleProductRow,
+  type PromoRuleRegionRow,
+  type PromoRuleRow,
+} from "../../../shared/src/promos.js";
 import {
   selectDefaultShippingOption,
   selectEligibleShippingOptions,
@@ -55,6 +68,7 @@ export interface CheckoutCartItemRow {
   readonly id: string;
   readonly cart_id: string;
   readonly product_id: string;
+  readonly category_id: string;
   readonly quantity: number;
   readonly unit_price_minor_snapshot: number;
 }
@@ -167,6 +181,82 @@ export interface CheckoutStoreInventoryRow {
   readonly available_quantity: number;
 }
 
+export interface CheckoutPromoRuleRow {
+  readonly id: string;
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly code: string;
+  readonly promo_type: "auto" | "manual";
+  readonly discount_type: "percent" | "fixed_amount";
+  readonly discount_value: number;
+  readonly min_merchandise_subtotal_minor: number;
+  readonly starts_at: string | null;
+  readonly ends_at: string | null;
+  readonly is_stackable: boolean;
+  readonly priority: number;
+  readonly is_active: boolean;
+}
+
+export interface CheckoutPromoRuleRegionRow {
+  readonly promo_rule_id: string;
+  readonly country_code: string;
+  readonly state: string | null;
+  readonly county: string | null;
+  readonly postal_code_prefix: string | null;
+  readonly include_exclude: "include" | "exclude";
+}
+
+export interface CheckoutPromoRuleProductRow {
+  readonly promo_rule_id: string;
+  readonly product_id: string | null;
+  readonly category_id: string | null;
+  readonly include_exclude: "include" | "exclude";
+}
+
+export interface CheckoutPromoCompatibilityRow {
+  readonly promo_rule_id: string;
+  readonly compatible_promo_rule_id: string;
+  readonly compatibility: "compatible" | "exclusive";
+}
+
+export interface CheckoutPromoEvaluationRow {
+  readonly id: string;
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly checkout_draft_id: string | null;
+  readonly order_id: string | null;
+  readonly evaluation_context_json: CatalogJson;
+  readonly matched_promos_json: readonly string[];
+  readonly rejected_promos_json: readonly CatalogJson[];
+  readonly candidate_sets_json: readonly CatalogJson[];
+  readonly recommended_set_json: readonly string[];
+  readonly selected_set_json: readonly string[];
+  readonly merchandise_discount_minor: number;
+  readonly taxable_subtotal_minor: number;
+  readonly final_total_minor: number;
+  readonly created_at: string;
+}
+
+export interface CheckoutPromoEvaluationLineRow {
+  readonly id: string;
+  readonly promo_evaluation_id: string;
+  readonly promo_rule_id: string | null;
+  readonly code_snapshot: string;
+  readonly evaluation_status:
+    | "candidate"
+    | "recommended"
+    | "selected"
+    | "applied"
+    | "rejected";
+  readonly rejection_reason: string | null;
+  readonly stack_group: string | null;
+  readonly discount_minor: number;
+  readonly taxable_subtotal_effect_minor: number;
+  readonly final_total_effect_minor: number;
+  readonly explanation: string | null;
+  readonly sort_order: number;
+}
+
 export interface CheckoutDataSource {
   readonly getProfileBySlug: (
     slug: string,
@@ -205,12 +295,37 @@ export interface CheckoutDataSource {
   readonly listStoreInventory: (
     storeId: string,
   ) => Promise<readonly CheckoutStoreInventoryRow[]>;
+  readonly listPromoRules: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly CheckoutPromoRuleRow[]>;
+  readonly listPromoRuleRegions: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly CheckoutPromoRuleRegionRow[]>;
+  readonly listPromoRuleProducts: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly CheckoutPromoRuleProductRow[]>;
+  readonly listPromoCompatibility: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly CheckoutPromoCompatibilityRow[]>;
+  readonly getPromoEvaluationById: (
+    id: string,
+  ) => Promise<CheckoutPromoEvaluationRow | null>;
+  readonly createPromoEvaluation: (
+    evaluation: CheckoutPromoEvaluationRow,
+    lines: readonly CheckoutPromoEvaluationLineRow[],
+  ) => Promise<CheckoutPromoEvaluationRow>;
 }
 
 export interface CreateSupabaseCheckoutRepositoryInput {
   readonly dataSource: CheckoutDataSource;
   readonly now?: RepositoryNow;
   readonly createDraftId?: () => string;
+  readonly createPromoEvaluationId?: () => string;
+  readonly createPromoEvaluationLineId?: () => string;
   readonly hashCartClientSecret?: (secret: string) => string;
 }
 
@@ -218,6 +333,8 @@ interface CheckoutRepositoryDependencies {
   readonly dataSource: CheckoutDataSource;
   readonly now?: RepositoryNow;
   readonly createDraftId: () => string;
+  readonly createPromoEvaluationId: () => string;
+  readonly createPromoEvaluationLineId: () => string;
   readonly hashCartClientSecret: (secret: string) => string;
 }
 
@@ -232,6 +349,10 @@ export function createSupabaseCheckoutRepository(
   const dependencies = {
     ...input,
     createDraftId: input.createDraftId ?? defaultCheckoutDraftId,
+    createPromoEvaluationId:
+      input.createPromoEvaluationId ?? defaultPromoEvaluationId,
+    createPromoEvaluationLineId:
+      input.createPromoEvaluationLineId ?? defaultPromoEvaluationLineId,
     hashCartClientSecret:
       input.hashCartClientSecret ?? defaultCartClientSecretHash,
   };
@@ -446,6 +567,76 @@ export function createSupabaseCheckoutRepository(
 
       return buildDraftResponse(dependencies, updatedDraft, "payment_method");
     },
+    async evaluatePromos(context, promoInput) {
+      const draft = await resolveDraft(
+        dependencies,
+        context,
+        promoInput.draftId,
+      );
+      const evaluation = await createPromoEvaluationSnapshot(
+        dependencies,
+        draft,
+        {
+          manualCodes: promoInput.manualCodes,
+        },
+      );
+
+      return {
+        promo: mapPromoEvaluationDto(evaluation),
+      } as CheckoutApiResponse;
+    },
+    async applyPromos(context, promoInput) {
+      const draft = await resolveDraft(
+        dependencies,
+        context,
+        promoInput.draftId,
+      );
+      const evaluation = await createPromoEvaluationSnapshot(
+        dependencies,
+        draft,
+        {
+          manualCodes: promoInput.manualCodes,
+          selectedCodes: promoInput.selectedCodes,
+        },
+      );
+      const updatedDraft = await dependencies.dataSource.updateDraft(draft.id, {
+        selected_promo_evaluation_id: evaluation.id,
+        updated_at: resolveNow(dependencies.now),
+      });
+
+      return buildDraftResponse(dependencies, updatedDraft, "payment_method");
+    },
+    async removePromo(context, promoInput) {
+      const draft = await resolveDraft(
+        dependencies,
+        context,
+        promoInput.draftId,
+      );
+      const currentEvaluation = draft.selected_promo_evaluation_id
+        ? await dependencies.dataSource.getPromoEvaluationById(
+            draft.selected_promo_evaluation_id,
+          )
+        : null;
+      const nextSelectedCodes = currentEvaluation
+        ? currentEvaluation.selected_set_json.filter(
+            (code) => code !== promoInput.code,
+          )
+        : [];
+      const evaluation = await createPromoEvaluationSnapshot(
+        dependencies,
+        draft,
+        {
+          manualCodes: nextSelectedCodes,
+          selectedCodes: nextSelectedCodes,
+        },
+      );
+      const updatedDraft = await dependencies.dataSource.updateDraft(draft.id, {
+        selected_promo_evaluation_id: evaluation.id,
+        updated_at: resolveNow(dependencies.now),
+      });
+
+      return buildDraftResponse(dependencies, updatedDraft, "payment_method");
+    },
   };
 }
 
@@ -584,7 +775,13 @@ async function buildDraftResponse(
   activeStep?: string,
 ): Promise<CheckoutApiResponse> {
   const cartItems = await input.dataSource.listCartItems(draft.cart_id);
-  const delivery = await buildDeliveryDto(input, draft);
+  const selectedPromoEvaluation = await resolveSelectedPromoEvaluation(
+    input,
+    draft,
+  );
+  const promoDiscountMinor =
+    selectedPromoEvaluation?.merchandise_discount_minor ?? 0;
+  const delivery = await buildDeliveryDto(input, draft, promoDiscountMinor);
   const pickup = await buildPickupDto(input, draft, cartItems);
   const summary = buildSummary({
     draft,
@@ -592,6 +789,7 @@ async function buildDraftResponse(
     shippingMinor: delivery.selectedShippingAmountMinor,
     taxMinor: delivery.taxMinor,
     pickupSplit: pickup.split,
+    discountMinor: promoDiscountMinor,
   });
 
   return {
@@ -604,10 +802,7 @@ async function buildDraftResponse(
       delivery: delivery.dto,
       pickup: pickup.dto,
       summary,
-      promo: {
-        status: draft.selected_promo_evaluation_id ? "selected" : "pending",
-        recommended_codes: [],
-      },
+      promo: mapDraftPromoDto(selectedPromoEvaluation),
     },
   } as CheckoutApiResponse;
 }
@@ -615,6 +810,7 @@ async function buildDraftResponse(
 async function buildDeliveryDto(
   input: CheckoutRepositoryDependencies,
   draft: CheckoutDraftRow,
+  promoDiscountMinor: number,
 ): Promise<{
   readonly dto: CatalogJson;
   readonly selectedShippingAmountMinor: number;
@@ -634,7 +830,7 @@ async function buildDeliveryDto(
       (option) => option.id === state.selected_shipping_option_id,
     ) ?? null;
   const taxMinor = shippingAddress
-    ? await calculateTaxMinor(input, draft, shippingAddress)
+    ? await calculateTaxMinor(input, draft, shippingAddress, promoDiscountMinor)
     : 0;
 
   return {
@@ -706,6 +902,7 @@ function buildSummary(input: {
   readonly shippingMinor: number;
   readonly taxMinor: number;
   readonly pickupSplit: PickupInventorySplit | null;
+  readonly discountMinor: number;
 }): CatalogJson {
   const itemCount = input.cartItems.reduce(
     (sum, item) => sum + item.quantity,
@@ -718,7 +915,7 @@ function buildSummary(input: {
           (sum, item) => sum + item.unit_price_minor_snapshot * item.quantity,
           0,
         );
-  const discountMinor = 0;
+  const discountMinor = Math.min(input.discountMinor, merchandiseSubtotalMinor);
   const totalMinor =
     merchandiseSubtotalMinor -
     discountMinor +
@@ -734,6 +931,333 @@ function buildSummary(input: {
     total_minor: totalMinor,
     currency_code: input.draft.currency_code,
   };
+}
+
+async function resolveSelectedPromoEvaluation(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+): Promise<CheckoutPromoEvaluationRow | null> {
+  if (!draft.selected_promo_evaluation_id) {
+    return null;
+  }
+
+  const evaluation = await input.dataSource.getPromoEvaluationById(
+    draft.selected_promo_evaluation_id,
+  );
+  return evaluation?.checkout_draft_id === draft.id ? evaluation : null;
+}
+
+async function createPromoEvaluationSnapshot(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+  options: {
+    readonly manualCodes: readonly string[];
+    readonly selectedCodes?: readonly string[];
+  },
+): Promise<CheckoutPromoEvaluationRow> {
+  const [
+    cartItems,
+    promoRules,
+    regionScopes,
+    productScopes,
+    compatibility,
+    shippingAmountMinor,
+  ] = await Promise.all([
+    input.dataSource.listCartItems(draft.cart_id),
+    input.dataSource.listPromoRules({
+      profileId: draft.profile_id,
+      marketId: draft.market_id,
+    }),
+    input.dataSource.listPromoRuleRegions({
+      profileId: draft.profile_id,
+      marketId: draft.market_id,
+    }),
+    input.dataSource.listPromoRuleProducts({
+      profileId: draft.profile_id,
+      marketId: draft.market_id,
+    }),
+    input.dataSource.listPromoCompatibility({
+      profileId: draft.profile_id,
+      marketId: draft.market_id,
+    }),
+    resolveSelectedShippingAmountMinor(input, draft),
+  ]);
+  const promoLines = await buildPromoLines(input, draft, cartItems);
+  const merchandiseSubtotalMinor = promoLines.reduce(
+    (sum, line) => sum + line.subtotalMinor,
+    0,
+  );
+  const evaluationInput: PromoEvaluationInput = {
+    at: resolveNow(input.now),
+    merchandiseSubtotalMinor,
+    shippingMinor: shippingAmountMinor,
+    manualCodes: options.manualCodes,
+    destination: resolvePromoDestination(draft),
+    lines: promoLines,
+    rules: promoRules.map(mapPromoRuleForShared),
+    regionScopes: regionScopes.map(mapPromoRegionForShared),
+    productScopes: productScopes.map(mapPromoProductForShared),
+    compatibility: compatibility.map(mapPromoCompatibilityForShared),
+  };
+  const result = evaluatePromos(
+    options.selectedCodes
+      ? { ...evaluationInput, selectedCodes: options.selectedCodes }
+      : evaluationInput,
+  );
+
+  if (
+    options.selectedCodes &&
+    normalizePromoCodes(options.selectedCodes).join("|") !==
+      normalizePromoCodes(result.selectedSet).join("|")
+  ) {
+    throw new Error("Selected promo set is not eligible");
+  }
+
+  const createdAt = resolveNow(input.now);
+  const evaluation: CheckoutPromoEvaluationRow = {
+    id: input.createPromoEvaluationId(),
+    profile_id: draft.profile_id,
+    market_id: draft.market_id,
+    checkout_draft_id: draft.id,
+    order_id: null,
+    evaluation_context_json: {
+      fulfillment_mode: draft.fulfillment_mode,
+      manual_codes: options.manualCodes,
+      selected_codes: options.selectedCodes ?? [],
+      destination: resolvePromoDestination(draft),
+      merchandise_subtotal_minor: merchandiseSubtotalMinor,
+      shipping_minor: shippingAmountMinor,
+    },
+    matched_promos_json: result.matchedPromos,
+    rejected_promos_json: result.rejectedPromos.map(mapRejectedPromoDto),
+    candidate_sets_json: result.candidateSets.map(mapCandidateSetDto),
+    recommended_set_json: result.recommendedSet,
+    selected_set_json: result.selectedSet,
+    merchandise_discount_minor: result.merchandiseDiscountMinor,
+    taxable_subtotal_minor: result.taxableSubtotalMinor,
+    final_total_minor: result.finalTotalMinor,
+    created_at: createdAt,
+  };
+  const lines = buildPromoEvaluationLines(input, {
+    evaluationId: evaluation.id,
+    result,
+    promoRules,
+    productScopes,
+    promoLines,
+  });
+
+  return input.dataSource.createPromoEvaluation(evaluation, lines);
+}
+
+async function resolveSelectedShippingAmountMinor(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+): Promise<number> {
+  if (
+    draft.fulfillment_mode !== "delivery" ||
+    !draft.delivery_state_json.shipping_address ||
+    !draft.delivery_state_json.selected_shipping_option_id
+  ) {
+    return 0;
+  }
+  const shippingOptions = await listEligibleShippingOptions(
+    input,
+    draft,
+    addressJsonToInput(draft.delivery_state_json.shipping_address),
+  );
+  return (
+    shippingOptions.find(
+      (option) =>
+        option.id === draft.delivery_state_json.selected_shipping_option_id,
+    )?.amount_minor ?? 0
+  );
+}
+
+async function buildPromoLines(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+  cartItems: readonly CheckoutCartItemRow[],
+): Promise<readonly PromoLineInput[]> {
+  if (
+    draft.fulfillment_mode !== "pickup" ||
+    !draft.pickup_state_json.selected_store_id
+  ) {
+    return cartItems.map((item) => ({
+      productId: item.product_id,
+      categoryId: item.category_id,
+      subtotalMinor: multiplyMinor(
+        item.unit_price_minor_snapshot,
+        item.quantity,
+      ),
+    }));
+  }
+
+  const inventory = await input.dataSource.listStoreInventory(
+    draft.pickup_state_json.selected_store_id,
+  );
+  const split = calculatePickupInventorySplit({
+    cartLines: cartItems.map((item) => ({
+      productId: item.product_id,
+      quantity: item.quantity,
+      unitPriceMinor: item.unit_price_minor_snapshot,
+    })),
+    inventory: inventory.map((row) => ({
+      storeId: row.store_id,
+      productId: row.product_id,
+      availableQuantity: row.available_quantity,
+    })),
+  });
+  const cartItemByProductId = new Map(
+    cartItems.map((item) => [item.product_id, item]),
+  );
+
+  return split.readyItems
+    .filter((item) => item.fulfillableQuantity > 0)
+    .map((item) => {
+      const cartItem = cartItemByProductId.get(item.productId);
+      if (!cartItem) {
+        throw new Error(`Pickup promo item ${item.productId} was not found`);
+      }
+      return {
+        productId: item.productId,
+        categoryId: cartItem.category_id,
+        subtotalMinor: item.payableSubtotalMinor,
+      };
+    });
+}
+
+function resolvePromoDestination(draft: CheckoutDraftRow): {
+  readonly countryCode: string;
+  readonly state: string | null;
+  readonly county: string | null;
+  readonly postalCode: string | null;
+} {
+  if (draft.fulfillment_mode === "pickup") {
+    const pickupLocation = draft.pickup_state_json.location;
+    const billingAddress = draft.pickup_state_json.billing_address;
+    return {
+      countryCode:
+        pickupLocation?.country_code ??
+        billingAddress?.country_code ??
+        draft.buyer_country,
+      state: pickupLocation?.state ?? billingAddress?.state ?? null,
+      county: pickupLocation?.county ?? billingAddress?.county ?? null,
+      postalCode:
+        pickupLocation?.postal_code ?? billingAddress?.postal_code ?? null,
+    };
+  }
+
+  const shippingAddress = draft.delivery_state_json.shipping_address;
+  return {
+    countryCode: shippingAddress?.country_code ?? draft.buyer_country,
+    state: shippingAddress?.state ?? null,
+    county: shippingAddress?.county ?? null,
+    postalCode: shippingAddress?.postal_code ?? null,
+  };
+}
+
+function buildPromoEvaluationLines(
+  input: CheckoutRepositoryDependencies,
+  options: {
+    readonly evaluationId: string;
+    readonly result: PromoEvaluationResult;
+    readonly promoRules: readonly CheckoutPromoRuleRow[];
+    readonly productScopes: readonly CheckoutPromoRuleProductRow[];
+    readonly promoLines: readonly PromoLineInput[];
+  },
+): readonly CheckoutPromoEvaluationLineRow[] {
+  const rows: CheckoutPromoEvaluationLineRow[] = [];
+  const selectedCodes = new Set(options.result.selectedSet);
+  const recommendedCodes = new Set(options.result.recommendedSet);
+  const ruleByCode = new Map(
+    options.promoRules.map((rule) => [rule.code, rule]),
+  );
+  const pushLine = (
+    code: string,
+    status: CheckoutPromoEvaluationLineRow["evaluation_status"],
+    rejectionReason: string | null,
+    sortOrder: number,
+  ) => {
+    const rule = ruleByCode.get(code) ?? null;
+    const discountMinor =
+      rule && status !== "rejected"
+        ? calculateRuleDiscountMinor(
+            rule,
+            options.productScopes,
+            options.promoLines,
+          )
+        : 0;
+    rows.push({
+      id: input.createPromoEvaluationLineId(),
+      promo_evaluation_id: options.evaluationId,
+      promo_rule_id: rule?.id ?? null,
+      code_snapshot: code,
+      evaluation_status: status,
+      rejection_reason: rejectionReason,
+      stack_group:
+        status === "selected" ? options.result.selectedSet.join("+") : null,
+      discount_minor: discountMinor,
+      taxable_subtotal_effect_minor: discountMinor,
+      final_total_effect_minor: discountMinor,
+      explanation:
+        status === "rejected"
+          ? `Rejected because ${rejectionReason ?? "not eligible"}`
+          : `Promo ${code} is ${status}`,
+      sort_order: sortOrder,
+    });
+  };
+
+  options.result.selectedSet.forEach((code, index) => {
+    pushLine(code, "selected", null, index);
+  });
+  options.result.recommendedSet
+    .filter((code) => !selectedCodes.has(code))
+    .forEach((code, index) => {
+      pushLine(code, "recommended", null, rows.length + index);
+    });
+  options.result.matchedPromos
+    .filter((code) => !selectedCodes.has(code) && !recommendedCodes.has(code))
+    .forEach((code, index) => {
+      pushLine(code, "candidate", null, rows.length + index);
+    });
+  options.result.rejectedPromos.forEach((promo, index) => {
+    pushLine(promo.code, "rejected", promo.reason, rows.length + index);
+  });
+
+  return rows;
+}
+
+function calculateRuleDiscountMinor(
+  rule: CheckoutPromoRuleRow,
+  productScopes: readonly CheckoutPromoRuleProductRow[],
+  promoLines: readonly PromoLineInput[],
+): number {
+  const includeScopes = productScopes.filter(
+    (scope) =>
+      scope.promo_rule_id === rule.id && scope.include_exclude === "include",
+  );
+  const discountBaseMinor =
+    includeScopes.length === 0
+      ? promoLines.reduce((sum, line) => sum + line.subtotalMinor, 0)
+      : promoLines.reduce(
+          (sum, line) =>
+            includeScopes.some(
+              (scope) =>
+                scope.product_id === line.productId ||
+                scope.category_id === line.categoryId,
+            )
+              ? sum + line.subtotalMinor
+              : sum,
+          0,
+        );
+
+  return rule.discount_type === "percent"
+    ? Math.round((discountBaseMinor * rule.discount_value) / 10_000)
+    : Math.min(rule.discount_value, discountBaseMinor);
+}
+
+function normalizePromoCodes(codes: readonly string[]): string[] {
+  return codes.map((code) => code.toUpperCase()).sort();
 }
 
 async function listEligibleShippingOptions(
@@ -758,6 +1282,7 @@ async function calculateTaxMinor(
   input: CheckoutRepositoryDependencies,
   draft: CheckoutDraftRow,
   address: CheckoutAddressJson,
+  promoDiscountMinor: number,
 ): Promise<number> {
   const [cartItems, taxRates] = await Promise.all([
     input.dataSource.listCartItems(draft.cart_id),
@@ -777,7 +1302,7 @@ async function calculateTaxMinor(
       (sum, item) => sum + item.unit_price_minor_snapshot * item.quantity,
       0,
     ),
-    promoDiscountMinor: 0,
+    promoDiscountMinor,
     shippingMinor: 0,
     rateBps: taxRate.rateBps,
   }).taxMinor;
@@ -868,6 +1393,56 @@ function mapTaxRateForShared(rate: CheckoutTaxRateRow): TaxRateRow {
   };
 }
 
+function mapPromoRuleForShared(rule: CheckoutPromoRuleRow): PromoRuleRow {
+  return {
+    id: rule.id,
+    code: rule.code,
+    promoType: rule.promo_type,
+    discountType: rule.discount_type,
+    discountValue: rule.discount_value,
+    minMerchandiseSubtotalMinor: rule.min_merchandise_subtotal_minor,
+    startsAt: rule.starts_at,
+    endsAt: rule.ends_at,
+    isStackable: rule.is_stackable,
+    priority: rule.priority,
+    isActive: rule.is_active,
+  };
+}
+
+function mapPromoRegionForShared(
+  region: CheckoutPromoRuleRegionRow,
+): PromoRuleRegionRow {
+  return {
+    promoRuleId: region.promo_rule_id,
+    countryCode: region.country_code,
+    state: region.state,
+    county: region.county,
+    postalCodePrefix: region.postal_code_prefix,
+    includeExclude: region.include_exclude,
+  };
+}
+
+function mapPromoProductForShared(
+  product: CheckoutPromoRuleProductRow,
+): PromoRuleProductRow {
+  return {
+    promoRuleId: product.promo_rule_id,
+    productId: product.product_id,
+    categoryId: product.category_id,
+    includeExclude: product.include_exclude,
+  };
+}
+
+function mapPromoCompatibilityForShared(
+  compatibility: CheckoutPromoCompatibilityRow,
+): PromoCompatibilityRow {
+  return {
+    promoRuleId: compatibility.promo_rule_id,
+    compatiblePromoRuleId: compatibility.compatible_promo_rule_id,
+    compatibility: compatibility.compatibility,
+  };
+}
+
 function mapShippingOptionDto(option: CheckoutShippingOptionRow): CatalogJson {
   return {
     id: option.id,
@@ -876,6 +1451,60 @@ function mapShippingOptionDto(option: CheckoutShippingOptionRow): CatalogJson {
     amount_minor: option.amount_minor,
     estimated_days_min: option.estimated_days_min,
     estimated_days_max: option.estimated_days_max,
+  };
+}
+
+function mapDraftPromoDto(
+  evaluation: CheckoutPromoEvaluationRow | null,
+): CatalogJson {
+  if (!evaluation) {
+    return {
+      status: "pending",
+      recommended_codes: [],
+      selected_codes: [],
+    };
+  }
+  const evaluationDto = mapPromoEvaluationDto(evaluation) as {
+    readonly [key: string]: CatalogJson;
+  };
+
+  return {
+    status: "selected",
+    ...evaluationDto,
+    recommended_codes: evaluation.recommended_set_json,
+    selected_codes: evaluation.selected_set_json,
+  };
+}
+
+function mapPromoEvaluationDto(
+  evaluation: CheckoutPromoEvaluationRow,
+): CatalogJson {
+  return {
+    evaluation_id: evaluation.id,
+    recommended_set: evaluation.recommended_set_json,
+    selected_set: evaluation.selected_set_json,
+    candidate_sets: evaluation.candidate_sets_json,
+    rejected: evaluation.rejected_promos_json,
+    merchandise_discount_minor: evaluation.merchandise_discount_minor,
+    taxable_subtotal_minor: evaluation.taxable_subtotal_minor,
+    final_total_minor: evaluation.final_total_minor,
+  };
+}
+
+function mapCandidateSetDto(candidate: PromoCandidateSet): CatalogJson {
+  return {
+    codes: candidate.codes,
+    discount_minor: candidate.discountMinor,
+    taxable_subtotal_minor: candidate.taxableSubtotalMinor,
+    final_total_minor: candidate.finalTotalMinor,
+    recommended: candidate.recommended,
+  };
+}
+
+function mapRejectedPromoDto(rejected: PromoRejectedResult): CatalogJson {
+  return {
+    code: rejected.code,
+    reason: rejected.reason,
   };
 }
 
@@ -954,6 +1583,14 @@ function defaultCheckoutDraftId(): string {
   return randomUUID();
 }
 
+function defaultPromoEvaluationId(): string {
+  return randomUUID();
+}
+
+function defaultPromoEvaluationLineId(): string {
+  return randomUUID();
+}
+
 function defaultCartClientSecretHash(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
 }
@@ -980,6 +1617,10 @@ interface SupabaseCheckoutQuery extends PromiseLike<
   readonly eq: (
     column: string,
     value: SupabasePrimitive,
+  ) => SupabaseCheckoutQuery;
+  readonly in: (
+    column: string,
+    values: readonly SupabasePrimitive[],
   ) => SupabaseCheckoutQuery;
   readonly order: (
     column: string,
@@ -1024,6 +1665,24 @@ const draftColumns = [
   "sandbox_test_buyer_country",
   "status",
   "updated_at",
+].join(", ");
+
+const promoEvaluationColumns = [
+  "id",
+  "profile_id",
+  "market_id",
+  "checkout_draft_id",
+  "order_id",
+  "evaluation_context_json",
+  "matched_promos_json",
+  "rejected_promos_json",
+  "candidate_sets_json",
+  "recommended_set_json",
+  "selected_set_json",
+  "merchandise_discount_minor",
+  "taxable_subtotal_minor",
+  "final_total_minor",
+  "created_at",
 ].join(", ");
 
 export function createSupabaseCheckoutDataSource(
@@ -1136,7 +1795,9 @@ export function createSupabaseCheckoutDataSource(
       );
     },
     async listCartItems(cartId) {
-      return queryMany<CheckoutCartItemRow>(
+      const cartItems = await queryMany<
+        Omit<CheckoutCartItemRow, "category_id">
+      >(
         supabase
           .from("cart_items")
           .select(
@@ -1145,6 +1806,30 @@ export function createSupabaseCheckoutDataSource(
           .eq("cart_id", cartId),
         `List checkout cart items ${cartId}`,
       );
+      if (cartItems.length === 0) {
+        return [];
+      }
+      const productRows = await queryMany<{
+        readonly id: string;
+        readonly category_id: string;
+      }>(
+        supabase
+          .from("products")
+          .select("id, category_id")
+          .in(
+            "id",
+            cartItems.map((item) => item.product_id),
+          ),
+        `List checkout cart product categories ${cartId}`,
+      );
+      const categoryByProductId = new Map(
+        productRows.map((product) => [product.id, product.category_id]),
+      );
+
+      return cartItems.map((item) => ({
+        ...item,
+        category_id: categoryByProductId.get(item.product_id) ?? "",
+      }));
     },
     async listShippingOptions(marketId) {
       return queryMany<CheckoutShippingOptionRow>(
@@ -1225,6 +1910,128 @@ export function createSupabaseCheckoutDataSource(
           .eq("store_id", storeId),
         `List store inventory ${storeId}`,
       );
+    },
+    async listPromoRules(input) {
+      return queryMany<CheckoutPromoRuleRow>(
+        supabase
+          .from("promo_rules")
+          .select(
+            [
+              "id",
+              "profile_id",
+              "market_id",
+              "code",
+              "promo_type",
+              "discount_type",
+              "discount_value",
+              "min_merchandise_subtotal_minor",
+              "starts_at",
+              "ends_at",
+              "is_stackable",
+              "priority",
+              "is_active",
+            ].join(", "),
+          )
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List promo rules",
+      );
+    },
+    async listPromoRuleRegions(input) {
+      return queryMany<CheckoutPromoRuleRegionRow>(
+        supabase
+          .from("promo_rule_regions")
+          .select(
+            "promo_rule_id, country_code, state, county, postal_code_prefix, include_exclude",
+          )
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List promo rule regions",
+      );
+    },
+    async listPromoRuleProducts(input) {
+      return queryMany<CheckoutPromoRuleProductRow>(
+        supabase
+          .from("promo_rule_products")
+          .select("promo_rule_id, product_id, category_id, include_exclude")
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List promo rule products",
+      );
+    },
+    async listPromoCompatibility(input) {
+      return queryMany<CheckoutPromoCompatibilityRow>(
+        supabase
+          .from("promo_compatibility")
+          .select("promo_rule_id, compatible_promo_rule_id, compatibility")
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List promo compatibility",
+      );
+    },
+    async getPromoEvaluationById(id) {
+      return queryOne<CheckoutPromoEvaluationRow>(
+        supabase
+          .from("promo_evaluations")
+          .select(promoEvaluationColumns)
+          .eq("id", id)
+          .maybeSingle(),
+        `Load promo evaluation ${id}`,
+      );
+    },
+    async createPromoEvaluation(evaluation, lines) {
+      const createdEvaluation = await queryRequired<CheckoutPromoEvaluationRow>(
+        supabase
+          .from("promo_evaluations")
+          .insert({
+            id: evaluation.id,
+            profile_id: evaluation.profile_id,
+            market_id: evaluation.market_id,
+            checkout_draft_id: evaluation.checkout_draft_id,
+            order_id: evaluation.order_id,
+            evaluation_context_json: evaluation.evaluation_context_json,
+            matched_promos_json: evaluation.matched_promos_json,
+            rejected_promos_json: evaluation.rejected_promos_json,
+            candidate_sets_json: evaluation.candidate_sets_json,
+            recommended_set_json: evaluation.recommended_set_json,
+            selected_set_json: evaluation.selected_set_json,
+            merchandise_discount_minor: evaluation.merchandise_discount_minor,
+            taxable_subtotal_minor: evaluation.taxable_subtotal_minor,
+            final_total_minor: evaluation.final_total_minor,
+            created_at: evaluation.created_at,
+          })
+          .select(promoEvaluationColumns)
+          .single(),
+        "Create promo evaluation",
+      );
+
+      if (lines.length > 0) {
+        await queryMany<CheckoutPromoEvaluationLineRow>(
+          supabase
+            .from("promo_evaluation_lines")
+            .insert(
+              lines.map((line) => ({
+                id: line.id,
+                promo_evaluation_id: line.promo_evaluation_id,
+                promo_rule_id: line.promo_rule_id,
+                code_snapshot: line.code_snapshot,
+                evaluation_status: line.evaluation_status,
+                rejection_reason: line.rejection_reason,
+                stack_group: line.stack_group,
+                discount_minor: line.discount_minor,
+                taxable_subtotal_effect_minor:
+                  line.taxable_subtotal_effect_minor,
+                final_total_effect_minor: line.final_total_effect_minor,
+                explanation: line.explanation,
+                sort_order: line.sort_order,
+              })),
+            )
+            .select("id"),
+          "Create promo evaluation lines",
+        );
+      }
+
+      return createdEvaluation;
     },
   };
 }
