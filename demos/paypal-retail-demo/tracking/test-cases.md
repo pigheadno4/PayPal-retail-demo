@@ -103,6 +103,9 @@
 - [x] Supabase-backed cart repository adds released products with current prices, caps quantities, and returns updated cart totals.
 - [x] Supabase-backed cart repository merges guest carts into authenticated carts, refreshes merged prices, and marks the guest cart merged.
 - [x] Supabase-backed cart repository refreshes stale prices and keeps unreleased items in cart with checkout blocked.
+- [x] Checkout draft API route contracts cover draft create/refresh, fulfillment switch, delivery address/option updates, and pickup location/store/date updates.
+- [x] Checkout draft API route contracts pass buyer auth context and guest cart binding headers to the repository boundary.
+- [x] Checkout draft API route contracts reject malformed fulfillment, address, and pickup-date input with buyer-safe errors.
 - [ ] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows

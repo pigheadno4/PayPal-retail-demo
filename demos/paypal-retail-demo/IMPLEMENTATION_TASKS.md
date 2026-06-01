@@ -198,6 +198,8 @@ Verification:
   - [x] Cart route contracts and repository boundary.
   - [x] Supabase-backed cart repository and live server wiring.
 - [ ] Implement checkout draft create/update APIs for Delivery and Pickup tabs.
+  - [x] Checkout route contracts and repository boundary.
+  - [ ] Supabase-backed checkout draft repository and live server wiring.
 - [ ] Implement promo evaluate/apply/remove APIs.
 - [ ] Implement guest order lookup API.
 

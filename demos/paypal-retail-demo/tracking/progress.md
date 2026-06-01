@@ -74,3 +74,4 @@
 - Added the Supabase-backed cart repository with TDD: guest cart creation with hashed client-secret storage, existing guest cart verification, current-price add-to-cart with quantity caps, authenticated cart merge, stale-price refresh, and unreleased checkout blockers.
 - Wired live server startup to attach buyer auth, guest cart middleware, and the Supabase cart repository so `/api/cart` uses real app-schema persistence.
 - Kept merge behavior aligned with login/register cart sync by refreshing merged lines against canonical product rules before returning the authenticated cart.
+- Added the checkout draft API route surface with TDD: draft create/refresh, fulfillment switching, delivery shipping/billing/shipping-option updates, pickup location/store/date updates, buyer/auth/cart context propagation, and buyer-safe validation errors. Supabase-backed checkout persistence remains queued as the next slice.

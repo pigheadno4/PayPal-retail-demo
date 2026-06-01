@@ -84,3 +84,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - Cart repository responses should always return the full cart snapshot after a mutation, because the UI needs refreshed item IDs, prices, checkout eligibility, totals, and adjustment explanations.
 - Login/register merge should refresh the merged cart against canonical product rules before returning it, so stale guest-cart price snapshots do not survive into the authenticated checkout path.
 - Unreleased or otherwise non-purchasable items can remain in the cart but must return `checkout_eligible: false`; checkout/payment flows can then block the action without silently deleting buyer intent.
+
+## Checkout API Surface
+- Checkout draft routes should mirror the planned accordion steps so the web UI and future mobile clients can call the same step-specific endpoints.
+- Route-level validation should normalize address and pickup-location country codes before the repository performs tax, shipping, promo, inventory, or store-distance calculations.
+- Delivery and Pickup tab state should remain separate in the repository response; the route layer only validates inputs and passes buyer/cart/storefront context through.

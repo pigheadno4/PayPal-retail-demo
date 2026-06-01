@@ -46,4 +46,5 @@
 - [x] Add Admin profile/market switch API surface for Milestone 6.
 - [x] Add cart create/read/add/update/delete/merge/refresh API surface for Milestone 6.
 - [x] Add Supabase-backed cart repository for Milestone 6 cart APIs.
-- [ ] Start Milestone 6 checkout draft APIs for Delivery and Pickup accordion flows.
+- [x] Start Milestone 6 checkout draft API surface for Delivery and Pickup accordion flows.
+- [ ] Add Supabase-backed checkout draft repository and live server wiring.

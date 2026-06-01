@@ -15,6 +15,10 @@ import type { AdminProfileMarketRepository } from "./repositories/adminRepositor
 import { createAdminRouter } from "./routes/admin.js";
 import { createCartRouter, type CartRepository } from "./routes/cart.js";
 import {
+  createCheckoutRouter,
+  type CheckoutRepository,
+} from "./routes/checkout.js";
+import {
   createCatalogRouter,
   type CatalogRepository,
 } from "./routes/catalog.js";
@@ -30,6 +34,11 @@ export interface CreateAppInput {
   };
   readonly cart?: {
     readonly cartRepository: CartRepository;
+    readonly authVerifier: SupabaseAuthVerifier;
+    readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
+  };
+  readonly checkout?: {
+    readonly checkoutRepository: CheckoutRepository;
     readonly authVerifier: SupabaseAuthVerifier;
     readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   };
@@ -99,6 +108,23 @@ export function createApp(input: CreateAppInput = {}) {
           ? {
               activeStorefrontContextStore:
                 input.cart.activeStorefrontContextStore,
+            }
+          : {}),
+      }),
+    );
+  }
+
+  if (input.checkout) {
+    app.use(
+      "/api",
+      createBuyerAuthMiddleware({ supabase: input.checkout.authVerifier }),
+      guestCartMiddleware,
+      createCheckoutRouter({
+        checkoutRepository: input.checkout.checkoutRepository,
+        ...(input.checkout.activeStorefrontContextStore
+          ? {
+              activeStorefrontContextStore:
+                input.checkout.activeStorefrontContextStore,
             }
           : {}),
       }),
