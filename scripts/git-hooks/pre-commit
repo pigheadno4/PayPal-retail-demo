@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Validates the agent instruction structure before each commit.
+# Enable with: git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+exec "$repo_root/scripts/check-agent-system.sh"

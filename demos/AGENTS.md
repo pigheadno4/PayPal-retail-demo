@@ -14,17 +14,8 @@ Web plus backend, one PSP flow, or meaningful state. Requires `AGENTS.md`, `CLAU
 ### Complex Demo
 Multiple PSPs, multiple platforms, subscriptions, vaulting, webhooks, Supabase, mobile apps, or customer-facing flows. Requires the full lifecycle in `NEW_DEMO_PROTOCOL.md`.
 
-## Complex Demo Lifecycle
-- Start with brainstorming. Do not code immediately.
-- Clarify purpose, audience, payment products, platforms, and success criteria.
-- Consult `/Users/tengtao/Development/wiki-v2` for PayPal or Stripe details when relevant.
-- Create or update `DEMO.md`, `DESIGN.md`, and `IMPLEMENTATION_PLAN.md`.
-- Add TDD and verification strategy before implementation.
-- Run UI/UX review for customer-facing demos.
-- Create tracking files before implementation starts.
-- Extract long-lived guardrails into the demo-level `AGENTS.md` after planning.
-- Implement task by task and update tracking files after each completed task.
-- Promote reusable lessons into the root `learnings/` pool at milestones.
+## New Demo Lifecycle
+The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start there. The core rule: start with brainstorming, do not code immediately.
 
 ## TDD Rules
 - Define expected behavior before implementation.
@@ -34,9 +25,13 @@ Multiple PSPs, multiple platforms, subscriptions, vaulting, webhooks, Supabase, 
 - Do not report completion until verification is run or the blocker is documented.
 
 ## Tracking Rules
-Each standard or complex demo should maintain:
+Each standard or complex demo should maintain (this is the canonical tracking-file list; other files point here):
 - `tracking/todos.md`
 - `tracking/progress.md`
 - `tracking/debug.md`
 - `tracking/test-cases.md`
 - `tracking/learnings.md`
+
+## Reusable Learnings
+- Before solving a difficult payment, PSP, architecture, mobile, or demo-ops problem, search `learnings/INDEX.md` and the `learnings/` pool first.
+- Record raw lessons in a demo's `tracking/learnings.md`; promote reusable ones into `learnings/` at milestones. Curation rules live in `learnings/AGENTS.md`.

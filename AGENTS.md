@@ -18,9 +18,13 @@ This repository is a payment demo pool for creating customer-facing, sales-facin
 - Clearly separate demo assumptions from PSP-confirmed behavior.
 
 ## Knowledge Sources
-- When PayPal or Stripe integration details matter, consult `/Users/tengtao/Development/wiki-v2`.
-- Before using `wiki-v2`, read and follow `/Users/tengtao/Development/wiki-v2/AGENTS.md`.
-- Extract relevant conclusions into `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, or learning entries. Do not paste large wiki sections into AGENTS.md.
+- For PayPal or Stripe integration details, use the payment wiki. Its location and usage rules live in `KNOWLEDGE_SOURCES.md` (the one place the absolute path is recorded).
+- Extract relevant conclusions into a demo's `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, or a learning entry. Do not paste large wiki sections into AGENTS.md.
+
+## Planning Artifacts
+- A demo's `DEMO.md`, `DESIGN.md`, and `IMPLEMENTATION_PLAN.md` (inside the demo folder) are the canonical planning docs.
+- When superpowers brainstorming or writing-plans runs for a demo, write outputs into those demo docs — not into `docs/superpowers/specs/`.
+- The canonical new-demo lifecycle is `demos/NEW_DEMO_PROTOCOL.md`. Do not restate its steps elsewhere.
 
 ## Instruction Maintenance
 - Keep AGENTS.md short and high-signal.
@@ -28,3 +32,4 @@ This repository is a payment demo pool for creating customer-facing, sales-facin
 - If a rule is local to demos, put it under `demos/AGENTS.md`.
 - If a rule is local to one demo, put it under that demo's AGENTS.md after planning.
 - Treat instruction files like code: review, prune, and update them when behavior proves a rule is missing or stale.
+- After changing the instruction structure, run `scripts/check-agent-system.sh` (a committed pre-commit hook in `scripts/git-hooks/` runs it automatically).

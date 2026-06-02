@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status (2026-06-02): historical build record.** This plan's embedded file contents are a snapshot of the original scaffolding and are now stale in places (wiki path, lifecycle wording). The canonical live sources are the actual repo files — root `AGENTS.md`, `KNOWLEDGE_SOURCES.md`, `demos/AGENTS.md`, `demos/NEW_DEMO_PROTOCOL.md`, `learnings/`. Do not copy content out of this document; edit the live files instead.
+
 **Goal:** Build a reusable AGENTS.md, template, tracking, and learning-pool system for payment demo development.
 
 **Architecture:** `AGENTS.md` is the canonical rule source. `CLAUDE.md` files are thin wrappers. Demo-specific requirements live in demo docs and plans; long-lived guardrails live in local AGENTS.md files. Reusable knowledge is promoted from demo tracking files into a root learning pool.

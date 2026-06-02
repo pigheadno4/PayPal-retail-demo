@@ -1,5 +1,7 @@
 # {{DEMO_NAME}}
 
+Complexity: simple
+
 ## Audience
 {{PRIMARY_AUDIENCE}}
 

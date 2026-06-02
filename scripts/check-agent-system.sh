@@ -4,6 +4,7 @@ set -euo pipefail
 required_files=(
   "AGENTS.md"
   "CLAUDE.md"
+  "KNOWLEDGE_SOURCES.md"
   "demos/AGENTS.md"
   "demos/CLAUDE.md"
   "demos/NEW_DEMO_PROTOCOL.md"
@@ -47,5 +48,10 @@ grep -q "@AGENTS.md" demos/CLAUDE.md
 grep -q "@AGENTS.md" learnings/CLAUDE.md
 grep -q "Payment Flow Map" demos/_templates/complex-demo/DEMO.md
 grep -q "Learning Pool Rules" learnings/AGENTS.md
+
+# Demo templates must declare their complexity level.
+grep -q "Complexity: simple" demos/_templates/simple-demo/DEMO.md
+grep -q "Complexity: standard" demos/_templates/standard-demo/DEMO.md
+grep -q "Complexity: complex" demos/_templates/complex-demo/DEMO.md
 
 echo "Agent system structure looks good."

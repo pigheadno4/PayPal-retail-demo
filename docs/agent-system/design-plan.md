@@ -2,6 +2,8 @@
 
 Date: 2026-05-24
 
+> **Status (2026-06-02): historical design rationale, not a source of truth.** The canonical instruction sources are the live files in the repo: root `AGENTS.md`, `KNOWLEDGE_SOURCES.md`, `demos/AGENTS.md`, `demos/NEW_DEMO_PROTOCOL.md` (canonical new-demo lifecycle), `learnings/AGENTS.md`, and `learnings/INDEX.md`. Where this document restates lifecycle steps, the wiki path, or rule text, the live files win. Kept for the design reasoning.
+
 ## Purpose
 
 This document proposes a shared AGENTS.md strategy for a payment demo pool. The repo will be used by an integration engineer to create, compare, and present payment solution demos for customers, sales teams, and internal solution exploration.
