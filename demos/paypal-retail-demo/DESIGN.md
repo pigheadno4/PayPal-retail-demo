@@ -1,9 +1,11 @@
 # PayPal Retail Demo Design
 
 ## UX Goal
+
 Create a customer-ready collectible retail demo that feels like a real POP MART storefront while proving a broad PayPal payment story. PayPal should be visible through official payment surfaces and Pay Later messages, not through heavy homepage co-branding.
 
 ## Main Screens
+
 - Homepage
 - Category/catalog page
 - Product detail page
@@ -20,6 +22,7 @@ Create a customer-ready collectible retail demo that feels like a real POP MART 
 ## Profiles And Assets
 
 ### POP MART Profile
+
 - Default active profile.
 - Buyer storefront should look like a POP MART storefront.
 - No visible "POP MART x PayPal Demo" label in buyer header/hero.
@@ -31,6 +34,7 @@ Create a customer-ready collectible retail demo that feels like a real POP MART 
 - Do not apply the generic profile's vintage blue/amber/cream direction to the POP MART buyer storefront.
 
 ### Generic Profile
+
 - Brand: MochiToy Studio.
 - Storefront visual system: vintage blue, amber, cream direction.
 - Product style: fictional cute designer-toy collectibles.
@@ -38,7 +42,9 @@ Create a customer-ready collectible retail demo that feels like a real POP MART 
 - Requires 25 products, 5 categories, and 3-4 generated/original images per product.
 
 ### Branding
+
 PayPal appears only in:
+
 - official buttons
 - Pay Later messages
 - payment method rows
@@ -49,6 +55,7 @@ PayPal appears only in:
 No PayPal-heavy hero, header, nav, or promotional co-branding.
 
 ## Visual System Rules
+
 - Favor product imagery, collectible character art, and retail merchandising density over abstract decorative effects.
 - Avoid heavy glassmorphism, blurred translucent panels, large gradients, and decorative orbs; these reduce readability and do not match the POP MART storefront goal.
 - Use restrained motion: hover/focus transitions around 150-300ms, with `prefers-reduced-motion` support.
@@ -57,6 +64,7 @@ No PayPal-heavy hero, header, nav, or promotional co-branding.
 - Text contrast must meet at least 4.5:1 for normal text. Do not communicate inventory, promo, release, or error state by color alone.
 
 ## Accessibility And Form Rules
+
 - Every meaningful product, banner, and category image needs descriptive alt text.
 - Form errors use `role="alert"` or `aria-live` and should move focus to the first invalid field after submit.
 - Accordions move focus to the newly expanded step after successful submit.
@@ -65,7 +73,9 @@ No PayPal-heavy hero, header, nav, or promotional co-branding.
 - Calendar dates, inventory status, promo results, and lifecycle states must use text or icons in addition to color.
 
 ## Homepage
+
 Homepage includes:
+
 - Hero
 - Hot sales
 - Categories
@@ -78,6 +88,7 @@ Homepage includes:
 Hot sales and popular series use curated seed flags.
 
 ### New Arrivals Calendar
+
 - Interactive date selection.
 - Dates with release activity use an outlined/unfilled circle.
 - Selected date shows related release products.
@@ -87,6 +98,7 @@ Hot sales and popular series use curated seed flags.
 - Keyboard users can move between dates and open the selected date's product list.
 
 Future-release PDP:
+
 - Status: not released / coming soon.
 - Add to cart blocked.
 - PayPal/Pay Later blocked or hidden.
@@ -94,9 +106,11 @@ Future-release PDP:
 - Preorder payment semantics are future phase.
 
 ## Category Page
+
 V1 has filters only, no keyword search.
 
 Filters:
+
 - price
 - availability
 - category/series
@@ -104,14 +118,17 @@ Filters:
 - pickup availability
 
 Pickup filter:
+
 - enabled for logged-in buyer with default address or guest with ZIP/postcode
 - disabled with hint if no location context exists
 - Filter drawers and chips show applied count and provide a clear reset action.
 
 ## Product Detail Page
+
 PDP focuses on the item.
 
 Includes:
+
 - 3-4 image gallery
 - product introduction
 - product status
@@ -125,9 +142,11 @@ Includes:
 No pickup hint on PDP.
 
 ## Cart And Minicart
+
 PDP/cart/minicart PayPal and Pay Later buttons are delivery express only.
 
 Cart:
+
 - cart items and quantities
 - amount-aware Pay Later message
 - checkout button
@@ -136,6 +155,7 @@ Cart:
 - text hint that Pickup can be selected on checkout page before payment
 
 Minicart:
+
 - compact item summary
 - amount-aware Pay Later message
 - view cart / checkout
@@ -146,13 +166,16 @@ Minicart:
 - no pickup button
 
 ## Checkout
+
 Checkout is one `/checkout` page with top-level tabs:
+
 - Delivery
 - Pickup
 
 Each tab has its own accordion flow. Order Summary stays visible and reflects active tab draft totals/context.
 
 Checkout steps must define these UI states:
+
 - idle
 - saving
 - saved/collapsed
@@ -162,15 +185,18 @@ Checkout steps must define these UI states:
 - locked after payment session starts
 
 Before payment session:
+
 - buyer can switch tabs
 - Delivery/Pickup states are preserved separately
 - Order Summary updates to active tab
 
 After payment session/order:
+
 - active fulfillment mode is locked
 - switching requires abandoning current payment attempt
 
 ### Delivery Flow
+
 1. Shipping address.
 2. Submit shipping address.
 3. Billing expands.
@@ -182,6 +208,7 @@ After payment session/order:
 9. Payment method expands.
 
 ### Pickup Flow
+
 Logged-in buyer uses default address for ranking. Guest enters ZIP/postcode first.
 
 1. Rank stores.
@@ -194,11 +221,14 @@ Logged-in buyer uses default address for ranking. Guest enters ZIP/postcode firs
 8. Payment method expands.
 
 ### Partial Pickup
+
 Order Summary has:
+
 - Ready for pickup
 - Not available at this store
 
 Unavailable items:
+
 - excluded from BOPIS payment amount
 - remain in original cart
 - do not decrement store inventory
@@ -206,9 +236,11 @@ Unavailable items:
 Store cards must show available and unavailable item counts before the buyer submits the store. If a store is partial, the callout must say that unavailable items stay in the original cart.
 
 ## Payment Method UX
+
 Payment section uses radio-first layout.
 
 Rules:
+
 - PayPal selected by default if eligible.
 - PayPal selected: standalone PayPal button under Order Summary.
 - Pay Later row includes official Pay Later message when eligible.
@@ -225,27 +257,32 @@ Rules:
 Guests cannot save payment methods.
 
 Vaulting:
+
 - PayPal save checkbox under PayPal button.
 - Card save checkbox inside card box.
 - No save checkbox for Pay Later / Apple Pay / Google Pay / Venmo unless official support is confirmed.
 
 ## Express Review And Confirm
+
 Applies only to PayPal/Pay Later express started outside full checkout from PDP/cart/minicart.
 
 Flow:
+
 1. Buyer clicks PayPal/Pay Later express.
 2. Backend creates delivery PayPal order.
 3. PayPal shipping/order update flow settles address, shipping, promo, tax, and amount.
 4. Buyer returns to merchant Review and Confirm.
 5. Page shows final synchronized snapshot.
 6. Buyer confirms.
-7. Backend captures.
+7. Backend verifies the locked amount snapshot and captures.
+8. Successful capture updates the order/payment-session state, writes Admin/debug snapshots, decrements inventory, and clears only paid cart items.
 
 Full checkout does not add a separate Review and Confirm page.
 
 ## Promo, Tax, Shipping
 
 ### Calculation Order
+
 1. Product `current_price`.
 2. Merchandise subtotal.
 3. Promo discounts on merchandise subtotal only.
@@ -257,6 +294,7 @@ Full checkout does not add a separate Review and Confirm page.
 Shipping fee is excluded from promo and tax calculations.
 
 ### Promo UX
+
 - Inline in Order Summary.
 - "Add promo code" collapsed behind link.
 - One eligible promo set auto-applies, buyer can remove/change.
@@ -268,17 +306,20 @@ Shipping fee is excluded from promo and tax calculations.
 Promo evaluation snapshots store matched/rejected promos, compatible sets, discount amounts, taxable effects, totals, and timestamp/version.
 
 ## Orders
+
 - Order is created when payment session/order is created.
 - Pending means payment session started but not completed.
 - Cart is not an order.
 - Checkout draft is not an order.
 
 Completed payment:
+
 - clears paid active cart items
 - decrements central inventory for delivery
 - decrements selected store inventory for paid BOPIS items
 
 Pending resume:
+
 - uses pending order snapshot, not current active cart
 - revalidates item availability, prices, inventory, shipping/pickup details, pickup date, tax, and promos
 - creates fresh payment session if existing one is expired/invalid
@@ -286,13 +327,16 @@ Pending resume:
 ## Account And Guest
 
 ### Auth
+
 Email-first modal:
+
 - enter email
 - existing account shows password
 - new account shows password registration
 - registration collects email and password only
 
 ### Guest Checkout
+
 - Guests can complete delivery and BOPIS checkout.
 - Guests cannot vault/save payment methods.
 - Guest lookup uses order number + email.
@@ -301,7 +345,9 @@ Email-first modal:
 - After registration/login with verified email, matching guest orders link to account.
 
 ### Account Settings
+
 Sections:
+
 - Profile info
 - Address book
 - Saved payment methods
@@ -309,21 +355,25 @@ Sections:
 - Reviews submitted
 
 Address book:
+
 - shared across profiles
 - one address can be default shipping and billing
 - default address cannot be deleted until another default is selected
 - checkout save-to-address-book checkbox checked by default
 
 Saved payment:
+
 - user-level, shared across profiles
 - delete action calls PayPal revoke/delete token API where supported
 - simple confirmation dialog
 
 Order detail:
+
 - buyer-facing with status timeline
 - no technical IDs
 
 ## Reviews
+
 - PDP shows seeded and submitted reviews.
 - Reviews are product-scoped.
 - Buyer submits reviews from completed order detail only.
@@ -332,6 +382,7 @@ Order detail:
 - Deleting reopens review eligibility.
 
 ## Inventory
+
 - Central inventory for delivery.
 - Store inventory for BOPIS.
 - No true reservation during checkout.
@@ -340,9 +391,11 @@ Order detail:
 - Inventory is revalidated before payment and on pending resume.
 
 ## BOPIS Payment Semantics
+
 Pickup checkout uses a capture-at-checkout PayPal order with explicit store pickup Create Order fields. The buyer flow must not route through the authorize-at-checkout/capture-at-pickup pattern in v1.
 
 Required Create Order semantics:
+
 - `intent: "CAPTURE"`
 - `shipping_preference: "SET_PROVIDED_ADDRESS"` under PayPal experience context
 - `purchase_units[].shipping.type: "PICKUP_IN_STORE"`
@@ -350,9 +403,11 @@ Required Create Order semantics:
 - receiver name formatted as `s2s ${storeName}`
 
 ## Admin Portal
+
 Route: `/admin`.
 
 Access:
+
 - hidden from buyer UI
 - manual route entry
 - simple env/config passcode
@@ -361,6 +416,7 @@ Access:
 - admin session separate from buyer auth
 
 Scope:
+
 - global profile switch
 - global market switch
 - orders and lifecycle controls
@@ -370,6 +426,7 @@ Scope:
 - runtime debug logs
 
 Information architecture:
+
 - Orders: list, filters, status, fulfillment mode, payment status, and order detail.
 - Order detail: buyer/order summary, lifecycle timeline, total snapshots, promo evaluation lines, PayPal snapshot, inventory effect, and linked webhooks.
 - Webhooks: event list, verification status, linked order/payment session, processing result, and sanitized payload viewer.
@@ -380,16 +437,20 @@ Information architecture:
 No admin user switcher. No reset tools in v1.
 
 Manual lifecycle:
+
 - Delivery: paid -> processing -> shipped -> delivered
 - Pickup: paid -> preparing pickup -> ready for pickup -> picked up
 
 ## Data Model Notes
+
 Profile-scoped:
+
 - products
 - categories
 - reviews through products
 
 Market reference data shared across profiles:
+
 - markets
 - stores
 - pickup dates
@@ -397,6 +458,7 @@ Market reference data shared across profiles:
 - shipping options
 
 Profile-and-market scoped:
+
 - product prices
 - inventory
 - carts
@@ -406,6 +468,7 @@ Profile-and-market scoped:
 - homepage content
 
 User-level/shared:
+
 - auth users
 - addresses
 - saved payment methods
@@ -413,6 +476,7 @@ User-level/shared:
 Order snapshots store addresses, item prices, fulfillment mode, inventory context, promo evaluation, tax, shipping, and totals.
 
 ## Visual QA Gates
+
 - Check responsive screenshots at 375px, 768px, 1024px, and 1440px.
 - Required screenshot pages: homepage, category, PDP, cart, minicart, delivery checkout payment step, pickup checkout partial inventory step, express Review and Confirm, order confirmation, account order detail, and Admin order detail.
 - Verify sticky header and sticky payment bar do not cover content.
@@ -420,6 +484,7 @@ Order snapshots store addresses, item prices, fulfillment mode, inventory contex
 - Verify PayPal buttons/messages render without causing major layout shift.
 
 ## Open Decisions
+
 - Exact PayPal JS SDK v6 APIs for each payment method.
 - Exact PayPal vaulting support per method.
 - Exact PayPal Apple Pay / Google Pay prerequisites.
@@ -427,6 +492,7 @@ Order snapshots store addresses, item prices, fulfillment mode, inventory contex
 - Final Supabase schema naming and RLS model.
 
 ## Future Phases
+
 - Fastlane
 - preorder payment semantics
 - subscriptions/recurring

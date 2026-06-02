@@ -11,6 +11,7 @@
 ---
 
 ## Execution Rules
+
 - Do not start implementation until `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, `DATA_MODEL.md`, and `API_CONTRACT.md` are approved.
 - Use TypeScript for web, server, shared domain modules, tests, and seed tooling.
 - Start implementation with tests for deterministic business logic before UI.
@@ -22,6 +23,7 @@
 ## Planned File Structure
 
 ### Root Demo Files
+
 - `demos/paypal-retail-demo/package.json`: demo-level workspace scripts.
 - `demos/paypal-retail-demo/.env.example`: browser-safe and server-only env names with no secrets.
 - `demos/paypal-retail-demo/README.md`: runbook after commands are real.
@@ -36,6 +38,7 @@
 - `demos/paypal-retail-demo/IMPLEMENTATION_TASKS.md`: task sequencing.
 
 ### Shared Domain
+
 - `demos/paypal-retail-demo/shared/src/money.ts`: minor-unit arithmetic and rounding.
 - `demos/paypal-retail-demo/shared/src/types.ts`: shared DTOs and enums.
 - `demos/paypal-retail-demo/shared/src/market.ts`: market config, provider key, sandbox buyer-country, and market-scoped cart helpers.
@@ -49,12 +52,14 @@
 - `demos/paypal-retail-demo/shared/src/paypal.ts`: PayPal payload types and safe snapshots.
 
 ### Supabase
+
 - `demos/paypal-retail-demo/supabase/config.toml`: local Supabase config if local CLI is used.
 - `demos/paypal-retail-demo/supabase/migrations/`: generated migrations.
 - `demos/paypal-retail-demo/supabase/seed/`: seed data source files.
 - `demos/paypal-retail-demo/supabase/seed/run-seed.ts`: deterministic TypeScript seed runner that can generate SQL and apply through linked/local Supabase CLI without committed secrets.
 
 ### Express Server
+
 - `demos/paypal-retail-demo/server/src/app.ts`: Express app wiring.
 - `demos/paypal-retail-demo/server/src/server.ts`: local server entrypoint.
 - `demos/paypal-retail-demo/server/src/config/env.ts`: env parsing and validation.
@@ -68,6 +73,7 @@
 - `demos/paypal-retail-demo/server/tests/`: API and service tests.
 
 ### Web
+
 - `demos/paypal-retail-demo/web/src/main.tsx`: React entrypoint.
 - `demos/paypal-retail-demo/web/src/app/App.tsx`: routing and app shell.
 - `demos/paypal-retail-demo/web/src/styles/`: design tokens and global CSS.
@@ -85,6 +91,7 @@
 - `demos/paypal-retail-demo/web/tests/`: Playwright tests.
 
 ## Milestone 0: Review And Environment Gate
+
 - [x] Review and approve all planning docs for Milestone 1 scaffold.
 - [x] Confirm local Supabase project strategy: local CLI and remote project.
 - [x] Install or configure the selected Supabase access path before migrations are created.
@@ -96,10 +103,12 @@
 - [x] Update `tracking/todos.md` with accepted Milestone 0 decision changes.
 
 Verification:
+
 - `scripts/check-agent-system.sh` passes from repo root.
 - No secrets are present in docs or tracked files.
 
 ## Milestone 1: Demo Scaffold
+
 - [x] Create demo package/workspace scripts.
 - [x] Create `web`, `server`, `shared`, and `supabase` folders.
 - [x] Add TypeScript, lint, format, and test setup.
@@ -108,12 +117,14 @@ Verification:
 - [x] Add README runbook stub with real commands once scripts exist.
 
 Verification:
+
 - `npm install` succeeds in the demo folder after dependencies are chosen.
 - Typecheck command exists and runs.
 - TypeScript strict mode is enabled for app-owned code unless a specific exception is documented.
 - Unit test command exists and runs with an empty or smoke test suite.
 
 ## Milestone 2: Supabase Schema And Seed
+
 - [x] Create migration for private `app` schema.
 - [x] Create profile, shared market/store/tax/shipping, product price, catalog, release, inventory, buyer, cart, checkout, promo, total snapshot, order, payment, webhook, review, admin, and debug tables from `DATA_MODEL.md`.
 - [x] Add indexes for profile scoping, market lookup, user ownership, cart lookup, order lookup, payment session lookup, promo explanation lookup, and webhook event IDs.
@@ -123,12 +134,14 @@ Verification:
 - [x] Seed guarded buyer/account/order data with auth users, default addresses, saved payment placeholders, reviews, pending orders, completed orders, and lifecycle snapshots.
 
 Verification:
+
 - Migration applies on the linked remote database; clean local apply remains blocked until Docker/local Supabase is available.
 - Storefront/reference seed creates 2 profiles, shared active markets, 5 categories/profile, 25 products/profile, one active price/product/market, 9 stores/market, tax/shipping rows, promo rows, release events, and inventory.
 - Guarded seed creates 5 shared auth users plus account, review, pending order, and completed order scenarios.
 - Seed does not require committed secrets.
 
 ## Milestone 3: Deterministic Domain Logic TDD
+
 - [x] Implement money helpers first.
 - [x] Implement market config helpers for currency, locale, buyer country, Pay Later buyer country, sandbox test buyer country, and PayPal provider key.
 - [x] Implement market-scoped product price lookup.
@@ -146,12 +159,14 @@ Verification:
 - [x] Implement order status transition rules.
 
 Verification:
+
 - Unit tests cover every checked item in `tracking/test-cases.md` under Core Business Logic.
 - Market tests prove carts, prices, and pending orders stay locked to the correct market.
 - Promo tests include the case where `B + C` beats `A` alone.
 - Tax tests prove shipping fee is excluded.
 
 ## Milestone 4: PayPal Payload Builders And Capture Guard TDD
+
 - [x] Implement PayPal delivery full-checkout Create Order builder.
 - [x] Implement PayPal express delivery Create Order builder with server-side shipping callback config.
 - [x] Implement PayPal BOPIS Create Order builder with mandatory v1 pickup fields.
@@ -166,6 +181,7 @@ Verification:
 - [x] Implement sanitized PayPal snapshot storage shape.
 
 Verification:
+
 - Tests assert BOPIS has `intent: "CAPTURE"`, `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, selected store address, and receiver name `s2s ${storeName}`.
 - Tests assert delivery express uses `GET_FROM_FILE` and callback config.
 - Tests assert guests cannot request vaulting.
@@ -178,6 +194,7 @@ Verification:
 - Tests assert capture is blocked on amount mismatch outside rounding tolerance.
 
 ## Milestone 5: Express API Foundation
+
 - [x] Build Express app shell and health endpoint.
 - [x] Add env validation.
 - [x] Add Supabase server client.
@@ -187,11 +204,13 @@ Verification:
 - [x] Add error response format and sanitized debug logger.
 
 Verification:
+
 - API smoke tests cover success and error shapes.
 - Server refuses to start when required server env vars are missing.
 - Debug logs do not include secrets or access tokens.
 
 ## Milestone 6: Catalog, Cart, Checkout Draft APIs
+
 - [x] Implement storefront config, homepage, categories, product list, PDP, and release events APIs.
 - [x] Implement Admin profile/market switch API and active config refresh behavior.
 - [x] Implement cart create/read/add/update/delete/merge/refresh APIs.
@@ -204,6 +223,7 @@ Verification:
 - [x] Implement guest order lookup API.
 
 Verification:
+
 - API tests cover released/unreleased PDP behavior.
 - API tests cover market-scoped catalog prices and profile/market switch config.
 - API tests cover guest cart local ID/secret behavior.
@@ -211,6 +231,7 @@ Verification:
 - API tests cover Delivery and Pickup checkout draft recalculation.
 
 ## Milestone 7: PayPal And Payment APIs
+
 - [x] Implement PayPal auth/client wrapper.
 - [x] Implement PayPal SDK config API.
 - [x] Implement PayPal client token API.
@@ -227,16 +248,21 @@ Verification:
   - [x] Return raw PayPal success/decline response shapes instead of the standard app response envelope.
   - [x] Recalculate selected/default shipping option, tax, pending order totals, payment-session totals, order item tax, and total snapshots.
   - [x] Add promo auto-apply/re-evaluation to the callback with shared promo rules/scopes/compatibility and order-scoped promo snapshots.
-- [ ] Implement capture API with amount consistency guard.
+- [x] Implement capture API with amount consistency guard.
+  - [x] Guard capture against the locked merchant/provider total snapshot before calling PayPal.
+  - [x] Call PayPal Orders capture with `PayPal-Request-Id` and store the sanitized capture response.
+  - [x] Mark successful orders paid/captured, write capture total/lifecycle snapshots, decrement inventory, and clear paid cart items.
 - [ ] Implement webhook verification and processing.
 - [ ] Implement saved payment active/pending/delete flows.
 
 Verification:
+
 - API tests cover payload builders through route calls.
 - Webhook tests reject invalid verification.
 - Capture tests update order, inventory, cart, payment session, and lifecycle events.
 
 ## Milestone 8: Web App Shell And Design System
+
 - [ ] Build React app shell and routing.
 - [ ] Add POP MART-style design tokens and responsive layout primitives.
 - [ ] Add generic MochiToy visual tokens separately so POP MART mode does not inherit the generic blue/amber/cream direction.
@@ -248,12 +274,14 @@ Verification:
 - [ ] Add minicart shell.
 
 Verification:
+
 - App loads with no console errors.
 - Mobile and desktop shells do not overlap content.
 - `/admin` is reachable only by manual route entry and is not linked from buyer UI.
 - Market switch refreshes app config/catalog/cart without a whole-app route reset.
 
 ## Milestone 9: Storefront And Catalog UI
+
 - [ ] Build homepage hero, hot sales, categories, release calendar, Pay Later promo, promo cards, popular series, and footer.
 - [ ] Build release calendar legend and color-independent release state labels.
 - [ ] Build category filters.
@@ -261,6 +289,7 @@ Verification:
 - [ ] Block unreleased product checkout actions and hide reviews.
 
 Verification:
+
 - Calendar release dates render as outlined/unfilled circles.
 - Calendar release state is understandable without relying on color alone.
 - PDP image switching works with 3-4 images.
@@ -268,16 +297,19 @@ Verification:
 - Homepage/category Pay Later promo has no amount.
 
 ## Milestone 10: Cart And Minicart UI
+
 - [ ] Build minicart with item summary, Pay Later amount message, checkout/view-cart actions, PayPal/Pay Later delivery express, and pickup hint text.
 - [ ] Build full cart with quantity editing, Pay Later amount message, checkout action, PayPal/Pay Later delivery express, and pickup hint text.
 - [ ] Keep pickup hints as text only, no pickup button.
 
 Verification:
+
 - Cart/minicart express creates delivery-only payment sessions.
 - Pickup hint appears in cart/minicart and not PDP.
 - Quantity changes refresh Pay Later amount-aware messages.
 
 ## Milestone 11: Checkout UI
+
 - [ ] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
 - [ ] Build Delivery accordion: shipping address, billing address, shipping option, payment.
 - [ ] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
@@ -288,6 +320,7 @@ Verification:
 - [ ] Build mobile sticky payment action for selected non-card methods.
 
 Verification:
+
 - Buyer can switch tabs before payment session starts.
 - Fulfillment mode locks after payment session starts.
 - Pickup partial inventory excludes unavailable items from payment amount but leaves them in cart.
@@ -295,6 +328,7 @@ Verification:
 - Card payment stays inside the expanded card fields box on mobile and desktop.
 
 ## Milestone 12: Payment UI Integration
+
 - [ ] Integrate PayPal SDK v6 provider/loading.
 - [ ] Pass currency, locale, buyer country, Pay Later buyer country, and sandbox test buyer country from backend config into the SDK v6 integration.
 - [ ] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
@@ -307,6 +341,7 @@ Verification:
 - [ ] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
 
 Verification:
+
 - PayPal sandbox renders and captures for Delivery.
 - Sandbox market tests prove the configured test buyer country affects eligibility/message behavior.
 - SDK v6 create-instance options receive `testBuyerCountry` in sandbox/test and omit it in production.
@@ -315,6 +350,7 @@ Verification:
 - Apple Pay/Google Pay/Venmo eligibility behavior is visible in debug/Admin.
 
 ## Milestone 13: Express Review And Confirm
+
 - [ ] Build express Review and Confirm route/page.
 - [ ] Show synchronized PayPal shipping callback totals.
 - [ ] Show final item, shipping, promo, tax, and total snapshot.
@@ -322,10 +358,12 @@ Verification:
 - [ ] Block capture if amount consistency guard fails.
 
 Verification:
+
 - PDP/cart/minicart express returns to merchant Review and Confirm.
 - Full checkout does not add a separate Review and Confirm page.
 
 ## Milestone 14: Account, Guest, Reviews
+
 - [ ] Implement email-first login/register modal.
 - [ ] Implement account settings profile info.
 - [ ] Implement address book with default delete constraints.
@@ -336,12 +374,14 @@ Verification:
 - [ ] Implement review submission/edit/delete from completed order items.
 
 Verification:
+
 - Guest checkout cannot vault.
 - Guest order lookup requires order number and email.
 - Completed delivered/picked-up order allows one active review per order item.
 - Deleting review reopens eligibility.
 
 ## Milestone 15: Admin Portal
+
 - [ ] Build `/admin` passcode gate.
 - [ ] Build profile/market global controls.
 - [ ] Build order list/detail and lifecycle controls.
@@ -352,12 +392,14 @@ Verification:
 - [ ] Build runtime debug logs.
 
 Verification:
+
 - Admin profile/market switch resets active carts/session context only.
 - Manual delivery lifecycle updates buyer timeline.
 - Manual pickup lifecycle updates buyer timeline.
 - Invalid webhooks are visible but do not mutate state.
 
 ## Milestone 16: QA, UX Review, And Demo Polish
+
 - [ ] Run unit/API/UI test suite.
 - [ ] Run manual PayPal sandbox checklist.
 - [ ] Run responsive visual QA at 375px, 768px, 1024px, and 1440px.
@@ -372,6 +414,7 @@ Verification:
 - [ ] Update tracking files and promote reusable learnings.
 
 Verification:
+
 - `scripts/check-agent-system.sh` passes.
 - Demo starts locally from documented commands.
 - Core Delivery and Pickup flows complete in sandbox where eligible.

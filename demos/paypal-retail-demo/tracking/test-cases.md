@@ -1,6 +1,7 @@
 # Test Cases
 
 ## Seed And Database QA
+
 - [x] Storefront/reference seed summary includes 2 profiles, 2 markets, 5 categories/profile, 25 products/profile, 9 stores/market, inventory, tax, shipping, homepage, release, and promo rows.
 - [x] Seed row IDs are deterministic and unique within each seeded table.
 - [x] Generated seed SQL targets the private `app` schema and uses upserts for repeated apply attempts.
@@ -9,6 +10,7 @@
 - [x] Guarded seed slice creates pending and completed orders that support resume, review, and Admin lifecycle demos.
 
 ## Core Business Logic
+
 - [x] Cart merge/sync across guest, login, and multiple devices.
 - [x] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.
 - [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
@@ -31,8 +33,8 @@
 - [ ] Store records are market-scoped and shared across profiles, while store inventory remains profile-and-market scoped.
 - [x] BOPIS store ranking preselects nearest store even if partial.
 - [x] Partial BOPIS excludes unavailable items from payment amount and keeps them in cart.
-- [ ] Delivery inventory decrements central inventory after payment.
-- [ ] BOPIS inventory decrements selected store inventory after payment.
+- [x] Delivery inventory decrements central inventory after payment.
+- [x] BOPIS inventory decrements selected store inventory after payment.
 - [x] PayPal delivery payload builder uses delivery semantics.
 - [x] PayPal BOPIS payload builder uses pickup-store semantics.
 - [x] PayPal BOPIS payload builder sets `intent: "CAPTURE"`.
@@ -82,6 +84,9 @@
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.
 - [x] PayPal express shipping callback auto-applies eligible promo rules, persists explainable promo evaluation rows, links the promo evaluation to the total snapshot, and includes a PayPal discount breakdown.
+- [x] PayPal capture API blocks mismatched amount guards before calling PayPal.
+- [x] PayPal capture gateway calls Orders capture with OAuth access token and `PayPal-Request-Id`, then extracts order/capture status IDs.
+- [x] PayPal capture finalization marks orders paid, sessions captured, writes PayPal/total/lifecycle snapshots, decrements inventory, and clears paid cart items.
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
@@ -121,9 +126,10 @@
 - [x] Applied checkout promos recalculate discount, tax after discount, shipping-excluded tax base, and final draft total.
 - [x] Removing a promo code creates a fresh evaluation and updates the selected draft promo snapshot.
 - [x] Applying an expired or otherwise ineligible selected promo set is rejected instead of silently applying the recommended set.
-- [ ] Completed payment clears only paid cart items from the active cart.
+- [x] Completed payment clears only paid cart items from the active cart.
 
 ## Buyer Flows
+
 - [ ] Homepage calendar marks release dates with outlined circles.
 - [ ] Homepage calendar includes a legend and does not rely on color alone.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
@@ -146,6 +152,7 @@
 - [ ] Review edit/delete updates PDP display.
 
 ## PayPal Sandbox
+
 - [ ] PayPal renders and captures in delivery checkout.
 - [ ] Pay Later message/button renders where eligible.
 - [ ] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
@@ -160,6 +167,7 @@
 - [ ] Valid payment/vaulting webhooks link to orders/payment sessions.
 
 ## Admin Portal
+
 - [ ] `/admin` is hidden from buyer UI.
 - [ ] Admin passcode gate works independently from buyer auth.
 - [x] Profile/market switch resets active carts only.
@@ -172,6 +180,7 @@
 - [ ] Runtime debug logs are visible without exposing secrets.
 
 ## Visual QA
+
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

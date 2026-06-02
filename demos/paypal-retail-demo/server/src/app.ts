@@ -28,6 +28,7 @@ import {
   type PayPalOrderPreparationRepository,
 } from "./routes/paypal.js";
 import type {
+  PayPalCaptureOrderGateway,
   PayPalClientTokenGateway,
   PayPalCreateOrderGateway,
 } from "./paypal/client.js";
@@ -60,7 +61,8 @@ export interface CreateAppInput {
     readonly clientId: string;
     readonly defaultClientTokenDomains: readonly string[];
     readonly clientTokenGateway: PayPalClientTokenGateway;
-    readonly orderGateway?: PayPalCreateOrderGateway;
+    readonly orderGateway?: PayPalCreateOrderGateway &
+      PayPalCaptureOrderGateway;
     readonly orderRepository?: PayPalOrderPreparationRepository;
     readonly authVerifier: SupabaseAuthVerifier;
     readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;

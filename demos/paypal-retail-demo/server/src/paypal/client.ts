@@ -38,7 +38,28 @@ export interface PayPalCreateOrderGateway {
   ) => Promise<PayPalCreateOrderGatewayResponse>;
 }
 
-export type PayPalGateway = PayPalClientTokenGateway & PayPalCreateOrderGateway;
+export interface PayPalCaptureOrderGatewayInput {
+  readonly paypalOrderId: string;
+  readonly paypalRequestId: string;
+}
+
+export interface PayPalCaptureOrderGatewayResponse {
+  readonly paypalOrderId: string;
+  readonly status: string;
+  readonly captureId: string;
+  readonly captureStatus: string;
+  readonly rawResponse: PayPalSnapshotJson;
+}
+
+export interface PayPalCaptureOrderGateway {
+  readonly captureOrder: (
+    input: PayPalCaptureOrderGatewayInput,
+  ) => Promise<PayPalCaptureOrderGatewayResponse>;
+}
+
+export type PayPalGateway = PayPalClientTokenGateway &
+  PayPalCreateOrderGateway &
+  PayPalCaptureOrderGateway;
 
 export interface CreatePayPalClientTokenGatewayInput {
   readonly environment: PayPalEnvironment;
@@ -61,6 +82,14 @@ interface PayPalCreateOrderResponseBody {
   readonly name?: unknown;
   readonly error?: unknown;
   readonly links?: unknown;
+}
+
+interface PayPalCaptureOrderResponseBody {
+  readonly id?: unknown;
+  readonly status?: unknown;
+  readonly name?: unknown;
+  readonly error?: unknown;
+  readonly purchase_units?: unknown;
 }
 
 export function createPayPalClientTokenGateway(
@@ -119,7 +148,7 @@ export function createPayPalClientTokenGateway(
         `${getPayPalApiBaseUrl(input.environment)}/v2/checkout/orders`,
         {
           method: "POST",
-          headers: buildCreateOrderHeaders({
+          headers: buildPayPalJsonHeaders({
             accessToken,
             paypalRequestId: orderInput.paypalRequestId,
             bnCode: input.bnCode ?? null,
@@ -149,6 +178,52 @@ export function createPayPalClientTokenGateway(
             ? responseBody.status
             : "UNKNOWN",
         approvalUrl: extractApprovalUrl(responseBody.links),
+        rawResponse: sanitizeJsonCompatible(responseBody),
+      };
+    },
+    async captureOrder(captureInput) {
+      const accessToken = await requestAccessToken(input, fetchClient);
+      const response = await fetchClient(
+        `${getPayPalApiBaseUrl(input.environment)}/v2/checkout/orders/${encodeURIComponent(
+          captureInput.paypalOrderId,
+        )}/capture`,
+        {
+          method: "POST",
+          headers: buildPayPalJsonHeaders({
+            accessToken,
+            paypalRequestId: captureInput.paypalRequestId,
+            bnCode: input.bnCode ?? null,
+          }),
+        },
+      );
+      const responseBody =
+        (await response.json()) as PayPalCaptureOrderResponseBody;
+
+      if (!response.ok) {
+        throw new Error(
+          `PayPal capture order request failed: ${extractPayPalErrorName(
+            responseBody,
+          )}`,
+        );
+      }
+
+      if (typeof responseBody.id !== "string") {
+        throw new Error("PayPal capture order response is missing id");
+      }
+
+      const capture = extractFirstCapture(responseBody.purchase_units);
+      if (!capture) {
+        throw new Error("PayPal capture order response is missing capture");
+      }
+
+      return {
+        paypalOrderId: responseBody.id,
+        status:
+          typeof responseBody.status === "string"
+            ? responseBody.status
+            : "UNKNOWN",
+        captureId: capture.id,
+        captureStatus: capture.status,
         rawResponse: sanitizeJsonCompatible(responseBody),
       };
     },
@@ -188,7 +263,7 @@ async function requestAccessToken(
   return responseBody.access_token;
 }
 
-function buildCreateOrderHeaders(input: {
+function buildPayPalJsonHeaders(input: {
   readonly accessToken: string;
   readonly paypalRequestId: string;
   readonly bnCode: string | null;
@@ -207,7 +282,10 @@ function getPayPalApiBaseUrl(environment: PayPalEnvironment): string {
     : "https://api-m.sandbox.paypal.com";
 }
 
-function extractPayPalErrorName(body: PayPalOAuthResponseBody): string {
+function extractPayPalErrorName(body: {
+  readonly name?: unknown;
+  readonly error?: unknown;
+}): string {
   if (typeof body.name === "string" && body.name.trim()) {
     return body.name.trim();
   }
@@ -215,6 +293,43 @@ function extractPayPalErrorName(body: PayPalOAuthResponseBody): string {
     return body.error.trim();
   }
   return "unknown";
+}
+
+function extractFirstCapture(
+  purchaseUnits: unknown,
+): { readonly id: string; readonly status: string } | null {
+  if (!Array.isArray(purchaseUnits)) {
+    return null;
+  }
+
+  for (const purchaseUnit of purchaseUnits) {
+    const payments = getObjectProperty(purchaseUnit, "payments");
+    const captures = getObjectProperty(payments, "captures");
+    if (!Array.isArray(captures)) {
+      continue;
+    }
+
+    for (const capture of captures) {
+      const id = getObjectProperty(capture, "id");
+      if (typeof id !== "string" || !id.trim()) {
+        continue;
+      }
+      const status = getObjectProperty(capture, "status");
+      return {
+        id,
+        status: typeof status === "string" ? status : "UNKNOWN",
+      };
+    }
+  }
+
+  return null;
+}
+
+function getObjectProperty(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
 }
 
 function extractApprovalUrl(links: unknown): string | null {

@@ -48,9 +48,7 @@ describe("PayPal client token gateway", () => {
     expect((body as URLSearchParams).get("grant_type")).toBe(
       "client_credentials",
     );
-    expect((body as URLSearchParams).get("response_type")).toBe(
-      "client_token",
-    );
+    expect((body as URLSearchParams).get("response_type")).toBe("client_token");
     expect((body as URLSearchParams).get("domains[]")).toBe(
       "https://checkout.example.test,https://admin.example.test",
     );
@@ -291,6 +289,140 @@ describe("PayPal create order gateway", () => {
       }),
     ).rejects.toThrow(
       "PayPal create order request failed: UNPROCESSABLE_ENTITY",
+    );
+  });
+});
+
+describe("PayPal capture order gateway", () => {
+  it("uses OAuth access token and PayPal-Request-Id to capture an order", async () => {
+    const fetchCalls: FetchCall[] = [];
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      bnCode: "DEMO_BN_CODE",
+      fetch: createFetch(async (url, init) => {
+        fetchCalls.push({ url, init });
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            id: "PAYPAL_ORDER_123",
+            status: "COMPLETED",
+            purchase_units: [
+              {
+                payments: {
+                  captures: [
+                    {
+                      id: "PAYPAL_CAPTURE_123",
+                      status: "COMPLETED",
+                      amount: {
+                        currency_code: "USD",
+                        value: "10.00",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        };
+      }),
+    });
+
+    const response = await gateway.captureOrder({
+      paypalOrderId: "PAYPAL_ORDER_123",
+      paypalRequestId: "request-capture-123",
+    });
+
+    expect(response).toEqual({
+      paypalOrderId: "PAYPAL_ORDER_123",
+      status: "COMPLETED",
+      captureId: "PAYPAL_CAPTURE_123",
+      captureStatus: "COMPLETED",
+      rawResponse: {
+        id: "PAYPAL_ORDER_123",
+        status: "COMPLETED",
+        purchase_units: [
+          {
+            payments: {
+              captures: [
+                {
+                  id: "PAYPAL_CAPTURE_123",
+                  status: "COMPLETED",
+                  amount: {
+                    currency_code: "USD",
+                    value: "10.00",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    expect(fetchCalls).toHaveLength(2);
+    expect(fetchCalls[1]?.url).toBe(
+      "https://api-m.sandbox.paypal.com/v2/checkout/orders/PAYPAL_ORDER_123/capture",
+    );
+    expect(fetchCalls[1]?.init).toEqual({
+      method: "POST",
+      headers: {
+        authorization: "Bearer server-access-token",
+        "content-type": "application/json",
+        "paypal-request-id": "request-capture-123",
+        "paypal-partner-attribution-id": "DEMO_BN_CODE",
+      },
+      body: null,
+    });
+  });
+
+  it("throws sanitized errors for failed PayPal capture responses", async () => {
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      fetch: createFetch(async (url) => {
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+        return {
+          ok: false,
+          status: 422,
+          json: async () => ({
+            name: "UNPROCESSABLE_ENTITY",
+            message: "bad capture",
+            access_token: "should-not-leak",
+          }),
+        };
+      }),
+    });
+
+    await expect(
+      gateway.captureOrder({
+        paypalOrderId: "PAYPAL_ORDER_123",
+        paypalRequestId: "request-capture-123",
+      }),
+    ).rejects.toThrow(
+      "PayPal capture order request failed: UNPROCESSABLE_ENTITY",
     );
   });
 });

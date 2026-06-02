@@ -15,7 +15,10 @@ import {
 } from "../../../shared/src/orderNumbers.js";
 import {
   buildSanitizedPayPalOrderSnapshot,
+  guardPayPalCaptureAmountConsistency,
   planPayPalRequestMetadata,
+  type PayPalCaptureAmountGuardResult,
+  type PayPalCaptureAmountSnapshot,
   type PayPalCurrencyCode,
   type PayPalOrderLineItemInput,
   type PayPalPaymentMethod,
@@ -51,6 +54,8 @@ import type {
   PayPalOrderPreparationRepository,
   PayPalOrderKind,
   PreparePayPalCreateOrderInput,
+  RecordPayPalCaptureResultInput,
+  PreparedPayPalCapture,
 } from "../routes/paypal.js";
 import type { CatalogJson } from "../routes/catalog.js";
 
@@ -182,6 +187,13 @@ export interface PayPalOrderStoreRow {
 
 export interface PayPalOrderStoreInventoryRow {
   readonly store_id: string;
+  readonly product_id: string;
+  readonly available_quantity: number;
+}
+
+export interface PayPalOrderCentralInventoryRow {
+  readonly profile_id: string;
+  readonly market_id: string;
   readonly product_id: string;
   readonly available_quantity: number;
 }
@@ -394,6 +406,16 @@ export interface PayPalOrderTotalSnapshotRow {
   readonly calculation_context_json: CatalogJson;
 }
 
+export interface PayPalOrderLifecycleEventRow {
+  readonly id: string;
+  readonly order_id: string;
+  readonly from_status: PayPalOrderRow["status"] | null;
+  readonly to_status: PayPalOrderRow["status"];
+  readonly actor_type: "system" | "admin" | "webhook";
+  readonly note: string | null;
+  readonly created_at: string;
+}
+
 export interface UpdateCheckoutDraftStatusInput {
   readonly draftId: string;
   readonly status: "payment_started";
@@ -473,6 +495,9 @@ export interface PayPalOrderDataSource {
     fulfillmentMode: FulfillmentMode,
   ) => Promise<PayPalOrderRow | null>;
   readonly getOrderById: (id: string) => Promise<PayPalOrderRow | null>;
+  readonly listOrderItems: (
+    orderId: string,
+  ) => Promise<readonly PayPalOrderItemWriteInput[]>;
   readonly getNextOrderSequence: (input: {
     readonly prefix: OrderNumberPrefix;
     readonly date: string;
@@ -496,6 +521,12 @@ export interface PayPalOrderDataSource {
   readonly listPaymentSessions: (
     orderId: string,
   ) => Promise<readonly PayPalOrderPaymentSessionRow[]>;
+  readonly getPaymentSessionById: (
+    id: string,
+  ) => Promise<PayPalOrderPaymentSessionRow | null>;
+  readonly getPaymentSessionByPayPalOrderId: (
+    paypalOrderId: string,
+  ) => Promise<PayPalOrderPaymentSessionRow | null>;
   readonly updatePaymentSession: (
     paymentSessionId: string,
     patch: Partial<PayPalOrderPaymentSessionRow>,
@@ -506,6 +537,24 @@ export interface PayPalOrderDataSource {
   readonly createPayPalOrderSnapshot: (
     snapshot: ReturnType<typeof buildSanitizedPayPalOrderSnapshot>,
   ) => Promise<void>;
+  readonly createOrderLifecycleEvent: (
+    event: PayPalOrderLifecycleEventRow,
+  ) => Promise<void>;
+  readonly deleteCartItemsByProductIds: (input: {
+    readonly cartId: string;
+    readonly productIds: readonly string[];
+  }) => Promise<void>;
+  readonly decrementCentralInventory: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+    readonly productId: string;
+    readonly quantity: number;
+  }) => Promise<void>;
+  readonly decrementStoreInventory: (input: {
+    readonly storeId: string;
+    readonly productId: string;
+    readonly quantity: number;
+  }) => Promise<void>;
   readonly updateCheckoutDraftStatus: (
     input: UpdateCheckoutDraftStatusInput,
   ) => Promise<void>;
@@ -522,6 +571,7 @@ export interface CreateSupabasePayPalOrderRepositoryInput {
   readonly createTotalSnapshotId?: () => string;
   readonly createPromoEvaluationId?: () => string;
   readonly createPromoEvaluationLineId?: () => string;
+  readonly createOrderLifecycleEventId?: () => string;
   readonly createPayPalRequestId?: () => string;
   readonly hashCartClientSecret?: (secret: string) => string;
 }
@@ -537,6 +587,7 @@ interface PayPalOrderRepositoryDependencies {
   readonly createTotalSnapshotId: () => string;
   readonly createPromoEvaluationId: () => string;
   readonly createPromoEvaluationLineId: () => string;
+  readonly createOrderLifecycleEventId: () => string;
   readonly createPayPalRequestId: () => string;
   readonly hashCartClientSecret: (secret: string) => string;
 }
@@ -598,6 +649,8 @@ export function createSupabasePayPalOrderRepository(
     createPromoEvaluationId: input.createPromoEvaluationId ?? randomUUID,
     createPromoEvaluationLineId:
       input.createPromoEvaluationLineId ?? randomUUID,
+    createOrderLifecycleEventId:
+      input.createOrderLifecycleEventId ?? randomUUID,
     createPayPalRequestId: input.createPayPalRequestId ?? randomUUID,
     hashCartClientSecret:
       input.hashCartClientSecret ?? defaultCartClientSecretHash,
@@ -722,7 +775,213 @@ export function createSupabasePayPalOrderRepository(
     async handleExpressShippingCallback(callbackInput) {
       return handleExpressShippingCallback(dependencies, callbackInput);
     },
+    async prepareCapture(captureInput) {
+      return preparePayPalCapture(dependencies, captureInput.paypalOrderId);
+    },
+    async recordCaptureResult(captureResultInput) {
+      await recordPayPalCaptureResult(dependencies, captureResultInput);
+    },
   };
+}
+
+async function preparePayPalCapture(
+  input: PayPalOrderRepositoryDependencies,
+  paypalOrderId: string,
+): Promise<PreparedPayPalCapture> {
+  const paymentSession =
+    await input.dataSource.getPaymentSessionByPayPalOrderId(paypalOrderId);
+  if (!paymentSession) {
+    throw new Error(
+      `Payment session for PayPal order ${paypalOrderId} was not found`,
+    );
+  }
+
+  const order = await input.dataSource.getOrderById(paymentSession.order_id);
+  if (!order) {
+    throw new Error(`Order ${paymentSession.order_id} was not found`);
+  }
+  if (order.status !== "pending") {
+    throw new Error(`Order ${order.order_number} is not pending capture`);
+  }
+
+  const merchantSnapshot = merchantCaptureSnapshot(order);
+  const providerSnapshot = {
+    ...merchantSnapshot,
+    totalMinor:
+      paymentSession.provider_total_minor ??
+      paymentSession.merchant_total_minor,
+  };
+  const amountGuard = guardPayPalCaptureAmountConsistency({
+    merchantSnapshot,
+    providerSnapshot,
+  });
+
+  if (amountGuard.action === "block_capture") {
+    await input.dataSource.updatePaymentSession(paymentSession.id, {
+      provider_total_minor: providerSnapshot.totalMinor,
+      amount_consistency_status: "mismatch",
+    });
+    return {
+      action: "block",
+      orderNumber: order.order_number,
+      paymentSessionId: paymentSession.id,
+      paypalOrderId,
+      merchantSnapshot,
+      amountGuard,
+    };
+  }
+
+  await input.dataSource.updatePaymentSession(paymentSession.id, {
+    provider_total_minor: providerSnapshot.totalMinor,
+    amount_consistency_status: "matched",
+  });
+
+  return {
+    action: "capture",
+    orderNumber: order.order_number,
+    paymentSessionId: paymentSession.id,
+    paypalOrderId,
+    paypalRequestId: input.createPayPalRequestId(),
+    merchantSnapshot,
+    amountGuard,
+  };
+}
+
+async function recordPayPalCaptureResult(
+  input: PayPalOrderRepositoryDependencies,
+  captureInput: RecordPayPalCaptureResultInput,
+): Promise<void> {
+  const paymentSession = await input.dataSource.getPaymentSessionById(
+    captureInput.paymentSessionId,
+  );
+  if (!paymentSession) {
+    throw new Error(
+      `Payment session ${captureInput.paymentSessionId} was not found`,
+    );
+  }
+
+  const order = await input.dataSource.getOrderById(paymentSession.order_id);
+  if (!order) {
+    throw new Error(`Order ${paymentSession.order_id} was not found`);
+  }
+
+  const invoiceId = requireString(
+    paymentSession.paypal_invoice_id,
+    "PayPal invoice ID",
+  );
+  const orderItems = await input.dataSource.listOrderItems(order.id);
+  const amountConsistencyStatus =
+    captureInput.amountGuard.status === "matched" ? "matched" : "mismatch";
+
+  await input.dataSource.updateOrder(order.id, {
+    status: "paid",
+    payment_status: "captured",
+  });
+  await input.dataSource.updatePaymentSession(paymentSession.id, {
+    status: "captured",
+    paypal_order_id: captureInput.paypalOrderId,
+    paypal_capture_id: captureInput.paypalCaptureId,
+    paypal_request_id: captureInput.paypalRequestId,
+    provider_total_minor: captureInput.merchantSnapshot.totalMinor,
+    amount_consistency_status: amountConsistencyStatus,
+  });
+  await input.dataSource.createPayPalOrderSnapshot(
+    buildSanitizedPayPalOrderSnapshot({
+      paymentSessionId: paymentSession.id,
+      paypalInvoiceId: invoiceId,
+      paypalRequestId: captureInput.paypalRequestId,
+      request: {
+        operation: "capture",
+        paypal_order_id: captureInput.paypalOrderId,
+        paypal_capture_id: captureInput.paypalCaptureId,
+        amount_guard: mapCaptureAmountGuardJson(captureInput.amountGuard),
+      },
+      response: captureInput.response.rawResponse,
+      merchantSnapshot: captureInput.merchantSnapshot,
+    }),
+  );
+  await input.dataSource.createTotalSnapshot({
+    id: input.createTotalSnapshotId(),
+    checkout_draft_id: order.checkout_draft_id,
+    order_id: order.id,
+    payment_session_id: paymentSession.id,
+    fulfillment_mode: order.fulfillment_mode,
+    calculation_stage: "capture",
+    currency_code: order.currency_code,
+    merchandise_subtotal_minor: order.subtotal_minor,
+    product_discount_minor: 0,
+    promo_discount_minor: order.discount_minor,
+    taxable_subtotal_minor: subtractMinor(
+      order.subtotal_minor,
+      order.discount_minor,
+    ),
+    tax_minor: order.tax_minor,
+    shipping_minor: order.shipping_minor,
+    total_minor: order.total_minor,
+    promo_evaluation_id: null,
+    calculation_context_json: {
+      paypal_order_id: captureInput.paypalOrderId,
+      paypal_capture_id: captureInput.paypalCaptureId,
+      paypal_order_status: captureInput.paypalOrderStatus,
+      paypal_capture_status: captureInput.paypalCaptureStatus,
+      amount_guard: mapCaptureAmountGuardJson(captureInput.amountGuard),
+    },
+  });
+  await input.dataSource.createOrderLifecycleEvent({
+    id: input.createOrderLifecycleEventId(),
+    order_id: order.id,
+    from_status: order.status,
+    to_status: "paid",
+    actor_type: "system",
+    note: `PayPal capture completed: ${captureInput.paypalCaptureId}`,
+    created_at: resolveNow(input.now),
+  });
+
+  await decrementCapturedOrderInventory(input, order, orderItems);
+  if (order.cart_id) {
+    await input.dataSource.deleteCartItemsByProductIds({
+      cartId: order.cart_id,
+      productIds: uniqueStrings(orderItems.map((item) => item.product_id)),
+    });
+  }
+}
+
+async function decrementCapturedOrderInventory(
+  input: PayPalOrderRepositoryDependencies,
+  order: PayPalOrderRow,
+  orderItems: readonly PayPalOrderItemWriteInput[],
+): Promise<void> {
+  if (order.fulfillment_mode === "delivery") {
+    for (const item of orderItems) {
+      if (item.fulfillable_quantity > 0) {
+        await input.dataSource.decrementCentralInventory({
+          profileId: order.profile_id,
+          marketId: order.market_id,
+          productId: item.product_id,
+          quantity: item.fulfillable_quantity,
+        });
+      }
+    }
+    return;
+  }
+
+  const checkoutDraft = order.checkout_draft_id
+    ? await input.dataSource.getCheckoutDraftById(order.checkout_draft_id)
+    : null;
+  const storeId = checkoutDraft?.pickup_state_json.selected_store_id ?? null;
+  if (!storeId) {
+    throw new Error(`Pickup order ${order.order_number} is missing store`);
+  }
+
+  for (const item of orderItems) {
+    if (item.fulfillable_quantity > 0) {
+      await input.dataSource.decrementStoreInventory({
+        storeId,
+        productId: item.product_id,
+        quantity: item.fulfillable_quantity,
+      });
+    }
+  }
 }
 
 async function handleExpressShippingCallback(
@@ -1812,6 +2071,37 @@ function buildMerchantTotals(
   };
 }
 
+function merchantCaptureSnapshot(
+  order: PayPalOrderRow,
+): PayPalCaptureAmountSnapshot {
+  return {
+    currencyCode: toPayPalCurrencyCode(order.currency_code),
+    itemTotalMinor: order.subtotal_minor,
+    shippingMinor: order.shipping_minor,
+    taxMinor: order.tax_minor,
+    discountMinor: order.discount_minor,
+    totalMinor: order.total_minor,
+  };
+}
+
+function mapCaptureAmountGuardJson(
+  guard: PayPalCaptureAmountGuardResult,
+): CatalogJson {
+  return {
+    action: guard.action,
+    status: guard.status,
+    can_capture: guard.can_capture,
+    tolerance_minor: guard.tolerance_minor,
+    mismatches: guard.mismatches.map((mismatch) => ({
+      reason: mismatch.reason,
+      expected_minor: mismatch.expected_minor,
+      actual_minor: mismatch.actual_minor,
+      expected_currency_code: mismatch.expected_currency_code,
+      actual_currency_code: mismatch.actual_currency_code,
+    })),
+  };
+}
+
 async function resolveOrder(
   input: PayPalOrderRepositoryDependencies,
   storefrontRows: StorefrontRows,
@@ -2551,6 +2841,25 @@ const paymentSessionColumns = [
   "paypal_config_snapshot_json",
 ].join(", ");
 
+const orderItemColumns = [
+  "id",
+  "order_id",
+  "product_id",
+  "product_sku_snapshot",
+  "product_name_snapshot",
+  "product_description_snapshot",
+  "product_url_snapshot",
+  "product_image_url_snapshot",
+  "unit_price_minor",
+  "quantity",
+  "fulfillable_quantity",
+  "unavailable_quantity",
+  "line_subtotal_minor",
+  "line_discount_minor",
+  "line_tax_minor",
+  "line_total_minor",
+].join(", ");
+
 const promoEvaluationColumns = [
   "id",
   "profile_id",
@@ -2915,6 +3224,15 @@ export function createSupabasePayPalOrderDataSource(
         `Load order ${id}`,
       );
     },
+    async listOrderItems(orderId) {
+      return queryMany<PayPalOrderItemWriteInput>(
+        supabase
+          .from("order_items")
+          .select(orderItemColumns)
+          .eq("order_id", orderId),
+        `List order items ${orderId}`,
+      );
+    },
     async getNextOrderSequence(input) {
       const latest = await queryOne<{ readonly order_number_sequence: number }>(
         supabase
@@ -3000,6 +3318,26 @@ export function createSupabasePayPalOrderDataSource(
         `List payment sessions ${orderId}`,
       );
     },
+    async getPaymentSessionById(id) {
+      return queryOne<PayPalOrderPaymentSessionRow>(
+        supabase
+          .from("payment_sessions")
+          .select(paymentSessionColumns)
+          .eq("id", id)
+          .maybeSingle(),
+        `Load payment session ${id}`,
+      );
+    },
+    async getPaymentSessionByPayPalOrderId(paypalOrderId) {
+      return queryOne<PayPalOrderPaymentSessionRow>(
+        supabase
+          .from("payment_sessions")
+          .select(paymentSessionColumns)
+          .eq("paypal_order_id", paypalOrderId)
+          .maybeSingle(),
+        `Load payment session for PayPal order ${paypalOrderId}`,
+      );
+    },
     async updatePaymentSession(paymentSessionId, patch) {
       return queryRequired<PayPalOrderPaymentSessionRow>(
         supabase
@@ -3029,6 +3367,85 @@ export function createSupabasePayPalOrderDataSource(
           .select("payment_session_id")
           .single(),
         "Create PayPal order snapshot",
+      );
+    },
+    async createOrderLifecycleEvent(event) {
+      await queryRequired<{ readonly id: string }>(
+        supabase
+          .from("order_lifecycle_events")
+          .insert(event as unknown as Record<string, unknown>)
+          .select("id")
+          .single(),
+        `Create order lifecycle event ${event.order_id}`,
+      );
+    },
+    async deleteCartItemsByProductIds(input) {
+      if (input.productIds.length === 0) {
+        return;
+      }
+      await queryMany<unknown>(
+        supabase
+          .from("cart_items")
+          .delete()
+          .eq("cart_id", input.cartId)
+          .in("product_id", input.productIds),
+        `Delete captured cart items ${input.cartId}`,
+      );
+    },
+    async decrementCentralInventory(input) {
+      const currentInventory =
+        await queryRequired<PayPalOrderCentralInventoryRow>(
+          supabase
+            .from("central_inventory")
+            .select("profile_id, market_id, product_id, available_quantity")
+            .eq("profile_id", input.profileId)
+            .eq("market_id", input.marketId)
+            .eq("product_id", input.productId)
+            .single(),
+          `Load central inventory ${input.productId}`,
+        );
+      const nextQuantity = subtractMinor(
+        currentInventory.available_quantity,
+        input.quantity,
+      );
+
+      await queryRequired<{ readonly product_id: string }>(
+        supabase
+          .from("central_inventory")
+          .update({ available_quantity: nextQuantity })
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId)
+          .eq("product_id", input.productId)
+          .select("product_id")
+          .single(),
+        `Decrement central inventory ${input.productId}`,
+      );
+    },
+    async decrementStoreInventory(input) {
+      const currentInventory =
+        await queryRequired<PayPalOrderStoreInventoryRow>(
+          supabase
+            .from("store_inventory")
+            .select("store_id, product_id, available_quantity")
+            .eq("store_id", input.storeId)
+            .eq("product_id", input.productId)
+            .single(),
+          `Load store inventory ${input.productId}`,
+        );
+      const nextQuantity = subtractMinor(
+        currentInventory.available_quantity,
+        input.quantity,
+      );
+
+      await queryRequired<{ readonly product_id: string }>(
+        supabase
+          .from("store_inventory")
+          .update({ available_quantity: nextQuantity })
+          .eq("store_id", input.storeId)
+          .eq("product_id", input.productId)
+          .select("product_id")
+          .single(),
+        `Decrement store inventory ${input.productId}`,
       );
     },
     async updateCheckoutDraftStatus(input) {

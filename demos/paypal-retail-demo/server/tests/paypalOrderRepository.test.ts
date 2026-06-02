@@ -25,6 +25,23 @@ import {
 } from "../src/repositories/paypalOrderRepository.js";
 import type { PayPalCreateOrderOperationContext } from "../src/routes/paypal.js";
 
+interface FakeCentralInventoryRow {
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly product_id: string;
+  available_quantity: number;
+}
+
+interface FakeOrderLifecycleEventRow {
+  readonly id: string;
+  readonly order_id: string;
+  readonly from_status: PayPalOrderRow["status"] | null;
+  readonly to_status: PayPalOrderRow["status"];
+  readonly actor_type: "system" | "admin" | "webhook";
+  readonly note: string | null;
+  readonly created_at: string;
+}
+
 describe("Supabase-backed PayPal order repository", () => {
   it("creates a pending delivery order and payment session from a checkout draft", async () => {
     const dataSource = createPayPalOrderDataSource();
@@ -571,6 +588,315 @@ describe("Supabase-backed PayPal order repository", () => {
       }),
     );
   });
+
+  it("prepares capture with an amount guard and records successful finalization", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.paymentSessions[0] = {
+      ...dataSource.paymentSessions[0]!,
+      paypal_order_id: "PAYPAL_ORDER_123",
+      provider_total_minor: 1000,
+      amount_consistency_status: "matched",
+    };
+    const repository = createRepository(dataSource);
+
+    const preparedCapture = await repository.prepareCapture({
+      paypalOrderId: "PAYPAL_ORDER_123",
+    });
+
+    expect(preparedCapture).toEqual({
+      action: "capture",
+      orderNumber: "DO-20260601-000001",
+      paymentSessionId: "payment_session_existing",
+      paypalOrderId: "PAYPAL_ORDER_123",
+      paypalRequestId: "request_new_1",
+      merchantSnapshot: {
+        currencyCode: "USD",
+        itemTotalMinor: 1000,
+        shippingMinor: 0,
+        taxMinor: 0,
+        discountMinor: 0,
+        totalMinor: 1000,
+      },
+      amountGuard: {
+        action: "allow_capture",
+        status: "matched",
+        can_capture: true,
+        tolerance_minor: 0,
+        mismatches: [],
+      },
+    });
+
+    await repository.recordCaptureResult({
+      paymentSessionId: "payment_session_existing",
+      paypalOrderId: "PAYPAL_ORDER_123",
+      paypalCaptureId: "PAYPAL_CAPTURE_123",
+      paypalOrderStatus: "COMPLETED",
+      paypalCaptureStatus: "COMPLETED",
+      paypalRequestId: "request_new_1",
+      response: {
+        paypalOrderId: "PAYPAL_ORDER_123",
+        status: "COMPLETED",
+        captureId: "PAYPAL_CAPTURE_123",
+        captureStatus: "COMPLETED",
+        rawResponse: {
+          id: "PAYPAL_ORDER_123",
+          status: "COMPLETED",
+          payer: {
+            email_address: "buyer@example.test",
+          },
+          purchase_units: [
+            {
+              payments: {
+                captures: [
+                  {
+                    id: "PAYPAL_CAPTURE_123",
+                    status: "COMPLETED",
+                    amount: {
+                      currency_code: "USD",
+                      value: "10.00",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      merchantSnapshot: preparedCapture.merchantSnapshot,
+      amountGuard: preparedCapture.amountGuard,
+    });
+
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_existing",
+        status: "paid",
+        payment_status: "captured",
+      }),
+    );
+    expect(dataSource.paymentSessions).toContainEqual(
+      expect.objectContaining({
+        id: "payment_session_existing",
+        status: "captured",
+        paypal_capture_id: "PAYPAL_CAPTURE_123",
+        provider_total_minor: 1000,
+        amount_consistency_status: "matched",
+      }),
+    );
+    expect(dataSource.paypalSnapshots).toContainEqual(
+      expect.objectContaining({
+        payment_session_id: "payment_session_existing",
+        paypal_request_id: "request_new_1",
+        request_json: {
+          operation: "capture",
+          paypal_order_id: "PAYPAL_ORDER_123",
+          paypal_capture_id: "PAYPAL_CAPTURE_123",
+          amount_guard: {
+            action: "allow_capture",
+            status: "matched",
+            can_capture: true,
+            tolerance_minor: 0,
+            mismatches: [],
+          },
+        },
+        response_json: expect.objectContaining({
+          id: "PAYPAL_ORDER_123",
+          payer: {
+            email_address: "[redacted]",
+          },
+        }),
+      }),
+    );
+    expect(dataSource.totalSnapshots).toContainEqual(
+      expect.objectContaining({
+        order_id: "order_existing",
+        payment_session_id: "payment_session_existing",
+        calculation_stage: "capture",
+        merchandise_subtotal_minor: 1000,
+        promo_discount_minor: 0,
+        taxable_subtotal_minor: 1000,
+        tax_minor: 0,
+        shipping_minor: 0,
+        total_minor: 1000,
+      }),
+    );
+    expect(dataSource.lifecycleEvents).toContainEqual({
+      id: "order_lifecycle_event_new_1",
+      order_id: "order_existing",
+      from_status: "pending",
+      to_status: "paid",
+      actor_type: "system",
+      note: "PayPal capture completed: PAYPAL_CAPTURE_123",
+      created_at: "2026-06-01T10:00:00.000Z",
+    });
+    expect(dataSource.cartItems).not.toContainEqual(
+      expect.objectContaining({
+        id: "item_user_labubu",
+      }),
+    );
+    expect(dataSource.centralInventory).toContainEqual({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 8,
+    });
+  });
+
+  it("blocks capture preparation when the provider amount no longer matches the merchant total", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.paymentSessions[0] = {
+      ...dataSource.paymentSessions[0]!,
+      paypal_order_id: "PAYPAL_ORDER_123",
+      provider_total_minor: 1001,
+      amount_consistency_status: "mismatch",
+    };
+    const repository = createRepository(dataSource);
+
+    const preparedCapture = await repository.prepareCapture({
+      paypalOrderId: "PAYPAL_ORDER_123",
+    });
+
+    expect(preparedCapture).toEqual({
+      action: "block",
+      orderNumber: "DO-20260601-000001",
+      paymentSessionId: "payment_session_existing",
+      paypalOrderId: "PAYPAL_ORDER_123",
+      merchantSnapshot: {
+        currencyCode: "USD",
+        itemTotalMinor: 1000,
+        shippingMinor: 0,
+        taxMinor: 0,
+        discountMinor: 0,
+        totalMinor: 1000,
+      },
+      amountGuard: {
+        action: "block_capture",
+        status: "mismatch",
+        can_capture: false,
+        tolerance_minor: 0,
+        mismatches: [
+          {
+            reason: "total_mismatch",
+            expected_minor: 1000,
+            actual_minor: 1001,
+            expected_currency_code: "USD",
+            actual_currency_code: "USD",
+          },
+        ],
+      },
+    });
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_existing",
+        status: "pending",
+        payment_status: "started",
+      }),
+    );
+    expect(dataSource.paymentSessions).toContainEqual(
+      expect.objectContaining({
+        id: "payment_session_existing",
+        amount_consistency_status: "mismatch",
+      }),
+    );
+  });
+
+  it("records BOPIS capture finalization against the selected store inventory", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const pickupOrderIndex = dataSource.orders.findIndex(
+      (order) => order.id === "order_existing_pickup",
+    );
+    dataSource.orders[pickupOrderIndex] = {
+      ...dataSource.orders[pickupOrderIndex]!,
+      checkout_draft_id: "draft_pickup",
+    };
+    dataSource.paymentSessions.push({
+      id: "payment_session_pickup",
+      order_id: "order_existing_pickup",
+      provider: "paypal",
+      method: "paypal",
+      status: "created",
+      attempt_number: 1,
+      paypal_order_id: "PAYPAL_ORDER_PICKUP",
+      paypal_capture_id: null,
+      paypal_invoice_id: "PO-20260601-000003",
+      paypal_request_id: "request_pickup_existing",
+      vault_requested: false,
+      merchant_total_minor: 1000,
+      provider_total_minor: 1000,
+      amount_consistency_status: "matched",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      paypal_config_snapshot_json: {},
+    });
+    dataSource.orderItems.push({
+      id: "order_item_pickup",
+      order_id: "order_existing_pickup",
+      product_id: "product_labubu",
+      product_sku_snapshot: "POP-LABUBU-009",
+      product_name_snapshot: "Labubu Macaron Vinyl Face",
+      product_description_snapshot: "A smiling vinyl face blind box.",
+      product_url_snapshot: "/popmart/products/labubu-macaron-vinyl-face",
+      product_image_url_snapshot:
+        "/popmart/products/labubu-macaron-vinyl-face-1.webp",
+      unit_price_minor: 1000,
+      quantity: 1,
+      fulfillable_quantity: 1,
+      unavailable_quantity: 0,
+      line_subtotal_minor: 1000,
+      line_discount_minor: 0,
+      line_tax_minor: 0,
+      line_total_minor: 1000,
+    });
+    const repository = createRepository(dataSource);
+
+    const preparedCapture = await repository.prepareCapture({
+      paypalOrderId: "PAYPAL_ORDER_PICKUP",
+    });
+    if (preparedCapture.action !== "capture") {
+      throw new Error("Expected BOPIS capture to be allowed");
+    }
+
+    await repository.recordCaptureResult({
+      paymentSessionId: "payment_session_pickup",
+      paypalOrderId: "PAYPAL_ORDER_PICKUP",
+      paypalCaptureId: "PAYPAL_CAPTURE_PICKUP",
+      paypalOrderStatus: "COMPLETED",
+      paypalCaptureStatus: "COMPLETED",
+      paypalRequestId: preparedCapture.paypalRequestId,
+      response: {
+        paypalOrderId: "PAYPAL_ORDER_PICKUP",
+        status: "COMPLETED",
+        captureId: "PAYPAL_CAPTURE_PICKUP",
+        captureStatus: "COMPLETED",
+        rawResponse: {
+          id: "PAYPAL_ORDER_PICKUP",
+          status: "COMPLETED",
+        },
+      },
+      merchantSnapshot: preparedCapture.merchantSnapshot,
+      amountGuard: preparedCapture.amountGuard,
+    });
+
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_existing_pickup",
+        status: "paid",
+        payment_status: "captured",
+      }),
+    );
+    expect(dataSource.storeInventory).toContainEqual({
+      store_id: "store_sf",
+      product_id: "product_labubu",
+      available_quantity: 0,
+    });
+    expect(dataSource.centralInventory).toContainEqual({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 9,
+    });
+  });
 });
 
 function createRepository(dataSource: FakePayPalOrderDataSource) {
@@ -581,6 +907,7 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
   let totalSnapshotId = 0;
   let promoEvaluationId = 0;
   let promoEvaluationLineId = 0;
+  let orderLifecycleEventId = 0;
   let requestId = 0;
 
   return createSupabasePayPalOrderRepository({
@@ -595,15 +922,21 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
     createPromoEvaluationId: () => `promo_eval_new_${++promoEvaluationId}`,
     createPromoEvaluationLineId: () =>
       `promo_line_new_${++promoEvaluationLineId}`,
+    createOrderLifecycleEventId: () =>
+      `order_lifecycle_event_new_${++orderLifecycleEventId}`,
     createPayPalRequestId: () => `request_new_${++requestId}`,
     hashCartClientSecret: (secret) => `hash:${secret}`,
   });
 }
 
 interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
+  readonly cartItems: PayPalOrderCartItemRow[];
+  readonly centralInventory: FakeCentralInventoryRow[];
+  readonly storeInventory: PayPalOrderStoreInventoryRow[];
   readonly orders: PayPalOrderRow[];
   readonly orderItems: unknown[];
   readonly totalSnapshots: unknown[];
+  readonly lifecycleEvents: FakeOrderLifecycleEventRow[];
   readonly promoRules: PayPalOrderPromoRuleRow[];
   readonly promoRuleRegions: PayPalOrderPromoRuleRegionRow[];
   readonly promoRuleProducts: PayPalOrderPromoRuleProductRow[];
@@ -818,6 +1151,14 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       available_quantity: 1,
     },
   ];
+  const centralInventory: FakeCentralInventoryRow[] = [
+    {
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 9,
+    },
+  ];
   const selectedPromoEvaluations: PayPalOrderPromoEvaluationRow[] = [
     {
       id: "promo_eval_delivery",
@@ -973,17 +1314,42 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       paypal_config_snapshot_json: {},
     },
   ];
-  const orderItems: unknown[] = [];
+  const orderItems: unknown[] = [
+    {
+      id: "order_item_existing",
+      order_id: "order_existing",
+      product_id: "product_labubu",
+      product_sku_snapshot: "POP-LABUBU-009",
+      product_name_snapshot: "Labubu Macaron Vinyl Face",
+      product_description_snapshot: "A smiling vinyl face blind box.",
+      product_url_snapshot: "/popmart/products/labubu-macaron-vinyl-face",
+      product_image_url_snapshot:
+        "/popmart/products/labubu-macaron-vinyl-face-1.webp",
+      unit_price_minor: 1000,
+      quantity: 1,
+      fulfillable_quantity: 1,
+      unavailable_quantity: 0,
+      line_subtotal_minor: 1000,
+      line_discount_minor: 0,
+      line_tax_minor: 0,
+      line_total_minor: 1000,
+    },
+  ];
   const orderAddresses: unknown[] = [];
   const totalSnapshots: unknown[] = [];
   const paypalSnapshots: unknown[] = [];
+  const lifecycleEvents: FakeOrderLifecycleEventRow[] = [];
   const checkoutDraftStatusUpdates: FakePayPalOrderDataSource["checkoutDraftStatusUpdates"] =
     [];
 
   return {
+    cartItems,
+    centralInventory,
+    storeInventory,
     orders,
     orderItems,
     totalSnapshots,
+    lifecycleEvents,
     promoRules,
     promoRuleRegions,
     promoRuleProducts,
@@ -1161,6 +1527,19 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     async listPaymentSessions(orderId) {
       return paymentSessions.filter((session) => session.order_id === orderId);
     },
+    async getPaymentSessionById(paymentSessionId: string) {
+      return (
+        paymentSessions.find((session) => session.id === paymentSessionId) ??
+        null
+      );
+    },
+    async getPaymentSessionByPayPalOrderId(paypalOrderId: string) {
+      return (
+        paymentSessions.find(
+          (session) => session.paypal_order_id === paypalOrderId,
+        ) ?? null
+      );
+    },
     async updatePaymentSession(paymentSessionId, patch) {
       const index = paymentSessions.findIndex(
         (session) => session.id === paymentSessionId,
@@ -1179,6 +1558,72 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     },
     async createPayPalOrderSnapshot(snapshot) {
       paypalSnapshots.push(snapshot);
+    },
+    async listOrderItems(orderId: string) {
+      return orderItems.filter(
+        (
+          item,
+        ): item is {
+          readonly product_id: string;
+          readonly fulfillable_quantity: number;
+        } =>
+          typeof item === "object" &&
+          item !== null &&
+          "order_id" in item &&
+          (item as { readonly order_id?: unknown }).order_id === orderId &&
+          typeof (item as { readonly product_id?: unknown }).product_id ===
+            "string" &&
+          typeof (item as { readonly fulfillable_quantity?: unknown })
+            .fulfillable_quantity === "number",
+      );
+    },
+    async createOrderLifecycleEvent(event: FakeOrderLifecycleEventRow) {
+      lifecycleEvents.push(event);
+    },
+    async deleteCartItemsByProductIds(input: {
+      readonly cartId: string;
+      readonly productIds: readonly string[];
+    }) {
+      for (let index = cartItems.length - 1; index >= 0; index -= 1) {
+        const item = cartItems[index]!;
+        if (
+          item.cart_id === input.cartId &&
+          input.productIds.includes(item.product_id)
+        ) {
+          cartItems.splice(index, 1);
+        }
+      }
+    },
+    async decrementCentralInventory(input: {
+      readonly profileId: string;
+      readonly marketId: string;
+      readonly productId: string;
+      readonly quantity: number;
+    }) {
+      const inventory = centralInventory.find(
+        (row) =>
+          row.profile_id === input.profileId &&
+          row.market_id === input.marketId &&
+          row.product_id === input.productId,
+      );
+      if (!inventory) {
+        throw new Error(`Central inventory ${input.productId} was not found`);
+      }
+      inventory.available_quantity -= input.quantity;
+    },
+    async decrementStoreInventory(input: {
+      readonly storeId: string;
+      readonly productId: string;
+      readonly quantity: number;
+    }) {
+      const inventory = storeInventory.find(
+        (row) =>
+          row.store_id === input.storeId && row.product_id === input.productId,
+      );
+      if (!inventory) {
+        throw new Error(`Store inventory ${input.productId} was not found`);
+      }
+      inventory.available_quantity -= input.quantity;
     },
     async updateCheckoutDraftStatus(input) {
       checkoutDraftStatusUpdates.push(input);

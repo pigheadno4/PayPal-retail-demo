@@ -1,6 +1,7 @@
 # Progress
 
 ## 2026-05-26
+
 - Brainstormed and approved the flagship PayPal retail demo direction.
 - Selected demo folder name: `paypal-retail-demo`.
 - Confirmed default POP MART profile and reusable MochiToy Studio profile.
@@ -64,6 +65,7 @@
 - Started Milestone 6 storefront APIs with TDD route contracts: `/api/config`, homepage, categories, products, PDP, and release-events routes resolve profile/market context, preserve filter inputs, return standard response envelopes, and handle missing PDP products with buyer-safe 404s.
 
 ## 2026-05-31
+
 - Added the Supabase-backed catalog repository with TDD: profile/market config mapping, homepage sections, categories, product filters, unreleased PDP checkout/review blocking, and PDP-linked release calendar events.
 - Wired the Express server startup to create a service-role Supabase client, attach the app-schema catalog data source, and serve storefront catalog APIs from real Supabase rows.
 - Adjusted the server TypeScript project boundary so server code can consume shared catalog helpers while preserving strict typecheck.
@@ -71,6 +73,7 @@
 - Added the cart API route surface with TDD: active cart read/create contract, add/update/delete item inputs, merge after login/register, refresh triggers, buyer auth context, guest cart binding headers, and buyer-safe validation errors. Supabase-backed cart persistence remains queued as the next slice.
 
 ## 2026-06-01
+
 - Added the Supabase-backed cart repository with TDD: guest cart creation with hashed client-secret storage, existing guest cart verification, current-price add-to-cart with quantity caps, authenticated cart merge, stale-price refresh, and unreleased checkout blockers.
 - Wired live server startup to attach buyer auth, guest cart middleware, and the Supabase cart repository so `/api/cart` uses real app-schema persistence.
 - Kept merge behavior aligned with login/register cart sync by refreshing merged lines against canonical product rules before returning the authenticated cart.
@@ -86,3 +89,9 @@
 - Added PayPal create-order persistence: payment sessions store invoice/request IDs, method, attempt number, merchant totals, and source fingerprints; total snapshots are written for Admin debug; PayPal create-order responses update the payment session and write sanitized `paypal_order_snapshots`.
 - Added PayPal express shipping callback recalculation with TDD: raw PayPal callback responses, raw PayPal decline JSON for invalid callback input, selected/default shipping option handling, tax recalculation excluding shipping, pending order/payment-session total updates, order item tax refresh, and `paypal_shipping_update` total snapshots.
 - Added auto promo re-evaluation to PayPal express shipping callbacks with TDD: callback totals now use shared promo rules/scopes/compatibility, write order-scoped `promo_evaluations` and `promo_evaluation_lines`, include PayPal discount breakdown when an auto promo applies, and store the promo evaluation ID on the shipping-update total snapshot.
+
+## 2026-06-02
+
+- Added the PayPal capture route/gateway/repository slice with TDD: `/api/paypal/orders/:paypalOrderId/capture` prepares capture through the repository amount guard, blocks mismatches before PayPal, calls Orders capture with `PayPal-Request-Id`, and returns a standard app envelope with capture IDs/status plus the guard decision.
+- Added capture finalization persistence: successful captures mark the order paid and payment session captured, write sanitized PayPal capture snapshots, write `capture` total snapshots, add lifecycle events, decrement central or pickup-store inventory, and clear only paid order items from the active cart.
+- Documented the v1 capture snapshot behavior in `API_CONTRACT.md`: PayPal capture responses are stored in full after sanitization, while the guard relies on locked merchant/provider amount snapshots when the minimal capture response does not echo the original full amount breakdown.

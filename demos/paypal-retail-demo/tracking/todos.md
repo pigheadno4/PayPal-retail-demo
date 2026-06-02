@@ -1,6 +1,7 @@
 # Todos
 
 ## Planning
+
 - [x] Review and approve `DEMO.md` for Milestone 1 scaffold.
 - [x] Review and approve `DESIGN.md` for Milestone 1 scaffold.
 - [x] Review and approve `IMPLEMENTATION_PLAN.md` for Milestone 1 scaffold.
@@ -21,6 +22,7 @@
 - [x] Confirm POP MART asset convention under `web/public/assets/popmart/`.
 
 ## Implementation
+
 - [x] Complete Milestone 1 scaffold from `PLAN.md` Task 1.
 - [x] Prepare Milestone 2 Supabase schema/RLS approach before migration files are created.
 - [x] Verify the initial Supabase migration applies against the linked remote Supabase project.
@@ -55,4 +57,5 @@
 - [x] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.
 - [x] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.
 - [x] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks.
+- [x] Add PayPal capture API with amount guard, capture snapshot persistence, paid order finalization, inventory decrement, and paid-cart cleanup.
 - [ ] Add promo auto-apply/re-evaluation into pending-order resume totals.

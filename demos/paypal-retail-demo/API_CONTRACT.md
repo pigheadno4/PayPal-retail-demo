@@ -1,9 +1,11 @@
 # PayPal Retail Demo API Contract
 
 ## Purpose
+
 This document defines the draft Express API contract before implementation. It is a planning artifact and should be updated when route names or payloads change.
 
 ## API Rules
+
 - Browser and future mobile clients call Express APIs, not Supabase tables directly.
 - Payment-sensitive calculations run server-side.
 - Browser-submitted prices, discounts, taxes, shipping fees, and totals are never trusted.
@@ -16,19 +18,23 @@ This document defines the draft Express API contract before implementation. It i
 - PayPal order payloads should include detailed line-item data so buyers can recognize the order from PayPal review, email, and account activity surfaces.
 
 ## Common Request Context
+
 Most APIs derive:
+
 - `profile_id` from global admin-selected active profile or request-safe profile config.
 - `market_id` from active market.
 - buyer identity from Supabase Auth token when present.
 - guest cart identity from `cart_public_id` and cart client secret.
 
 Common headers:
+
 - `Authorization: Bearer <supabase access token>` for logged-in buyers.
 - `x-cart-id: <cart_public_id>` for guest/session cart.
 - `x-cart-secret: <cart client secret>` for guest/session cart mutation.
 - `x-admin-session: <admin session token>` for admin APIs.
 
 ## Response Shape
+
 Default success shape:
 
 ```json
@@ -54,6 +60,7 @@ Default error shape:
 ```
 
 ### `GET /api/health`
+
 Returns API liveness in the standard success envelope.
 
 ```json
@@ -70,6 +77,7 @@ Returns API liveness in the standard success envelope.
 Unknown `/api/*` routes return the standard error envelope with `code: "NOT_FOUND"` and the original request path in `details.path`.
 
 Middleware context:
+
 - Buyer auth middleware sets `request.buyer` to guest when no bearer token exists, or authenticated buyer context after Supabase verifies the bearer token.
 - Guest cart middleware sets `request.guestCart` from paired `x-cart-id` and `x-cart-secret` headers; if only one is present, it returns `GUEST_CART_HEADERS_INCOMPLETE`.
 - Admin session middleware verifies signed `x-admin-session` tokens and sets `request.admin`; invalid or expired tokens return `ADMIN_SESSION_REQUIRED`.
@@ -78,6 +86,7 @@ Middleware context:
 ## Public Storefront APIs
 
 ### `GET /api/config`
+
 Returns active profile, market, feature flags, and buyer-safe PayPal client configuration.
 
 Response includes:
@@ -114,6 +123,7 @@ Response includes:
 ```
 
 Rules:
+
 - `buyer_country` is the shopper country used for market, funding eligibility, and buyer-facing payment behavior.
 - `paylater_buyer_country` is passed to Pay Later message/session setup when Pay Later needs an explicit buyer country.
 - `sandbox_test_buyer_country` is returned only for sandbox/test environments and is used to simulate the PayPal buyer environment in JS SDK v6. Production responses must omit it or return `null`.
@@ -122,7 +132,9 @@ Rules:
 - Existing carts are scoped by `profile_id + market_id`; do not convert cart currency or prices across markets.
 
 ### `GET /api/catalog/home`
+
 Returns homepage sections:
+
 - hero
 - hot sales
 - categories
@@ -132,10 +144,13 @@ Returns homepage sections:
 - popular series
 
 ### `GET /api/catalog/categories`
+
 Returns active categories for current profile.
 
 ### `GET /api/catalog/products`
+
 Query params:
+
 - `category`
 - `price_min`
 - `price_max`
@@ -147,13 +162,16 @@ Query params:
 Returns product cards and filter counts.
 
 Route behavior:
+
 - `profile` and `market` query params are accepted for demo context routing until Admin profile/market state is implemented.
 - Missing `profile` defaults to `popmart`; missing `market` defaults to `US`.
 - `market` is normalized to uppercase before repository lookup.
 - `pickup_available=true|false` is normalized to boolean; invalid boolean and invalid price filters are ignored for the first route-contract slice.
 
 ### `GET /api/catalog/products/:slug`
+
 Returns PDP data:
+
 - product details
 - image gallery
 - price display
@@ -167,11 +185,13 @@ Future release products return `purchasable: false`.
 Missing products return `PRODUCT_NOT_FOUND` in the standard error envelope with the requested slug in `details.slug`.
 
 ### `GET /api/catalog/release-events`
+
 Returns calendar events and related PDP links.
 
 ## Auth And Account APIs
 
 ### `POST /api/auth/email-status`
+
 Request:
 
 ```json
@@ -199,9 +219,11 @@ or:
 ```
 
 ### `GET /api/account`
+
 Returns profile info, default addresses, saved payment summary, and order summary.
 
 ### Address APIs
+
 - `GET /api/account/addresses`
 - `POST /api/account/addresses`
 - `PATCH /api/account/addresses/:id`
@@ -210,23 +232,28 @@ Returns profile info, default addresses, saved payment summary, and order summar
 Delete default address must fail unless another default exists.
 
 ### Order APIs
+
 - `GET /api/account/orders`
 - `GET /api/account/orders/:id`
 
 Order detail returns buyer-facing timeline and review eligibility. Technical IDs stay hidden from buyer UI.
 
 ### Saved Payment APIs
+
 - `GET /api/account/saved-payments`
 - `DELETE /api/account/saved-payments/:id`
 
 Delete flow:
+
 1. Verify saved payment belongs to buyer.
 2. Call PayPal token delete/revoke where supported.
 3. Mark local record deleted.
 4. Return updated list.
 
 ### `GET /api/guest-orders/:orderNumber`
+
 Query params:
+
 - `email`
 
 Returns read-only order detail if order number and email match.
@@ -234,9 +261,11 @@ Returns read-only order detail if order number and email match.
 ## Cart APIs
 
 ### `GET /api/cart`
+
 Returns active cart. Creates an empty guest cart if needed.
 
 ### `POST /api/cart/items`
+
 Request:
 
 ```json
@@ -247,39 +276,48 @@ Request:
 ```
 
 Server verifies:
+
 - product belongs to active profile
 - product is released/purchasable
 - quantity is within demo stock caps
 
 ### `PATCH /api/cart/items/:id`
+
 Updates quantity and revalidates caps.
 
 ### `DELETE /api/cart/items/:id`
+
 Removes item.
 
 ### `POST /api/cart/merge`
+
 Used after login/register.
 
 Rules:
+
 - same product/options: add quantities and cap
 - different product/options: append
 - preserve latest buyer intent unless user explicitly declines merge
 
 ### `POST /api/cart/refresh`
+
 Refreshes server cart from canonical database state before checkout, express payment, minicart open, or cart open.
 
 ## Checkout APIs
 
 ### `POST /api/checkout/drafts`
+
 Creates or refreshes checkout draft from cart.
 
 Response includes:
+
 - delivery tab state
 - pickup tab state
 - order summary draft
 - promo calculation status
 
 ### Delivery Step APIs
+
 - `PATCH /api/checkout/drafts/:id/shipping-address`
 - `PATCH /api/checkout/drafts/:id/billing-address`
 - `PATCH /api/checkout/drafts/:id/shipping-option`
@@ -287,12 +325,14 @@ Response includes:
 Shipping address update triggers tax, shipping, inventory, and promo recalculation. Billing address does not change tax in v1 unless user selects a billing-only market rule later.
 
 ### Pickup Step APIs
+
 - `PATCH /api/checkout/drafts/:id/pickup-location`
 - `PATCH /api/checkout/drafts/:id/pickup-store`
 - `PATCH /api/checkout/drafts/:id/billing-address`
 - `PATCH /api/checkout/drafts/:id/pickup-date`
 
 Pickup store update triggers:
+
 - store inventory check
 - ready/unavailable item split
 - promo recalculation
@@ -300,6 +340,7 @@ Pickup store update triggers:
 - total recalculation
 
 ### Promo APIs
+
 - `POST /api/checkout/drafts/:id/promos/evaluate`
 - `POST /api/checkout/drafts/:id/promos/apply`
 - `DELETE /api/checkout/drafts/:id/promos/:code`
@@ -331,9 +372,11 @@ Discount base excludes shipping.
 ## PayPal APIs
 
 ### `GET /api/paypal/sdk-config`
+
 Returns browser-safe PayPal SDK configuration for the active profile, market, and page context.
 
 Query params:
+
 - `page_type`: `home`, `product-details`, `cart`, `mini-cart`, `checkout`, `admin`
 - `flow`: `standard`, `vaulting`
 - `method`: `paypal`, `paylater`, `card`, `apple_pay`, `google_pay`, `venmo`
@@ -365,6 +408,7 @@ Response:
 ```
 
 Rules:
+
 - Never return PayPal client secret.
 - Return `client_id` for basic PayPal, Pay Later, Venmo, Apple Pay, Google Pay, and non-vault one-time card flows.
 - Set `needs_client_token: true` when the selected flow requires a client token, including card vaulting and PayPal wallet vaulting.
@@ -379,6 +423,7 @@ Rules:
 - Pay Later, Venmo, Apple Pay, and Google Pay UI rows must be hidden unless runtime eligibility says they can render.
 
 Payment method mapping rules:
+
 - PayPal maps to `paypal-payments`, `findEligibleMethods().isEligible("paypal")`, `createPayPalOneTimePaymentSession`, and `<paypal-button>`.
 - Pay Later maps to `paypal-payments` plus `paypal-messages`, `findEligibleMethods().isEligible("paylater")`, `getDetails("paylater")`, `createPayLaterOneTimePaymentSession`, `<paypal-pay-later-button>`, and amount-aware messages.
 - Card maps to `card-fields`, `findEligibleMethods().isEligible("advanced_cards")`, `createCardFieldsOneTimePaymentSession`, and hosted card fields. Its pay button stays inside the card box, including mobile.
@@ -388,6 +433,7 @@ Payment method mapping rules:
 - The method plan returns renderable rows, the selected/default method, required components for renderable rows, and hidden methods with debug reasons.
 
 ### `POST /api/paypal/client-token`
+
 Generates a short-lived PayPal client token for vault-enabled flows.
 
 Request:
@@ -410,6 +456,7 @@ Response:
 ```
 
 Rules:
+
 - Logged-in buyer required.
 - Guest checkout must receive `403 GUEST_VAULTING_NOT_ALLOWED`.
 - Standard one-time flows do not call this endpoint; they use the SDK config `client_id`.
@@ -421,6 +468,7 @@ Rules:
 - Token response must not include client secret or OAuth access token.
 
 Vault attribute rules:
+
 - Vault attributes are included only when the buyer explicitly requests save-for-future and is authenticated.
 - Guests cannot request vault attributes; guest UI must hide/disable save-for-future controls.
 - V1 save-for-future Create Order attributes are supported only for `paypal` and `card`.
@@ -431,11 +479,14 @@ Vault attribute rules:
 - Capture/webhook handling must treat vault status `APPROVED` as pending until a verified vault/payment-token webhook confirms the token.
 
 ### PayPal Order Number And Invoice ID Rules
+
 Internal order numbers use fulfillment-specific prefixes:
+
 - Delivery order: `DO-YYYYMMDD-000001`
 - Pickup/BOPIS order: `PO-YYYYMMDD-000001`
 
 PayPal `purchase_units[].invoice_id` rules:
+
 - First PayPal payment attempt uses the internal order number as `invoice_id`.
 - If a pending order must create a fresh PayPal order after the prior PayPal order/session expired, was cancelled, or failed, append an attempt suffix to keep the PayPal invoice ID unique, for example `DO-20260526-000001-A2`.
 - Store the exact `paypal_invoice_id` on the payment session.
@@ -445,14 +496,17 @@ PayPal `purchase_units[].invoice_id` rules:
 - A changed payload must be treated as a fresh PayPal API request, even when it belongs to the same buyer-facing order.
 
 ### PayPal Line Item Rules
+
 Every PayPal Create Order payload should include detailed item-level information when available.
 
 Required item fields:
+
 - `name`
 - `quantity`
 - `unit_amount`
 
 Preferred item fields:
+
 - `description`
 - `sku`
 - `url`
@@ -461,6 +515,7 @@ Preferred item fields:
 - `tax` when line-level tax allocation can reconcile exactly with `amount.breakdown.tax_total`
 
 Amount reconciliation:
+
 - `sum(items[].unit_amount.value * quantity)` must equal `purchase_units[].amount.breakdown.item_total.value`.
 - If item-level `tax` is passed, sum item taxes must equal `purchase_units[].amount.breakdown.tax_total.value`.
 - Demo order rows store aggregate `order_items.line_tax_minor`; the backend may split a same-product PayPal line into multiple grouped quantities when cents cannot divide evenly across quantity.
@@ -471,9 +526,11 @@ Amount reconciliation:
 - The backend must run an amount consistency check before capture: item total, optional item-level tax total, and final purchase-unit total must match the merchant-calculated snapshot within the configured rounding tolerance.
 
 ### `POST /api/paypal/orders/delivery`
+
 Creates PayPal order for full checkout Delivery flow after checkout draft is finalized.
 
 Rules:
+
 - fulfillment mode is locked to `delivery`
 - full checkout uses the merchant-collected shipping address from the finalized checkout draft
 - use `shipping_preference: "SET_PROVIDED_ADDRESS"` so the selected checkout shipping address remains the order address
@@ -481,9 +538,11 @@ Rules:
 - include detailed item data when available and keep `items[]` reconciled with `amount.breakdown.item_total`
 
 ### `POST /api/paypal/orders/express-delivery`
+
 Creates PayPal order from PDP/cart/minicart delivery express.
 
 Rules:
+
 - fulfillment mode is locked to `delivery`
 - create pending order when session starts
 - use server-side shipping callback config
@@ -494,6 +553,7 @@ Rules:
 - return buyer to merchant Review and Confirm after PayPal approval
 
 ### `POST /api/paypal/orders/bopis`
+
 Creates PayPal order for Pickup checkout.
 
 Mandatory payload semantics:
@@ -558,14 +618,17 @@ Mandatory payload semantics:
 Do not use authorize-at-checkout/capture-at-pickup for v1 BOPIS.
 
 Rules:
+
 - BOPIS uses the selected store as the PayPal purchase unit shipping address.
 - BOPIS amount breakdown excludes shipping fee.
 - Do not attach server-side shipping callback config to v1 BOPIS orders.
 
 ### `POST /api/paypal/orders/:callbackContextId/shipping-callback`
+
 Handles PayPal server-side shipping updates for delivery express.
 
 Server recalculates:
+
 - shipping eligibility
 - selected/default shipping option
 - auto promo set
@@ -575,6 +638,7 @@ Server recalculates:
 The endpoint returns PayPal callback JSON directly, not the app's standard `{ ok, data }` API envelope.
 
 Success response:
+
 - HTTP `200`
 - top-level PayPal order `id`
 - `purchase_units[].reference_id` using the merchant order number
@@ -582,6 +646,7 @@ Success response:
 - `purchase_units[].shipping_options[]` with exactly one selected option
 
 Decline response:
+
 - HTTP `422`
 - `{ "name": "UNPROCESSABLE_ENTITY", "details": [{ "issue": "..." }] }`
 - supported issues include address/country/state/zip errors and unavailable shipping methods
@@ -589,17 +654,20 @@ Decline response:
 Response must keep PayPal amount breakdown consistent. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
+
 Used after:
+
 - full checkout payment approval
 - express Review and Confirm
 - card fields successful submit
 - Apple Pay/Google Pay/Venmo confirmation when eligible
 
 Before capture:
+
 1. Fetch local payment session and order.
 2. Recompute or load final locked merchant snapshot.
-3. Compare merchant total and PayPal/provider amount.
-4. Normalize the PayPal/provider amount into item total, shipping, tax, discount, final total, and currency fields.
+3. Compare merchant total and PayPal/provider amount snapshot.
+4. Normalize the provider amount into item total, shipping, tax, discount, final total, and currency fields when PayPal supplies that breakdown.
 5. Block capture on currency, item total, shipping, tax, discount, or final-total mismatch beyond configured rounding tolerance.
 6. Allow only known rounding tolerance.
 7. Capture if consistent.
@@ -607,14 +675,53 @@ Before capture:
 9. Decrement inventory.
 10. Clear paid cart items.
 
+V1 implementation note:
+
+- The create-order and shipping-update flows persist locked merchant/provider totals before capture.
+- The Orders capture response can be minimal and may not echo the original item/shipping/tax/discount breakdown.
+- When the capture response does not include the full original breakdown, the guard uses the stored provider total snapshot and the locked merchant snapshot, while the full sanitized capture response is still stored for Admin/debug review.
+
 The capture guard returns an explainable decision shape for API/Admin use:
+
 - `action`: `allow_capture` or `block_capture`
 - `status`: `matched` or `mismatch`
 - `can_capture`: boolean
 - `tolerance_minor`
 - `mismatches[]`: reason, merchant expected amount/currency, provider actual amount/currency
 
+Successful app response:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "order_number": "DO-20260601-000001",
+    "payment_session_id": "payment_session_...",
+    "paypal_order_id": "PAYPAL_ORDER_ID",
+    "paypal_capture_id": "PAYPAL_CAPTURE_ID",
+    "paypal_order_status": "COMPLETED",
+    "paypal_capture_status": "COMPLETED",
+    "paypal_request_id": "request-capture-...",
+    "amount_guard": {
+      "action": "allow_capture",
+      "status": "matched",
+      "can_capture": true,
+      "tolerance_minor": 0,
+      "mismatches": []
+    }
+  },
+  "debug_id": "dbg_..."
+}
+```
+
+Blocked response:
+
+- HTTP `409`
+- standard app error envelope with `code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH"`
+- `details.amount_guard` contains the same explainable guard decision shape
+
 Snapshot storage:
+
 - PayPal request/response snapshots are sanitized before writing `app.paypal_order_snapshots`.
 - The storage row keeps `payment_session_id`, `paypal_invoice_id`, `paypal_request_id`, `request_json`, `response_json`, and `merchant_snapshot_json`.
 - `request_json` and `response_json` preserve item-level details and amount breakdowns for Admin explanation.
@@ -622,9 +729,11 @@ Snapshot storage:
 - `merchant_snapshot_json` stores currency and minor-unit item total, shipping, tax, discount, and final total used by capture validation.
 
 ### `POST /api/paypal/webhooks`
+
 Verifies PayPal webhook signature before processing.
 
 Valid events may update:
+
 - payment session status
 - order payment status
 - saved payment active/pending status
@@ -632,12 +741,14 @@ Valid events may update:
 Invalid events are stored as invalid and ignored.
 
 ## Review APIs
+
 - `GET /api/products/:productId/reviews`
 - `POST /api/orders/:orderId/items/:itemId/review`
 - `PATCH /api/reviews/:id`
 - `DELETE /api/reviews/:id`
 
 Create review rules:
+
 - buyer owns order
 - order is delivered or picked up
 - item belongs to order
@@ -646,6 +757,7 @@ Create review rules:
 ## Admin APIs
 
 ### Admin Session
+
 - `POST /api/admin/login`
 - `POST /api/admin/logout`
 - `GET /api/admin/state`
@@ -653,6 +765,7 @@ Create review rules:
 Admin passcode session is separate from buyer auth.
 
 ### Profile And Market
+
 - `PATCH /api/admin/profile-market`
 
 Request:
@@ -669,27 +782,32 @@ Response returns the same config shape as `GET /api/config`.
 Switching profile/market resets active browser cart bindings, checkout drafts, and in-progress payment sessions only. It does not reset orders, inventory, users, saved payments, reviews, or webhooks.
 
 Rules:
+
 - Close minicart/checkout UI after the switch.
 - Create or fetch the active cart for the new `profile_id + market_id`.
 - Pending orders keep their original profile, market, currency, locale, and buyer-country settings. Resume checkout for a pending order must use the order's locked market config, not the current admin-selected market.
 - The returned PayPal `provider_key` should change whenever client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
 
 ### Orders And Lifecycle
+
 - `GET /api/admin/orders`
 - `GET /api/admin/orders/:id`
 - `POST /api/admin/orders/:id/lifecycle`
 
 Allowed manual transitions:
+
 - Delivery: `paid -> processing -> shipped -> delivered`
 - Pickup: `paid -> preparing_pickup -> ready_for_pickup -> picked_up`
 
 ### Inventory And Pickup Dates
+
 - `GET /api/admin/inventory`
 - `PATCH /api/admin/inventory/:id`
 - `GET /api/admin/pickup-dates`
 - `PATCH /api/admin/pickup-dates/:id`
 
 ### Webhooks And Debug
+
 - `GET /api/admin/webhooks`
 - `GET /api/admin/debug-logs`
 

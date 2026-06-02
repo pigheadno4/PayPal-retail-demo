@@ -5,10 +5,14 @@ import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
   PayPalClientTokenGatewayInput,
+  PayPalCaptureOrderGatewayInput,
+  PayPalCaptureOrderGatewayResponse,
   PayPalCreateOrderGatewayInput,
   PayPalCreateOrderGatewayResponse,
 } from "../src/paypal/client.js";
 import type {
+  PreparedPayPalCapture,
+  RecordPayPalCaptureResultInput,
   PayPalCreateOrderOperationContext,
   type HandlePayPalShippingCallbackInput,
   PayPalOrderPreparationRepository,
@@ -432,6 +436,118 @@ describe("PayPal routes", () => {
     expect(orderRepository.shippingCallbackCalls).toEqual([]);
   });
 
+  it("captures PayPal orders only after the repository amount guard allows capture", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/PAYPAL_ORDER_DELIVERY/capture",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order_number: "DO-20260601-000001",
+        payment_session_id: "payment_session_delivery",
+        paypal_order_id: "PAYPAL_ORDER_DELIVERY",
+        paypal_capture_id: "PAYPAL_CAPTURE_DELIVERY",
+        paypal_order_status: "COMPLETED",
+        paypal_capture_status: "COMPLETED",
+        paypal_request_id: "request-capture-delivery",
+        amount_guard: {
+          action: "allow_capture",
+          status: "matched",
+          can_capture: true,
+          tolerance_minor: 0,
+          mismatches: [],
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(orderRepository.prepareCaptureCalls).toEqual([
+      {
+        paypalOrderId: "PAYPAL_ORDER_DELIVERY",
+      },
+    ]);
+    expect(gateway.captureOrderCalls).toEqual([
+      {
+        paypalOrderId: "PAYPAL_ORDER_DELIVERY",
+        paypalRequestId: "request-capture-delivery",
+      },
+    ]);
+    expect(orderRepository.recordCaptureCalls).toEqual([
+      {
+        paymentSessionId: "payment_session_delivery",
+        paypalOrderId: "PAYPAL_ORDER_DELIVERY",
+        paypalCaptureId: "PAYPAL_CAPTURE_DELIVERY",
+        paypalOrderStatus: "COMPLETED",
+        paypalCaptureStatus: "COMPLETED",
+        paypalRequestId: "request-capture-delivery",
+        response: paypalCaptureResponse(),
+        merchantSnapshot: {
+          currencyCode: "USD",
+          itemTotalMinor: 2999,
+          shippingMinor: 595,
+          taxMinor: 268,
+          discountMinor: 500,
+          totalMinor: 3362,
+        },
+        amountGuard: {
+          action: "allow_capture",
+          status: "matched",
+          can_capture: true,
+          tolerance_minor: 0,
+          mismatches: [],
+        },
+      },
+    ]);
+  });
+
+  it("blocks PayPal capture before calling PayPal when the amount guard fails", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/PAYPAL_ORDER_MISMATCH/capture",
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH",
+        message: "PayPal capture blocked because order amounts do not match.",
+        details: {
+          amount_guard: {
+            action: "block_capture",
+            status: "mismatch",
+            can_capture: false,
+            tolerance_minor: 0,
+            mismatches: [
+              {
+                reason: "total_mismatch",
+                expected_minor: 3362,
+                actual_minor: 3363,
+                expected_currency_code: "USD",
+                actual_currency_code: "USD",
+              },
+            ],
+          },
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(gateway.captureOrderCalls).toEqual([]);
+    expect(orderRepository.recordCaptureCalls).toEqual([]);
+  });
+
   it("validates create-order requests before repository and PayPal calls", async () => {
     const gateway = createPayPalGateway();
     const orderRepository = createOrderRepository();
@@ -509,6 +625,7 @@ function createAuthVerifier(): SupabaseAuthVerifier {
 interface FakePayPalGateway extends PayPalClientTokenGateway {
   readonly calls: PayPalClientTokenGatewayInput[];
   readonly createOrderCalls: PayPalCreateOrderGatewayInput[];
+  readonly captureOrderCalls: PayPalCaptureOrderGatewayInput[];
 }
 
 function createClientTokenGateway(): FakePayPalGateway {
@@ -518,10 +635,12 @@ function createClientTokenGateway(): FakePayPalGateway {
 function createPayPalGateway(): FakePayPalGateway {
   const calls: PayPalClientTokenGatewayInput[] = [];
   const createOrderCalls: PayPalCreateOrderGatewayInput[] = [];
+  const captureOrderCalls: PayPalCaptureOrderGatewayInput[] = [];
 
   return {
     calls,
     createOrderCalls,
+    captureOrderCalls,
     async generateClientToken(input) {
       calls.push(input);
       return {
@@ -540,13 +659,16 @@ function createPayPalGateway(): FakePayPalGateway {
       return {
         paypalOrderId: orderIdByInvoice[invoiceId] ?? "PAYPAL_ORDER_UNKNOWN",
         status: "CREATED",
-        approvalUrl:
-          "https://www.sandbox.paypal.com/checkoutnow?token=1",
+        approvalUrl: "https://www.sandbox.paypal.com/checkoutnow?token=1",
         rawResponse: {
           id: orderIdByInvoice[invoiceId] ?? "PAYPAL_ORDER_UNKNOWN",
           status: "CREATED",
         },
       };
+    },
+    async captureOrder(input): Promise<PayPalCaptureOrderGatewayResponse> {
+      captureOrderCalls.push(input);
+      return paypalCaptureResponse();
     },
   };
 }
@@ -558,17 +680,23 @@ interface FakeOrderRepository extends PayPalOrderPreparationRepository {
   }[];
   readonly recordCalls: RecordPayPalCreateOrderResultInput[];
   readonly shippingCallbackCalls: HandlePayPalShippingCallbackInput[];
+  readonly prepareCaptureCalls: { readonly paypalOrderId: string }[];
+  readonly recordCaptureCalls: RecordPayPalCaptureResultInput[];
 }
 
 function createOrderRepository(): FakeOrderRepository {
   const prepareCalls: FakeOrderRepository["prepareCalls"] = [];
   const recordCalls: RecordPayPalCreateOrderResultInput[] = [];
   const shippingCallbackCalls: HandlePayPalShippingCallbackInput[] = [];
+  const prepareCaptureCalls: { readonly paypalOrderId: string }[] = [];
+  const recordCaptureCalls: RecordPayPalCaptureResultInput[] = [];
 
   return {
     prepareCalls,
     recordCalls,
     shippingCallbackCalls,
+    prepareCaptureCalls,
+    recordCaptureCalls,
     async prepareCreateOrder(context, input) {
       prepareCalls.push({ context, input });
       if (input.kind === "delivery") {
@@ -588,6 +716,98 @@ function createOrderRepository(): FakeOrderRepository {
         action: "success",
         response: paypalShippingCallbackSuccess(),
       };
+    },
+    async prepareCapture(input) {
+      prepareCaptureCalls.push(input);
+      return preparedCapture(input.paypalOrderId);
+    },
+    async recordCaptureResult(input) {
+      recordCaptureCalls.push(input);
+    },
+  };
+}
+
+function preparedCapture(paypalOrderId: string): PreparedPayPalCapture {
+  const merchantSnapshot = {
+    currencyCode: "USD" as const,
+    itemTotalMinor: 2999,
+    shippingMinor: 595,
+    taxMinor: 268,
+    discountMinor: 500,
+    totalMinor: 3362,
+  };
+  const amountGuard =
+    paypalOrderId === "PAYPAL_ORDER_MISMATCH"
+      ? {
+          action: "block_capture" as const,
+          status: "mismatch" as const,
+          can_capture: false,
+          tolerance_minor: 0,
+          mismatches: [
+            {
+              reason: "total_mismatch" as const,
+              expected_minor: 3362,
+              actual_minor: 3363,
+              expected_currency_code: "USD" as const,
+              actual_currency_code: "USD" as const,
+            },
+          ],
+        }
+      : {
+          action: "allow_capture" as const,
+          status: "matched" as const,
+          can_capture: true,
+          tolerance_minor: 0,
+          mismatches: [],
+        };
+
+  if (amountGuard.action === "block_capture") {
+    return {
+      action: "block",
+      orderNumber: "DO-20260601-000001",
+      paymentSessionId: "payment_session_delivery",
+      paypalOrderId,
+      merchantSnapshot,
+      amountGuard,
+    };
+  }
+
+  return {
+    action: "capture",
+    orderNumber: "DO-20260601-000001",
+    paymentSessionId: "payment_session_delivery",
+    paypalOrderId,
+    paypalRequestId: "request-capture-delivery",
+    merchantSnapshot,
+    amountGuard,
+  };
+}
+
+function paypalCaptureResponse(): PayPalCaptureOrderGatewayResponse {
+  return {
+    paypalOrderId: "PAYPAL_ORDER_DELIVERY",
+    status: "COMPLETED",
+    captureId: "PAYPAL_CAPTURE_DELIVERY",
+    captureStatus: "COMPLETED",
+    rawResponse: {
+      id: "PAYPAL_ORDER_DELIVERY",
+      status: "COMPLETED",
+      purchase_units: [
+        {
+          payments: {
+            captures: [
+              {
+                id: "PAYPAL_CAPTURE_DELIVERY",
+                status: "COMPLETED",
+                amount: {
+                  currency_code: "USD",
+                  value: "33.62",
+                },
+              },
+            ],
+          },
+        },
+      ],
     },
   };
 }

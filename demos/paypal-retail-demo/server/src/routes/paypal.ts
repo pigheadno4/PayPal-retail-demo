@@ -22,11 +22,14 @@ import {
   type PayPalPaymentMethod,
   type PayPalSdkFlow,
   type PayPalSdkPageType,
+  type PayPalCaptureAmountGuardResult,
 } from "../../../shared/src/paypal.js";
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import type { BuyerRequest } from "../middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
+  PayPalCaptureOrderGateway,
+  PayPalCaptureOrderGatewayResponse,
   PayPalCreateOrderGateway,
   PayPalCreateOrderGatewayResponse,
 } from "../paypal/client.js";
@@ -84,6 +87,35 @@ export interface RecordPayPalCreateOrderResultInput {
   readonly requestPayload: PayPalCreateOrderPayload;
   readonly response: PayPalCreateOrderGatewayResponse;
   readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+}
+
+interface PreparedPayPalCaptureBase {
+  readonly orderNumber: string;
+  readonly paymentSessionId: string;
+  readonly paypalOrderId: string;
+  readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+  readonly amountGuard: PayPalCaptureAmountGuardResult;
+}
+
+export type PreparedPayPalCapture =
+  | (PreparedPayPalCaptureBase & {
+      readonly action: "capture";
+      readonly paypalRequestId: string;
+    })
+  | (PreparedPayPalCaptureBase & {
+      readonly action: "block";
+    });
+
+export interface RecordPayPalCaptureResultInput {
+  readonly paymentSessionId: string;
+  readonly paypalOrderId: string;
+  readonly paypalCaptureId: string;
+  readonly paypalOrderStatus: string;
+  readonly paypalCaptureStatus: string;
+  readonly paypalRequestId: string;
+  readonly response: PayPalCaptureOrderGatewayResponse;
+  readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
+  readonly amountGuard: PayPalCaptureAmountGuardResult;
 }
 
 export interface PayPalShippingCallbackAddress {
@@ -170,6 +202,12 @@ export interface PayPalOrderPreparationRepository {
   readonly handleExpressShippingCallback: (
     input: HandlePayPalShippingCallbackInput,
   ) => Promise<PayPalShippingCallbackResult>;
+  readonly prepareCapture: (input: {
+    readonly paypalOrderId: string;
+  }) => Promise<PreparedPayPalCapture>;
+  readonly recordCaptureResult: (
+    input: RecordPayPalCaptureResultInput,
+  ) => Promise<void>;
 }
 
 export interface CreatePayPalRouterInput {
@@ -177,7 +215,7 @@ export interface CreatePayPalRouterInput {
   readonly clientId: string;
   readonly defaultClientTokenDomains: readonly string[];
   readonly clientTokenGateway: PayPalClientTokenGateway;
-  readonly orderGateway?: PayPalCreateOrderGateway;
+  readonly orderGateway?: PayPalCreateOrderGateway & PayPalCaptureOrderGateway;
   readonly orderRepository?: PayPalOrderPreparationRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
 }
@@ -318,6 +356,13 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
   );
 
   router.post(
+    "/paypal/orders/:paypalOrderId/capture",
+    asyncRoute(async (request, response) => {
+      await handleCaptureOrderRoute(request, response, input);
+    }),
+  );
+
+  router.post(
     "/paypal/orders/:callbackContextId/shipping-callback",
     asyncRoute(async (request, response) => {
       const orderRepository = input.orderRepository;
@@ -429,6 +474,75 @@ async function handleCreateOrderRoute(
     paypal_invoice_id: preparedOrder.paypalInvoiceId,
     paypal_request_id: preparedOrder.paypalRequestId,
     approval_url: createOrderResponse.approvalUrl,
+  });
+}
+
+async function handleCaptureOrderRoute(
+  request: Request,
+  response: Parameters<typeof sendApiSuccess>[0],
+  input: CreatePayPalRouterInput,
+): Promise<void> {
+  const orderGateway = input.orderGateway;
+  const orderRepository = input.orderRepository;
+
+  if (!orderGateway || !orderRepository) {
+    sendApiError(response, 503, {
+      code: "PAYPAL_CAPTURE_UNAVAILABLE",
+      message: "PayPal capture is not configured.",
+    });
+    return;
+  }
+
+  const paypalOrderId = normalizeBodyString(request.params.paypalOrderId);
+  if (!paypalOrderId) {
+    sendApiError(response, 400, {
+      code: "INVALID_PAYPAL_CAPTURE_REQUEST",
+      message: "A PayPal order ID is required.",
+    });
+    return;
+  }
+
+  const preparedCapture = await orderRepository.prepareCapture({
+    paypalOrderId,
+  });
+
+  if (preparedCapture.action === "block") {
+    sendApiError(response, 409, {
+      code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH",
+      message: "PayPal capture blocked because order amounts do not match.",
+      details: {
+        amount_guard: preparedCapture.amountGuard,
+      },
+    });
+    return;
+  }
+
+  const captureResponse = await orderGateway.captureOrder({
+    paypalOrderId: preparedCapture.paypalOrderId,
+    paypalRequestId: preparedCapture.paypalRequestId,
+  });
+
+  await orderRepository.recordCaptureResult({
+    paymentSessionId: preparedCapture.paymentSessionId,
+    paypalOrderId: preparedCapture.paypalOrderId,
+    paypalCaptureId: captureResponse.captureId,
+    paypalOrderStatus: captureResponse.status,
+    paypalCaptureStatus: captureResponse.captureStatus,
+    paypalRequestId: preparedCapture.paypalRequestId,
+    response: captureResponse,
+    merchantSnapshot: preparedCapture.merchantSnapshot,
+    amountGuard: preparedCapture.amountGuard,
+  });
+
+  sendApiSuccess(response, {
+    order_number: preparedCapture.orderNumber,
+    payment_session_id: preparedCapture.paymentSessionId,
+    paypal_order_id: captureResponse.paypalOrderId,
+    paypal_capture_id: captureResponse.captureId,
+    paypal_order_status: captureResponse.status,
+    paypal_capture_status: captureResponse.captureStatus,
+    paypal_request_id: preparedCapture.paypalRequestId,
+    amount_guard: preparedCapture.amountGuard,
   });
 }
 
