@@ -58,4 +58,4 @@
 - [x] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.
 - [x] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks.
 - [x] Add PayPal capture API with amount guard, capture snapshot persistence, paid order finalization, inventory decrement, and paid-cart cleanup.
-- [ ] Add promo auto-apply/re-evaluation into pending-order resume totals.
+- [x] Add promo auto-apply/re-evaluation into pending-order resume totals.

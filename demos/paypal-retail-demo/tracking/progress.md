@@ -95,3 +95,7 @@
 - Added the PayPal capture route/gateway/repository slice with TDD: `/api/paypal/orders/:paypalOrderId/capture` prepares capture through the repository amount guard, blocks mismatches before PayPal, calls Orders capture with `PayPal-Request-Id`, and returns a standard app envelope with capture IDs/status plus the guard decision.
 - Added capture finalization persistence: successful captures mark the order paid and payment session captured, write sanitized PayPal capture snapshots, write `capture` total snapshots, add lifecycle events, decrement central or pickup-store inventory, and clear only paid order items from the active cart.
 - Documented the v1 capture snapshot behavior in `API_CONTRACT.md`: PayPal capture responses are stored in full after sanitization, while the guard relies on locked merchant/provider amount snapshots when the minimal capture response does not echo the original full amount breakdown.
+
+## 2026-06-03
+
+- Completed the pending-order resume promo wrap-up with TDD: Delivery and BOPIS create-order preparation now re-evaluates eligible auto promos when reusing a pending checkout order, writes order-scoped promo evaluation rows/lines, recalculates tax and totals from the refreshed discount, links the `pending_resume` total snapshot, and keeps the buyer-facing order number stable while fresh PayPal attempts receive the expected suffixed invoice ID.

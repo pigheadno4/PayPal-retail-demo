@@ -136,6 +136,143 @@ describe("Supabase-backed PayPal order repository", () => {
     ]);
   });
 
+  it("re-evaluates auto promos when resuming a pending delivery order", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.orders.push({
+      id: "order_resume_delivery",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      order_number: "DO-20260601-000005",
+      order_number_prefix: "DO",
+      order_number_sequence: 5,
+      auth_user_id: "user_123",
+      guest_email: null,
+      cart_id: "cart_user",
+      checkout_draft_id: "draft_delivery",
+      fulfillment_mode: "delivery",
+      status: "pending",
+      payment_status: "started",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      subtotal_minor: 1000,
+      discount_minor: 0,
+      tax_minor: 0,
+      shipping_minor: 0,
+      total_minor: 1000,
+    });
+    dataSource.paymentSessions.push({
+      id: "payment_session_resume_old",
+      order_id: "order_resume_delivery",
+      provider: "paypal",
+      method: "paypal",
+      status: "expired",
+      attempt_number: 1,
+      paypal_order_id: "OLD_PAYPAL_ORDER",
+      paypal_capture_id: null,
+      paypal_invoice_id: "DO-20260601-000005",
+      paypal_request_id: "request_resume_old",
+      vault_requested: false,
+      merchant_total_minor: 1000,
+      provider_total_minor: 1000,
+      amount_consistency_status: "matched",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      paypal_config_snapshot_json: {
+        source_fingerprint: "stale",
+      },
+    });
+    dataSource.promoRules.push({
+      id: "promo_resume_auto800",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "AUTO800",
+      promo_type: "auto",
+      discount_type: "fixed_amount",
+      discount_value: 800,
+      min_merchandise_subtotal_minor: 2000,
+      starts_at: "2026-05-01T00:00:00.000Z",
+      ends_at: "2026-07-01T00:00:00.000Z",
+      is_stackable: true,
+      priority: 10,
+      is_active: true,
+    });
+    dataSource.promoRuleRegions.push({
+      promo_rule_id: "promo_resume_auto800",
+      country_code: "US",
+      state: "CA",
+      county: null,
+      postal_code_prefix: null,
+      include_exclude: "include",
+    });
+    const repository = createRepository(dataSource);
+
+    const preparedOrder = await repository.prepareCreateOrder(
+      authenticatedContext(),
+      {
+        kind: "delivery",
+        method: "paypal",
+        checkoutDraftId: "draft_delivery",
+      },
+    );
+
+    expect(preparedOrder).toMatchObject({
+      kind: "delivery",
+      orderNumber: "DO-20260601-000005",
+      paymentSessionId: "payment_session_new_1",
+      paypalInvoiceId: "DO-20260601-000005-A2",
+      shippingAmountMinor: 595,
+      taxAmountMinor: 192,
+      discountAmountMinor: 800,
+    });
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_resume_delivery",
+        subtotal_minor: 2999,
+        discount_minor: 800,
+        tax_minor: 192,
+        shipping_minor: 595,
+        total_minor: 2986,
+      }),
+    );
+    expect(dataSource.promoEvaluations).toContainEqual(
+      expect.objectContaining({
+        id: "promo_eval_new_1",
+        checkout_draft_id: "draft_delivery",
+        order_id: "order_resume_delivery",
+        matched_promos_json: ["AUTO800"],
+        recommended_set_json: ["AUTO800"],
+        selected_set_json: ["AUTO800"],
+        merchandise_discount_minor: 800,
+        taxable_subtotal_minor: 2199,
+        final_total_minor: 2199,
+        evaluation_context_json: expect.objectContaining({
+          fulfillment_mode: "delivery",
+          source: "pending_resume",
+          shipping_minor: 595,
+          merchandise_subtotal_minor: 2999,
+        }),
+      }),
+    );
+    expect(dataSource.totalSnapshots).toContainEqual(
+      expect.objectContaining({
+        checkout_draft_id: "draft_delivery",
+        order_id: "order_resume_delivery",
+        payment_session_id: "payment_session_new_1",
+        calculation_stage: "pending_resume",
+        promo_discount_minor: 800,
+        taxable_subtotal_minor: 2199,
+        tax_minor: 192,
+        shipping_minor: 595,
+        total_minor: 2986,
+        promo_evaluation_id: "promo_eval_new_1",
+      }),
+    );
+  });
+
   it("prepares a BOPIS PayPal order with only pickup-available quantities", async () => {
     const dataSource = createPayPalOrderDataSource();
     const repository = createRepository(dataSource);

@@ -609,6 +609,7 @@ interface PreparedOrderDraft {
   readonly addresses: readonly PayPalOrderAddressWriteInput[];
   readonly totals: MerchantTotals;
   readonly selectedPromoEvaluationId: string | null;
+  readonly calculationStage: PayPalOrderTotalSnapshotRow["calculation_stage"];
   readonly deliveryAddress?: PayPalOrderAddressJson;
   readonly pickupStore?: PayPalOrderStoreRow;
 }
@@ -1068,6 +1069,7 @@ async function handleExpressShippingCallback(
       cartItems,
       shippingAmountMinor: selectedShippingOption.amount_minor,
       destination,
+      source: "paypal_shipping_update",
       paypalOrderId,
     },
   );
@@ -1188,7 +1190,8 @@ async function createPayPalOrderPromoEvaluationSnapshot(
     readonly cartItems: readonly PayPalOrderCartItemRow[];
     readonly shippingAmountMinor: number;
     readonly destination: Destination;
-    readonly paypalOrderId: string;
+    readonly source: "paypal_shipping_update" | "pending_resume";
+    readonly paypalOrderId: string | null;
   },
 ): Promise<PayPalOrderPromoEvaluationWriteRow> {
   const [promoRules, regionScopes, productScopes, compatibility, promoLines] =
@@ -1241,13 +1244,15 @@ async function createPayPalOrderPromoEvaluationSnapshot(
     order_id: order.id,
     evaluation_context_json: {
       fulfillment_mode: order.fulfillment_mode,
-      source: "paypal_shipping_update",
+      source: options.source,
       manual_codes: [],
       selected_codes: [],
       destination: evaluationInput.destination,
       merchandise_subtotal_minor: merchandiseSubtotalMinor,
       shipping_minor: options.shippingAmountMinor,
-      paypal_order_id: options.paypalOrderId,
+      ...(options.paypalOrderId
+        ? { paypal_order_id: options.paypalOrderId }
+        : {}),
     },
     matched_promos_json: result.matchedPromos,
     rejected_promos_json: result.rejectedPromos.map(mapRejectedPromoDto),
@@ -1533,10 +1538,33 @@ async function buildDeliveryOrderDraft(
     checkoutDraft,
     shippingAddress,
   );
-  const discountMinor = await resolveSelectedPromoDiscount(
-    input,
-    checkoutDraft.selected_promo_evaluation_id,
+  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
+    checkoutDraft.id,
+    "delivery",
   );
+  const pendingResumePromo = pendingOrder
+    ? await createPayPalOrderPromoEvaluationSnapshot(
+        input,
+        storefrontRows,
+        pendingOrder,
+        {
+          cartItems,
+          shippingAmountMinor: selectedShippingOption.amount_minor,
+          destination: addressDestination(
+            checkoutDraft.market_id,
+            shippingAddress,
+          ),
+          source: "pending_resume",
+          paypalOrderId: null,
+        },
+      )
+    : null;
+  const discountMinor = pendingResumePromo
+    ? pendingResumePromo.merchandise_discount_minor
+    : await resolveSelectedPromoDiscount(
+        input,
+        checkoutDraft.selected_promo_evaluation_id,
+      );
   const merchantLines = await buildMerchantLines(input, storefrontRows, {
     cartItems,
     discountMinor,
@@ -1583,7 +1611,9 @@ async function buildDeliveryOrderDraft(
     lines: merchantLines,
     addresses: buildDeliveryAddresses(input, order.id, checkoutDraft),
     totals,
-    selectedPromoEvaluationId: checkoutDraft.selected_promo_evaluation_id,
+    selectedPromoEvaluationId:
+      pendingResumePromo?.id ?? checkoutDraft.selected_promo_evaluation_id,
+    calculationStage: pendingResumePromo ? "pending_resume" : "review_confirm",
     deliveryAddress: shippingAddress,
   };
 }
@@ -1625,10 +1655,30 @@ async function buildBopisOrderDraft(
     throw new Error(`Pickup store ${selectedStoreId} was not found`);
   }
 
-  const discountMinor = await resolveSelectedPromoDiscount(
-    input,
-    checkoutDraft.selected_promo_evaluation_id,
+  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
+    checkoutDraft.id,
+    "pickup",
   );
+  const pendingResumePromo = pendingOrder
+    ? await createPayPalOrderPromoEvaluationSnapshot(
+        input,
+        storefrontRows,
+        pendingOrder,
+        {
+          cartItems,
+          shippingAmountMinor: 0,
+          destination: storeDestination(pickupStore),
+          source: "pending_resume",
+          paypalOrderId: null,
+        },
+      )
+    : null;
+  const discountMinor = pendingResumePromo
+    ? pendingResumePromo.merchandise_discount_minor
+    : await resolveSelectedPromoDiscount(
+        input,
+        checkoutDraft.selected_promo_evaluation_id,
+      );
   const merchantLines = await buildMerchantLines(input, storefrontRows, {
     cartItems,
     discountMinor,
@@ -1677,7 +1727,9 @@ async function buildBopisOrderDraft(
       pickupStore,
     ),
     totals,
-    selectedPromoEvaluationId: checkoutDraft.selected_promo_evaluation_id,
+    selectedPromoEvaluationId:
+      pendingResumePromo?.id ?? checkoutDraft.selected_promo_evaluation_id,
+    calculationStage: pendingResumePromo ? "pending_resume" : "review_confirm",
     pickupStore,
   };
 }
@@ -1739,6 +1791,7 @@ async function buildExpressDeliveryOrderDraft(
     addresses: [],
     totals,
     selectedPromoEvaluationId: null,
+    calculationStage: "review_confirm",
   };
 }
 
@@ -2259,7 +2312,7 @@ async function persistPreparedOrderDraft(
       order_id: draft.order.id,
       payment_session_id: draft.paymentSession.id,
       fulfillment_mode: draft.order.fulfillment_mode,
-      calculation_stage: "review_confirm",
+      calculation_stage: draft.calculationStage,
       currency_code: draft.order.currency_code,
       merchandise_subtotal_minor: draft.totals.subtotalMinor,
       product_discount_minor: 0,

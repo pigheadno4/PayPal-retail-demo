@@ -84,6 +84,7 @@
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.
 - [x] PayPal express shipping callback auto-applies eligible promo rules, persists explainable promo evaluation rows, links the promo evaluation to the total snapshot, and includes a PayPal discount breakdown.
+- [x] Pending order resume re-evaluates eligible auto promos, updates reused order/payment totals, writes order-scoped promo evaluation lines, and links the `pending_resume` total snapshot.
 - [x] PayPal capture API blocks mismatched amount guards before calling PayPal.
 - [x] PayPal capture gateway calls Orders capture with OAuth access token and `PayPal-Request-Id`, then extracts order/capture status IDs.
 - [x] PayPal capture finalization marks orders paid, sessions captured, writes PayPal/total/lifecycle snapshots, decrements inventory, and clears paid cart items.
