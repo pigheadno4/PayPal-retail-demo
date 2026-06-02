@@ -8,9 +8,15 @@ import {
   type PayPalOrderDataSource,
   type PayPalOrderMarketRow,
   type PayPalOrderPaymentSessionRow,
+  type PayPalOrderPromoCompatibilityRow,
   type PayPalOrderProductSnapshotRow,
+  type PayPalOrderPromoEvaluationLineRow,
   type PayPalOrderProfileRow,
+  type PayPalOrderPromoEvaluationWriteRow,
   type PayPalOrderPromoEvaluationRow,
+  type PayPalOrderPromoRuleProductRow,
+  type PayPalOrderPromoRuleRegionRow,
+  type PayPalOrderPromoRuleRow,
   type PayPalOrderRow,
   type PayPalOrderShippingOptionRow,
   type PayPalOrderStoreInventoryRow,
@@ -345,6 +351,141 @@ describe("Supabase-backed PayPal order repository", () => {
     );
   });
 
+  it("auto-applies promos during express shipping callback recalculation", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.promoRules.push({
+      id: "promo_auto500",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      code: "AUTO500",
+      promo_type: "auto",
+      discount_type: "fixed_amount",
+      discount_value: 500,
+      min_merchandise_subtotal_minor: 2000,
+      starts_at: "2026-05-01T00:00:00.000Z",
+      ends_at: "2026-07-01T00:00:00.000Z",
+      is_stackable: true,
+      priority: 10,
+      is_active: true,
+    });
+    dataSource.promoRuleRegions.push({
+      promo_rule_id: "promo_auto500",
+      country_code: "US",
+      state: "CA",
+      county: null,
+      postal_code_prefix: null,
+      include_exclude: "include",
+    });
+    const repository = createRepository(dataSource);
+
+    const result = await repository.handleExpressShippingCallback({
+      callbackContextId: "order_express",
+      paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+      shippingAddress: {
+        countryCode: "US",
+        adminArea1: "CA",
+        adminArea2: "San Francisco",
+        postalCode: "94105",
+      },
+      selectedShippingOptionId: "ship_express_ca",
+      rawCallbackRequest: {
+        id: "PAYPAL_ORDER_EXPRESS",
+        shipping_address: {
+          country_code: "US",
+          admin_area_1: "CA",
+          admin_area_2: "San Francisco",
+          postal_code: "94105",
+        },
+        shipping_option: {
+          id: "ship_express_ca",
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      action: "success",
+      response: {
+        id: "PAYPAL_ORDER_EXPRESS",
+        purchase_units: [
+          expect.objectContaining({
+            amount: {
+              currency_code: "USD",
+              value: "42.18",
+              breakdown: {
+                item_total: {
+                  currency_code: "USD",
+                  value: "29.99",
+                },
+                tax_total: {
+                  currency_code: "USD",
+                  value: "2.19",
+                },
+                shipping: {
+                  currency_code: "USD",
+                  value: "15.00",
+                },
+                discount: {
+                  currency_code: "USD",
+                  value: "5.00",
+                },
+              },
+            },
+          }),
+        ],
+      },
+    });
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_express",
+        subtotal_minor: 2999,
+        discount_minor: 500,
+        tax_minor: 219,
+        shipping_minor: 1500,
+        total_minor: 4218,
+      }),
+    );
+    expect(dataSource.promoEvaluations).toContainEqual(
+      expect.objectContaining({
+        id: "promo_eval_new_1",
+        checkout_draft_id: null,
+        order_id: "order_express",
+        matched_promos_json: ["AUTO500"],
+        recommended_set_json: ["AUTO500"],
+        selected_set_json: ["AUTO500"],
+        merchandise_discount_minor: 500,
+        taxable_subtotal_minor: 2499,
+        final_total_minor: 2499,
+        evaluation_context_json: expect.objectContaining({
+          fulfillment_mode: "delivery",
+          source: "paypal_shipping_update",
+          shipping_minor: 1500,
+          merchandise_subtotal_minor: 2999,
+        }),
+      }),
+    );
+    expect(dataSource.promoEvaluationLines).toContainEqual(
+      expect.objectContaining({
+        id: "promo_line_new_1",
+        promo_evaluation_id: "promo_eval_new_1",
+        promo_rule_id: "promo_auto500",
+        code_snapshot: "AUTO500",
+        evaluation_status: "selected",
+        discount_minor: 500,
+      }),
+    );
+    expect(dataSource.totalSnapshots).toContainEqual(
+      expect.objectContaining({
+        order_id: "order_express",
+        promo_discount_minor: 500,
+        taxable_subtotal_minor: 2499,
+        tax_minor: 219,
+        shipping_minor: 1500,
+        total_minor: 4218,
+        promo_evaluation_id: "promo_eval_new_1",
+      }),
+    );
+  });
+
   it("records the PayPal create-order response and sanitized snapshot", async () => {
     const dataSource = createPayPalOrderDataSource();
     const repository = createRepository(dataSource);
@@ -438,6 +579,8 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
   let orderItemId = 0;
   let orderAddressId = 0;
   let totalSnapshotId = 0;
+  let promoEvaluationId = 0;
+  let promoEvaluationLineId = 0;
   let requestId = 0;
 
   return createSupabasePayPalOrderRepository({
@@ -449,6 +592,9 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
     createOrderItemId: () => `order_item_new_${++orderItemId}`,
     createOrderAddressId: () => `order_address_new_${++orderAddressId}`,
     createTotalSnapshotId: () => `total_snapshot_new_${++totalSnapshotId}`,
+    createPromoEvaluationId: () => `promo_eval_new_${++promoEvaluationId}`,
+    createPromoEvaluationLineId: () =>
+      `promo_line_new_${++promoEvaluationLineId}`,
     createPayPalRequestId: () => `request_new_${++requestId}`,
     hashCartClientSecret: (secret) => `hash:${secret}`,
   });
@@ -458,6 +604,12 @@ interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
   readonly orders: PayPalOrderRow[];
   readonly orderItems: unknown[];
   readonly totalSnapshots: unknown[];
+  readonly promoRules: PayPalOrderPromoRuleRow[];
+  readonly promoRuleRegions: PayPalOrderPromoRuleRegionRow[];
+  readonly promoRuleProducts: PayPalOrderPromoRuleProductRow[];
+  readonly promoCompatibility: PayPalOrderPromoCompatibilityRow[];
+  readonly promoEvaluations: PayPalOrderPromoEvaluationWriteRow[];
+  readonly promoEvaluationLines: PayPalOrderPromoEvaluationLineRow[];
   readonly paymentSessions: PayPalOrderPaymentSessionRow[];
   readonly paypalSnapshots: unknown[];
   readonly checkoutDraftStatusUpdates: {
@@ -598,6 +750,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       id: "product_labubu",
       slug: "labubu-macaron-vinyl-face",
       sku: "POP-LABUBU-009",
+      category_id: "category_blind_boxes",
       name: "Labubu Macaron Vinyl Face",
       description: "A smiling vinyl face blind box.",
       image_path: "/popmart/products/labubu-macaron-vinyl-face-1.webp",
@@ -665,13 +818,19 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       available_quantity: 1,
     },
   ];
-  const promoEvaluations: PayPalOrderPromoEvaluationRow[] = [
+  const selectedPromoEvaluations: PayPalOrderPromoEvaluationRow[] = [
     {
       id: "promo_eval_delivery",
       merchandise_discount_minor: 500,
       selected_set_json: ["AUTO500"],
     },
   ];
+  const promoRules: PayPalOrderPromoRuleRow[] = [];
+  const promoRuleRegions: PayPalOrderPromoRuleRegionRow[] = [];
+  const promoRuleProducts: PayPalOrderPromoRuleProductRow[] = [];
+  const promoCompatibility: PayPalOrderPromoCompatibilityRow[] = [];
+  const promoEvaluations: PayPalOrderPromoEvaluationWriteRow[] = [];
+  const promoEvaluationLines: PayPalOrderPromoEvaluationLineRow[] = [];
   const orders: PayPalOrderRow[] = [
     {
       id: "order_existing",
@@ -825,6 +984,12 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     orders,
     orderItems,
     totalSnapshots,
+    promoRules,
+    promoRuleRegions,
+    promoRuleProducts,
+    promoCompatibility,
+    promoEvaluations,
+    promoEvaluationLines,
     paymentSessions,
     paypalSnapshots,
     checkoutDraftStatusUpdates,
@@ -881,7 +1046,53 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       return storeInventory.filter((row) => row.store_id === storeId);
     },
     async getPromoEvaluationById(id) {
-      return promoEvaluations.find((row) => row.id === id) ?? null;
+      return (
+        selectedPromoEvaluations.find((row) => row.id === id) ??
+        promoEvaluations.find((row) => row.id === id) ??
+        null
+      );
+    },
+    async listPromoRules(input) {
+      return promoRules.filter(
+        (rule) =>
+          rule.profile_id === input.profileId &&
+          rule.market_id === input.marketId,
+      );
+    },
+    async listPromoRuleRegions(input) {
+      return promoRuleRegions.filter((region) =>
+        promoRules.some(
+          (rule) =>
+            rule.id === region.promo_rule_id &&
+            rule.profile_id === input.profileId &&
+            rule.market_id === input.marketId,
+        ),
+      );
+    },
+    async listPromoRuleProducts(input) {
+      return promoRuleProducts.filter((product) =>
+        promoRules.some(
+          (rule) =>
+            rule.id === product.promo_rule_id &&
+            rule.profile_id === input.profileId &&
+            rule.market_id === input.marketId,
+        ),
+      );
+    },
+    async listPromoCompatibility(input) {
+      return promoCompatibility.filter((compatibility) =>
+        promoRules.some(
+          (rule) =>
+            rule.id === compatibility.promo_rule_id &&
+            rule.profile_id === input.profileId &&
+            rule.market_id === input.marketId,
+        ),
+      );
+    },
+    async createPromoEvaluation(evaluation, lines) {
+      promoEvaluations.push(evaluation);
+      promoEvaluationLines.push(...lines);
+      return evaluation;
     },
     async getOrderById(id) {
       return orders.find((order) => order.id === id) ?? null;

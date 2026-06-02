@@ -568,7 +568,7 @@ Handles PayPal server-side shipping updates for delivery express.
 Server recalculates:
 - shipping eligibility
 - selected/default shipping option
-- promo set
+- auto promo set
 - tax
 - final amount
 
@@ -586,7 +586,7 @@ Decline response:
 - `{ "name": "UNPROCESSABLE_ENTITY", "details": [{ "issue": "..." }] }`
 - supported issues include address/country/state/zip errors and unavailable shipping methods
 
-Response must keep PayPal amount breakdown consistent. Current implementation recalculates shipping, tax, and order/payment-session snapshots; promo auto-apply re-evaluation remains a queued callback enhancement.
+Response must keep PayPal amount breakdown consistent. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
 Used after:

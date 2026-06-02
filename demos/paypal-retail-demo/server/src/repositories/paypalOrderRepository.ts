@@ -22,6 +22,18 @@ import {
   type PreviousPayPalRequestMetadata,
 } from "../../../shared/src/paypal.js";
 import {
+  evaluatePromos,
+  type PromoCandidateSet,
+  type PromoCompatibilityRow,
+  type PromoEvaluationInput,
+  type PromoEvaluationResult,
+  type PromoLineInput,
+  type PromoRejectedResult,
+  type PromoRuleProductRow,
+  type PromoRuleRegionRow,
+  type PromoRuleRow,
+} from "../../../shared/src/promos.js";
+import {
   selectEligibleShippingOptions,
   type Destination,
   type ShippingOptionRow,
@@ -123,6 +135,7 @@ export interface PayPalOrderProductSnapshotRow {
   readonly id: string;
   readonly slug: string;
   readonly sku: string;
+  readonly category_id: string;
   readonly name: string;
   readonly description: string | null;
   readonly image_path: string | null;
@@ -177,6 +190,79 @@ export interface PayPalOrderPromoEvaluationRow {
   readonly id: string;
   readonly merchandise_discount_minor: number;
   readonly selected_set_json: readonly string[];
+}
+
+export interface PayPalOrderPromoRuleRow {
+  readonly id: string;
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly code: string;
+  readonly promo_type: "auto" | "manual";
+  readonly discount_type: "percent" | "fixed_amount";
+  readonly discount_value: number;
+  readonly min_merchandise_subtotal_minor: number;
+  readonly starts_at: string | null;
+  readonly ends_at: string | null;
+  readonly is_stackable: boolean;
+  readonly priority: number;
+  readonly is_active: boolean;
+}
+
+export interface PayPalOrderPromoRuleRegionRow {
+  readonly promo_rule_id: string;
+  readonly country_code: string;
+  readonly state: string | null;
+  readonly county: string | null;
+  readonly postal_code_prefix: string | null;
+  readonly include_exclude: "include" | "exclude";
+}
+
+export interface PayPalOrderPromoRuleProductRow {
+  readonly promo_rule_id: string;
+  readonly product_id: string | null;
+  readonly category_id: string | null;
+  readonly include_exclude: "include" | "exclude";
+}
+
+export interface PayPalOrderPromoCompatibilityRow {
+  readonly promo_rule_id: string;
+  readonly compatible_promo_rule_id: string;
+  readonly compatibility: "compatible" | "exclusive";
+}
+
+export interface PayPalOrderPromoEvaluationWriteRow extends PayPalOrderPromoEvaluationRow {
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly checkout_draft_id: string | null;
+  readonly order_id: string | null;
+  readonly evaluation_context_json: CatalogJson;
+  readonly matched_promos_json: readonly string[];
+  readonly rejected_promos_json: readonly CatalogJson[];
+  readonly candidate_sets_json: readonly CatalogJson[];
+  readonly recommended_set_json: readonly string[];
+  readonly taxable_subtotal_minor: number;
+  readonly final_total_minor: number;
+  readonly created_at: string;
+}
+
+export interface PayPalOrderPromoEvaluationLineRow {
+  readonly id: string;
+  readonly promo_evaluation_id: string;
+  readonly promo_rule_id: string | null;
+  readonly code_snapshot: string;
+  readonly evaluation_status:
+    | "candidate"
+    | "recommended"
+    | "selected"
+    | "applied"
+    | "rejected";
+  readonly rejection_reason: string | null;
+  readonly stack_group: string | null;
+  readonly discount_minor: number;
+  readonly taxable_subtotal_effect_minor: number;
+  readonly final_total_effect_minor: number;
+  readonly explanation: string | null;
+  readonly sort_order: number;
 }
 
 export interface PayPalOrderRow {
@@ -358,6 +444,26 @@ export interface PayPalOrderDataSource {
   readonly getPromoEvaluationById: (
     id: string,
   ) => Promise<PayPalOrderPromoEvaluationRow | null>;
+  readonly listPromoRules: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly PayPalOrderPromoRuleRow[]>;
+  readonly listPromoRuleRegions: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly PayPalOrderPromoRuleRegionRow[]>;
+  readonly listPromoRuleProducts: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly PayPalOrderPromoRuleProductRow[]>;
+  readonly listPromoCompatibility: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+  }) => Promise<readonly PayPalOrderPromoCompatibilityRow[]>;
+  readonly createPromoEvaluation: (
+    evaluation: PayPalOrderPromoEvaluationWriteRow,
+    lines: readonly PayPalOrderPromoEvaluationLineRow[],
+  ) => Promise<PayPalOrderPromoEvaluationWriteRow>;
   readonly findPendingOrderByCheckoutDraftId: (
     checkoutDraftId: string,
     fulfillmentMode: FulfillmentMode,
@@ -414,6 +520,8 @@ export interface CreateSupabasePayPalOrderRepositoryInput {
   readonly createOrderItemId?: () => string;
   readonly createOrderAddressId?: () => string;
   readonly createTotalSnapshotId?: () => string;
+  readonly createPromoEvaluationId?: () => string;
+  readonly createPromoEvaluationLineId?: () => string;
   readonly createPayPalRequestId?: () => string;
   readonly hashCartClientSecret?: (secret: string) => string;
 }
@@ -427,6 +535,8 @@ interface PayPalOrderRepositoryDependencies {
   readonly createOrderItemId: () => string;
   readonly createOrderAddressId: () => string;
   readonly createTotalSnapshotId: () => string;
+  readonly createPromoEvaluationId: () => string;
+  readonly createPromoEvaluationLineId: () => string;
   readonly createPayPalRequestId: () => string;
   readonly hashCartClientSecret: (secret: string) => string;
 }
@@ -485,6 +595,9 @@ export function createSupabasePayPalOrderRepository(
     createOrderItemId: input.createOrderItemId ?? randomUUID,
     createOrderAddressId: input.createOrderAddressId ?? randomUUID,
     createTotalSnapshotId: input.createTotalSnapshotId ?? randomUUID,
+    createPromoEvaluationId: input.createPromoEvaluationId ?? randomUUID,
+    createPromoEvaluationLineId:
+      input.createPromoEvaluationLineId ?? randomUUID,
     createPayPalRequestId: input.createPayPalRequestId ?? randomUUID,
     hashCartClientSecret:
       input.hashCartClientSecret ?? defaultCartClientSecretHash,
@@ -684,12 +797,27 @@ async function handleExpressShippingCallback(
   }
 
   const cartItems = await input.dataSource.listCartItems(order.cart_id);
+  const paypalOrderId =
+    callbackInput.paypalOrderId ??
+    paymentSession.paypal_order_id ??
+    callbackInput.callbackContextId;
+  const promoEvaluation = await createPayPalOrderPromoEvaluationSnapshot(
+    input,
+    { profile, market },
+    order,
+    {
+      cartItems,
+      shippingAmountMinor: selectedShippingOption.amount_minor,
+      destination,
+      paypalOrderId,
+    },
+  );
   const lines = await buildMerchantLines(
     input,
     { profile, market },
     {
       cartItems,
-      discountMinor: 0,
+      discountMinor: promoEvaluation.merchandise_discount_minor,
       taxDestination: destination,
       shippingMinor: selectedShippingOption.amount_minor,
       pickupStoreInventory: null,
@@ -698,10 +826,6 @@ async function handleExpressShippingCallback(
   const totals = buildMerchantTotals(lines, {
     shippingMinor: selectedShippingOption.amount_minor,
   });
-  const paypalOrderId =
-    callbackInput.paypalOrderId ??
-    paymentSession.paypal_order_id ??
-    callbackInput.callbackContextId;
 
   await Promise.all([
     input.dataSource.updateOrder(order.id, {
@@ -739,7 +863,7 @@ async function handleExpressShippingCallback(
       tax_minor: totals.taxMinor,
       shipping_minor: totals.shippingMinor,
       total_minor: totals.totalMinor,
-      promo_evaluation_id: null,
+      promo_evaluation_id: promoEvaluation.id,
       calculation_context_json: {
         kind: "express_delivery",
         paypal_order_id: paypalOrderId,
@@ -774,6 +898,14 @@ async function handleExpressShippingCallback(
                 order.currency_code,
                 totals.shippingMinor,
               ),
+              ...(totals.discountMinor > 0
+                ? {
+                    discount: toPayPalMoney(
+                      order.currency_code,
+                      totals.discountMinor,
+                    ),
+                  }
+                : {}),
             },
           },
           shipping_options: eligibleOptions.map((option) => ({
@@ -787,6 +919,230 @@ async function handleExpressShippingCallback(
       ],
     },
   };
+}
+
+async function createPayPalOrderPromoEvaluationSnapshot(
+  input: PayPalOrderRepositoryDependencies,
+  storefrontRows: StorefrontRows,
+  order: PayPalOrderRow,
+  options: {
+    readonly cartItems: readonly PayPalOrderCartItemRow[];
+    readonly shippingAmountMinor: number;
+    readonly destination: Destination;
+    readonly paypalOrderId: string;
+  },
+): Promise<PayPalOrderPromoEvaluationWriteRow> {
+  const [promoRules, regionScopes, productScopes, compatibility, promoLines] =
+    await Promise.all([
+      input.dataSource.listPromoRules({
+        profileId: order.profile_id,
+        marketId: order.market_id,
+      }),
+      input.dataSource.listPromoRuleRegions({
+        profileId: order.profile_id,
+        marketId: order.market_id,
+      }),
+      input.dataSource.listPromoRuleProducts({
+        profileId: order.profile_id,
+        marketId: order.market_id,
+      }),
+      input.dataSource.listPromoCompatibility({
+        profileId: order.profile_id,
+        marketId: order.market_id,
+      }),
+      buildPayPalPromoLines(input, storefrontRows, options.cartItems),
+    ]);
+  const merchandiseSubtotalMinor = addMinor(
+    promoLines.map((line) => line.subtotalMinor),
+  );
+  const evaluationInput: PromoEvaluationInput = {
+    at: resolveNow(input.now),
+    merchandiseSubtotalMinor,
+    shippingMinor: options.shippingAmountMinor,
+    manualCodes: [],
+    destination: {
+      countryCode: options.destination.countryCode,
+      state: options.destination.state ?? null,
+      county: options.destination.county ?? null,
+      postalCode: options.destination.postalCode ?? null,
+    },
+    lines: promoLines,
+    rules: promoRules.map(mapPromoRuleForShared),
+    regionScopes: regionScopes.map(mapPromoRegionForShared),
+    productScopes: productScopes.map(mapPromoProductForShared),
+    compatibility: compatibility.map(mapPromoCompatibilityForShared),
+  };
+  const result = evaluatePromos(evaluationInput);
+  const createdAt = resolveNow(input.now);
+  const evaluation: PayPalOrderPromoEvaluationWriteRow = {
+    id: input.createPromoEvaluationId(),
+    profile_id: order.profile_id,
+    market_id: order.market_id,
+    checkout_draft_id: order.checkout_draft_id,
+    order_id: order.id,
+    evaluation_context_json: {
+      fulfillment_mode: order.fulfillment_mode,
+      source: "paypal_shipping_update",
+      manual_codes: [],
+      selected_codes: [],
+      destination: evaluationInput.destination,
+      merchandise_subtotal_minor: merchandiseSubtotalMinor,
+      shipping_minor: options.shippingAmountMinor,
+      paypal_order_id: options.paypalOrderId,
+    },
+    matched_promos_json: result.matchedPromos,
+    rejected_promos_json: result.rejectedPromos.map(mapRejectedPromoDto),
+    candidate_sets_json: result.candidateSets.map(mapCandidateSetDto),
+    recommended_set_json: result.recommendedSet,
+    selected_set_json: result.selectedSet,
+    merchandise_discount_minor: result.merchandiseDiscountMinor,
+    taxable_subtotal_minor: result.taxableSubtotalMinor,
+    final_total_minor: result.finalTotalMinor,
+    created_at: createdAt,
+  };
+  const lines = buildPayPalPromoEvaluationLines(input, {
+    evaluationId: evaluation.id,
+    result,
+    promoRules,
+    productScopes,
+    promoLines,
+  });
+
+  return input.dataSource.createPromoEvaluation(evaluation, lines);
+}
+
+async function buildPayPalPromoLines(
+  input: PayPalOrderRepositoryDependencies,
+  storefrontRows: StorefrontRows,
+  cartItems: readonly PayPalOrderCartItemRow[],
+): Promise<readonly PromoLineInput[]> {
+  if (cartItems.length === 0) {
+    return [];
+  }
+
+  const productSnapshots = await input.dataSource.listProductSnapshots(
+    storefrontRows.profile.id,
+    uniqueStrings(cartItems.map((item) => item.product_id)),
+  );
+  const productById = new Map(
+    productSnapshots.map((product) => [product.id, product]),
+  );
+
+  return cartItems.map((item) => {
+    const product = productById.get(item.product_id);
+    if (!product) {
+      throw new Error(`Promo product ${item.product_id} was not found`);
+    }
+
+    return {
+      productId: item.product_id,
+      categoryId: product.category_id,
+      subtotalMinor: multiplyMinor(
+        item.unit_price_minor_snapshot,
+        item.quantity,
+      ),
+    };
+  });
+}
+
+function buildPayPalPromoEvaluationLines(
+  input: PayPalOrderRepositoryDependencies,
+  options: {
+    readonly evaluationId: string;
+    readonly result: PromoEvaluationResult;
+    readonly promoRules: readonly PayPalOrderPromoRuleRow[];
+    readonly productScopes: readonly PayPalOrderPromoRuleProductRow[];
+    readonly promoLines: readonly PromoLineInput[];
+  },
+): readonly PayPalOrderPromoEvaluationLineRow[] {
+  const rows: PayPalOrderPromoEvaluationLineRow[] = [];
+  const selectedCodes = new Set(options.result.selectedSet);
+  const recommendedCodes = new Set(options.result.recommendedSet);
+  const ruleByCode = new Map(
+    options.promoRules.map((rule) => [rule.code, rule]),
+  );
+  const pushLine = (
+    code: string,
+    status: PayPalOrderPromoEvaluationLineRow["evaluation_status"],
+    rejectionReason: string | null,
+    sortOrder: number,
+  ) => {
+    const rule = ruleByCode.get(code) ?? null;
+    const discountMinor =
+      rule && status !== "rejected"
+        ? calculatePromoRuleDiscountMinor(
+            rule,
+            options.productScopes,
+            options.promoLines,
+          )
+        : 0;
+    rows.push({
+      id: input.createPromoEvaluationLineId(),
+      promo_evaluation_id: options.evaluationId,
+      promo_rule_id: rule?.id ?? null,
+      code_snapshot: code,
+      evaluation_status: status,
+      rejection_reason: rejectionReason,
+      stack_group:
+        status === "selected" ? options.result.selectedSet.join("+") : null,
+      discount_minor: discountMinor,
+      taxable_subtotal_effect_minor: discountMinor,
+      final_total_effect_minor: discountMinor,
+      explanation:
+        status === "rejected"
+          ? `Rejected because ${rejectionReason ?? "not eligible"}`
+          : `Promo ${code} is ${status}`,
+      sort_order: sortOrder,
+    });
+  };
+
+  options.result.selectedSet.forEach((code, index) => {
+    pushLine(code, "selected", null, index);
+  });
+  options.result.recommendedSet
+    .filter((code) => !selectedCodes.has(code))
+    .forEach((code, index) => {
+      pushLine(code, "recommended", null, rows.length + index);
+    });
+  options.result.matchedPromos
+    .filter((code) => !selectedCodes.has(code) && !recommendedCodes.has(code))
+    .forEach((code, index) => {
+      pushLine(code, "candidate", null, rows.length + index);
+    });
+  options.result.rejectedPromos.forEach((promo, index) => {
+    pushLine(promo.code, "rejected", promo.reason, rows.length + index);
+  });
+
+  return rows;
+}
+
+function calculatePromoRuleDiscountMinor(
+  rule: PayPalOrderPromoRuleRow,
+  productScopes: readonly PayPalOrderPromoRuleProductRow[],
+  promoLines: readonly PromoLineInput[],
+): number {
+  const includeScopes = productScopes.filter(
+    (scope) =>
+      scope.promo_rule_id === rule.id && scope.include_exclude === "include",
+  );
+  const discountBaseMinor =
+    includeScopes.length === 0
+      ? addMinor(promoLines.map((line) => line.subtotalMinor))
+      : addMinor(
+          promoLines
+            .filter((line) =>
+              includeScopes.some(
+                (scope) =>
+                  scope.product_id === line.productId ||
+                  scope.category_id === line.categoryId,
+              ),
+            )
+            .map((line) => line.subtotalMinor),
+        );
+
+  return rule.discount_type === "percent"
+    ? Math.round((discountBaseMinor * rule.discount_value) / 10_000)
+    : Math.min(rule.discount_value, discountBaseMinor);
 }
 
 async function resolveShippingCallbackPaymentSession(
@@ -1817,6 +2173,73 @@ function mapTaxRateForShared(row: PayPalOrderTaxRateRow): TaxRateRow {
   };
 }
 
+function mapPromoRuleForShared(rule: PayPalOrderPromoRuleRow): PromoRuleRow {
+  return {
+    id: rule.id,
+    code: rule.code,
+    promoType: rule.promo_type,
+    discountType: rule.discount_type,
+    discountValue: rule.discount_value,
+    minMerchandiseSubtotalMinor: rule.min_merchandise_subtotal_minor,
+    startsAt: rule.starts_at,
+    endsAt: rule.ends_at,
+    isStackable: rule.is_stackable,
+    priority: rule.priority,
+    isActive: rule.is_active,
+  };
+}
+
+function mapPromoRegionForShared(
+  region: PayPalOrderPromoRuleRegionRow,
+): PromoRuleRegionRow {
+  return {
+    promoRuleId: region.promo_rule_id,
+    countryCode: region.country_code,
+    state: region.state,
+    county: region.county,
+    postalCodePrefix: region.postal_code_prefix,
+    includeExclude: region.include_exclude,
+  };
+}
+
+function mapPromoProductForShared(
+  product: PayPalOrderPromoRuleProductRow,
+): PromoRuleProductRow {
+  return {
+    promoRuleId: product.promo_rule_id,
+    productId: product.product_id,
+    categoryId: product.category_id,
+    includeExclude: product.include_exclude,
+  };
+}
+
+function mapPromoCompatibilityForShared(
+  compatibility: PayPalOrderPromoCompatibilityRow,
+): PromoCompatibilityRow {
+  return {
+    promoRuleId: compatibility.promo_rule_id,
+    compatiblePromoRuleId: compatibility.compatible_promo_rule_id,
+    compatibility: compatibility.compatibility,
+  };
+}
+
+function mapCandidateSetDto(candidate: PromoCandidateSet): CatalogJson {
+  return {
+    codes: candidate.codes,
+    discount_minor: candidate.discountMinor,
+    taxable_subtotal_minor: candidate.taxableSubtotalMinor,
+    final_total_minor: candidate.finalTotalMinor,
+    recommended: candidate.recommended,
+  };
+}
+
+function mapRejectedPromoDto(rejected: PromoRejectedResult): CatalogJson {
+  return {
+    code: rejected.code,
+    reason: rejected.reason,
+  };
+}
+
 function addressDestination(
   marketId: string,
   address: PayPalOrderAddressJson,
@@ -2128,6 +2551,24 @@ const paymentSessionColumns = [
   "paypal_config_snapshot_json",
 ].join(", ");
 
+const promoEvaluationColumns = [
+  "id",
+  "profile_id",
+  "market_id",
+  "checkout_draft_id",
+  "order_id",
+  "evaluation_context_json",
+  "matched_promos_json",
+  "rejected_promos_json",
+  "candidate_sets_json",
+  "recommended_set_json",
+  "selected_set_json",
+  "merchandise_discount_minor",
+  "taxable_subtotal_minor",
+  "final_total_minor",
+  "created_at",
+].join(", ");
+
 export function createSupabasePayPalOrderDataSource(
   supabase: SupabasePayPalOrderClient,
 ): PayPalOrderDataSource {
@@ -2226,7 +2667,7 @@ export function createSupabasePayPalOrderDataSource(
       >(
         supabase
           .from("products")
-          .select("id, slug, sku, name, description")
+          .select("id, slug, sku, category_id, name, description")
           .eq("profile_id", profileId)
           .in("id", productIds),
         "List PayPal product snapshots",
@@ -2330,6 +2771,119 @@ export function createSupabasePayPalOrderDataSource(
           .maybeSingle(),
         `Load promo evaluation ${id}`,
       );
+    },
+    async listPromoRules(input) {
+      return queryMany<PayPalOrderPromoRuleRow>(
+        supabase
+          .from("promo_rules")
+          .select(
+            [
+              "id",
+              "profile_id",
+              "market_id",
+              "code",
+              "promo_type",
+              "discount_type",
+              "discount_value",
+              "min_merchandise_subtotal_minor",
+              "starts_at",
+              "ends_at",
+              "is_stackable",
+              "priority",
+              "is_active",
+            ].join(", "),
+          )
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List PayPal promo rules",
+      );
+    },
+    async listPromoRuleRegions(input) {
+      return queryMany<PayPalOrderPromoRuleRegionRow>(
+        supabase
+          .from("promo_rule_regions")
+          .select(
+            "promo_rule_id, country_code, state, county, postal_code_prefix, include_exclude",
+          )
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List PayPal promo rule regions",
+      );
+    },
+    async listPromoRuleProducts(input) {
+      return queryMany<PayPalOrderPromoRuleProductRow>(
+        supabase
+          .from("promo_rule_products")
+          .select("promo_rule_id, product_id, category_id, include_exclude")
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List PayPal promo rule products",
+      );
+    },
+    async listPromoCompatibility(input) {
+      return queryMany<PayPalOrderPromoCompatibilityRow>(
+        supabase
+          .from("promo_compatibility")
+          .select("promo_rule_id, compatible_promo_rule_id, compatibility")
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId),
+        "List PayPal promo compatibility",
+      );
+    },
+    async createPromoEvaluation(evaluation, lines) {
+      const createdEvaluation =
+        await queryRequired<PayPalOrderPromoEvaluationWriteRow>(
+          supabase
+            .from("promo_evaluations")
+            .insert({
+              id: evaluation.id,
+              profile_id: evaluation.profile_id,
+              market_id: evaluation.market_id,
+              checkout_draft_id: evaluation.checkout_draft_id,
+              order_id: evaluation.order_id,
+              evaluation_context_json: evaluation.evaluation_context_json,
+              matched_promos_json: evaluation.matched_promos_json,
+              rejected_promos_json: evaluation.rejected_promos_json,
+              candidate_sets_json: evaluation.candidate_sets_json,
+              recommended_set_json: evaluation.recommended_set_json,
+              selected_set_json: evaluation.selected_set_json,
+              merchandise_discount_minor: evaluation.merchandise_discount_minor,
+              taxable_subtotal_minor: evaluation.taxable_subtotal_minor,
+              final_total_minor: evaluation.final_total_minor,
+              created_at: evaluation.created_at,
+            })
+            .select(promoEvaluationColumns)
+            .single(),
+          "Create PayPal promo evaluation",
+        );
+
+      if (lines.length > 0) {
+        await queryMany<PayPalOrderPromoEvaluationLineRow>(
+          supabase
+            .from("promo_evaluation_lines")
+            .insert(
+              lines.map((line) => ({
+                id: line.id,
+                promo_evaluation_id: line.promo_evaluation_id,
+                promo_rule_id: line.promo_rule_id,
+                code_snapshot: line.code_snapshot,
+                evaluation_status: line.evaluation_status,
+                rejection_reason: line.rejection_reason,
+                stack_group: line.stack_group,
+                discount_minor: line.discount_minor,
+                taxable_subtotal_effect_minor:
+                  line.taxable_subtotal_effect_minor,
+                final_total_effect_minor: line.final_total_effect_minor,
+                explanation: line.explanation,
+                sort_order: line.sort_order,
+              })),
+            )
+            .select("id"),
+          "Create PayPal promo evaluation lines",
+        );
+      }
+
+      return createdEvaluation;
     },
     async findPendingOrderByCheckoutDraftId(checkoutDraftId, fulfillmentMode) {
       return queryOne<PayPalOrderRow>(

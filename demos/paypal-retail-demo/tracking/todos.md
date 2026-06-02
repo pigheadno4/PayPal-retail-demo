@@ -54,4 +54,5 @@
 - [x] Add Milestone 7 PayPal create-order route/gateway boundaries for delivery, express delivery, and BOPIS.
 - [x] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.
 - [x] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.
-- [ ] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks and pending-order resume totals.
+- [x] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks.
+- [ ] Add promo auto-apply/re-evaluation into pending-order resume totals.

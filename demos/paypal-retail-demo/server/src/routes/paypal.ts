@@ -133,6 +133,7 @@ export interface PayPalShippingCallbackSuccessResponse {
         readonly item_total: PayPalShippingCallbackMoney;
         readonly tax_total: PayPalShippingCallbackMoney;
         readonly shipping: PayPalShippingCallbackMoney;
+        readonly discount?: PayPalShippingCallbackMoney;
       };
     };
     readonly shipping_options: readonly PayPalShippingCallbackOption[];

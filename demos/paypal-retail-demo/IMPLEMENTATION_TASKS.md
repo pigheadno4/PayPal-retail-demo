@@ -226,7 +226,7 @@ Verification:
 - [x] Implement PayPal shipping callback API for express delivery.
   - [x] Return raw PayPal success/decline response shapes instead of the standard app response envelope.
   - [x] Recalculate selected/default shipping option, tax, pending order totals, payment-session totals, order item tax, and total snapshots.
-  - [ ] Add promo auto-apply/re-evaluation to the callback once the reusable promo engine boundary is wired for PayPal order callbacks.
+  - [x] Add promo auto-apply/re-evaluation to the callback with shared promo rules/scopes/compatibility and order-scoped promo snapshots.
 - [ ] Implement capture API with amount consistency guard.
 - [ ] Implement webhook verification and processing.
 - [ ] Implement saved payment active/pending/delete flows.
