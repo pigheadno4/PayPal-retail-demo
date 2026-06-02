@@ -223,7 +223,10 @@ Verification:
 - [x] Implement BOPIS order create API.
   - [x] Add route/gateway boundary and pickup-in-store payload coverage.
   - [x] Add Supabase-backed pickup order/payment-session preparation and snapshot persistence.
-- [ ] Implement PayPal shipping callback API for express delivery.
+- [x] Implement PayPal shipping callback API for express delivery.
+  - [x] Return raw PayPal success/decline response shapes instead of the standard app response envelope.
+  - [x] Recalculate selected/default shipping option, tax, pending order totals, payment-session totals, order item tax, and total snapshots.
+  - [ ] Add promo auto-apply/re-evaluation to the callback once the reusable promo engine boundary is wired for PayPal order callbacks.
 - [ ] Implement capture API with amount consistency guard.
 - [ ] Implement webhook verification and processing.
 - [ ] Implement saved payment active/pending/delete flows.

@@ -53,4 +53,5 @@
 - [x] Start Milestone 7 PayPal SDK config/client token/payment API routes.
 - [x] Add Milestone 7 PayPal create-order route/gateway boundaries for delivery, express delivery, and BOPIS.
 - [x] Continue Milestone 7 with Supabase-backed PayPal order preparation and payment-session snapshot persistence.
-- [ ] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.
+- [x] Continue Milestone 7 with PayPal express shipping callback recalculation and persistence.
+- [ ] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks and pending-order resume totals.

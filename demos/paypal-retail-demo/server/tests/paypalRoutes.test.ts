@@ -10,7 +10,9 @@ import type {
 } from "../src/paypal/client.js";
 import type {
   PayPalCreateOrderOperationContext,
+  type HandlePayPalShippingCallbackInput,
   PayPalOrderPreparationRepository,
+  type PayPalShippingCallbackResult,
   PreparedPayPalCreateOrder,
   RecordPayPalCreateOrderResultInput,
 } from "../src/routes/paypal.js";
@@ -359,6 +361,77 @@ describe("PayPal routes", () => {
     );
   });
 
+  it("handles express shipping callbacks with a raw PayPal success response", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/order_express/shipping-callback",
+      {
+        json: {
+          id: "PAYPAL_ORDER_EXPRESS",
+          shipping_address: {
+            country_code: "US",
+            admin_area_1: "CA",
+            admin_area_2: "San Francisco",
+            postal_code: "94105",
+          },
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual(paypalShippingCallbackSuccess());
+    expect(response.json).not.toHaveProperty("ok");
+    expect(orderRepository.shippingCallbackCalls).toEqual([
+      {
+        callbackContextId: "order_express",
+        paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+        shippingAddress: {
+          countryCode: "US",
+          adminArea1: "CA",
+          adminArea2: "San Francisco",
+          postalCode: "94105",
+        },
+        selectedShippingOptionId: null,
+        rawCallbackRequest: {
+          id: "PAYPAL_ORDER_EXPRESS",
+          shipping_address: {
+            country_code: "US",
+            admin_area_1: "CA",
+            admin_area_2: "San Francisco",
+            postal_code: "94105",
+          },
+        },
+      },
+    ]);
+  });
+
+  it("declines malformed PayPal shipping callbacks with raw PayPal error JSON", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/order_express/shipping-callback",
+      {
+        json: {},
+      },
+    );
+
+    expect(response.status).toBe(422);
+    expect(response.json).toEqual({
+      name: "UNPROCESSABLE_ENTITY",
+      details: [{ issue: "ADDRESS_ERROR" }],
+    });
+    expect(orderRepository.shippingCallbackCalls).toEqual([]);
+  });
+
   it("validates create-order requests before repository and PayPal calls", async () => {
     const gateway = createPayPalGateway();
     const orderRepository = createOrderRepository();
@@ -484,15 +557,18 @@ interface FakeOrderRepository extends PayPalOrderPreparationRepository {
     readonly input: unknown;
   }[];
   readonly recordCalls: RecordPayPalCreateOrderResultInput[];
+  readonly shippingCallbackCalls: HandlePayPalShippingCallbackInput[];
 }
 
 function createOrderRepository(): FakeOrderRepository {
   const prepareCalls: FakeOrderRepository["prepareCalls"] = [];
   const recordCalls: RecordPayPalCreateOrderResultInput[] = [];
+  const shippingCallbackCalls: HandlePayPalShippingCallbackInput[] = [];
 
   return {
     prepareCalls,
     recordCalls,
+    shippingCallbackCalls,
     async prepareCreateOrder(context, input) {
       prepareCalls.push({ context, input });
       if (input.kind === "delivery") {
@@ -506,6 +582,54 @@ function createOrderRepository(): FakeOrderRepository {
     async recordCreateOrderResult(_context, input) {
       recordCalls.push(input);
     },
+    async handleExpressShippingCallback(input) {
+      shippingCallbackCalls.push(input);
+      return {
+        action: "success",
+        response: paypalShippingCallbackSuccess(),
+      };
+    },
+  };
+}
+
+function paypalShippingCallbackSuccess(): PayPalShippingCallbackResult["response"] {
+  return {
+    id: "PAYPAL_ORDER_EXPRESS",
+    purchase_units: [
+      {
+        reference_id: "DO-20260601-000002",
+        amount: {
+          currency_code: "USD",
+          value: "38.56",
+          breakdown: {
+            item_total: {
+              currency_code: "USD",
+              value: "29.99",
+            },
+            tax_total: {
+              currency_code: "USD",
+              value: "2.62",
+            },
+            shipping: {
+              currency_code: "USD",
+              value: "5.95",
+            },
+          },
+        },
+        shipping_options: [
+          {
+            id: "ship_ground_ca",
+            type: "SHIPPING",
+            label: "Ground",
+            selected: true,
+            amount: {
+              currency_code: "USD",
+              value: "5.95",
+            },
+          },
+        ],
+      },
+    ],
   };
 }
 

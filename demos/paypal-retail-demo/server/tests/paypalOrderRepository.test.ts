@@ -212,6 +212,139 @@ describe("Supabase-backed PayPal order repository", () => {
     );
   });
 
+  it("recalculates and persists express shipping callback totals", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const repository = createRepository(dataSource);
+
+    const result = await repository.handleExpressShippingCallback({
+      callbackContextId: "order_express",
+      paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+      shippingAddress: {
+        countryCode: "US",
+        adminArea1: "CA",
+        adminArea2: "San Francisco",
+        postalCode: "94105",
+      },
+      selectedShippingOptionId: "ship_express_ca",
+      rawCallbackRequest: {
+        id: "PAYPAL_ORDER_EXPRESS",
+        shipping_address: {
+          country_code: "US",
+          admin_area_1: "CA",
+          admin_area_2: "San Francisco",
+          postal_code: "94105",
+        },
+        shipping_option: {
+          id: "ship_express_ca",
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      action: "success",
+      response: {
+        id: "PAYPAL_ORDER_EXPRESS",
+        purchase_units: [
+          {
+            reference_id: "DO-20260601-000002",
+            amount: {
+              currency_code: "USD",
+              value: "47.61",
+              breakdown: {
+                item_total: {
+                  currency_code: "USD",
+                  value: "29.99",
+                },
+                tax_total: {
+                  currency_code: "USD",
+                  value: "2.62",
+                },
+                shipping: {
+                  currency_code: "USD",
+                  value: "15.00",
+                },
+              },
+            },
+            shipping_options: [
+              {
+                id: "ship_ground_ca",
+                type: "SHIPPING",
+                label: "Ground",
+                selected: false,
+                amount: {
+                  currency_code: "USD",
+                  value: "5.95",
+                },
+              },
+              {
+                id: "ship_express_ca",
+                type: "SHIPPING",
+                label: "Express",
+                selected: true,
+                amount: {
+                  currency_code: "USD",
+                  value: "15.00",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(dataSource.orders).toContainEqual(
+      expect.objectContaining({
+        id: "order_express",
+        subtotal_minor: 2999,
+        discount_minor: 0,
+        tax_minor: 262,
+        shipping_minor: 1500,
+        total_minor: 4761,
+      }),
+    );
+    expect(dataSource.paymentSessions).toContainEqual(
+      expect.objectContaining({
+        id: "payment_session_express_existing",
+        paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+        merchant_total_minor: 4761,
+        provider_total_minor: 4761,
+        amount_consistency_status: "matched",
+      }),
+    );
+    expect(dataSource.orderItems).toContainEqual(
+      expect.objectContaining({
+        order_id: "order_express",
+        product_id: "product_labubu",
+        quantity: 1,
+        line_tax_minor: 262,
+        line_total_minor: 3261,
+      }),
+    );
+    expect(dataSource.totalSnapshots).toContainEqual(
+      expect.objectContaining({
+        order_id: "order_express",
+        payment_session_id: "payment_session_express_existing",
+        calculation_stage: "paypal_shipping_update",
+        merchandise_subtotal_minor: 2999,
+        promo_discount_minor: 0,
+        taxable_subtotal_minor: 2999,
+        tax_minor: 262,
+        shipping_minor: 1500,
+        total_minor: 4761,
+        calculation_context_json: {
+          kind: "express_delivery",
+          paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+          selected_shipping_option_id: "ship_express_ca",
+          shipping_address: {
+            country_code: "US",
+            admin_area_1: "CA",
+            admin_area_2: "San Francisco",
+            postal_code: "94105",
+          },
+        },
+      }),
+    );
+  });
+
   it("records the PayPal create-order response and sanitized snapshot", async () => {
     const dataSource = createPayPalOrderDataSource();
     const repository = createRepository(dataSource);
@@ -324,6 +457,7 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
 interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
   readonly orders: PayPalOrderRow[];
   readonly orderItems: unknown[];
+  readonly totalSnapshots: unknown[];
   readonly paymentSessions: PayPalOrderPaymentSessionRow[];
   readonly paypalSnapshots: unknown[];
   readonly checkoutDraftStatusUpdates: {
@@ -372,6 +506,15 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       auth_user_id: "user_pickup",
       cart_public_id: "cart_public_pickup",
       cart_secret_hash: null,
+      status: "active",
+    },
+    {
+      id: "cart_callback",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      auth_user_id: null,
+      cart_public_id: "cart_public_callback",
+      cart_secret_hash: "hash:cart_secret_callback",
       status: "active",
     },
   ];
@@ -442,6 +585,13 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       quantity: 2,
       unit_price_minor_snapshot: 2999,
     },
+    {
+      id: "item_callback_labubu",
+      cart_id: "cart_callback",
+      product_id: "product_labubu",
+      quantity: 1,
+      unit_price_minor_snapshot: 2999,
+    },
   ];
   const products: PayPalOrderProductSnapshotRow[] = [
     {
@@ -465,6 +615,19 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       amount_minor: 595,
       estimated_days_min: 3,
       estimated_days_max: 5,
+      is_active: true,
+    },
+    {
+      id: "ship_express_ca",
+      market_id: "market_us",
+      country_code: "US",
+      state: "CA",
+      county: null,
+      service_code: "express",
+      display_name: "Express",
+      amount_minor: 1500,
+      estimated_days_min: 1,
+      estimated_days_max: 2,
       is_active: true,
     },
   ];
@@ -582,6 +745,30 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       shipping_minor: 0,
       total_minor: 1000,
     },
+    {
+      id: "order_express",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      order_number: "DO-20260601-000002",
+      order_number_prefix: "DO",
+      order_number_sequence: 2,
+      auth_user_id: null,
+      guest_email: null,
+      cart_id: "cart_callback",
+      checkout_draft_id: null,
+      fulfillment_mode: "delivery",
+      status: "pending",
+      payment_status: "started",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      subtotal_minor: 2999,
+      discount_minor: 0,
+      tax_minor: 0,
+      shipping_minor: 0,
+      total_minor: 2999,
+    },
   ];
   const paymentSessions: PayPalOrderPaymentSessionRow[] = [
     {
@@ -605,6 +792,27 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       sandbox_test_buyer_country: "US",
       paypal_config_snapshot_json: {},
     },
+    {
+      id: "payment_session_express_existing",
+      order_id: "order_express",
+      provider: "paypal",
+      method: "paypal",
+      status: "created",
+      attempt_number: 1,
+      paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+      paypal_capture_id: null,
+      paypal_invoice_id: "DO-20260601-000002",
+      paypal_request_id: "request_express_existing",
+      vault_requested: false,
+      merchant_total_minor: 2999,
+      provider_total_minor: 2999,
+      amount_consistency_status: "matched",
+      currency_code: "USD",
+      locale: "en-US",
+      buyer_country: "US",
+      sandbox_test_buyer_country: "US",
+      paypal_config_snapshot_json: {},
+    },
   ];
   const orderItems: unknown[] = [];
   const orderAddresses: unknown[] = [];
@@ -616,14 +824,21 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
   return {
     orders,
     orderItems,
+    totalSnapshots,
     paymentSessions,
     paypalSnapshots,
     checkoutDraftStatusUpdates,
     async getProfileBySlug(slug) {
       return profile.slug === slug ? profile : null;
     },
+    async getProfileById(id) {
+      return profile.id === id ? profile : null;
+    },
     async getMarketByCode(code) {
       return market.code === code ? market : null;
+    },
+    async getMarketById(id) {
+      return market.id === id ? market : null;
     },
     async getCheckoutDraftById(id) {
       return drafts.find((draft) => draft.id === id) ?? null;
@@ -667,6 +882,9 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     },
     async getPromoEvaluationById(id) {
       return promoEvaluations.find((row) => row.id === id) ?? null;
+    },
+    async getOrderById(id) {
+      return orders.find((order) => order.id === id) ?? null;
     },
     async findPendingOrderByCheckoutDraftId(checkoutDraftId, fulfillmentMode) {
       return (

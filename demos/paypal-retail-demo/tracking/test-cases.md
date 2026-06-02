@@ -80,6 +80,7 @@
 - [x] PayPal express delivery create-order API uses `GET_FROM_FILE` and server-side shipping callback config.
 - [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
+- [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.
 - [x] PayPal amount consistency checker reports purchase-unit total mismatches before capture integration.
 - [x] Amount mismatch blocks capture except allowed rounding tolerance.
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.

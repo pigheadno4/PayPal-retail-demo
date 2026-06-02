@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { calculatePickupInventorySplit } from "../../../shared/src/inventory.js";
 import {
   addMinor,
+  assertMinorUnit,
   multiplyMinor,
   subtractMinor,
 } from "../../../shared/src/money.js";
@@ -31,7 +32,10 @@ import {
   type TaxRateRow,
 } from "../../../shared/src/tax.js";
 import type {
+  HandlePayPalShippingCallbackInput,
   PayPalCreateOrderOperationContext,
+  PayPalShippingCallbackDeclineIssue,
+  PayPalShippingCallbackResult,
   PayPalOrderPreparationRepository,
   PayPalOrderKind,
   PreparePayPalCreateOrderInput,
@@ -314,9 +318,13 @@ export interface PayPalOrderDataSource {
   readonly getProfileBySlug: (
     slug: string,
   ) => Promise<PayPalOrderProfileRow | null>;
+  readonly getProfileById: (
+    id: string,
+  ) => Promise<PayPalOrderProfileRow | null>;
   readonly getMarketByCode: (
     code: string,
   ) => Promise<PayPalOrderMarketRow | null>;
+  readonly getMarketById: (id: string) => Promise<PayPalOrderMarketRow | null>;
   readonly getCheckoutDraftById: (
     id: string,
   ) => Promise<PayPalOrderCheckoutDraftRow | null>;
@@ -358,6 +366,7 @@ export interface PayPalOrderDataSource {
     cartId: string,
     fulfillmentMode: FulfillmentMode,
   ) => Promise<PayPalOrderRow | null>;
+  readonly getOrderById: (id: string) => Promise<PayPalOrderRow | null>;
   readonly getNextOrderSequence: (input: {
     readonly prefix: OrderNumberPrefix;
     readonly date: string;
@@ -597,7 +606,237 @@ export function createSupabasePayPalOrderRepository(
         }),
       );
     },
+    async handleExpressShippingCallback(callbackInput) {
+      return handleExpressShippingCallback(dependencies, callbackInput);
+    },
   };
+}
+
+async function handleExpressShippingCallback(
+  input: PayPalOrderRepositoryDependencies,
+  callbackInput: HandlePayPalShippingCallbackInput,
+): Promise<PayPalShippingCallbackResult> {
+  const order = await input.dataSource.getOrderById(
+    callbackInput.callbackContextId,
+  );
+
+  if (
+    !order ||
+    order.fulfillment_mode !== "delivery" ||
+    order.status !== "pending" ||
+    !order.cart_id
+  ) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
+
+  const [profile, market] = await Promise.all([
+    input.dataSource.getProfileById(order.profile_id),
+    input.dataSource.getMarketById(order.market_id),
+  ]);
+
+  if (!profile || !market) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
+
+  const paymentSession = await resolveShippingCallbackPaymentSession(
+    input,
+    order,
+    callbackInput.paypalOrderId,
+  );
+  if (!paymentSession) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
+
+  const destination = shippingCallbackDestination(
+    order.market_id,
+    callbackInput.shippingAddress,
+  );
+  const shippingOptions = await input.dataSource.listShippingOptions(
+    order.market_id,
+  );
+  const eligibleOptions = selectEligibleShippingOptions(
+    shippingOptions.map(mapShippingOptionForShared),
+    destination,
+  );
+  if (eligibleOptions.length === 0) {
+    return declineShippingCallback(
+      shippingCallbackAddressDeclineIssue(
+        market,
+        callbackInput.shippingAddress,
+      ),
+    );
+  }
+
+  const selectedSharedOption = callbackInput.selectedShippingOptionId
+    ? eligibleOptions.find(
+        (option) => option.id === callbackInput.selectedShippingOptionId,
+      )
+    : eligibleOptions[0];
+  if (!selectedSharedOption) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
+
+  const selectedShippingOption = shippingOptions.find(
+    (option) => option.id === selectedSharedOption.id,
+  );
+  if (!selectedShippingOption) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
+
+  const cartItems = await input.dataSource.listCartItems(order.cart_id);
+  const lines = await buildMerchantLines(
+    input,
+    { profile, market },
+    {
+      cartItems,
+      discountMinor: 0,
+      taxDestination: destination,
+      shippingMinor: selectedShippingOption.amount_minor,
+      pickupStoreInventory: null,
+    },
+  );
+  const totals = buildMerchantTotals(lines, {
+    shippingMinor: selectedShippingOption.amount_minor,
+  });
+  const paypalOrderId =
+    callbackInput.paypalOrderId ??
+    paymentSession.paypal_order_id ??
+    callbackInput.callbackContextId;
+
+  await Promise.all([
+    input.dataSource.updateOrder(order.id, {
+      payment_status: "started",
+      subtotal_minor: totals.subtotalMinor,
+      discount_minor: totals.discountMinor,
+      tax_minor: totals.taxMinor,
+      shipping_minor: totals.shippingMinor,
+      total_minor: totals.totalMinor,
+    }),
+    input.dataSource.updatePaymentSession(paymentSession.id, {
+      paypal_order_id: paypalOrderId,
+      merchant_total_minor: totals.totalMinor,
+      provider_total_minor: totals.totalMinor,
+      amount_consistency_status: "matched",
+    }),
+    input.dataSource.replaceOrderItems(
+      order.id,
+      lines.map((line) =>
+        mapOrderItemWrite(input, order.id, profile.slug, line),
+      ),
+    ),
+    input.dataSource.createTotalSnapshot({
+      id: input.createTotalSnapshotId(),
+      checkout_draft_id: order.checkout_draft_id,
+      order_id: order.id,
+      payment_session_id: paymentSession.id,
+      fulfillment_mode: order.fulfillment_mode,
+      calculation_stage: "paypal_shipping_update",
+      currency_code: order.currency_code,
+      merchandise_subtotal_minor: totals.subtotalMinor,
+      product_discount_minor: 0,
+      promo_discount_minor: totals.discountMinor,
+      taxable_subtotal_minor: totals.taxableSubtotalMinor,
+      tax_minor: totals.taxMinor,
+      shipping_minor: totals.shippingMinor,
+      total_minor: totals.totalMinor,
+      promo_evaluation_id: null,
+      calculation_context_json: {
+        kind: "express_delivery",
+        paypal_order_id: paypalOrderId,
+        selected_shipping_option_id: selectedShippingOption.id,
+        shipping_address: {
+          country_code: callbackInput.shippingAddress.countryCode,
+          admin_area_1: callbackInput.shippingAddress.adminArea1,
+          admin_area_2: callbackInput.shippingAddress.adminArea2,
+          postal_code: callbackInput.shippingAddress.postalCode,
+        },
+      },
+    }),
+  ]);
+
+  return {
+    action: "success",
+    response: {
+      id: paypalOrderId,
+      purchase_units: [
+        {
+          reference_id: order.order_number,
+          amount: {
+            currency_code: toPayPalCurrencyCode(order.currency_code),
+            value: formatMinorUnit(totals.totalMinor),
+            breakdown: {
+              item_total: toPayPalMoney(
+                order.currency_code,
+                totals.subtotalMinor,
+              ),
+              tax_total: toPayPalMoney(order.currency_code, totals.taxMinor),
+              shipping: toPayPalMoney(
+                order.currency_code,
+                totals.shippingMinor,
+              ),
+            },
+          },
+          shipping_options: eligibleOptions.map((option) => ({
+            id: option.id,
+            type: "SHIPPING",
+            label: option.displayName,
+            selected: option.id === selectedShippingOption.id,
+            amount: toPayPalMoney(order.currency_code, option.amountMinor),
+          })),
+        },
+      ],
+    },
+  };
+}
+
+async function resolveShippingCallbackPaymentSession(
+  input: PayPalOrderRepositoryDependencies,
+  order: PayPalOrderRow,
+  paypalOrderId: string | null,
+): Promise<PayPalOrderPaymentSessionRow | null> {
+  const sessions = [
+    ...(await input.dataSource.listPaymentSessions(order.id)),
+  ].sort((left, right) => right.attempt_number - left.attempt_number);
+
+  if (paypalOrderId) {
+    const matchingPayPalSession = sessions.find(
+      (session) => session.paypal_order_id === paypalOrderId,
+    );
+    if (matchingPayPalSession) {
+      return matchingPayPalSession;
+    }
+  }
+
+  return sessions.find((session) => session.status === "created") ?? null;
+}
+
+function declineShippingCallback(
+  issue: PayPalShippingCallbackDeclineIssue,
+): PayPalShippingCallbackResult {
+  return {
+    action: "decline",
+    statusCode: 422,
+    response: {
+      name: "UNPROCESSABLE_ENTITY",
+      details: [{ issue }],
+    },
+  };
+}
+
+function shippingCallbackAddressDeclineIssue(
+  market: PayPalOrderMarketRow,
+  address: HandlePayPalShippingCallbackInput["shippingAddress"],
+): PayPalShippingCallbackDeclineIssue {
+  if (address.countryCode !== market.buyer_country) {
+    return "COUNTRY_ERROR";
+  }
+  if (!address.adminArea1) {
+    return "STATE_ERROR";
+  }
+  if (!address.postalCode) {
+    return "ZIP_ERROR";
+  }
+  return "ADDRESS_ERROR";
 }
 
 async function resolveStorefrontRows(
@@ -1591,6 +1830,18 @@ function addressDestination(
   };
 }
 
+function shippingCallbackDestination(
+  marketId: string,
+  address: HandlePayPalShippingCallbackInput["shippingAddress"],
+): Destination {
+  return {
+    marketId,
+    countryCode: address.countryCode,
+    state: address.adminArea1,
+    postalCode: address.postalCode,
+  };
+}
+
 function storeDestination(store: PayPalOrderStoreRow): Destination {
   return {
     marketId: store.market_id,
@@ -1707,6 +1958,18 @@ function toPayPalCurrencyCode(currencyCode: string): PayPalCurrencyCode {
     return currencyCode;
   }
   throw new Error(`Unsupported PayPal currency ${currencyCode}`);
+}
+
+function toPayPalMoney(currencyCode: string, amountMinor: number) {
+  return {
+    currency_code: toPayPalCurrencyCode(currencyCode),
+    value: formatMinorUnit(amountMinor),
+  };
+}
+
+function formatMinorUnit(amountMinor: number): string {
+  const amount = assertMinorUnit(amountMinor);
+  return `${Math.floor(amount / 100)}.${String(amount % 100).padStart(2, "0")}`;
 }
 
 function formatOrderSequenceDate(now: string): string {
@@ -1879,6 +2142,12 @@ export function createSupabasePayPalOrderDataSource(
         `Load profile ${slug}`,
       );
     },
+    async getProfileById(id) {
+      return queryOne<PayPalOrderProfileRow>(
+        supabase.from("profiles").select("id, slug").eq("id", id).maybeSingle(),
+        `Load profile ${id}`,
+      );
+    },
     async getMarketByCode(code) {
       return queryOne<PayPalOrderMarketRow>(
         supabase
@@ -1889,6 +2158,18 @@ export function createSupabasePayPalOrderDataSource(
           .eq("code", code)
           .maybeSingle(),
         `Load market ${code}`,
+      );
+    },
+    async getMarketById(id) {
+      return queryOne<PayPalOrderMarketRow>(
+        supabase
+          .from("markets")
+          .select(
+            "id, code, currency_code, locale, buyer_country, sandbox_test_buyer_country",
+          )
+          .eq("id", id)
+          .maybeSingle(),
+        `Load market ${id}`,
       );
     },
     async getCheckoutDraftById(id) {
@@ -2072,6 +2353,12 @@ export function createSupabasePayPalOrderDataSource(
           .eq("status", "pending")
           .maybeSingle(),
         `Load pending order for cart ${cartId}`,
+      );
+    },
+    async getOrderById(id) {
+      return queryOne<PayPalOrderRow>(
+        supabase.from("orders").select(orderColumns).eq("id", id).maybeSingle(),
+        `Load order ${id}`,
       );
     },
     async getNextOrderSequence(input) {

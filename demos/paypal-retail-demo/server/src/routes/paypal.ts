@@ -18,6 +18,7 @@ import {
   type BuildPayPalExpressDeliveryCreateOrderInput,
   type PayPalCaptureAmountSnapshot,
   type PayPalCreateOrderPayload,
+  type PayPalCurrencyCode,
   type PayPalPaymentMethod,
   type PayPalSdkFlow,
   type PayPalSdkPageType,
@@ -85,6 +86,77 @@ export interface RecordPayPalCreateOrderResultInput {
   readonly merchantSnapshot: PayPalCaptureAmountSnapshot;
 }
 
+export interface PayPalShippingCallbackAddress {
+  readonly countryCode: string;
+  readonly adminArea1: string | null;
+  readonly adminArea2: string | null;
+  readonly postalCode: string | null;
+}
+
+export interface HandlePayPalShippingCallbackInput {
+  readonly callbackContextId: string;
+  readonly paypalOrderId: string | null;
+  readonly shippingAddress: PayPalShippingCallbackAddress;
+  readonly selectedShippingOptionId: string | null;
+  readonly rawCallbackRequest: unknown;
+}
+
+export type PayPalShippingCallbackDeclineIssue =
+  | "ADDRESS_ERROR"
+  | "COUNTRY_ERROR"
+  | "STATE_ERROR"
+  | "ZIP_ERROR"
+  | "METHOD_UNAVAILABLE"
+  | "STORE_UNAVAILABLE";
+
+export interface PayPalShippingCallbackMoney {
+  readonly currency_code: PayPalCurrencyCode;
+  readonly value: string;
+}
+
+export interface PayPalShippingCallbackOption {
+  readonly id: string;
+  readonly amount: PayPalShippingCallbackMoney;
+  readonly type: "SHIPPING";
+  readonly label: string;
+  readonly selected: boolean;
+}
+
+export interface PayPalShippingCallbackSuccessResponse {
+  readonly id: string;
+  readonly purchase_units: readonly {
+    readonly reference_id: string;
+    readonly amount: {
+      readonly currency_code: PayPalCurrencyCode;
+      readonly value: string;
+      readonly breakdown: {
+        readonly item_total: PayPalShippingCallbackMoney;
+        readonly tax_total: PayPalShippingCallbackMoney;
+        readonly shipping: PayPalShippingCallbackMoney;
+      };
+    };
+    readonly shipping_options: readonly PayPalShippingCallbackOption[];
+  }[];
+}
+
+export interface PayPalShippingCallbackDeclineResponse {
+  readonly name: "UNPROCESSABLE_ENTITY";
+  readonly details: readonly {
+    readonly issue: PayPalShippingCallbackDeclineIssue;
+  }[];
+}
+
+export type PayPalShippingCallbackResult =
+  | {
+      readonly action: "success";
+      readonly response: PayPalShippingCallbackSuccessResponse;
+    }
+  | {
+      readonly action: "decline";
+      readonly statusCode: 422;
+      readonly response: PayPalShippingCallbackDeclineResponse;
+    };
+
 export interface PayPalOrderPreparationRepository {
   readonly prepareCreateOrder: (
     context: PayPalCreateOrderOperationContext,
@@ -94,6 +166,9 @@ export interface PayPalOrderPreparationRepository {
     context: PayPalCreateOrderOperationContext,
     input: RecordPayPalCreateOrderResultInput,
   ) => Promise<void>;
+  readonly handleExpressShippingCallback: (
+    input: HandlePayPalShippingCallbackInput,
+  ) => Promise<PayPalShippingCallbackResult>;
 }
 
 export interface CreatePayPalRouterInput {
@@ -241,6 +316,33 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
     }),
   );
 
+  router.post(
+    "/paypal/orders/:callbackContextId/shipping-callback",
+    asyncRoute(async (request, response) => {
+      const orderRepository = input.orderRepository;
+      if (!orderRepository) {
+        response
+          .status(422)
+          .json(buildPayPalShippingCallbackDecline("METHOD_UNAVAILABLE"));
+        return;
+      }
+
+      const callbackInput = parseShippingCallbackInput(request);
+      if (!callbackInput) {
+        response
+          .status(422)
+          .json(buildPayPalShippingCallbackDecline("ADDRESS_ERROR"));
+        return;
+      }
+
+      const result =
+        await orderRepository.handleExpressShippingCallback(callbackInput);
+      response
+        .status(result.action === "decline" ? result.statusCode : 200)
+        .json(result.response);
+    }),
+  );
+
   return router;
 }
 
@@ -359,6 +461,59 @@ function parseCreateOrderInput(
         cartId,
       }
     : null;
+}
+
+function parseShippingCallbackInput(
+  request: Request,
+): HandlePayPalShippingCallbackInput | null {
+  const callbackContextId = normalizeBodyString(
+    request.params.callbackContextId,
+  );
+  const body = request.body as Record<string, unknown> | undefined;
+  const shippingAddress = parsePayPalShippingCallbackAddress(
+    getObjectProperty(body, "shipping_address"),
+  );
+
+  if (!callbackContextId || !shippingAddress) {
+    return null;
+  }
+
+  return {
+    callbackContextId,
+    paypalOrderId: normalizeBodyString(getObjectProperty(body, "id")),
+    shippingAddress,
+    selectedShippingOptionId: normalizeBodyString(
+      getObjectProperty(getObjectProperty(body, "shipping_option"), "id"),
+    ),
+    rawCallbackRequest: body ?? {},
+  };
+}
+
+function parsePayPalShippingCallbackAddress(
+  value: unknown,
+): PayPalShippingCallbackAddress | null {
+  const countryCode = normalizeBodyString(
+    getObjectProperty(value, "country_code"),
+  )?.toUpperCase();
+  if (!countryCode) {
+    return null;
+  }
+
+  return {
+    countryCode,
+    adminArea1: normalizeBodyString(getObjectProperty(value, "admin_area_1")),
+    adminArea2: normalizeBodyString(getObjectProperty(value, "admin_area_2")),
+    postalCode: normalizeBodyString(getObjectProperty(value, "postal_code")),
+  };
+}
+
+function buildPayPalShippingCallbackDecline(
+  issue: PayPalShippingCallbackDeclineIssue,
+): PayPalShippingCallbackDeclineResponse {
+  return {
+    name: "UNPROCESSABLE_ENTITY",
+    details: [{ issue }],
+  };
 }
 
 function buildCreateOrderPayload(
@@ -518,6 +673,13 @@ function normalizeBodyString(value: unknown): string | null {
   }
   const trimmedValue = value.trim();
   return trimmedValue ? trimmedValue : null;
+}
+
+function getObjectProperty(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
 }
 
 function firstQueryValue(request: Request, key: string): string | null {

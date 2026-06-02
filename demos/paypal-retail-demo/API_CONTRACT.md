@@ -572,7 +572,21 @@ Server recalculates:
 - tax
 - final amount
 
-Response must keep PayPal amount breakdown consistent.
+The endpoint returns PayPal callback JSON directly, not the app's standard `{ ok, data }` API envelope.
+
+Success response:
+- HTTP `200`
+- top-level PayPal order `id`
+- `purchase_units[].reference_id` using the merchant order number
+- `purchase_units[].amount` with consistent `item_total`, `tax_total`, `shipping`, and final `value`
+- `purchase_units[].shipping_options[]` with exactly one selected option
+
+Decline response:
+- HTTP `422`
+- `{ "name": "UNPROCESSABLE_ENTITY", "details": [{ "issue": "..." }] }`
+- supported issues include address/country/state/zip errors and unavailable shipping methods
+
+Response must keep PayPal amount breakdown consistent. Current implementation recalculates shipping, tax, and order/payment-session snapshots; promo auto-apply re-evaluation remains a queued callback enhancement.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
 Used after:
