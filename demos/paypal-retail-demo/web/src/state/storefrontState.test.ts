@@ -7,14 +7,25 @@ import {
 } from "./storefrontState.js";
 
 describe("storefront shell state", () => {
-  it("tracks provider-key changes without resetting the whole app", () => {
+  it("scopes provider-key changes to the PayPal subtree", () => {
     const initial = createInitialStorefrontState();
     const firstConfig = runtimeConfig("paypal:key:us:v1");
     const first = applyRuntimeConfig(initial, firstConfig);
     const same = applyRuntimeConfig(first.state, firstConfig);
-    const changed = applyRuntimeConfig(
-      same.state,
-      runtimeConfig("paypal:key:gb:v2"),
+    const openPanels = {
+      ...same.state,
+      panels: {
+        authModal: "email" as const,
+        minicart: "open" as const,
+      },
+    };
+    const providerOnlyChanged = applyRuntimeConfig(
+      openPanels,
+      runtimeConfig("paypal:key:us:v2"),
+    );
+    const marketChanged = applyRuntimeConfig(
+      providerOnlyChanged.state,
+      runtimeConfig("paypal:key:gb:v1"),
     );
 
     expect(initial.activeConfig).toBeNull();
@@ -28,12 +39,21 @@ describe("storefront shell state", () => {
       refreshStorefrontData: false,
       closeTransientPanels: false,
     });
-    expect(changed.effects).toEqual({
+    expect(providerOnlyChanged.effects).toEqual({
+      remountPayPalProvider: true,
+      refreshStorefrontData: false,
+      closeTransientPanels: false,
+    });
+    expect(providerOnlyChanged.state.panels).toEqual({
+      authModal: "email",
+      minicart: "open",
+    });
+    expect(marketChanged.effects).toEqual({
       remountPayPalProvider: true,
       refreshStorefrontData: true,
       closeTransientPanels: true,
     });
-    expect(changed.state.panels).toEqual({
+    expect(marketChanged.state.panels).toEqual({
       authModal: "closed",
       minicart: "closed",
     });

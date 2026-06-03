@@ -61,4 +61,5 @@
 - [x] Add promo auto-apply/re-evaluation into pending-order resume totals.
 - [x] Add PayPal webhook verification and processing.
 - [x] Add saved payment active/pending/delete flows.
-- [ ] Finish Milestone 8 web app shell/config foundation.
+- [x] Finish Milestone 8 web app shell/config foundation.
+- [ ] Start Milestone 9 storefront and catalog UI.

@@ -131,6 +131,8 @@
 
 ## Buyer Flows
 
+- [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
+- [x] PayPal provider boundary is scoped to the payment subtree when `provider_key` changes.
 - [ ] Homepage calendar marks release dates with outlined circles.
 - [ ] Homepage calendar includes a legend and does not rely on color alone.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
@@ -183,6 +185,7 @@
 
 ## Visual QA
 
+- [x] App shell includes focus-visible styling, reusable live-region/error primitives, and reduced-motion CSS guards.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

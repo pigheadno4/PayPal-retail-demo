@@ -1,5 +1,7 @@
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
+import { StatusRegion } from "../components/accessibility.js";
+import { AppProviders, PayPalProviderBoundary } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
   defaultRuntimeConfig,
@@ -23,12 +25,14 @@ export function App({ initialPathname, initialConfig }: AppProps = {}) {
   }
 
   return (
-    <BuyerShell
-      route={route}
-      config={config}
-      authModalState={shellState.panels.authModal}
-      minicartState={shellState.panels.minicart}
-    />
+    <AppProviders initialConfig={config}>
+      <BuyerShell
+        route={route}
+        config={config}
+        authModalState={shellState.panels.authModal}
+        minicartState={shellState.panels.minicart}
+      />
+    </AppProviders>
   );
 }
 
@@ -55,8 +59,10 @@ function BuyerShell({
       data-route-scope="buyer"
       data-route-page={route.page}
       data-market={config.market.code}
-      data-paypal-provider-key={config.paypal.providerKey}
     >
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <header className="site-header">
         <a className="site-header__brand" href="/" aria-label={assets.logoText}>
           {assets.logoText}
@@ -74,9 +80,18 @@ function BuyerShell({
           </button>
         </div>
       </header>
-      <main className="buyer-shell__main">
+      <main className="buyer-shell__main" id="main-content" tabIndex={-1}>
         <RouteStage route={route} brandName={assets.logoText} />
+        <PayPalProviderBoundary
+          key={config.paypal.providerKey}
+          providerKey={config.paypal.providerKey}
+        >
+          <PaymentActionSlot />
+        </PayPalProviderBoundary>
       </main>
+      <StatusRegion id="shell-status" className="sr-only">
+        Storefront ready.
+      </StatusRegion>
       <AuthModalShell state={authModalState} />
       <MinicartShell state={minicartState} />
     </div>
@@ -141,6 +156,15 @@ function RouteStage({
       <h1>{brandName}</h1>
       <p>Fresh collectible drops with delivery and pickup checkout.</p>
     </section>
+  );
+}
+
+function PaymentActionSlot() {
+  return (
+    <section
+      className="payment-action-slot"
+      aria-label="Selected payment action"
+    />
   );
 }
 

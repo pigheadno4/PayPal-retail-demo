@@ -28,7 +28,11 @@ describe("App shell", () => {
 
     expect(html).toContain("POP MART");
     expect(html).toContain('data-route-page="home"');
+    expect(html).toContain('href="#main-content"');
+    expect(html).toContain('id="main-content"');
+    expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Open minicart"');
+    expect(html).toContain('class="paypal-provider-boundary"');
     expect(html).toContain(
       'data-paypal-provider-key="paypal:sandbox:popmart:us:v1"',
     );
