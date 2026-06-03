@@ -25,6 +25,10 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 ## Tracking
 Maintain the standard tracking files (see `demos/AGENTS.md` for the canonical list). Update them task by task.
 
+## Code Graph
+- If `graphify-out/` exists, use Graphify for code navigation before broad manual searches. Run from this demo folder with `graphify ...`, or `/Users/tengtao/.local/bin/graphify ...` when user-local binaries are not on `PATH`.
+- Treat `graphify-out/` as generated local context, not a source of truth. Refresh with `graphify update .` after meaningful code changes.
+
 ## Ask Before Changing
 - Fulfillment mode binding.
 - Payment session creation timing.

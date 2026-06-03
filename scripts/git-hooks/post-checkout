@@ -1,0 +1,70 @@
+#!/bin/sh
+# graphify-checkout-hook-start
+# Auto-rebuilds the knowledge graph (code only) when switching branches.
+# Installed by: graphify hook install
+
+# Deterministic clustering: networkx louvain iterates string-keyed sets whose
+# order is randomized per-process by PYTHONHASHSEED, so community assignments
+# churn run-to-run. Pinning it makes graphify-out reproducible.
+export PYTHONHASHSEED=0
+PATH="${HOME}/.local/bin:${PATH}"
+export PATH
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+BRANCH_SWITCH=$3
+
+# Only run on branch switches, not file checkouts
+if [ "$BRANCH_SWITCH" != "1" ]; then
+    exit 0
+fi
+
+# Skip during rebase/merge/cherry-pick
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+[ -d "$GIT_DIR/rebase-merge" ] && exit 0
+[ -d "$GIT_DIR/rebase-apply" ] && exit 0
+[ -f "$GIT_DIR/MERGE_HEAD" ] && exit 0
+[ -f "$GIT_DIR/CHERRY_PICK_HEAD" ] && exit 0
+
+# Detect the correct Python interpreter (handles pipx, venv, system installs)
+GRAPHIFY_BIN=$(command -v graphify 2>/dev/null)
+if [ -n "$GRAPHIFY_BIN" ]; then
+    case "$GRAPHIFY_BIN" in
+        *.exe) _SHEBANG="" ;;
+        *)     _SHEBANG=$(head -1 "$GRAPHIFY_BIN" | sed 's/^#![[:space:]]*//') ;;
+    esac
+    case "$_SHEBANG" in
+        */env\ *) GRAPHIFY_PYTHON="${_SHEBANG#*/env }" ;;
+        *)         GRAPHIFY_PYTHON="$_SHEBANG" ;;
+    esac
+    # Allowlist: only keep characters valid in a filesystem path to prevent
+    # injection if the shebang contains shell metacharacters
+    case "$GRAPHIFY_PYTHON" in
+        *[!a-zA-Z0-9/_.@-]*) GRAPHIFY_PYTHON="" ;;
+    esac
+    if [ -n "$GRAPHIFY_PYTHON" ] && ! "$GRAPHIFY_PYTHON" -c "import graphify" 2>/dev/null; then
+        GRAPHIFY_PYTHON=""
+    fi
+fi
+# Fall back: try python3, then python (Windows has no python3 shim)
+if [ -z "$GRAPHIFY_PYTHON" ]; then
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import graphify" 2>/dev/null; then
+        GRAPHIFY_PYTHON="python3"
+    elif command -v python >/dev/null 2>&1 && python -c "import graphify" 2>/dev/null; then
+        GRAPHIFY_PYTHON="python"
+    else
+        exit 0
+    fi
+fi
+
+_GRAPHIFY_LOG="${HOME}/.cache/graphify-rebuild.log"
+_GRAPHIFY_SCRIPT="$(dirname "$0")/graphify-rebuild.py"
+mkdir -p "$(dirname "$_GRAPHIFY_LOG")"
+if [ "${GRAPHIFY_HOOK_FOREGROUND:-0}" = "1" ]; then
+    "$GRAPHIFY_PYTHON" "$_GRAPHIFY_SCRIPT" post-checkout
+else
+    echo "[graphify] Branch switched - launching background rebuild (log: $_GRAPHIFY_LOG)"
+    nohup "$GRAPHIFY_PYTHON" "$_GRAPHIFY_SCRIPT" post-checkout >> "$_GRAPHIFY_LOG" 2>&1 < /dev/null &
+    disown 2>/dev/null || true
+fi
+# graphify-checkout-hook-end
