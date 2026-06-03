@@ -18,6 +18,7 @@ import {
   type PayPalOrderPromoRuleRegionRow,
   type PayPalOrderPromoRuleRow,
   type PayPalOrderRow,
+  type PayPalOrderSavedPaymentMethodRow,
   type PayPalOrderShippingOptionRow,
   type PayPalOrderStoreInventoryRow,
   type PayPalOrderStoreRow,
@@ -878,6 +879,152 @@ describe("Supabase-backed PayPal order repository", () => {
     });
   });
 
+  it("creates an active saved payment when capture returns a vaulted card token", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.paymentSessions[0] = {
+      ...dataSource.paymentSessions[0]!,
+      method: "card",
+      paypal_order_id: "PAYPAL_ORDER_VAULTED",
+      provider_total_minor: 1000,
+      amount_consistency_status: "matched",
+      vault_requested: true,
+    };
+    const repository = createRepository(dataSource);
+
+    const preparedCapture = await repository.prepareCapture({
+      paypalOrderId: "PAYPAL_ORDER_VAULTED",
+    });
+    if (preparedCapture.action !== "capture") {
+      throw new Error("Expected capture to be allowed");
+    }
+
+    await repository.recordCaptureResult({
+      paymentSessionId: "payment_session_existing",
+      paypalOrderId: "PAYPAL_ORDER_VAULTED",
+      paypalCaptureId: "PAYPAL_CAPTURE_VAULTED",
+      paypalOrderStatus: "COMPLETED",
+      paypalCaptureStatus: "COMPLETED",
+      paypalRequestId: preparedCapture.paypalRequestId,
+      response: {
+        paypalOrderId: "PAYPAL_ORDER_VAULTED",
+        status: "COMPLETED",
+        captureId: "PAYPAL_CAPTURE_VAULTED",
+        captureStatus: "COMPLETED",
+        rawResponse: {
+          id: "PAYPAL_ORDER_VAULTED",
+          status: "COMPLETED",
+          payment_source: {
+            card: {
+              brand: "VISA",
+              last_digits: "1111",
+              expiry: "2027-02",
+              attributes: {
+                customer: {
+                  id: "paypal_customer_123",
+                },
+                vault: {
+                  status: "VAULTED",
+                  id: "vault_card_123",
+                },
+              },
+            },
+          },
+        },
+      },
+      merchantSnapshot: preparedCapture.merchantSnapshot,
+      amountGuard: preparedCapture.amountGuard,
+    });
+
+    expect(dataSource.savedPaymentMethods).toContainEqual({
+      id: "saved_payment_new_1",
+      auth_user_id: "user_123",
+      provider: "paypal",
+      method_type: "card",
+      status: "active",
+      vault_id: "vault_card_123",
+      paypal_customer_id: "paypal_customer_123",
+      brand: "VISA",
+      last4: "1111",
+      expiry_month: 2,
+      expiry_year: 2027,
+      label: "Visa ending in 1111",
+      created_at: "2026-06-01T10:00:00.000Z",
+      updated_at: "2026-06-01T10:00:00.000Z",
+    });
+  });
+
+  it("creates a pending saved payment when capture approves vaulting before token creation", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    dataSource.paymentSessions[0] = {
+      ...dataSource.paymentSessions[0]!,
+      method: "card",
+      paypal_order_id: "PAYPAL_ORDER_APPROVED_VAULT",
+      provider_total_minor: 1000,
+      amount_consistency_status: "matched",
+      vault_requested: true,
+    };
+    const repository = createRepository(dataSource);
+
+    const preparedCapture = await repository.prepareCapture({
+      paypalOrderId: "PAYPAL_ORDER_APPROVED_VAULT",
+    });
+    if (preparedCapture.action !== "capture") {
+      throw new Error("Expected capture to be allowed");
+    }
+
+    await repository.recordCaptureResult({
+      paymentSessionId: "payment_session_existing",
+      paypalOrderId: "PAYPAL_ORDER_APPROVED_VAULT",
+      paypalCaptureId: "PAYPAL_CAPTURE_APPROVED_VAULT",
+      paypalOrderStatus: "COMPLETED",
+      paypalCaptureStatus: "COMPLETED",
+      paypalRequestId: preparedCapture.paypalRequestId,
+      response: {
+        paypalOrderId: "PAYPAL_ORDER_APPROVED_VAULT",
+        status: "COMPLETED",
+        captureId: "PAYPAL_CAPTURE_APPROVED_VAULT",
+        captureStatus: "COMPLETED",
+        rawResponse: {
+          id: "PAYPAL_ORDER_APPROVED_VAULT",
+          status: "COMPLETED",
+          payment_source: {
+            card: {
+              brand: "MASTERCARD",
+              last_digits: "4444",
+              expiry: "2028-09",
+              attributes: {
+                customer: {
+                  id: "paypal_customer_456",
+                },
+                vault: {
+                  status: "APPROVED",
+                },
+              },
+            },
+          },
+        },
+      },
+      merchantSnapshot: preparedCapture.merchantSnapshot,
+      amountGuard: preparedCapture.amountGuard,
+    });
+
+    expect(dataSource.savedPaymentMethods).toContainEqual(
+      expect.objectContaining({
+        id: "saved_payment_new_1",
+        auth_user_id: "user_123",
+        method_type: "card",
+        status: "pending",
+        vault_id: null,
+        paypal_customer_id: "paypal_customer_456",
+        brand: "MASTERCARD",
+        last4: "4444",
+        expiry_month: 9,
+        expiry_year: 2028,
+        label: "Mastercard ending in 4444",
+      }),
+    );
+  });
+
   it("blocks capture preparation when the provider amount no longer matches the merchant total", async () => {
     const dataSource = createPayPalOrderDataSource();
     dataSource.paymentSessions[0] = {
@@ -1046,6 +1193,7 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
   let promoEvaluationLineId = 0;
   let orderLifecycleEventId = 0;
   let requestId = 0;
+  let savedPaymentMethodId = 0;
 
   return createSupabasePayPalOrderRepository({
     dataSource,
@@ -1062,6 +1210,8 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
     createOrderLifecycleEventId: () =>
       `order_lifecycle_event_new_${++orderLifecycleEventId}`,
     createPayPalRequestId: () => `request_new_${++requestId}`,
+    createSavedPaymentMethodId: () =>
+      `saved_payment_new_${++savedPaymentMethodId}`,
     hashCartClientSecret: (secret) => `hash:${secret}`,
   });
 }
@@ -1081,6 +1231,7 @@ interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
   readonly promoEvaluations: PayPalOrderPromoEvaluationWriteRow[];
   readonly promoEvaluationLines: PayPalOrderPromoEvaluationLineRow[];
   readonly paymentSessions: PayPalOrderPaymentSessionRow[];
+  readonly savedPaymentMethods: PayPalOrderSavedPaymentMethodRow[];
   readonly paypalSnapshots: unknown[];
   readonly checkoutDraftStatusUpdates: {
     readonly draftId: string;
@@ -1451,6 +1602,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
       paypal_config_snapshot_json: {},
     },
   ];
+  const savedPaymentMethods: PayPalOrderSavedPaymentMethodRow[] = [];
   const orderItems: unknown[] = [
     {
       id: "order_item_existing",
@@ -1494,6 +1646,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     promoEvaluations,
     promoEvaluationLines,
     paymentSessions,
+    savedPaymentMethods,
     paypalSnapshots,
     checkoutDraftStatusUpdates,
     async getProfileBySlug(slug) {
@@ -1689,6 +1842,42 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
         ...patch,
       };
       return paymentSessions[index]!;
+    },
+    async createSavedPaymentMethod(savedPaymentMethod) {
+      savedPaymentMethods.push(savedPaymentMethod);
+      return savedPaymentMethod;
+    },
+    async findSavedPaymentMethodByVaultId(vaultId) {
+      return (
+        savedPaymentMethods.find(
+          (savedPaymentMethod) => savedPaymentMethod.vault_id === vaultId,
+        ) ?? null
+      );
+    },
+    async findPendingSavedPaymentMethod(input) {
+      return (
+        savedPaymentMethods.find(
+          (savedPaymentMethod) =>
+            savedPaymentMethod.auth_user_id === input.authUserId &&
+            savedPaymentMethod.paypal_customer_id ===
+              input.paypalCustomerId &&
+            savedPaymentMethod.method_type === input.methodType &&
+            savedPaymentMethod.status === "pending",
+        ) ?? null
+      );
+    },
+    async updateSavedPaymentMethod(id, patch) {
+      const index = savedPaymentMethods.findIndex(
+        (savedPaymentMethod) => savedPaymentMethod.id === id,
+      );
+      if (index < 0) {
+        throw new Error(`Saved payment method ${id} was not found`);
+      }
+      savedPaymentMethods[index] = {
+        ...savedPaymentMethods[index]!,
+        ...patch,
+      };
+      return savedPaymentMethods[index]!;
     },
     async createTotalSnapshot(snapshot) {
       totalSnapshots.push(snapshot);

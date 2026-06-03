@@ -59,3 +59,5 @@
 - [x] Add promo auto-apply/re-evaluation into PayPal express shipping callbacks.
 - [x] Add PayPal capture API with amount guard, capture snapshot persistence, paid order finalization, inventory decrement, and paid-cart cleanup.
 - [x] Add promo auto-apply/re-evaluation into pending-order resume totals.
+- [x] Add PayPal webhook verification and processing.
+- [x] Add saved payment active/pending/delete flows.

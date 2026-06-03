@@ -11,6 +11,10 @@ import {
 } from "./middleware/auth.js";
 import { createAdminSessionGuard } from "./middleware/admin.js";
 import { guestCartMiddleware } from "./middleware/guestCart.js";
+import {
+  createAccountRouter,
+  type AccountRepository,
+} from "./routes/account.js";
 import type { AdminProfileMarketRepository } from "./repositories/adminRepository.js";
 import { createAdminRouter } from "./routes/admin.js";
 import { createCartRouter, type CartRepository } from "./routes/cart.js";
@@ -26,11 +30,14 @@ import { createOrderRouter, type OrderRepository } from "./routes/orders.js";
 import {
   createPayPalRouter,
   type PayPalOrderPreparationRepository,
+  type PayPalWebhookProcessingRepository,
 } from "./routes/paypal.js";
 import type {
   PayPalCaptureOrderGateway,
   PayPalClientTokenGateway,
   PayPalCreateOrderGateway,
+  PayPalPaymentTokenDeleteGateway,
+  PayPalWebhookVerificationGateway,
 } from "./paypal/client.js";
 import type { PayPalEnvironment } from "../../shared/src/market.js";
 import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js";
@@ -56,14 +63,22 @@ export interface CreateAppInput {
   readonly orders?: {
     readonly orderRepository: OrderRepository;
   };
+  readonly account?: {
+    readonly accountRepository: AccountRepository;
+    readonly paymentTokenGateway: PayPalPaymentTokenDeleteGateway;
+    readonly authVerifier: SupabaseAuthVerifier;
+  };
   readonly paypal?: {
     readonly environment: PayPalEnvironment;
     readonly clientId: string;
+    readonly webhookId?: string;
     readonly defaultClientTokenDomains: readonly string[];
     readonly clientTokenGateway: PayPalClientTokenGateway;
     readonly orderGateway?: PayPalCreateOrderGateway &
       PayPalCaptureOrderGateway;
+    readonly webhookGateway?: PayPalWebhookVerificationGateway;
     readonly orderRepository?: PayPalOrderPreparationRepository;
+    readonly webhookRepository?: PayPalWebhookProcessingRepository;
     readonly authVerifier: SupabaseAuthVerifier;
     readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   };
@@ -165,6 +180,17 @@ export function createApp(input: CreateAppInput = {}) {
     );
   }
 
+  if (input.account) {
+    app.use(
+      "/api",
+      createBuyerAuthMiddleware({ supabase: input.account.authVerifier }),
+      createAccountRouter({
+        accountRepository: input.account.accountRepository,
+        paymentTokenGateway: input.account.paymentTokenGateway,
+      }),
+    );
+  }
+
   if (input.paypal) {
     app.use(
       "/api",
@@ -173,13 +199,22 @@ export function createApp(input: CreateAppInput = {}) {
       createPayPalRouter({
         environment: input.paypal.environment,
         clientId: input.paypal.clientId,
+        ...(input.paypal.webhookId
+          ? { webhookId: input.paypal.webhookId }
+          : {}),
         defaultClientTokenDomains: input.paypal.defaultClientTokenDomains,
         clientTokenGateway: input.paypal.clientTokenGateway,
         ...(input.paypal.orderGateway
           ? { orderGateway: input.paypal.orderGateway }
           : {}),
+        ...(input.paypal.webhookGateway
+          ? { webhookGateway: input.paypal.webhookGateway }
+          : {}),
         ...(input.paypal.orderRepository
           ? { orderRepository: input.paypal.orderRepository }
+          : {}),
+        ...(input.paypal.webhookRepository
+          ? { webhookRepository: input.paypal.webhookRepository }
           : {}),
         ...(input.paypal.activeStorefrontContextStore
           ? {

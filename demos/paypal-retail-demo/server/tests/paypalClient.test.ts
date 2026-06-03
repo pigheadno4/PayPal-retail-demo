@@ -427,6 +427,204 @@ describe("PayPal capture order gateway", () => {
   });
 });
 
+describe("PayPal webhook verification gateway", () => {
+  it("uses OAuth and PayPal webhook verification API with notification headers", async () => {
+    const fetchCalls: FetchCall[] = [];
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      fetch: createFetch(async (url, init) => {
+        fetchCalls.push({ url, init });
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            verification_status: "SUCCESS",
+          }),
+        };
+      }),
+    });
+
+    const response = await gateway.verifyWebhookSignature({
+      webhookId: "PAYPAL_WEBHOOK_ID",
+      transmissionId: "transmission-123",
+      transmissionTime: "2026-06-01T10:00:00Z",
+      transmissionSignature: "signature-123",
+      certUrl: "https://api-m.sandbox.paypal.com/certs/cert.pem",
+      authAlgorithm: "SHA256withRSA",
+      event: {
+        id: "WH-123",
+        event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+      },
+    });
+
+    expect(response).toEqual({
+      verificationStatus: "SUCCESS",
+    });
+    expect(fetchCalls).toHaveLength(2);
+    expect(fetchCalls[1]?.url).toBe(
+      "https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature",
+    );
+    expect(fetchCalls[1]?.init).toEqual({
+      method: "POST",
+      headers: {
+        authorization: "Bearer server-access-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        auth_algo: "SHA256withRSA",
+        cert_url: "https://api-m.sandbox.paypal.com/certs/cert.pem",
+        transmission_id: "transmission-123",
+        transmission_sig: "signature-123",
+        transmission_time: "2026-06-01T10:00:00Z",
+        webhook_id: "PAYPAL_WEBHOOK_ID",
+        webhook_event: {
+          id: "WH-123",
+          event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+        },
+      }),
+    });
+  });
+
+  it("throws sanitized errors for failed webhook verification calls", async () => {
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      fetch: createFetch(async (url) => {
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({
+            name: "AUTHENTICATION_FAILURE",
+            access_token: "should-not-leak",
+          }),
+        };
+      }),
+    });
+
+    await expect(
+      gateway.verifyWebhookSignature({
+        webhookId: "PAYPAL_WEBHOOK_ID",
+        transmissionId: "transmission-123",
+        transmissionTime: "2026-06-01T10:00:00Z",
+        transmissionSignature: "signature-123",
+        certUrl: "https://api-m.sandbox.paypal.com/certs/cert.pem",
+        authAlgorithm: "SHA256withRSA",
+        event: {
+          id: "WH-123",
+          event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+        },
+      }),
+    ).rejects.toThrow(
+      "PayPal webhook verification request failed: AUTHENTICATION_FAILURE",
+    );
+  });
+});
+
+describe("PayPal payment token gateway", () => {
+  it("uses OAuth to delete a vaulted payment token", async () => {
+    const fetchCalls: FetchCall[] = [];
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      fetch: createFetch(async (url, init) => {
+        fetchCalls.push({ url, init });
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+
+        return {
+          ok: true,
+          status: 204,
+          json: async () => ({}),
+        };
+      }),
+    });
+
+    await gateway.deletePaymentToken({
+      vaultId: "vault_card_123",
+    });
+
+    expect(fetchCalls).toHaveLength(2);
+    expect(fetchCalls[1]?.url).toBe(
+      "https://api-m.sandbox.paypal.com/v3/vault/payment-tokens/vault_card_123",
+    );
+    expect(fetchCalls[1]?.init).toEqual({
+      method: "DELETE",
+      headers: {
+        authorization: "Bearer server-access-token",
+        "content-type": "application/json",
+      },
+      body: null,
+    });
+  });
+
+  it("throws sanitized errors for failed payment token deletes", async () => {
+    const gateway = createPayPalClientTokenGateway({
+      environment: "sandbox",
+      clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      clientSecret: "PAYPAL_SECRET_VALUE",
+      fetch: createFetch(async (url) => {
+        if (url.endsWith("/v1/oauth2/token")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              access_token: "server-access-token",
+              expires_in: 31668,
+            }),
+          };
+        }
+        return {
+          ok: false,
+          status: 403,
+          json: async () => ({
+            name: "NOT_AUTHORIZED",
+            access_token: "should-not-leak",
+          }),
+        };
+      }),
+    });
+
+    await expect(
+      gateway.deletePaymentToken({
+        vaultId: "vault_card_123",
+      }),
+    ).rejects.toThrow("PayPal payment token delete failed: NOT_AUTHORIZED");
+  });
+});
+
 interface FetchCall {
   readonly url: string;
   readonly init: {

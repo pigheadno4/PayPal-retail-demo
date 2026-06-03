@@ -31,3 +31,9 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - A linked Supabase read query briefly failed with a TLS handshake timeout while initializing the CLI login role; a single retry succeeded and returned `checkout_drafts = 2`.
 - Checkout promo implementation caught an `exactOptionalPropertyTypes` issue: build `PromoEvaluationInput` without `selectedCodes` when no explicit selection exists, rather than passing `selectedCodes: undefined`.
 - Guest order lookup remote verification hit the same transient Supabase CLI login-role TLS handshake timeout once; a single retry succeeded and returned `orders = 5` and `guest_order_access = 1`.
+
+## 2026-06-03
+
+- M8 web-shell WIP was intentionally parked in Git stash `m8-web-shell-wip` before continuing Milestone 7 webhook/saved-payment work.
+- PayPal webhook verification uses the PayPal verification API instead of local signature math because the local API spec source includes `POST /v1/notifications/verify-webhook-signature` with required notification header fields and `webhook_event`.
+- Saved-payment capture handling intentionally runs only for authenticated buyers with `vault_requested = true`; guest and one-time captures do not create saved payment records.

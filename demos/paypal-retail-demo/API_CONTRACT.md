@@ -246,7 +246,7 @@ Order detail returns buyer-facing timeline and review eligibility. Technical IDs
 Delete flow:
 
 1. Verify saved payment belongs to buyer.
-2. Call PayPal token delete/revoke where supported.
+2. Call PayPal Payment Method Tokens delete when a vault ID exists.
 3. Mark local record deleted.
 4. Return updated list.
 
@@ -476,7 +476,10 @@ Vault attribute rules:
 - Card save-for-future uses `payment_source.card.attributes.vault.store_in_vault: "ON_SUCCESS"` and `payment_source.card.attributes.verification.method: "SCA_WHEN_REQUIRED"` by default.
 - If a PayPal-generated customer ID exists for the buyer, card vault attributes can include `payment_source.card.attributes.customer.id`; the same customer ID can also be sent as `target_customer_id` in the client-token request.
 - Pay Later, Apple Pay, Google Pay, and Venmo save-for-future controls remain disabled in v1 unless official support is separately confirmed and the plan is updated.
-- Capture/webhook handling must treat vault status `APPROVED` as pending until a verified vault/payment-token webhook confirms the token.
+- Capture handling creates or updates local saved-payment records only for authenticated buyers with `vault_requested = true`.
+- Capture status `VAULTED` creates or updates an `active` saved payment when a vault ID is available.
+- Capture status `APPROVED` creates or updates a `pending` saved payment until a verified `VAULT.PAYMENT-TOKEN.CREATED` webhook provides the vault ID.
+- Verified vault deletion webhooks reconcile local saved payment records to `disabled` or `deleted`.
 
 ### PayPal Order Number And Invoice ID Rules
 
@@ -732,13 +735,24 @@ Snapshot storage:
 
 Verifies PayPal webhook signature before processing.
 
-Valid events may update:
+Verification uses the PayPal notification headers:
 
-- payment session status
-- order payment status
-- saved payment active/pending status
+- `PAYPAL-AUTH-ALGO`
+- `PAYPAL-CERT-URL`
+- `PAYPAL-TRANSMISSION-ID`
+- `PAYPAL-TRANSMISSION-SIG`
+- `PAYPAL-TRANSMISSION-TIME`
 
-Invalid events are stored as invalid and ignored.
+Backend calls PayPal `POST /v1/notifications/verify-webhook-signature` with the configured `PAYPAL_WEBHOOK_ID` and the received event body.
+
+Implemented v1 processing:
+
+- `PAYMENT.CAPTURE.COMPLETED`: links by related PayPal order ID, marks the payment session captured, and marks the order paid/captured for reconciliation.
+- `VAULT.PAYMENT-TOKEN.CREATED`: activates a pending saved payment and stores vault/customer/card summary metadata.
+- `VAULT.PAYMENT-TOKEN.DELETION-INITIATED`: marks the local saved payment disabled.
+- `VAULT.PAYMENT-TOKEN.DELETED`: marks the local saved payment deleted.
+
+Invalid events are stored as invalid/ignored and rejected with a buyer-safe API error. Invalid or unverifiable webhooks never mutate order, payment-session, or saved-payment state.
 
 ## Review APIs
 

@@ -9,8 +9,13 @@ import type {
   PayPalCaptureOrderGatewayResponse,
   PayPalCreateOrderGatewayInput,
   PayPalCreateOrderGatewayResponse,
+  PayPalWebhookVerificationGatewayInput,
+  PayPalWebhookVerificationGatewayResponse,
 } from "../src/paypal/client.js";
 import type {
+  PayPalWebhookProcessingInput,
+  PayPalWebhookProcessingRepository,
+  PayPalWebhookProcessingResult,
   PreparedPayPalCapture,
   RecordPayPalCaptureResultInput,
   PayPalCreateOrderOperationContext,
@@ -578,21 +583,116 @@ describe("PayPal routes", () => {
     expect(orderRepository.prepareCalls).toEqual([]);
     expect(gateway.createOrderCalls).toEqual([]);
   });
+
+  it("rejects invalid PayPal webhook verification after storing an ignored event", async () => {
+    const gateway = createPayPalGateway({
+      webhookVerificationStatus: "FAILURE",
+    });
+    const webhookRepository = createWebhookRepository();
+    const app = createPayPalApp(gateway, undefined, webhookRepository);
+
+    const event = vaultCreatedEvent();
+    const response = await requestApp(app, "POST", "/api/paypal/webhooks", {
+      headers: paypalWebhookHeaders(),
+      json: event,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_PAYPAL_WEBHOOK_SIGNATURE",
+        message: "PayPal webhook signature verification failed.",
+        details: {
+          event_id: "WH-VAULT-CREATED",
+          event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+          processing_status: "ignored",
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(gateway.webhookVerificationCalls).toEqual([
+      {
+        webhookId: "PAYPAL_WEBHOOK_ID",
+        transmissionId: "transmission-123",
+        transmissionTime: "2026-06-01T10:00:00Z",
+        transmissionSignature: "signature-123",
+        certUrl: "https://api-m.sandbox.paypal.com/certs/cert.pem",
+        authAlgorithm: "SHA256withRSA",
+        event,
+      },
+    ]);
+    expect(webhookRepository.processingCalls).toEqual([
+      {
+        verificationStatus: "invalid",
+        headers: {
+          auth_algorithm: "SHA256withRSA",
+          cert_url: "https://api-m.sandbox.paypal.com/certs/cert.pem",
+          transmission_id: "transmission-123",
+          transmission_signature: "signature-123",
+          transmission_time: "2026-06-01T10:00:00Z",
+        },
+        event,
+      },
+    ]);
+  });
+
+  it("processes valid PayPal vault webhooks and returns a standard success envelope", async () => {
+    const gateway = createPayPalGateway({
+      webhookVerificationStatus: "SUCCESS",
+    });
+    const webhookRepository = createWebhookRepository({
+      processingResult: {
+        eventId: "WH-VAULT-CREATED",
+        eventType: "VAULT.PAYMENT-TOKEN.CREATED",
+        verificationStatus: "valid",
+        processingStatus: "processed",
+        linkedOrderId: "order_existing",
+        linkedPaymentSessionId: "payment_session_existing",
+        savedPaymentMethodId: "saved_payment_123",
+      },
+    });
+    const app = createPayPalApp(gateway, undefined, webhookRepository);
+
+    const response = await requestApp(app, "POST", "/api/paypal/webhooks", {
+      headers: paypalWebhookHeaders(),
+      json: vaultCreatedEvent(),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        event_id: "WH-VAULT-CREATED",
+        event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+        verification_status: "valid",
+        processing_status: "processed",
+        linked_order_id: "order_existing",
+        linked_payment_session_id: "payment_session_existing",
+        saved_payment_method_id: "saved_payment_123",
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+  });
 });
 
 function createPayPalApp(
   gateway: FakePayPalGateway,
   orderRepository?: FakeOrderRepository,
+  webhookRepository?: FakeWebhookRepository,
 ) {
   return createApp({
     paypal: {
       environment: "sandbox",
       clientId: "PAYPAL_PUBLIC_CLIENT_ID",
+      webhookId: "PAYPAL_WEBHOOK_ID",
       defaultClientTokenDomains: ["https://checkout.example.test"],
       clientTokenGateway: gateway,
       orderGateway: gateway,
+      webhookGateway: gateway,
       authVerifier: createAuthVerifier(),
       ...(orderRepository ? { orderRepository } : {}),
+      ...(webhookRepository ? { webhookRepository } : {}),
     },
   });
 }
@@ -626,21 +726,28 @@ interface FakePayPalGateway extends PayPalClientTokenGateway {
   readonly calls: PayPalClientTokenGatewayInput[];
   readonly createOrderCalls: PayPalCreateOrderGatewayInput[];
   readonly captureOrderCalls: PayPalCaptureOrderGatewayInput[];
+  readonly webhookVerificationCalls: PayPalWebhookVerificationGatewayInput[];
 }
 
 function createClientTokenGateway(): FakePayPalGateway {
   return createPayPalGateway();
 }
 
-function createPayPalGateway(): FakePayPalGateway {
+function createPayPalGateway(
+  options: {
+    readonly webhookVerificationStatus?: PayPalWebhookVerificationGatewayResponse["verificationStatus"];
+  } = {},
+): FakePayPalGateway {
   const calls: PayPalClientTokenGatewayInput[] = [];
   const createOrderCalls: PayPalCreateOrderGatewayInput[] = [];
   const captureOrderCalls: PayPalCaptureOrderGatewayInput[] = [];
+  const webhookVerificationCalls: PayPalWebhookVerificationGatewayInput[] = [];
 
   return {
     calls,
     createOrderCalls,
     captureOrderCalls,
+    webhookVerificationCalls,
     async generateClientToken(input) {
       calls.push(input);
       return {
@@ -670,6 +777,14 @@ function createPayPalGateway(): FakePayPalGateway {
       captureOrderCalls.push(input);
       return paypalCaptureResponse();
     },
+    async verifyWebhookSignature(
+      input,
+    ): Promise<PayPalWebhookVerificationGatewayResponse> {
+      webhookVerificationCalls.push(input);
+      return {
+        verificationStatus: options.webhookVerificationStatus ?? "SUCCESS",
+      };
+    },
   };
 }
 
@@ -682,6 +797,68 @@ interface FakeOrderRepository extends PayPalOrderPreparationRepository {
   readonly shippingCallbackCalls: HandlePayPalShippingCallbackInput[];
   readonly prepareCaptureCalls: { readonly paypalOrderId: string }[];
   readonly recordCaptureCalls: RecordPayPalCaptureResultInput[];
+}
+
+interface FakeWebhookRepository extends PayPalWebhookProcessingRepository {
+  readonly processingCalls: PayPalWebhookProcessingInput[];
+}
+
+function createWebhookRepository(
+  options: {
+    readonly processingResult?: PayPalWebhookProcessingResult;
+  } = {},
+): FakeWebhookRepository {
+  const processingCalls: PayPalWebhookProcessingInput[] = [];
+
+  return {
+    processingCalls,
+    async processWebhook(input) {
+      processingCalls.push(input);
+      return (
+        options.processingResult ?? {
+          eventId: "WH-VAULT-CREATED",
+          eventType: "VAULT.PAYMENT-TOKEN.CREATED",
+          verificationStatus: input.verificationStatus,
+          processingStatus:
+            input.verificationStatus === "valid" ? "processed" : "ignored",
+          linkedOrderId: null,
+          linkedPaymentSessionId: null,
+          savedPaymentMethodId: null,
+        }
+      );
+    },
+  };
+}
+
+function paypalWebhookHeaders(): Record<string, string> {
+  return {
+    "paypal-auth-algo": "SHA256withRSA",
+    "paypal-cert-url": "https://api-m.sandbox.paypal.com/certs/cert.pem",
+    "paypal-transmission-id": "transmission-123",
+    "paypal-transmission-sig": "signature-123",
+    "paypal-transmission-time": "2026-06-01T10:00:00Z",
+  };
+}
+
+function vaultCreatedEvent() {
+  return {
+    id: "WH-VAULT-CREATED",
+    event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+    resource_type: "payment_token",
+    resource: {
+      id: "vault_card_123",
+      customer: {
+        id: "paypal_customer_123",
+      },
+      payment_source: {
+        card: {
+          brand: "VISA",
+          last_digits: "1111",
+          expiry: "2027-02",
+        },
+      },
+    },
+  };
 }
 
 function createOrderRepository(): FakeOrderRepository {

@@ -162,10 +162,10 @@
 - [ ] Apple Pay renders and captures where eligible.
 - [ ] Google Pay renders and captures where eligible.
 - [ ] Venmo renders and captures where eligible.
-- [ ] Vaulting active/pending states update correctly.
-- [ ] Saved payment deletion calls PayPal revoke/delete where supported.
-- [ ] Webhook signature verification rejects invalid events.
-- [ ] Valid payment/vaulting webhooks link to orders/payment sessions.
+- [x] Vaulting active/pending states update correctly in backend capture/webhook lifecycle tests.
+- [x] Saved payment deletion calls PayPal Payment Method Tokens delete when a vault ID exists.
+- [x] Webhook signature verification rejects invalid events and stores them as ignored without mutation.
+- [x] Valid payment/vaulting webhooks link to orders/payment sessions or saved-payment records in backend tests.
 
 ## Admin Portal
 

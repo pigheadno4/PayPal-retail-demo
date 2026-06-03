@@ -22,6 +22,7 @@ import {
   type PayPalCurrencyCode,
   type PayPalOrderLineItemInput,
   type PayPalPaymentMethod,
+  type PayPalSnapshotJson,
   type PreviousPayPalRequestMetadata,
 } from "../../../shared/src/paypal.js";
 import {
@@ -382,6 +383,23 @@ export interface PayPalOrderPaymentSessionRow {
   readonly paypal_config_snapshot_json: CatalogJson;
 }
 
+export interface PayPalOrderSavedPaymentMethodRow {
+  readonly id: string;
+  readonly auth_user_id: string;
+  readonly provider: "paypal";
+  readonly method_type: "paypal_wallet" | "card";
+  readonly status: "active" | "pending" | "disabled" | "deleted";
+  readonly vault_id: string | null;
+  readonly paypal_customer_id: string | null;
+  readonly brand: string | null;
+  readonly last4: string | null;
+  readonly expiry_month: number | null;
+  readonly expiry_year: number | null;
+  readonly label: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
 export interface PayPalOrderTotalSnapshotRow {
   readonly id: string;
   readonly checkout_draft_id: string | null;
@@ -531,6 +549,21 @@ export interface PayPalOrderDataSource {
     paymentSessionId: string,
     patch: Partial<PayPalOrderPaymentSessionRow>,
   ) => Promise<PayPalOrderPaymentSessionRow>;
+  readonly createSavedPaymentMethod: (
+    savedPaymentMethod: PayPalOrderSavedPaymentMethodRow,
+  ) => Promise<PayPalOrderSavedPaymentMethodRow>;
+  readonly findSavedPaymentMethodByVaultId: (
+    vaultId: string,
+  ) => Promise<PayPalOrderSavedPaymentMethodRow | null>;
+  readonly findPendingSavedPaymentMethod: (input: {
+    readonly authUserId: string;
+    readonly paypalCustomerId: string;
+    readonly methodType: PayPalOrderSavedPaymentMethodRow["method_type"];
+  }) => Promise<PayPalOrderSavedPaymentMethodRow | null>;
+  readonly updateSavedPaymentMethod: (
+    id: string,
+    patch: Partial<PayPalOrderSavedPaymentMethodRow>,
+  ) => Promise<PayPalOrderSavedPaymentMethodRow>;
   readonly createTotalSnapshot: (
     snapshot: PayPalOrderTotalSnapshotRow,
   ) => Promise<void>;
@@ -572,6 +605,7 @@ export interface CreateSupabasePayPalOrderRepositoryInput {
   readonly createPromoEvaluationId?: () => string;
   readonly createPromoEvaluationLineId?: () => string;
   readonly createOrderLifecycleEventId?: () => string;
+  readonly createSavedPaymentMethodId?: () => string;
   readonly createPayPalRequestId?: () => string;
   readonly hashCartClientSecret?: (secret: string) => string;
 }
@@ -588,6 +622,7 @@ interface PayPalOrderRepositoryDependencies {
   readonly createPromoEvaluationId: () => string;
   readonly createPromoEvaluationLineId: () => string;
   readonly createOrderLifecycleEventId: () => string;
+  readonly createSavedPaymentMethodId: () => string;
   readonly createPayPalRequestId: () => string;
   readonly hashCartClientSecret: (secret: string) => string;
 }
@@ -652,6 +687,7 @@ export function createSupabasePayPalOrderRepository(
       input.createPromoEvaluationLineId ?? randomUUID,
     createOrderLifecycleEventId:
       input.createOrderLifecycleEventId ?? randomUUID,
+    createSavedPaymentMethodId: input.createSavedPaymentMethodId ?? randomUUID,
     createPayPalRequestId: input.createPayPalRequestId ?? randomUUID,
     hashCartClientSecret:
       input.hashCartClientSecret ?? defaultCartClientSecretHash,
@@ -937,6 +973,12 @@ async function recordPayPalCaptureResult(
     note: `PayPal capture completed: ${captureInput.paypalCaptureId}`,
     created_at: resolveNow(input.now),
   });
+  await recordSavedPaymentFromCapture(
+    input,
+    paymentSession,
+    order,
+    captureInput.response.rawResponse,
+  );
 
   await decrementCapturedOrderInventory(input, order, orderItems);
   if (order.cart_id) {
@@ -945,6 +987,190 @@ async function recordPayPalCaptureResult(
       productIds: uniqueStrings(orderItems.map((item) => item.product_id)),
     });
   }
+}
+
+interface CaptureVaultDetails {
+  readonly methodType: PayPalOrderSavedPaymentMethodRow["method_type"] | null;
+  readonly vaultStatus: "APPROVED" | "VAULTED" | null;
+  readonly vaultId: string | null;
+  readonly paypalCustomerId: string | null;
+  readonly brand: string | null;
+  readonly last4: string | null;
+  readonly expiryMonth: number | null;
+  readonly expiryYear: number | null;
+  readonly label: string | null;
+}
+
+async function recordSavedPaymentFromCapture(
+  input: PayPalOrderRepositoryDependencies,
+  paymentSession: PayPalOrderPaymentSessionRow,
+  order: PayPalOrderRow,
+  rawResponse: PayPalSnapshotJson,
+): Promise<void> {
+  if (!paymentSession.vault_requested || !order.auth_user_id) {
+    return;
+  }
+
+  const vaultDetails = extractCaptureVaultDetails(rawResponse);
+  if (!vaultDetails.methodType || !vaultDetails.vaultStatus) {
+    return;
+  }
+
+  const status = vaultDetails.vaultStatus === "VAULTED" ? "active" : "pending";
+  const now = resolveNow(input.now);
+
+  if (vaultDetails.vaultId) {
+    const existingSavedPayment =
+      await input.dataSource.findSavedPaymentMethodByVaultId(
+        vaultDetails.vaultId,
+      );
+    if (existingSavedPayment) {
+      await input.dataSource.updateSavedPaymentMethod(existingSavedPayment.id, {
+        status,
+        paypal_customer_id: vaultDetails.paypalCustomerId,
+        brand: vaultDetails.brand,
+        last4: vaultDetails.last4,
+        expiry_month: vaultDetails.expiryMonth,
+        expiry_year: vaultDetails.expiryYear,
+        label: vaultDetails.label,
+        updated_at: now,
+      });
+      return;
+    }
+  }
+
+  if (vaultDetails.paypalCustomerId) {
+    const pendingSavedPayment =
+      await input.dataSource.findPendingSavedPaymentMethod({
+        authUserId: order.auth_user_id,
+        paypalCustomerId: vaultDetails.paypalCustomerId,
+        methodType: vaultDetails.methodType,
+      });
+    if (pendingSavedPayment) {
+      await input.dataSource.updateSavedPaymentMethod(pendingSavedPayment.id, {
+        status,
+        vault_id: vaultDetails.vaultId,
+        brand: vaultDetails.brand,
+        last4: vaultDetails.last4,
+        expiry_month: vaultDetails.expiryMonth,
+        expiry_year: vaultDetails.expiryYear,
+        label: vaultDetails.label,
+        updated_at: now,
+      });
+      return;
+    }
+  }
+
+  await input.dataSource.createSavedPaymentMethod({
+    id: input.createSavedPaymentMethodId(),
+    auth_user_id: order.auth_user_id,
+    provider: "paypal",
+    method_type: vaultDetails.methodType,
+    status,
+    vault_id: vaultDetails.vaultId,
+    paypal_customer_id: vaultDetails.paypalCustomerId,
+    brand: vaultDetails.brand,
+    last4: vaultDetails.last4,
+    expiry_month: vaultDetails.expiryMonth,
+    expiry_year: vaultDetails.expiryYear,
+    label: vaultDetails.label,
+    created_at: now,
+    updated_at: now,
+  });
+}
+
+function extractCaptureVaultDetails(
+  rawResponse: PayPalSnapshotJson,
+): CaptureVaultDetails {
+  const paymentSource = getJsonObjectProperty(rawResponse, "payment_source");
+  const card = getJsonObjectProperty(paymentSource, "card");
+  const paypal = getJsonObjectProperty(paymentSource, "paypal");
+  const methodType = card ? "card" : paypal ? "paypal_wallet" : null;
+  const source = methodType === "card" ? card : paypal;
+  const attributes = getJsonObjectProperty(source, "attributes");
+  const vault = getJsonObjectProperty(attributes, "vault");
+  const customer = getJsonObjectProperty(attributes, "customer");
+  const vaultStatus = normalizeVaultStatus(
+    getJsonObjectProperty(vault, "status"),
+  );
+  const brand = normalizeOptionalString(getJsonObjectProperty(source, "brand"));
+  const last4 = normalizeOptionalString(
+    getJsonObjectProperty(source, "last_digits"),
+  );
+  const expiry = parseCardExpiry(
+    normalizeOptionalString(getJsonObjectProperty(source, "expiry")),
+  );
+
+  return {
+    methodType,
+    vaultStatus,
+    vaultId: normalizeOptionalString(getJsonObjectProperty(vault, "id")),
+    paypalCustomerId: normalizeOptionalString(
+      getJsonObjectProperty(customer, "id"),
+    ),
+    brand,
+    last4,
+    expiryMonth: expiry.month,
+    expiryYear: expiry.year,
+    label: buildSavedPaymentLabel(methodType, brand, last4),
+  };
+}
+
+function normalizeVaultStatus(value: unknown): "APPROVED" | "VAULTED" | null {
+  return value === "APPROVED" || value === "VAULTED" ? value : null;
+}
+
+function getJsonObjectProperty(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : null;
+}
+
+function parseCardExpiry(value: string | null): {
+  readonly month: number | null;
+  readonly year: number | null;
+} {
+  const match = value?.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    return {
+      month: null,
+      year: null,
+    };
+  }
+
+  return {
+    month: Number.parseInt(match[2]!, 10),
+    year: Number.parseInt(match[1]!, 10),
+  };
+}
+
+function buildSavedPaymentLabel(
+  methodType: CaptureVaultDetails["methodType"],
+  brand: string | null,
+  last4: string | null,
+): string | null {
+  if (methodType === "paypal_wallet") {
+    return "PayPal wallet";
+  }
+  if (brand && last4) {
+    return `${titleCase(brand)} ending in ${last4}`;
+  }
+  return null;
+}
+
+function titleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (character) => character.toUpperCase());
 }
 
 async function decrementCapturedOrderInventory(
@@ -2894,6 +3120,23 @@ const paymentSessionColumns = [
   "paypal_config_snapshot_json",
 ].join(", ");
 
+const savedPaymentMethodColumns = [
+  "id",
+  "auth_user_id",
+  "provider",
+  "method_type",
+  "status",
+  "vault_id",
+  "paypal_customer_id",
+  "brand",
+  "last4",
+  "expiry_month",
+  "expiry_year",
+  "label",
+  "created_at",
+  "updated_at",
+].join(", ");
+
 const orderItemColumns = [
   "id",
   "order_id",
@@ -3400,6 +3643,50 @@ export function createSupabasePayPalOrderDataSource(
           .select(paymentSessionColumns)
           .single(),
         `Update payment session ${paymentSessionId}`,
+      );
+    },
+    async createSavedPaymentMethod(savedPaymentMethod) {
+      return queryRequired<PayPalOrderSavedPaymentMethodRow>(
+        supabase
+          .from("saved_payment_methods")
+          .insert(savedPaymentMethod as unknown as Record<string, unknown>)
+          .select(savedPaymentMethodColumns)
+          .single(),
+        "Create saved payment method",
+      );
+    },
+    async findSavedPaymentMethodByVaultId(vaultId) {
+      return queryOne<PayPalOrderSavedPaymentMethodRow>(
+        supabase
+          .from("saved_payment_methods")
+          .select(savedPaymentMethodColumns)
+          .eq("vault_id", vaultId)
+          .maybeSingle(),
+        `Find saved payment method ${vaultId}`,
+      );
+    },
+    async findPendingSavedPaymentMethod(input) {
+      return queryOne<PayPalOrderSavedPaymentMethodRow>(
+        supabase
+          .from("saved_payment_methods")
+          .select(savedPaymentMethodColumns)
+          .eq("auth_user_id", input.authUserId)
+          .eq("paypal_customer_id", input.paypalCustomerId)
+          .eq("method_type", input.methodType)
+          .eq("status", "pending")
+          .maybeSingle(),
+        `Find pending saved payment method ${input.paypalCustomerId}`,
+      );
+    },
+    async updateSavedPaymentMethod(id, patch) {
+      return queryRequired<PayPalOrderSavedPaymentMethodRow>(
+        supabase
+          .from("saved_payment_methods")
+          .update(patch as Record<string, unknown>)
+          .eq("id", id)
+          .select(savedPaymentMethodColumns)
+          .single(),
+        `Update saved payment method ${id}`,
       );
     },
     async createTotalSnapshot(snapshot) {

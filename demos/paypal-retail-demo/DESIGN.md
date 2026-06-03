@@ -364,7 +364,10 @@ Address book:
 Saved payment:
 
 - user-level, shared across profiles
-- delete action calls PayPal revoke/delete token API where supported
+- capture can create active or pending saved-payment states for authenticated save-for-future buyers
+- verified vault-created webhooks promote pending saved payments to active
+- delete action calls PayPal Payment Method Tokens delete when a vault ID exists
+- verified vault-deleted webhooks reconcile deleted local state
 - simple confirmation dialog
 
 Order detail:

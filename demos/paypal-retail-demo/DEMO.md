@@ -68,6 +68,7 @@ Backend APIs:
 - Capture payment after selected payment method succeeds.
 - Verify final amount consistency before capture.
 - On successful capture, mark the order paid, mark the payment session captured, write PayPal/total/lifecycle snapshots, decrement central inventory, and clear only paid items from the active cart.
+- Verified PayPal webhooks reconcile capture completion and saved-payment token lifecycle; invalid webhooks are stored for Admin/debug but never mutate business state.
 
 Stored state:
 

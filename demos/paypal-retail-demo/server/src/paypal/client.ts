@@ -57,9 +57,41 @@ export interface PayPalCaptureOrderGateway {
   ) => Promise<PayPalCaptureOrderGatewayResponse>;
 }
 
+export interface PayPalWebhookVerificationGatewayInput {
+  readonly webhookId: string;
+  readonly transmissionId: string;
+  readonly transmissionTime: string;
+  readonly transmissionSignature: string;
+  readonly certUrl: string;
+  readonly authAlgorithm: string;
+  readonly event: PayPalSnapshotJson;
+}
+
+export interface PayPalWebhookVerificationGatewayResponse {
+  readonly verificationStatus: "SUCCESS" | "FAILURE";
+}
+
+export interface PayPalWebhookVerificationGateway {
+  readonly verifyWebhookSignature: (
+    input: PayPalWebhookVerificationGatewayInput,
+  ) => Promise<PayPalWebhookVerificationGatewayResponse>;
+}
+
+export interface PayPalPaymentTokenDeleteGatewayInput {
+  readonly vaultId: string;
+}
+
+export interface PayPalPaymentTokenDeleteGateway {
+  readonly deletePaymentToken: (
+    input: PayPalPaymentTokenDeleteGatewayInput,
+  ) => Promise<void>;
+}
+
 export type PayPalGateway = PayPalClientTokenGateway &
   PayPalCreateOrderGateway &
-  PayPalCaptureOrderGateway;
+  PayPalCaptureOrderGateway &
+  PayPalWebhookVerificationGateway &
+  PayPalPaymentTokenDeleteGateway;
 
 export interface CreatePayPalClientTokenGatewayInput {
   readonly environment: PayPalEnvironment;
@@ -90,6 +122,12 @@ interface PayPalCaptureOrderResponseBody {
   readonly name?: unknown;
   readonly error?: unknown;
   readonly purchase_units?: unknown;
+}
+
+interface PayPalWebhookVerificationResponseBody {
+  readonly verification_status?: unknown;
+  readonly name?: unknown;
+  readonly error?: unknown;
 }
 
 export function createPayPalClientTokenGateway(
@@ -227,6 +265,72 @@ export function createPayPalClientTokenGateway(
         rawResponse: sanitizeJsonCompatible(responseBody),
       };
     },
+    async verifyWebhookSignature(webhookInput) {
+      const accessToken = await requestAccessToken(input, fetchClient);
+      const response = await fetchClient(
+        `${getPayPalApiBaseUrl(
+          input.environment,
+        )}/v1/notifications/verify-webhook-signature`,
+        {
+          method: "POST",
+          headers: buildPayPalServerJsonHeaders(accessToken),
+          body: JSON.stringify({
+            auth_algo: webhookInput.authAlgorithm,
+            cert_url: webhookInput.certUrl,
+            transmission_id: webhookInput.transmissionId,
+            transmission_sig: webhookInput.transmissionSignature,
+            transmission_time: webhookInput.transmissionTime,
+            webhook_id: webhookInput.webhookId,
+            webhook_event: webhookInput.event,
+          }),
+        },
+      );
+      const responseBody =
+        (await response.json()) as PayPalWebhookVerificationResponseBody;
+
+      if (!response.ok) {
+        throw new Error(
+          `PayPal webhook verification request failed: ${extractPayPalErrorName(
+            responseBody,
+          )}`,
+        );
+      }
+
+      if (
+        responseBody.verification_status !== "SUCCESS" &&
+        responseBody.verification_status !== "FAILURE"
+      ) {
+        throw new Error(
+          "PayPal webhook verification response is missing verification_status",
+        );
+      }
+
+      return {
+        verificationStatus: responseBody.verification_status,
+      };
+    },
+    async deletePaymentToken(tokenInput) {
+      const accessToken = await requestAccessToken(input, fetchClient);
+      const response = await fetchClient(
+        `${getPayPalApiBaseUrl(input.environment)}/v3/vault/payment-tokens/${encodeURIComponent(
+          tokenInput.vaultId,
+        )}`,
+        {
+          method: "DELETE",
+          headers: buildPayPalServerJsonHeaders(accessToken),
+        },
+      );
+
+      if (!response.ok) {
+        const responseBody =
+          (await response.json()) as PayPalWebhookVerificationResponseBody;
+        throw new Error(
+          `PayPal payment token delete failed: ${extractPayPalErrorName(
+            responseBody,
+          )}`,
+        );
+      }
+    },
   };
 }
 
@@ -273,6 +377,15 @@ function buildPayPalJsonHeaders(input: {
     "content-type": "application/json",
     "paypal-request-id": input.paypalRequestId,
     ...(input.bnCode ? { "paypal-partner-attribution-id": input.bnCode } : {}),
+  };
+}
+
+function buildPayPalServerJsonHeaders(
+  accessToken: string,
+): Record<string, string> {
+  return {
+    authorization: `Bearer ${accessToken}`,
+    "content-type": "application/json",
   };
 }
 

@@ -66,6 +66,9 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - PayPal Client ID is browser-safe and should be delivered to the frontend through the backend SDK config API.
 - PayPal Client Secret and OAuth access tokens are server-only.
 - PayPal client token should be generated only for flows that require it, such as vault-enabled card or PayPal wallet flows.
+- Authenticated save-for-future captures create local saved-payment records only when `vault_requested = true`: `VAULTED` becomes active immediately, while `APPROVED` stays pending until a verified `VAULT.PAYMENT-TOKEN.CREATED` webhook provides the vault ID.
+- Saved payment deletion uses PayPal Payment Method Tokens delete when a vault ID exists, then marks the local account record deleted.
+- PayPal webhook verification uses `POST /v1/notifications/verify-webhook-signature` with `PAYPAL_WEBHOOK_ID` and notification headers before any state mutation.
 - PayPal and Pay Later use the `paypal-payments` component.
 - Pay Later should be gated by eligibility. Amount-aware messages must use the current product/cart/order amount; message amount does not change the actual captured order amount.
 - Card fields use the `card-fields` component, render PayPal-hosted iframe fields, submit the PayPal order ID as a plain string, and capture server-side after successful submit/3DS handling.

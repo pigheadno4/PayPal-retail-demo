@@ -252,8 +252,8 @@ Verification:
   - [x] Guard capture against the locked merchant/provider total snapshot before calling PayPal.
   - [x] Call PayPal Orders capture with `PayPal-Request-Id` and store the sanitized capture response.
   - [x] Mark successful orders paid/captured, write capture total/lifecycle snapshots, decrement inventory, and clear paid cart items.
-- [ ] Implement webhook verification and processing.
-- [ ] Implement saved payment active/pending/delete flows.
+- [x] Implement webhook verification and processing.
+- [x] Implement saved payment active/pending/delete flows.
 
 Verification:
 

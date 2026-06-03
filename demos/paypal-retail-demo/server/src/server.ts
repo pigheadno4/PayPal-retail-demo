@@ -5,6 +5,11 @@ import { parseServerEnv, type RawServerEnv } from "./config/env.js";
 import { createSupabaseServerClient } from "./db/supabase.js";
 import type { SupabaseAuthVerifier } from "./middleware/auth.js";
 import { createPayPalClientTokenGateway } from "./paypal/client.js";
+import {
+  createSupabaseAccountDataSource,
+  createSupabaseAccountRepository,
+  type SupabaseAccountClient,
+} from "./repositories/accountRepository.js";
 import { createSupabaseAdminProfileMarketRepository } from "./repositories/adminRepository.js";
 import {
   createSupabaseCartDataSource,
@@ -31,6 +36,11 @@ import {
   createSupabasePayPalOrderRepository,
   type SupabasePayPalOrderClient,
 } from "./repositories/paypalOrderRepository.js";
+import {
+  createSupabasePayPalWebhookDataSource,
+  createSupabasePayPalWebhookRepository,
+  type SupabasePayPalWebhookClient,
+} from "./repositories/paypalWebhookRepository.js";
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 type SupabaseRuntimeClient = SupabaseCatalogClient &
@@ -38,6 +48,8 @@ type SupabaseRuntimeClient = SupabaseCatalogClient &
   SupabaseCheckoutClient &
   SupabaseOrderClient &
   SupabasePayPalOrderClient &
+  SupabasePayPalWebhookClient &
+  SupabaseAccountClient &
   SupabaseAuthVerifier;
 
 export function startServer(env: RawServerEnv = process.env) {
@@ -57,9 +69,15 @@ export function startServer(env: RawServerEnv = process.env) {
   const orderRepository = createSupabaseOrderRepository({
     dataSource: createSupabaseOrderDataSource(supabase),
   });
+  const accountRepository = createSupabaseAccountRepository({
+    dataSource: createSupabaseAccountDataSource(supabase),
+  });
   const paypalOrderRepository = createSupabasePayPalOrderRepository({
     dataSource: createSupabasePayPalOrderDataSource(supabase),
     publicApiBaseUrl: config.publicHttpsOrigin ?? config.appBaseUrl,
+  });
+  const paypalWebhookRepository = createSupabasePayPalWebhookRepository({
+    dataSource: createSupabasePayPalWebhookDataSource(supabase),
   });
   const paypalClientTokenGateway = createPayPalClientTokenGateway({
     environment: config.paypalEnvironment,
@@ -88,15 +106,23 @@ export function startServer(env: RawServerEnv = process.env) {
     orders: {
       orderRepository,
     },
+    account: {
+      accountRepository,
+      paymentTokenGateway: paypalClientTokenGateway,
+      authVerifier: supabase,
+    },
     paypal: {
       environment: config.paypalEnvironment,
       clientId: config.paypalClientId,
+      webhookId: config.paypalWebhookId,
       defaultClientTokenDomains: [
         config.publicHttpsOrigin ?? config.appBaseUrl,
       ],
       clientTokenGateway: paypalClientTokenGateway,
       orderGateway: paypalClientTokenGateway,
+      webhookGateway: paypalClientTokenGateway,
       orderRepository: paypalOrderRepository,
+      webhookRepository: paypalWebhookRepository,
       authVerifier: supabase,
       activeStorefrontContextStore,
     },

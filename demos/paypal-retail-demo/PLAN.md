@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 8 web app shell and design system is next. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 7 PayPal/payment APIs are complete through webhook verification/processing and saved payment active/pending/delete flows. Milestone 8 web app shell remains next, with prior M8 WIP parked in stash `m8-web-shell-wip`. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.

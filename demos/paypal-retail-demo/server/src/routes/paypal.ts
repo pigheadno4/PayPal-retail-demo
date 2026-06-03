@@ -23,6 +23,7 @@ import {
   type PayPalSdkFlow,
   type PayPalSdkPageType,
   type PayPalCaptureAmountGuardResult,
+  type PayPalSnapshotJson,
 } from "../../../shared/src/paypal.js";
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import type { BuyerRequest } from "../middleware/auth.js";
@@ -32,6 +33,7 @@ import type {
   PayPalCaptureOrderGatewayResponse,
   PayPalCreateOrderGateway,
   PayPalCreateOrderGatewayResponse,
+  PayPalWebhookVerificationGateway,
 } from "../paypal/client.js";
 import type {
   GuestCartContext,
@@ -210,13 +212,53 @@ export interface PayPalOrderPreparationRepository {
   ) => Promise<void>;
 }
 
+export interface PayPalWebhookHeaders {
+  readonly auth_algorithm: string;
+  readonly cert_url: string;
+  readonly transmission_id: string;
+  readonly transmission_signature: string;
+  readonly transmission_time: string;
+}
+
+export type PayPalWebhookVerificationStatus = "valid" | "invalid" | "error";
+export type PayPalWebhookProcessingStatus =
+  | "received"
+  | "processed"
+  | "ignored"
+  | "failed";
+
+export interface PayPalWebhookProcessingInput {
+  readonly verificationStatus: PayPalWebhookVerificationStatus;
+  readonly headers: PayPalWebhookHeaders;
+  readonly event: PayPalSnapshotJson;
+}
+
+export interface PayPalWebhookProcessingResult {
+  readonly eventId: string;
+  readonly eventType: string;
+  readonly verificationStatus: PayPalWebhookVerificationStatus;
+  readonly processingStatus: PayPalWebhookProcessingStatus;
+  readonly linkedOrderId: string | null;
+  readonly linkedPaymentSessionId: string | null;
+  readonly savedPaymentMethodId: string | null;
+}
+
+export interface PayPalWebhookProcessingRepository {
+  readonly processWebhook: (
+    input: PayPalWebhookProcessingInput,
+  ) => Promise<PayPalWebhookProcessingResult>;
+}
+
 export interface CreatePayPalRouterInput {
   readonly environment: PayPalEnvironment;
   readonly clientId: string;
+  readonly webhookId?: string;
   readonly defaultClientTokenDomains: readonly string[];
   readonly clientTokenGateway: PayPalClientTokenGateway;
   readonly orderGateway?: PayPalCreateOrderGateway & PayPalCaptureOrderGateway;
+  readonly webhookGateway?: PayPalWebhookVerificationGateway;
   readonly orderRepository?: PayPalOrderPreparationRepository;
+  readonly webhookRepository?: PayPalWebhookProcessingRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
 }
 
@@ -389,7 +431,71 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
     }),
   );
 
+  router.post(
+    "/paypal/webhooks",
+    asyncRoute(async (request, response) => {
+      await handlePayPalWebhookRoute(request, response, input);
+    }),
+  );
+
   return router;
+}
+
+async function handlePayPalWebhookRoute(
+  request: Request,
+  response: Parameters<typeof sendApiSuccess>[0],
+  input: CreatePayPalRouterInput,
+): Promise<void> {
+  if (!input.webhookId || !input.webhookGateway || !input.webhookRepository) {
+    sendApiError(response, 503, {
+      code: "PAYPAL_WEBHOOKS_UNAVAILABLE",
+      message: "PayPal webhook processing is not configured.",
+    });
+    return;
+  }
+
+  const event = parsePayPalWebhookEvent(request.body);
+  const headers = parsePayPalWebhookHeaders(request);
+  if (!event || !headers) {
+    sendApiError(response, 400, {
+      code: "INVALID_PAYPAL_WEBHOOK_REQUEST",
+      message:
+        "A PayPal webhook event and required verification headers are required.",
+    });
+    return;
+  }
+
+  const verification = await input.webhookGateway.verifyWebhookSignature({
+    webhookId: input.webhookId,
+    transmissionId: headers.transmission_id,
+    transmissionTime: headers.transmission_time,
+    transmissionSignature: headers.transmission_signature,
+    certUrl: headers.cert_url,
+    authAlgorithm: headers.auth_algorithm,
+    event,
+  });
+  const verificationStatus =
+    verification.verificationStatus === "SUCCESS" ? "valid" : "invalid";
+  const result = await input.webhookRepository.processWebhook({
+    verificationStatus,
+    headers,
+    event,
+  });
+
+  if (verificationStatus !== "valid") {
+    sendApiError(response, 400, {
+      code: "INVALID_PAYPAL_WEBHOOK_SIGNATURE",
+      message: "PayPal webhook signature verification failed.",
+      details: {
+        event_id: result.eventId,
+        event_type: result.eventType,
+        processing_status: result.processingStatus,
+      },
+    });
+    return;
+  }
+
+  sendApiSuccess(response, mapWebhookProcessingResult(result));
 }
 
 async function handleCreateOrderRoute(
@@ -622,6 +728,69 @@ function parsePayPalShippingCallbackAddress(
   };
 }
 
+function parsePayPalWebhookEvent(value: unknown): PayPalSnapshotJson | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const id = getObjectProperty(value, "id");
+  const eventType = getObjectProperty(value, "event_type");
+  if (typeof id !== "string" || !id.trim()) {
+    return null;
+  }
+  if (typeof eventType !== "string" || !eventType.trim()) {
+    return null;
+  }
+
+  return value as PayPalSnapshotJson;
+}
+
+function parsePayPalWebhookHeaders(
+  request: Request,
+): PayPalWebhookHeaders | null {
+  const authAlgorithm = firstHeaderValue(request, "paypal-auth-algo");
+  const certUrl = firstHeaderValue(request, "paypal-cert-url");
+  const transmissionId = firstHeaderValue(request, "paypal-transmission-id");
+  const transmissionSignature = firstHeaderValue(
+    request,
+    "paypal-transmission-sig",
+  );
+  const transmissionTime = firstHeaderValue(
+    request,
+    "paypal-transmission-time",
+  );
+
+  if (
+    !authAlgorithm ||
+    !certUrl ||
+    !transmissionId ||
+    !transmissionSignature ||
+    !transmissionTime
+  ) {
+    return null;
+  }
+
+  return {
+    auth_algorithm: authAlgorithm,
+    cert_url: certUrl,
+    transmission_id: transmissionId,
+    transmission_signature: transmissionSignature,
+    transmission_time: transmissionTime,
+  };
+}
+
+function mapWebhookProcessingResult(result: PayPalWebhookProcessingResult) {
+  return {
+    event_id: result.eventId,
+    event_type: result.eventType,
+    verification_status: result.verificationStatus,
+    processing_status: result.processingStatus,
+    linked_order_id: result.linkedOrderId,
+    linked_payment_session_id: result.linkedPaymentSessionId,
+    saved_payment_method_id: result.savedPaymentMethodId,
+  };
+}
+
 function buildPayPalShippingCallbackDecline(
   issue: PayPalShippingCallbackDeclineIssue,
 ): PayPalShippingCallbackDeclineResponse {
@@ -799,6 +968,18 @@ function getObjectProperty(value: unknown, key: string): unknown {
 
 function firstQueryValue(request: Request, key: string): string | null {
   const value = request.query[key];
+  const firstValue = Array.isArray(value) ? value[0] : value;
+
+  if (typeof firstValue !== "string") {
+    return null;
+  }
+
+  const trimmedValue = firstValue.trim();
+  return trimmedValue ? trimmedValue : null;
+}
+
+function firstHeaderValue(request: Request, key: string): string | null {
+  const value = request.headers[key];
   const firstValue = Array.isArray(value) ? value[0] : value;
 
   if (typeof firstValue !== "string") {
