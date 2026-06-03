@@ -263,15 +263,15 @@ Verification:
 
 ## Milestone 8: Web App Shell And Design System
 
-- [ ] Build React app shell and routing.
-- [ ] Add POP MART-style design tokens and responsive layout primitives.
-- [ ] Add generic MochiToy visual tokens separately so POP MART mode does not inherit the generic blue/amber/cream direction.
+- [x] Build React app shell and routing.
+- [x] Add POP MART-style design tokens and responsive layout primitives.
+- [x] Add generic MochiToy visual tokens separately so POP MART mode does not inherit the generic blue/amber/cream direction.
 - [ ] Add accessibility primitives for focus-visible states, alert regions, form errors, and reduced-motion support.
-- [ ] Add profile-aware asset resolver.
+- [x] Add profile-aware asset resolver.
 - [ ] Add market-aware config provider that remounts only the PayPal payment subtree when `provider_key` changes.
 - [ ] Add API client and state providers.
-- [ ] Add auth modal shell.
-- [ ] Add minicart shell.
+- [x] Add auth modal shell.
+- [x] Add minicart shell.
 
 Verification:
 

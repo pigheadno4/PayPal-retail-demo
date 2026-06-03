@@ -170,7 +170,7 @@
 
 ## Admin Portal
 
-- [ ] `/admin` is hidden from buyer UI.
+- [x] `/admin` is hidden from buyer UI.
 - [ ] Admin passcode gate works independently from buyer auth.
 - [x] Profile/market switch resets active carts only.
 - [x] Profile/market switch does not reset orders, inventory, users, saved payments, reviews, or webhooks.

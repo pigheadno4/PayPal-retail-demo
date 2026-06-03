@@ -38,3 +38,4 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - PayPal webhook verification uses the PayPal verification API instead of local signature math because the local API spec source includes `POST /v1/notifications/verify-webhook-signature` with required notification header fields and `webhook_event`.
 - Saved-payment capture handling intentionally runs only for authenticated buyers with `vault_requested = true`; guest and one-time captures do not create saved payment records.
 - PayPal webhook processing reserves the `provider + event_id` audit row before mutation so PayPal retries do not repeat saved-payment/order state updates.
+- M8 web-shell stash `m8-web-shell-wip` was applied after fast-forwarding `milestone8-web-shell` to merged M7; the stash entry is intentionally kept as a recovery point until the M8 slice is committed and reviewed.
