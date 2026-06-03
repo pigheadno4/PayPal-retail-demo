@@ -58,8 +58,15 @@ export interface PayPalWebhookOrderRow {
 }
 
 export interface PayPalWebhookDataSource {
+  readonly findWebhookEventByProviderEventId: (
+    eventId: string,
+  ) => Promise<PayPalWebhookEventRow | null>;
   readonly createWebhookEvent: (
     event: PayPalWebhookEventRow,
+  ) => Promise<PayPalWebhookEventRow>;
+  readonly updateWebhookEvent: (
+    id: string,
+    patch: Partial<PayPalWebhookEventRow>,
   ) => Promise<PayPalWebhookEventRow>;
   readonly findPendingSavedPaymentMethod: (input: {
     readonly paypalCustomerId: string;
@@ -131,18 +138,13 @@ async function processPayPalWebhook(
   const now = resolveNow(dependencies.now);
   const eventId = requireEventString(input.event, "id");
   const eventType = requireEventString(input.event, "event_type");
+  const existingEvent =
+    await dependencies.dataSource.findWebhookEventByProviderEventId(eventId);
+  if (existingEvent) {
+    return mapWebhookEventResult(existingEvent, null);
+  }
 
-  const mutationResult =
-    input.verificationStatus === "valid"
-      ? await processVerifiedWebhook(dependencies, eventType, input.event, now)
-      : {
-          processingStatus: "ignored" as const,
-          savedPaymentMethodId: null,
-          linkedOrderId: null,
-          linkedPaymentSessionId: null,
-        };
-
-  await dependencies.dataSource.createWebhookEvent({
+  const receivedEvent = await dependencies.dataSource.createWebhookEvent({
     id: dependencies.createWebhookEventId(),
     provider: "paypal",
     event_id: eventId,
@@ -150,25 +152,72 @@ async function processPayPalWebhook(
     verification_status: input.verificationStatus,
     headers_json: input.headers as unknown as PayPalSnapshotJson,
     payload_json: input.event,
-    linked_order_id: mutationResult.linkedOrderId,
-    linked_payment_session_id: mutationResult.linkedPaymentSessionId,
-    processing_status: mutationResult.processingStatus,
+    linked_order_id: null,
+    linked_payment_session_id: null,
+    processing_status: "received",
     received_at: now,
-    processed_at:
-      mutationResult.processingStatus === "processed" ||
-      mutationResult.processingStatus === "ignored"
-        ? now
-        : null,
+    processed_at: null,
   });
 
+  let mutationResult: Awaited<ReturnType<typeof processVerifiedWebhook>>;
+  try {
+    mutationResult =
+      input.verificationStatus === "valid"
+        ? await processVerifiedWebhook(
+            dependencies,
+            eventType,
+            input.event,
+            now,
+          )
+        : {
+            processingStatus: "ignored" as const,
+            savedPaymentMethodId: null,
+            linkedOrderId: null,
+            linkedPaymentSessionId: null,
+          };
+  } catch (error) {
+    await dependencies.dataSource.updateWebhookEvent(receivedEvent.id, {
+      processing_status: "failed",
+      processed_at: resolveNow(dependencies.now),
+    });
+    throw error;
+  }
+
+  const processedEvent = await dependencies.dataSource.updateWebhookEvent(
+    receivedEvent.id,
+    {
+      linked_order_id: mutationResult.linkedOrderId,
+      linked_payment_session_id: mutationResult.linkedPaymentSessionId,
+      processing_status: mutationResult.processingStatus,
+      processed_at:
+        mutationResult.processingStatus === "processed" ||
+        mutationResult.processingStatus === "ignored"
+          ? resolveNow(dependencies.now)
+          : null,
+    },
+  );
+
   return {
-    eventId,
-    eventType,
-    verificationStatus: input.verificationStatus,
-    processingStatus: mutationResult.processingStatus,
-    linkedOrderId: mutationResult.linkedOrderId,
-    linkedPaymentSessionId: mutationResult.linkedPaymentSessionId,
+    ...mapWebhookEventResult(
+      processedEvent,
+      mutationResult.savedPaymentMethodId,
+    ),
     savedPaymentMethodId: mutationResult.savedPaymentMethodId,
+  };
+}
+
+function mapWebhookEventResult(
+  event: PayPalWebhookEventRow,
+  savedPaymentMethodId: string | null,
+): PayPalWebhookProcessingResult {
+  return {
+    eventId: event.event_id,
+    eventType: event.event_type,
+    verificationStatus: event.verification_status,
+    processingStatus: event.processing_status,
+    linkedOrderId: event.linked_order_id,
+    linkedPaymentSessionId: event.linked_payment_session_id,
+    savedPaymentMethodId,
   };
 }
 
@@ -564,6 +613,17 @@ export function createSupabasePayPalWebhookDataSource(
   supabase: SupabasePayPalWebhookClient,
 ): PayPalWebhookDataSource {
   return {
+    async findWebhookEventByProviderEventId(eventId) {
+      return queryOne<PayPalWebhookEventRow>(
+        supabase
+          .from("webhook_events")
+          .select(webhookEventColumns)
+          .eq("provider", "paypal")
+          .eq("event_id", eventId)
+          .maybeSingle(),
+        `Find PayPal webhook event ${eventId}`,
+      );
+    },
     async createWebhookEvent(event) {
       return queryRequired<PayPalWebhookEventRow>(
         supabase
@@ -572,6 +632,17 @@ export function createSupabasePayPalWebhookDataSource(
           .select(webhookEventColumns)
           .single(),
         `Create PayPal webhook event ${event.event_id}`,
+      );
+    },
+    async updateWebhookEvent(id, patch) {
+      return queryRequired<PayPalWebhookEventRow>(
+        supabase
+          .from("webhook_events")
+          .update(patch as Record<string, unknown>)
+          .eq("id", id)
+          .select(webhookEventColumns)
+          .single(),
+        `Update PayPal webhook event ${id}`,
       );
     },
     async findPendingSavedPaymentMethod(input) {

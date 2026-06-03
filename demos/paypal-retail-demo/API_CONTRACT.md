@@ -754,6 +754,8 @@ Implemented v1 processing:
 
 Invalid events are stored as invalid/ignored and rejected with a buyer-safe API error. Invalid or unverifiable webhooks never mutate order, payment-session, or saved-payment state.
 
+Webhook processing is idempotent by PayPal `event_id` per provider. A repeated event returns the stored processing result and does not re-run order, payment-session, or saved-payment mutations.
+
 ## Review APIs
 
 - `GET /api/products/:productId/reviews`

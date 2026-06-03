@@ -113,6 +113,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Webhook endpoint must verify PayPal signature before processing.
 - Store raw valid webhook payloads, headers needed for audit/debug, verification result, linked order/payment session, and processing status.
 - Invalid or unverifiable webhooks must be logged and must not mutate order, payment, or saved-payment state.
+- Webhook processing must be idempotent by `provider + event_id`; PayPal retries should return the stored audit result without re-running mutations.
 
 ### PayPal Invoice And Line-Item Evidence
 

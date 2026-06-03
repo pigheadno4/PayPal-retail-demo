@@ -71,6 +71,39 @@ describe("Supabase-backed PayPal webhook repository", () => {
     );
   });
 
+  it("does not mutate state again when PayPal retries a webhook event ID", async () => {
+    const dataSource = createWebhookDataSource();
+    const repository = createRepository(dataSource);
+
+    const firstResult = await repository.processWebhook({
+      verificationStatus: "valid",
+      headers: paypalWebhookHeaders(),
+      event: vaultCreatedEvent(),
+    });
+    const updateCountAfterFirstDelivery = dataSource.savedPaymentUpdateCount;
+
+    const retryResult = await repository.processWebhook({
+      verificationStatus: "valid",
+      headers: paypalWebhookHeaders(),
+      event: vaultCreatedEvent(),
+    });
+
+    expect(firstResult.processingStatus).toBe("processed");
+    expect(retryResult).toEqual({
+      eventId: "WH-VAULT-CREATED",
+      eventType: "VAULT.PAYMENT-TOKEN.CREATED",
+      verificationStatus: "valid",
+      processingStatus: "processed",
+      linkedOrderId: null,
+      linkedPaymentSessionId: null,
+      savedPaymentMethodId: null,
+    });
+    expect(dataSource.savedPaymentUpdateCount).toBe(
+      updateCountAfterFirstDelivery,
+    );
+    expect(dataSource.webhookEvents).toHaveLength(1);
+  });
+
   it("marks saved payments deleted when PayPal sends a vault token deleted event", async () => {
     const dataSource = createWebhookDataSource({
       savedPaymentMethods: [
@@ -175,6 +208,7 @@ function createRepository(dataSource: FakePayPalWebhookDataSource) {
 interface FakePayPalWebhookDataSource extends PayPalWebhookDataSource {
   readonly webhookEvents: PayPalWebhookEventRow[];
   readonly savedPaymentMethods: PayPalWebhookSavedPaymentMethodRow[];
+  readonly savedPaymentUpdateCount: number;
   readonly paymentSessions: {
     readonly id: string;
     readonly order_id: string;
@@ -195,6 +229,7 @@ function createWebhookDataSource(
   } = {},
 ): FakePayPalWebhookDataSource {
   const webhookEvents: PayPalWebhookEventRow[] = [];
+  let savedPaymentUpdateCount = 0;
   const savedPaymentMethods: PayPalWebhookSavedPaymentMethodRow[] =
     options.savedPaymentMethods ?? [
       {
@@ -234,11 +269,35 @@ function createWebhookDataSource(
   return {
     webhookEvents,
     savedPaymentMethods,
+    get savedPaymentUpdateCount() {
+      return savedPaymentUpdateCount;
+    },
     paymentSessions,
     orders,
+    async findWebhookEventByProviderEventId(eventId) {
+      return webhookEvents.find((event) => event.event_id === eventId) ?? null;
+    },
     async createWebhookEvent(event) {
+      if (
+        webhookEvents.some(
+          (storedEvent) => storedEvent.event_id === event.event_id,
+        )
+      ) {
+        throw new Error(`Duplicate webhook event ${event.event_id}`);
+      }
       webhookEvents.push(event);
       return event;
+    },
+    async updateWebhookEvent(id, patch) {
+      const index = webhookEvents.findIndex((event) => event.id === id);
+      if (index < 0) {
+        throw new Error(`Webhook event ${id} was not found`);
+      }
+      webhookEvents[index] = {
+        ...webhookEvents[index]!,
+        ...patch,
+      };
+      return webhookEvents[index]!;
     },
     async findPendingSavedPaymentMethod(input) {
       return (
@@ -258,6 +317,7 @@ function createWebhookDataSource(
       );
     },
     async updateSavedPaymentMethod(id, patch) {
+      savedPaymentUpdateCount += 1;
       const index = savedPaymentMethods.findIndex(
         (savedPaymentMethod) => savedPaymentMethod.id === id,
       );
@@ -273,8 +333,7 @@ function createWebhookDataSource(
     async getPaymentSessionByPayPalOrderId(paypalOrderId) {
       return (
         paymentSessions.find(
-          (paymentSession) =>
-            paymentSession.paypal_order_id === paypalOrderId,
+          (paymentSession) => paymentSession.paypal_order_id === paypalOrderId,
         ) ?? null
       );
     },

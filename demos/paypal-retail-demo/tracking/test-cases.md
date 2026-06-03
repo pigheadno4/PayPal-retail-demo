@@ -166,6 +166,7 @@
 - [x] Saved payment deletion calls PayPal Payment Method Tokens delete when a vault ID exists.
 - [x] Webhook signature verification rejects invalid events and stores them as ignored without mutation.
 - [x] Valid payment/vaulting webhooks link to orders/payment sessions or saved-payment records in backend tests.
+- [x] Duplicate PayPal webhook event IDs return the stored processing result without repeating mutations.
 
 ## Admin Portal
 

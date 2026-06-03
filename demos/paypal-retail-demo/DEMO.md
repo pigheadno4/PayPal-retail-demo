@@ -187,6 +187,7 @@ Backend APIs:
 - Store valid events.
 - Reject/log invalid events.
 - Link valid events to orders/payment sessions where possible.
+- Treat PayPal webhook `event_id` as an idempotency key so retries do not re-run mutations.
 
 V1 webhook scope:
 
