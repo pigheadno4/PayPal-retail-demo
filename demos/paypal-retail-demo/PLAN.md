@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 11 checkout UI is in progress on branch `milestone8-shell-config-foundation`: Delivery/Pickup checkout tabs, preserved draft state shells, checkout step status labels, mode-aware order summary, pickup ready/unavailable split, selected-payment slot, and mobile sticky action shell are implemented. Next slices are detailed Delivery/Pickup accordions, form validation/focus behavior, and partial pickup store cards. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 11 checkout UI is in progress on branch `milestone8-shell-config-foundation`: Delivery/Pickup checkout tabs, preserved draft state shells, detailed Delivery/Pickup accordions, checkout step status labels, mode-aware order summary, pickup ready/unavailable split, partial pickup store cards, selected-payment slot, and mobile sticky action shell are implemented. Next slice is checkout validation/focus behavior. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.

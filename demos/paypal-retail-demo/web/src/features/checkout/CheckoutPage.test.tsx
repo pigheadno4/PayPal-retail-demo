@@ -63,6 +63,50 @@ describe("CheckoutPage", () => {
     );
     expect(html).toContain('aria-disabled="true"');
   });
+
+  it("renders detailed Delivery accordion content and default choices", () => {
+    const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
+
+    expect(html).toContain("Full name");
+    expect(html).toContain("Street address");
+    expect(html).toContain("City");
+    expect(html).toContain("State");
+    expect(html).toContain("ZIP code");
+    expect(html).toContain("Submit shipping address");
+    expect(html).toContain("Same as shipping");
+    expect(html).toContain("Save billing address");
+    expect(html).toContain("Standard shipping");
+    expect(html).toContain("Cheapest option");
+    expect(html).toContain("Express shipping");
+    expect(html).toContain("Submit shipping option");
+    expect(html).toContain("PayPal");
+    expect(html).toContain("Pay Later");
+    expect(html).toContain("Credit or debit card");
+    expect(html).toContain("Apple Pay");
+    expect(html).toContain("Google Pay");
+  });
+
+  it("renders detailed Pickup accordion content and partial store counts before store submit", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage data={checkoutData({ activeMode: "pickup" })} />,
+    );
+
+    expect(html).toContain("ZIP or postcode");
+    expect(html).toContain("Use default address");
+    expect(html).toContain("POP MART Soho");
+    expect(html).toContain("1.2 mi");
+    expect(html).toContain("Available: 1 item");
+    expect(html).toContain("Unavailable: 1 item");
+    expect(html).toContain("Partial inventory");
+    expect(html).toContain("Submit pickup store");
+    expect(html).toContain("Billing street address");
+    expect(html).toContain("Save billing address");
+    expect(html).toContain("June 12");
+    expect(html).toContain("June 13");
+    expect(html).toContain("Submit pickup date");
+    expect(html).toContain("PayPal");
+    expect(html).toContain("Pay Later");
+  });
 });
 
 function checkoutData(

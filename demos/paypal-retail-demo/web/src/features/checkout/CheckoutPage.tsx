@@ -16,6 +16,38 @@ export interface CheckoutStep {
   readonly title: string;
   readonly state: CheckoutStepState;
   readonly body: string;
+  readonly fields?: readonly CheckoutField[];
+  readonly choices?: readonly CheckoutChoice[];
+  readonly storeCards?: readonly CheckoutStoreCard[];
+  readonly primaryActionLabel?: string;
+}
+
+export interface CheckoutField {
+  readonly label: string;
+  readonly type: "text" | "checkbox";
+  readonly value?: string;
+  readonly placeholder?: string;
+  readonly checked?: boolean;
+}
+
+export interface CheckoutChoice {
+  readonly label: string;
+  readonly description?: string;
+  readonly amountLabel?: string;
+  readonly badgeLabel?: string;
+  readonly selected?: boolean;
+}
+
+export interface CheckoutStoreCard {
+  readonly name: string;
+  readonly address: string;
+  readonly distanceLabel: string;
+  readonly phoneLabel: string;
+  readonly availableItemsLabel: string;
+  readonly unavailableItemsLabel: string;
+  readonly statusLabel?: string;
+  readonly partialInventoryNote?: string;
+  readonly selected?: boolean;
 }
 
 export interface CheckoutOrderSummary {
@@ -171,10 +203,111 @@ function CheckoutModePanel({
               <span>{stepStateLabels[step.state]}</span>
             </header>
             <p>{step.body}</p>
+            <CheckoutStepDetails step={withDefaultStepDetails(step)} />
           </article>
         ))}
       </div>
     </section>
+  );
+}
+
+function CheckoutStepDetails({ step }: { readonly step: CheckoutStep }) {
+  const hasDetails =
+    step.fields?.length ||
+    step.choices?.length ||
+    step.storeCards?.length ||
+    step.primaryActionLabel;
+
+  if (!hasDetails) {
+    return null;
+  }
+
+  return (
+    <div className="checkout-step__details">
+      {step.fields?.length ? (
+        <div className="checkout-fields">
+          {step.fields.map((field) => (
+            <label
+              className={
+                field.type === "checkbox"
+                  ? "checkout-field checkout-field--checkbox"
+                  : "checkout-field"
+              }
+              key={field.label}
+            >
+              <span>{field.label}</span>
+              <input
+                checked={field.type === "checkbox" ? field.checked : undefined}
+                placeholder={field.placeholder}
+                readOnly
+                type={field.type}
+                value={field.type === "text" ? (field.value ?? "") : undefined}
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+
+      {step.choices?.length ? (
+        <div className="checkout-choices">
+          {step.choices.map((choice) => (
+            <label className="checkout-choice" key={choice.label}>
+              <input checked={choice.selected ?? false} readOnly type="radio" />
+              <span>
+                <strong>{choice.label}</strong>
+                {choice.description ? (
+                  <small>{choice.description}</small>
+                ) : null}
+              </span>
+              {choice.badgeLabel ? <em>{choice.badgeLabel}</em> : null}
+              {choice.amountLabel ? <b>{choice.amountLabel}</b> : null}
+            </label>
+          ))}
+        </div>
+      ) : null}
+
+      {step.storeCards?.length ? (
+        <div className="checkout-store-grid">
+          {step.storeCards.map((store) => (
+            <article
+              className="checkout-store-card"
+              data-selected={store.selected ? "true" : "false"}
+              key={store.name}
+            >
+              <header>
+                <h3>{store.name}</h3>
+                <span>{store.distanceLabel}</span>
+              </header>
+              <p>{store.address}</p>
+              <dl>
+                <div>
+                  <dt>Store phone</dt>
+                  <dd>{store.phoneLabel}</dd>
+                </div>
+                <div>
+                  <dt>Available</dt>
+                  <dd>{store.availableItemsLabel}</dd>
+                </div>
+                <div>
+                  <dt>Unavailable</dt>
+                  <dd>{store.unavailableItemsLabel}</dd>
+                </div>
+              </dl>
+              {store.statusLabel ? <strong>{store.statusLabel}</strong> : null}
+              {store.partialInventoryNote ? (
+                <p>{store.partialInventoryNote}</p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {step.primaryActionLabel ? (
+        <button className="checkout-step__action" type="button">
+          {step.primaryActionLabel}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -220,6 +353,222 @@ function CheckoutSummary({
     </aside>
   );
 }
+
+function withDefaultStepDetails(step: CheckoutStep): CheckoutStep {
+  const defaults = defaultStepDetailsById[step.id];
+
+  if (!defaults) {
+    return step;
+  }
+
+  let stepWithDetails: CheckoutStep = {
+    ...step,
+  };
+  const fields = step.fields ?? defaults.fields;
+  const choices = step.choices ?? defaults.choices;
+  const storeCards = step.storeCards ?? defaults.storeCards;
+  const primaryActionLabel =
+    step.primaryActionLabel ?? defaults.primaryActionLabel;
+
+  if (fields) {
+    stepWithDetails = {
+      ...stepWithDetails,
+      fields,
+    };
+  }
+
+  if (choices) {
+    stepWithDetails = {
+      ...stepWithDetails,
+      choices,
+    };
+  }
+
+  if (storeCards) {
+    stepWithDetails = {
+      ...stepWithDetails,
+      storeCards,
+    };
+  }
+
+  if (primaryActionLabel) {
+    stepWithDetails = {
+      ...stepWithDetails,
+      primaryActionLabel,
+    };
+  }
+
+  return stepWithDetails;
+}
+
+const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
+  "shipping-address": {
+    fields: [
+      {
+        label: "Full name",
+        type: "text",
+        value: "Taylor Chen",
+      },
+      {
+        label: "Street address",
+        type: "text",
+        value: "88 Spring Street",
+      },
+      {
+        label: "City",
+        type: "text",
+        value: "New York",
+      },
+      {
+        label: "State",
+        type: "text",
+        value: "NY",
+      },
+      {
+        label: "ZIP code",
+        type: "text",
+        value: "10012",
+      },
+    ],
+    primaryActionLabel: "Submit shipping address",
+  },
+  "billing-address": {
+    fields: [
+      {
+        label: "Same as shipping",
+        type: "checkbox",
+        checked: true,
+      },
+    ],
+    primaryActionLabel: "Save billing address",
+  },
+  "shipping-options": {
+    choices: [
+      {
+        label: "Standard shipping",
+        description: "Arrives in 4-6 business days",
+        amountLabel: "$5.00",
+        badgeLabel: "Cheapest option",
+        selected: true,
+      },
+      {
+        label: "Express shipping",
+        description: "Arrives in 2 business days",
+        amountLabel: "$12.00",
+      },
+    ],
+    primaryActionLabel: "Submit shipping option",
+  },
+  "payment-method": {
+    choices: [
+      {
+        label: "PayPal",
+        selected: true,
+      },
+      {
+        label: "Pay Later",
+        description: "Pay Later message renders in the eligible row.",
+      },
+      {
+        label: "Credit or debit card",
+        description: "Card fields expand inside this step.",
+      },
+      {
+        label: "Apple Pay",
+      },
+      {
+        label: "Google Pay",
+      },
+    ],
+  },
+  "pickup-location": {
+    fields: [
+      {
+        label: "ZIP or postcode",
+        type: "text",
+        value: "W1F 7JL",
+      },
+      {
+        label: "Use default address",
+        type: "checkbox",
+        checked: true,
+      },
+    ],
+  },
+  "store-selection": {
+    storeCards: [
+      {
+        name: "POP MART Soho",
+        address: "3 Peter Street, London W1F 0AA",
+        distanceLabel: "1.2 mi",
+        phoneLabel: "+44 20 5555 0135",
+        availableItemsLabel: "Available: 1 item",
+        unavailableItemsLabel: "Unavailable: 1 item",
+        statusLabel: "Partial inventory",
+        partialInventoryNote: "Unavailable items stay in the original cart.",
+        selected: true,
+      },
+      {
+        name: "POP MART Covent Garden",
+        address: "12 Long Acre, London WC2E 9LA",
+        distanceLabel: "1.8 mi",
+        phoneLabel: "+44 20 5555 0199",
+        availableItemsLabel: "Available: 2 items",
+        unavailableItemsLabel: "Unavailable: 0 items",
+        statusLabel: "Full inventory",
+      },
+    ],
+    primaryActionLabel: "Submit pickup store",
+  },
+  "pickup-billing-address": {
+    fields: [
+      {
+        label: "Billing street address",
+        type: "text",
+        value: "88 Spring Street",
+      },
+      {
+        label: "City",
+        type: "text",
+        value: "New York",
+      },
+      {
+        label: "ZIP code",
+        type: "text",
+        value: "10012",
+      },
+    ],
+    primaryActionLabel: "Save billing address",
+  },
+  "pickup-date": {
+    choices: [
+      {
+        label: "June 12",
+        description: "10:00 AM - 1:00 PM",
+        selected: true,
+      },
+      {
+        label: "June 13",
+        description: "2:00 PM - 5:00 PM",
+      },
+    ],
+    primaryActionLabel: "Submit pickup date",
+  },
+  "pickup-payment-method": {
+    choices: [
+      {
+        label: "PayPal",
+        selected: true,
+      },
+      {
+        label: "Pay Later",
+      },
+      {
+        label: "Credit or debit card",
+      },
+    ],
+  },
+};
 
 export const defaultCheckoutPageData: CheckoutPageData = {
   activeMode: "delivery",
