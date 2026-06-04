@@ -187,6 +187,10 @@
 ## Visual QA
 
 - [x] App shell includes focus-visible styling, reusable live-region/error primitives, and reduced-motion CSS guards.
+- [x] Category page renders V1 filters without a keyword search surface.
+- [x] Category page exposes an "All options" category switcher, applied filter count, and reset action.
+- [x] Category pickup filter shows a disabled location hint when no buyer location is available.
+- [x] Category Pay Later promo uses amount-free copy.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

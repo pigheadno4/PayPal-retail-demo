@@ -1,6 +1,11 @@
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
 import {
+  CategoryPage,
+  defaultCategoryPageData,
+  type CategoryPageData,
+} from "../features/catalog/CategoryPage.js";
+import {
   defaultHomePageData,
   HomePage,
   type HomePageData,
@@ -19,12 +24,14 @@ export interface AppProps {
   readonly initialPathname?: string;
   readonly initialConfig?: StorefrontRuntimeConfig;
   readonly initialHomePage?: HomePageData;
+  readonly initialCategoryPage?: CategoryPageData;
 }
 
 export function App({
   initialPathname,
   initialConfig,
   initialHomePage,
+  initialCategoryPage,
 }: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
@@ -40,6 +47,7 @@ export function App({
         route={route}
         config={config}
         homePageData={initialHomePage ?? defaultHomePageData}
+        categoryPageData={initialCategoryPage ?? defaultCategoryPageData}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -51,12 +59,14 @@ function BuyerShell({
   route,
   config,
   homePageData,
+  categoryPageData,
   authModalState,
   minicartState,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly config: StorefrontRuntimeConfig;
   readonly homePageData: HomePageData;
+  readonly categoryPageData: CategoryPageData;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -94,7 +104,11 @@ function BuyerShell({
         </div>
       </header>
       <main className="buyer-shell__main" id="main-content" tabIndex={-1}>
-        <RouteStage route={route} homePageData={homePageData} />
+        <RouteStage
+          route={route}
+          homePageData={homePageData}
+          categoryPageData={categoryPageData}
+        />
         <PayPalProviderBoundary
           key={config.paypal.providerKey}
           providerKey={config.paypal.providerKey}
@@ -114,9 +128,11 @@ function BuyerShell({
 function RouteStage({
   route,
   homePageData,
+  categoryPageData,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
+  readonly categoryPageData: CategoryPageData;
 }) {
   if (route.page === "checkout") {
     return (
@@ -146,12 +162,7 @@ function RouteStage({
   }
 
   if (route.page === "catalog") {
-    return (
-      <section className="route-stage route-stage--catalog">
-        <p className="route-stage__eyebrow">Shop</p>
-        <h1>All Products</h1>
-      </section>
-    );
+    return <CategoryPage data={categoryPageData} />;
   }
 
   if (route.page === "not_found") {

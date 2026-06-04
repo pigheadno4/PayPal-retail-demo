@@ -284,7 +284,7 @@ Verification:
 
 - [x] Build homepage hero, hot sales, categories, release calendar, Pay Later promo, promo cards, popular series, and footer.
 - [x] Build release calendar legend and color-independent release state labels.
-- [ ] Build category filters.
+- [x] Build category filters.
 - [ ] Build PDP gallery, product status, product details, price display, Pay Later message placement, add-to-cart, express buttons, and reviews.
 - [ ] Block unreleased product checkout actions and hide reviews.
 

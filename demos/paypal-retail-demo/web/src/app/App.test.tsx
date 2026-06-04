@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import type { CategoryPageData } from "../features/catalog/CategoryPage.js";
 import { App } from "./App.js";
 
 describe("App shell", () => {
@@ -78,4 +79,61 @@ describe("App shell", () => {
     expect(html).toContain('data-route-scope="admin"');
     expect(html).not.toContain('aria-label="Open minicart"');
   });
+
+  it("renders the category page for product listing routes", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/products"
+        initialCategoryPage={categoryPageData()}
+      />,
+    );
+
+    expect(html).toContain('data-route-page="catalog"');
+    expect(html).toContain("All products");
+    expect(html).toContain("All options");
+    expect(html).toContain("Reset filters");
+    expect(html).toContain("Pay Later with PayPal");
+    expect(html).toContain('href="/products/labubu-have-a-seat"');
+    expect(html).not.toContain('href="/admin"');
+  });
 });
+
+function categoryPageData(): CategoryPageData {
+  return {
+    title: "All products",
+    subtitle: "Filter collectible drops by series, status, and availability.",
+    resultCountLabel: "1 product",
+    appliedFilterCount: 0,
+    resetHref: "/products",
+    categorySwitcher: {
+      label: "Category",
+      options: [
+        {
+          label: "All options",
+          href: "/products",
+          active: true,
+          countLabel: "1",
+        },
+      ],
+    },
+    filters: [],
+    payLaterPromo: {
+      title: "Pay Later with PayPal",
+      body: "Flexible payment options may be available at checkout.",
+    },
+    products: [
+      {
+        slug: "labubu-have-a-seat",
+        name: "Labubu Have a Seat",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+        imageAlt: "Labubu Have a Seat collectible",
+        priceLabel: "$13.99",
+        regularPriceLabel: "$13.99",
+        statusLabel: "Released",
+        pickupLabel: "Pickup eligible",
+        href: "/products/labubu-have-a-seat",
+      },
+    ],
+  };
+}

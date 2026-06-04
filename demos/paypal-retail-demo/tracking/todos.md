@@ -63,5 +63,5 @@
 - [x] Add saved payment active/pending/delete flows.
 - [x] Finish Milestone 8 web app shell/config foundation.
 - [x] Start Milestone 9 storefront and catalog UI with homepage sections.
-- [ ] Continue Milestone 9 with category filters.
+- [x] Continue Milestone 9 with category filters.
 - [ ] Continue Milestone 9 with PDP gallery/status/actions/reviews.

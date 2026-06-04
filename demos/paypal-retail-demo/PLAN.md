@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 9 storefront/catalog UI is in progress on branch `milestone8-shell-config-foundation`: homepage hero, hot sales, categories, release calendar, amount-free Pay Later promo, promo cards, popular series, and footer are implemented. Next slices are category filters and PDP UI. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 9 storefront/catalog UI is in progress on branch `milestone8-shell-config-foundation`: homepage hero, hot sales, categories, release calendar, amount-free Pay Later promo, promo cards, popular series, footer, and category filters are implemented. Next slice is PDP UI with released/unreleased behavior. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 - Supabase strategy: both local CLI and remote project.
