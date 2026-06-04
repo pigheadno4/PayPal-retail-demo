@@ -133,8 +133,9 @@
 
 - [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
 - [x] PayPal provider boundary is scoped to the payment subtree when `provider_key` changes.
-- [ ] Homepage calendar marks release dates with outlined circles.
-- [ ] Homepage calendar includes a legend and does not rely on color alone.
+- [x] Homepage calendar marks release dates with outlined circles.
+- [x] Homepage calendar includes a legend and does not rely on color alone.
+- [x] Homepage Pay Later promo uses brief amount-free copy.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
 - [ ] Cart and minicart show pickup hints without pickup buttons.
 - [ ] Delivery checkout completes all accordion steps.

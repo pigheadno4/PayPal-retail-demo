@@ -1,5 +1,10 @@
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
+import {
+  defaultHomePageData,
+  HomePage,
+  type HomePageData,
+} from "../features/catalog/HomePage.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders, PayPalProviderBoundary } from "../state/appProviders.js";
 import {
@@ -13,9 +18,14 @@ import { resolveProfileAssets } from "./profileAssets.js";
 export interface AppProps {
   readonly initialPathname?: string;
   readonly initialConfig?: StorefrontRuntimeConfig;
+  readonly initialHomePage?: HomePageData;
 }
 
-export function App({ initialPathname, initialConfig }: AppProps = {}) {
+export function App({
+  initialPathname,
+  initialConfig,
+  initialHomePage,
+}: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
   const config = initialConfig ?? defaultRuntimeConfig();
@@ -29,6 +39,7 @@ export function App({ initialPathname, initialConfig }: AppProps = {}) {
       <BuyerShell
         route={route}
         config={config}
+        homePageData={initialHomePage ?? defaultHomePageData}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -39,11 +50,13 @@ export function App({ initialPathname, initialConfig }: AppProps = {}) {
 function BuyerShell({
   route,
   config,
+  homePageData,
   authModalState,
   minicartState,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly config: StorefrontRuntimeConfig;
+  readonly homePageData: HomePageData;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -81,7 +94,7 @@ function BuyerShell({
         </div>
       </header>
       <main className="buyer-shell__main" id="main-content" tabIndex={-1}>
-        <RouteStage route={route} brandName={assets.logoText} />
+        <RouteStage route={route} homePageData={homePageData} />
         <PayPalProviderBoundary
           key={config.paypal.providerKey}
           providerKey={config.paypal.providerKey}
@@ -100,10 +113,10 @@ function BuyerShell({
 
 function RouteStage({
   route,
-  brandName,
+  homePageData,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
-  readonly brandName: string;
+  readonly homePageData: HomePageData;
 }) {
   if (route.page === "checkout") {
     return (
@@ -150,13 +163,7 @@ function RouteStage({
     );
   }
 
-  return (
-    <section className="route-stage route-stage--home">
-      <p className="route-stage__eyebrow">New arrivals</p>
-      <h1>{brandName}</h1>
-      <p>Fresh collectible drops with delivery and pickup checkout.</p>
-    </section>
-  );
+  return <HomePage data={homePageData} />;
 }
 
 function PaymentActionSlot() {

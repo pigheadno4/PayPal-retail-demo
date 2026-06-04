@@ -8,6 +8,37 @@ describe("App shell", () => {
     const html = renderToStaticMarkup(
       <App
         initialPathname="/"
+        initialHomePage={{
+          hero: {
+            eyebrow: "New arrival",
+            title: "THE MONSTERS Labubu",
+            subtitle: "Fresh collectible drops.",
+            imagePath: "/assets/popmart/homepage/labubu-hero.webp",
+            imageAlt: "Labubu character blind box hero",
+            primaryCta: {
+              href: "/products",
+              label: "Shop now",
+            },
+            secondaryCta: {
+              href: "/products?sort=newest",
+              label: "New arrivals",
+            },
+          },
+          hotSales: [],
+          categories: [],
+          calendar: {
+            monthLabel: "June 2026",
+            weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            days: [],
+            selectedProducts: [],
+          },
+          payLaterPromo: {
+            title: "Pay Later with PayPal",
+            body: "Flexible payment options may be available at checkout.",
+          },
+          promoCards: [],
+          popularSeries: [],
+        }}
         initialConfig={{
           profile: {
             slug: "popmart",
@@ -27,6 +58,7 @@ describe("App shell", () => {
     );
 
     expect(html).toContain("POP MART");
+    expect(html).toContain("THE MONSTERS Labubu");
     expect(html).toContain('data-route-page="home"');
     expect(html).toContain('href="#main-content"');
     expect(html).toContain('id="main-content"');
