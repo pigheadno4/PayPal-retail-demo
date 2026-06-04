@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CategoryPageData } from "../features/catalog/CategoryPage.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
+import type { CheckoutPageData } from "../features/checkout/CheckoutPage.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import { App } from "./App.js";
 
@@ -147,6 +148,20 @@ describe("App shell", () => {
     expect(html).toContain(
       "Prefer pickup? Choose store pickup during checkout.",
     );
+    expect(html).not.toContain('href="/admin"');
+  });
+
+  it("renders the checkout page for checkout routes", () => {
+    const html = renderToStaticMarkup(
+      <App initialPathname="/checkout" initialCheckout={checkoutData()} />,
+    );
+
+    expect(html).toContain('data-route-page="checkout"');
+    expect(html).toContain("Delivery");
+    expect(html).toContain("Pickup");
+    expect(html).toContain("Shipping address");
+    expect(html).toContain("Pickup location");
+    expect(html).toContain("Delivery order");
     expect(html).not.toContain('href="/admin"');
   });
 });
@@ -305,5 +320,54 @@ function cartData(): CartData {
         href: "/products/hirono-little-mischief",
       },
     ],
+  };
+}
+
+function checkoutData(): CheckoutPageData {
+  return {
+    activeMode: "delivery",
+    modeLocked: false,
+    lockedReason: "Switching requires abandoning this payment attempt.",
+    delivery: {
+      label: "Delivery",
+      summary: {
+        title: "Delivery order",
+        contextLabel: "Ground delivery",
+        subtotalLabel: "$25.98",
+        promoLabel: "Auto promo calculating",
+        totalLabel: "$25.98",
+        selectedPaymentLabel: "PayPal selected",
+      },
+      steps: [
+        {
+          id: "shipping-address",
+          title: "Shipping address",
+          state: "idle",
+          body: "Use saved shipping address or enter a new delivery address.",
+        },
+      ],
+    },
+    pickup: {
+      label: "Pickup",
+      summary: {
+        title: "Pickup order",
+        contextLabel: "POP MART Soho",
+        subtotalLabel: "$12.99",
+        promoLabel: "Pickup promo recalculating",
+        totalLabel: "$12.99",
+        selectedPaymentLabel: "PayPal selected",
+        readyItemsLabel: "Ready for pickup: 1 item",
+        unavailableItemsLabel: "Not available at this store: 1 item",
+        partialInventoryNote: "Unavailable items stay in the original cart.",
+      },
+      steps: [
+        {
+          id: "pickup-location",
+          title: "Pickup location",
+          state: "idle",
+          body: "Use ZIP or default address to rank nearby stores.",
+        },
+      ],
+    },
   };
 }

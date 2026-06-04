@@ -198,6 +198,12 @@
 - [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, PayPal/Pay Later delivery express controls, and pickup hint text.
 - [x] Cart Pay Later amount message recalculates from merchandise quantity totals and excludes shipping.
 - [x] Cart/minicart pickup hints stay as text only with no pickup button.
+- [x] Checkout route renders Delivery/Pickup tabs with separately preserved step state shells.
+- [x] Checkout step states render idle, saving, saved, editing, recalculating totals, blocked/error, and locked labels.
+- [x] Checkout order summary switches context between Delivery and Pickup drafts.
+- [x] Pickup checkout summary shows ready and unavailable item split with unavailable items staying in the original cart.
+- [x] Checkout fulfillment mode lock displays the payment-session lock reason and disables inactive tab switching.
+- [x] Checkout mobile sticky selected-payment action shell is present without replacing card payment fields.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

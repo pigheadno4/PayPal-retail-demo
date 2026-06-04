@@ -17,6 +17,11 @@ import {
   ProductDetailPage,
   type ProductDetailPageData,
 } from "../features/catalog/ProductDetailPage.js";
+import {
+  CheckoutPage,
+  defaultCheckoutPageData,
+  type CheckoutPageData,
+} from "../features/checkout/CheckoutPage.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders, PayPalProviderBoundary } from "../state/appProviders.js";
 import {
@@ -36,6 +41,7 @@ export interface AppProps {
     Record<string, ProductDetailPageData>
   >;
   readonly initialCart?: CartData;
+  readonly initialCheckout?: CheckoutPageData;
 }
 
 export function App({
@@ -45,6 +51,7 @@ export function App({
   initialCategoryPage,
   initialProductPages,
   initialCart,
+  initialCheckout,
 }: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
@@ -63,6 +70,7 @@ export function App({
         categoryPageData={initialCategoryPage ?? defaultCategoryPageData}
         productPages={initialProductPages ?? defaultProductDetailPages}
         cartData={initialCart ?? defaultCartData}
+        checkoutData={initialCheckout ?? defaultCheckoutPageData}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -77,6 +85,7 @@ function BuyerShell({
   categoryPageData,
   productPages,
   cartData,
+  checkoutData,
   authModalState,
   minicartState,
 }: {
@@ -86,6 +95,7 @@ function BuyerShell({
   readonly categoryPageData: CategoryPageData;
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
+  readonly checkoutData: CheckoutPageData;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -129,6 +139,7 @@ function BuyerShell({
           categoryPageData={categoryPageData}
           productPages={productPages}
           cartData={cartData}
+          checkoutData={checkoutData}
         />
         <PayPalProviderBoundary
           key={config.paypal.providerKey}
@@ -152,20 +163,17 @@ function RouteStage({
   categoryPageData,
   productPages,
   cartData,
+  checkoutData,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
+  readonly checkoutData: CheckoutPageData;
 }) {
   if (route.page === "checkout") {
-    return (
-      <section className="route-stage route-stage--checkout">
-        <p className="route-stage__eyebrow">Checkout</p>
-        <h1>Delivery or Pickup</h1>
-      </section>
-    );
+    return <CheckoutPage data={checkoutData} />;
   }
 
   if (route.page === "cart") {

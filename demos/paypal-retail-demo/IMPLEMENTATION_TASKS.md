@@ -310,14 +310,14 @@ Verification:
 
 ## Milestone 11: Checkout UI
 
-- [ ] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
+- [x] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
 - [ ] Build Delivery accordion: shipping address, billing address, shipping option, payment.
 - [ ] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
-- [ ] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
+- [x] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
 - [ ] Build focus movement and announced errors for checkout form validation.
 - [ ] Build partial pickup store card counts before store submit.
-- [ ] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
-- [ ] Build mobile sticky payment action for selected non-card methods.
+- [x] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
+- [x] Build mobile sticky payment action for selected non-card methods.
 
 Verification:
 
