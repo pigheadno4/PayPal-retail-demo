@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Skullpanda Future Drop box view</title>
+  <desc id="desc">Stylized collectible package artwork for the Skullpanda Future Drop product.</desc>
+  <rect width="320" height="320" rx="28" fill="#eef1ff"/>
+  <rect x="70" y="44" width="180" height="232" rx="20" fill="#ffffff" stroke="#6b65d8" stroke-width="8"/>
+  <path d="M104 102c32-38 80-38 112 0v76H104Z" fill="#24223a"/>
+  <circle cx="136" cy="146" r="14" fill="#ffffff"/>
+  <circle cx="184" cy="146" r="14" fill="#ffffff"/>
+  <path d="M134 186h52" stroke="#ffffff" stroke-linecap="round" stroke-width="8"/>
+  <rect x="104" y="220" width="112" height="18" rx="9" fill="#6b65d8"/>
+</svg>

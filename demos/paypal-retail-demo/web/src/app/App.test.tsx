@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { CategoryPageData } from "../features/catalog/CategoryPage.js";
+import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
 
 describe("App shell", () => {
@@ -96,6 +97,40 @@ describe("App shell", () => {
     expect(html).toContain('href="/products/labubu-have-a-seat"');
     expect(html).not.toContain('href="/admin"');
   });
+
+  it("renders a released PDP from product routes", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/products/labubu-have-a-seat"
+        initialProductPages={productPages()}
+      />,
+    );
+
+    expect(html).toContain('data-route-page="product"');
+    expect(html).toContain("Labubu Have a Seat");
+    expect(html).toContain(
+      "Flexible payment options may be available for $13.99",
+    );
+    expect(html).toContain("Collector reviews");
+    expect(html).not.toContain("Pickup");
+  });
+
+  it("renders an unreleased PDP without purchasable actions or reviews", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/products/skullpanda-future-drop"
+        initialProductPages={productPages()}
+      />,
+    );
+
+    expect(html).toContain("Skullpanda Future Drop");
+    expect(html).toContain("Checkout opens after release.");
+    expect(html).toContain("disabled");
+    expect(html).not.toContain("Collector reviews");
+    expect(html).not.toContain(
+      "Flexible payment options may be available for $15.99",
+    );
+  });
 });
 
 function categoryPageData(): CategoryPageData {
@@ -135,5 +170,83 @@ function categoryPageData(): CategoryPageData {
         href: "/products/labubu-have-a-seat",
       },
     ],
+  };
+}
+
+function productPages(): Readonly<Record<string, ProductDetailPageData>> {
+  return {
+    "labubu-have-a-seat": {
+      slug: "labubu-have-a-seat",
+      name: "Labubu Have a Seat",
+      categoryName: "Blind Boxes",
+      seriesName: "THE MONSTERS",
+      statusLabel: "Released",
+      purchasable: true,
+      currentPriceLabel: "$13.99",
+      regularPriceLabel: "$15.99",
+      introduction:
+        "A cozy seated Labubu blind box with soft shelf presence and collectible surprise energy.",
+      details: [],
+      gallery: [
+        {
+          imagePath: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+          imageAlt: "Labubu Have a Seat front view",
+        },
+        {
+          imagePath: "/assets/popmart/products/labubu-have-a-seat-2.svg",
+          imageAlt: "Labubu Have a Seat box view",
+        },
+        {
+          imagePath: "/assets/popmart/products/labubu-have-a-seat-3.svg",
+          imageAlt: "Labubu Have a Seat side view",
+        },
+      ],
+      payLaterMessage: {
+        title: "Pay Later with PayPal",
+        body: "Flexible payment options may be available for $13.99 at checkout.",
+      },
+      reviews: [
+        {
+          id: "review-1",
+          authorName: "Mina",
+          ratingLabel: "5 out of 5",
+          title: "Cute desk companion",
+          body: "Arrived safely and looks great next to my monitor.",
+        },
+      ],
+    },
+    "skullpanda-future-drop": {
+      slug: "skullpanda-future-drop",
+      name: "Skullpanda Future Drop",
+      categoryName: "Figures",
+      seriesName: "Skullpanda",
+      statusLabel: "Not released",
+      purchasable: false,
+      unavailableReason: "Checkout opens after release.",
+      currentPriceLabel: "$15.99",
+      regularPriceLabel: "$17.99",
+      introduction:
+        "A coming-soon Skullpanda release page for previewing product details before checkout opens.",
+      details: [],
+      gallery: [
+        {
+          imagePath: "/assets/popmart/products/skullpanda-future-drop-1.svg",
+          imageAlt: "Skullpanda Future Drop front view",
+        },
+        {
+          imagePath: "/assets/popmart/products/skullpanda-future-drop-2.svg",
+          imageAlt: "Skullpanda Future Drop box view",
+        },
+        {
+          imagePath: "/assets/popmart/products/skullpanda-future-drop-3.svg",
+          imageAlt: "Skullpanda Future Drop side view",
+        },
+      ],
+      payLaterMessage: {
+        title: "Pay Later with PayPal",
+        body: "Flexible payment options may be available for $15.99 at checkout.",
+      },
+      reviews: [],
+    },
   };
 }

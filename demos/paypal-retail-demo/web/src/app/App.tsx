@@ -10,6 +10,11 @@ import {
   HomePage,
   type HomePageData,
 } from "../features/catalog/HomePage.js";
+import {
+  defaultProductDetailPages,
+  ProductDetailPage,
+  type ProductDetailPageData,
+} from "../features/catalog/ProductDetailPage.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders, PayPalProviderBoundary } from "../state/appProviders.js";
 import {
@@ -25,6 +30,9 @@ export interface AppProps {
   readonly initialConfig?: StorefrontRuntimeConfig;
   readonly initialHomePage?: HomePageData;
   readonly initialCategoryPage?: CategoryPageData;
+  readonly initialProductPages?: Readonly<
+    Record<string, ProductDetailPageData>
+  >;
 }
 
 export function App({
@@ -32,6 +40,7 @@ export function App({
   initialConfig,
   initialHomePage,
   initialCategoryPage,
+  initialProductPages,
 }: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
@@ -48,6 +57,7 @@ export function App({
         config={config}
         homePageData={initialHomePage ?? defaultHomePageData}
         categoryPageData={initialCategoryPage ?? defaultCategoryPageData}
+        productPages={initialProductPages ?? defaultProductDetailPages}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -60,6 +70,7 @@ function BuyerShell({
   config,
   homePageData,
   categoryPageData,
+  productPages,
   authModalState,
   minicartState,
 }: {
@@ -67,6 +78,7 @@ function BuyerShell({
   readonly config: StorefrontRuntimeConfig;
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
+  readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -108,6 +120,7 @@ function BuyerShell({
           route={route}
           homePageData={homePageData}
           categoryPageData={categoryPageData}
+          productPages={productPages}
         />
         <PayPalProviderBoundary
           key={config.paypal.providerKey}
@@ -129,10 +142,12 @@ function RouteStage({
   route,
   homePageData,
   categoryPageData,
+  productPages,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
+  readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
 }) {
   if (route.page === "checkout") {
     return (
@@ -153,11 +168,12 @@ function RouteStage({
   }
 
   if (route.page === "product") {
-    return (
-      <section className="route-stage route-stage--product">
-        <p className="route-stage__eyebrow">Product</p>
-        <h1>{route.productSlug.replaceAll("-", " ")}</h1>
-      </section>
+    const productPage = productPages[route.productSlug];
+
+    return productPage ? (
+      <ProductDetailPage data={productPage} />
+    ) : (
+      <NotFoundStage />
     );
   }
 
@@ -166,15 +182,19 @@ function RouteStage({
   }
 
   if (route.page === "not_found") {
-    return (
-      <section className="route-stage route-stage--not-found">
-        <p className="route-stage__eyebrow">Not Found</p>
-        <h1>Page unavailable</h1>
-      </section>
-    );
+    return <NotFoundStage />;
   }
 
   return <HomePage data={homePageData} />;
+}
+
+function NotFoundStage() {
+  return (
+    <section className="route-stage route-stage--not-found">
+      <p className="route-stage__eyebrow">Not Found</p>
+      <h1>Page unavailable</h1>
+    </section>
+  );
 }
 
 function PaymentActionSlot() {

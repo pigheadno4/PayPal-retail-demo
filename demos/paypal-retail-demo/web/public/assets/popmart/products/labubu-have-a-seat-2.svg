@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Labubu Have a Seat box view</title>
+  <desc id="desc">Stylized collectible package artwork for the Labubu Have a Seat product.</desc>
+  <rect width="320" height="320" rx="28" fill="#fff4f0"/>
+  <rect x="76" y="48" width="168" height="224" rx="18" fill="#ffffff" stroke="#e81f2d" stroke-width="8"/>
+  <rect x="96" y="78" width="128" height="92" rx="14" fill="#ffe1d9"/>
+  <circle cx="138" cy="126" r="12" fill="#191919"/>
+  <circle cx="182" cy="126" r="12" fill="#191919"/>
+  <path d="M140 154c10 9 30 9 40 0" fill="none" stroke="#191919" stroke-linecap="round" stroke-width="8"/>
+  <rect x="104" y="196" width="112" height="22" rx="11" fill="#e81f2d"/>
+  <rect x="118" y="230" width="84" height="12" rx="6" fill="#ffb8ac"/>
+</svg>

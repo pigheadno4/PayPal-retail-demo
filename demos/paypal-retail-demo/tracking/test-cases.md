@@ -191,6 +191,9 @@
 - [x] Category page exposes an "All options" category switcher, applied filter count, and reset action.
 - [x] Category pickup filter shows a disabled location hint when no buyer location is available.
 - [x] Category Pay Later promo uses amount-free copy.
+- [x] PDP route renders released product gallery, details, current/regular price, amount-aware Pay Later message, delivery express actions, and reviews.
+- [x] PDP route keeps unreleased products viewable while disabling checkout actions, hiding Pay Later amount message, and hiding reviews.
+- [x] PDP has no pickup hint.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.
