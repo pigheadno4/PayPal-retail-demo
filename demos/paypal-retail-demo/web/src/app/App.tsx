@@ -1,5 +1,7 @@
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
+import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
+import { defaultCartData, type CartData } from "../features/cart/cartModel.js";
 import {
   CategoryPage,
   defaultCategoryPageData,
@@ -33,6 +35,7 @@ export interface AppProps {
   readonly initialProductPages?: Readonly<
     Record<string, ProductDetailPageData>
   >;
+  readonly initialCart?: CartData;
 }
 
 export function App({
@@ -41,6 +44,7 @@ export function App({
   initialHomePage,
   initialCategoryPage,
   initialProductPages,
+  initialCart,
 }: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
@@ -58,6 +62,7 @@ export function App({
         homePageData={initialHomePage ?? defaultHomePageData}
         categoryPageData={initialCategoryPage ?? defaultCategoryPageData}
         productPages={initialProductPages ?? defaultProductDetailPages}
+        cartData={initialCart ?? defaultCartData}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -71,6 +76,7 @@ function BuyerShell({
   homePageData,
   categoryPageData,
   productPages,
+  cartData,
   authModalState,
   minicartState,
 }: {
@@ -79,6 +85,7 @@ function BuyerShell({
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
+  readonly cartData: CartData;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -121,6 +128,7 @@ function BuyerShell({
           homePageData={homePageData}
           categoryPageData={categoryPageData}
           productPages={productPages}
+          cartData={cartData}
         />
         <PayPalProviderBoundary
           key={config.paypal.providerKey}
@@ -133,7 +141,7 @@ function BuyerShell({
         Storefront ready.
       </StatusRegion>
       <AuthModalShell state={authModalState} />
-      <MinicartShell state={minicartState} />
+      <MinicartShell state={minicartState} cart={cartData} />
     </div>
   );
 }
@@ -143,11 +151,13 @@ function RouteStage({
   homePageData,
   categoryPageData,
   productPages,
+  cartData,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
+  readonly cartData: CartData;
 }) {
   if (route.page === "checkout") {
     return (
@@ -156,6 +166,10 @@ function RouteStage({
         <h1>Delivery or Pickup</h1>
       </section>
     );
+  }
+
+  if (route.page === "cart") {
+    return <CartPage data={cartData} />;
   }
 
   if (route.page === "account") {

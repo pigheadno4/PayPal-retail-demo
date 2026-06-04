@@ -9,6 +9,10 @@ describe("app route resolver", () => {
       scope: "buyer",
       page: "checkout",
     });
+    expect(resolveAppRoute("/cart")).toEqual({
+      scope: "buyer",
+      page: "cart",
+    });
     expect(resolveAppRoute("/account/orders")).toEqual({
       scope: "buyer",
       page: "account",

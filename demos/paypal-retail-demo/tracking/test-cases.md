@@ -194,6 +194,10 @@
 - [x] PDP route renders released product gallery, details, current/regular price, amount-aware Pay Later message, delivery express actions, and reviews.
 - [x] PDP route keeps unreleased products viewable while disabling checkout actions, hiding Pay Later amount message, and hiding reviews.
 - [x] PDP has no pickup hint.
+- [x] Minicart renders item summary, amount-aware Pay Later message, view-cart/checkout actions, PayPal/Pay Later delivery express controls, and pickup hint text.
+- [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, PayPal/Pay Later delivery express controls, and pickup hint text.
+- [x] Cart Pay Later amount message recalculates from merchandise quantity totals and excludes shipping.
+- [x] Cart/minicart pickup hints stay as text only with no pickup button.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

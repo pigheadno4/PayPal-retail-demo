@@ -298,9 +298,9 @@ Verification:
 
 ## Milestone 10: Cart And Minicart UI
 
-- [ ] Build minicart with item summary, Pay Later amount message, checkout/view-cart actions, PayPal/Pay Later delivery express, and pickup hint text.
-- [ ] Build full cart with quantity editing, Pay Later amount message, checkout action, PayPal/Pay Later delivery express, and pickup hint text.
-- [ ] Keep pickup hints as text only, no pickup button.
+- [x] Build minicart with item summary, Pay Later amount message, checkout/view-cart actions, PayPal/Pay Later delivery express, and pickup hint text.
+- [x] Build full cart with quantity editing, Pay Later amount message, checkout action, PayPal/Pay Later delivery express, and pickup hint text.
+- [x] Keep pickup hints as text only, no pickup button.
 
 Verification:
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CategoryPageData } from "../features/catalog/CategoryPage.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
+import type { CartData } from "../features/cart/cartModel.js";
 import { App } from "./App.js";
 
 describe("App shell", () => {
@@ -131,6 +132,23 @@ describe("App shell", () => {
       "Flexible payment options may be available for $15.99",
     );
   });
+
+  it("renders the full cart for cart routes", () => {
+    const html = renderToStaticMarkup(
+      <App initialPathname="/cart" initialCart={cartData()} />,
+    );
+
+    expect(html).toContain('data-route-page="cart"');
+    expect(html).toContain("Shopping cart");
+    expect(html).toContain("Labubu Have a Seat");
+    expect(html).toContain(
+      "Flexible payment options may be available for $25.98",
+    );
+    expect(html).toContain(
+      "Prefer pickup? Choose store pickup during checkout.",
+    );
+    expect(html).not.toContain('href="/admin"');
+  });
 });
 
 function categoryPageData(): CategoryPageData {
@@ -248,5 +266,44 @@ function productPages(): Readonly<Record<string, ProductDetailPageData>> {
       },
       reviews: [],
     },
+  };
+}
+
+function cartData(): CartData {
+  return {
+    title: "Shopping cart",
+    checkoutHref: "/checkout",
+    cartHref: "/cart",
+    currencyCode: "USD",
+    locale: "en-US",
+    pickupHint: "Prefer pickup? Choose store pickup during checkout.",
+    items: [
+      {
+        slug: "labubu-have-a-seat",
+        name: "Labubu Have a Seat",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+        imageAlt: "Labubu Have a Seat collectible",
+        unitPriceCents: 1299,
+        currentPriceLabel: "$12.99",
+        regularPriceLabel: "$13.99",
+        quantity: 1,
+        maxQuantity: 5,
+        href: "/products/labubu-have-a-seat",
+      },
+      {
+        slug: "hirono-little-mischief",
+        name: "Hirono Little Mischief",
+        categoryName: "Plush",
+        imagePath: "/assets/popmart/products/hirono-little-mischief-1.svg",
+        imageAlt: "Hirono Little Mischief collectible",
+        unitPriceCents: 1299,
+        currentPriceLabel: "$12.99",
+        regularPriceLabel: "$12.99",
+        quantity: 1,
+        maxQuantity: 3,
+        href: "/products/hirono-little-mischief",
+      },
+    ],
   };
 }
