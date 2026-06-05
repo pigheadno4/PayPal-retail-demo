@@ -329,10 +329,10 @@ Verification:
 
 ## Milestone 12: Payment UI Integration
 
-- [ ] Integrate PayPal SDK v6 provider/loading.
-- [ ] Pass currency, locale, buyer country, Pay Later buyer country, and sandbox test buyer country from backend config into the SDK v6 integration.
-- [ ] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
-- [ ] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
+- [x] Integrate PayPal SDK v6 provider/loading.
+- [x] Pass currency, locale, buyer country, Pay Later buyer country, and sandbox test buyer country from backend config into the SDK v6 integration.
+- [x] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
+- [x] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
 - [ ] Render PayPal standalone button when PayPal radio is selected.
 - [ ] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
 - [ ] Render card fields expanded in the payment step with save checkbox inside card box.

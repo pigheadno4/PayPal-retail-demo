@@ -22,8 +22,12 @@ import {
   defaultCheckoutPageData,
   type CheckoutPageData,
 } from "../features/checkout/CheckoutPage.js";
+import {
+  PayPalSdkProviderScope,
+  type PayPalSdkConfigRequest,
+} from "../features/payments/PayPalSdkProviderScope.js";
 import { StatusRegion } from "../components/accessibility.js";
-import { AppProviders, PayPalProviderBoundary } from "../state/appProviders.js";
+import { AppProviders } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
   defaultRuntimeConfig,
@@ -141,12 +145,18 @@ function BuyerShell({
           cartData={cartData}
           checkoutData={checkoutData}
         />
-        <PayPalProviderBoundary
+        <PayPalSdkProviderScope
           key={config.paypal.providerKey}
           providerKey={config.paypal.providerKey}
+          configRequest={{
+            market: config.market.code,
+            pageType: resolvePayPalSdkPageType(route),
+            flow: "standard",
+            method: "paypal",
+          }}
         >
           <PaymentActionSlot />
-        </PayPalProviderBoundary>
+        </PayPalSdkProviderScope>
       </main>
       <StatusRegion id="shell-status" className="sr-only">
         Storefront ready.
@@ -217,6 +227,28 @@ function NotFoundStage() {
       <h1>Page unavailable</h1>
     </section>
   );
+}
+
+function resolvePayPalSdkPageType(
+  route: Extract<AppRoute, { readonly scope: "buyer" }>,
+): PayPalSdkConfigRequest["pageType"] {
+  if (route.page === "product") {
+    return "product-details";
+  }
+
+  if (route.page === "catalog") {
+    return "product-listing";
+  }
+
+  if (route.page === "cart") {
+    return "cart";
+  }
+
+  if (route.page === "checkout") {
+    return "checkout";
+  }
+
+  return "home";
 }
 
 function PaymentActionSlot() {

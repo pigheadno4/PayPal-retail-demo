@@ -71,4 +71,5 @@
 - [x] Continue Milestone 11 with detailed Delivery and Pickup accordion content/forms.
 - [x] Continue Milestone 11 with partial pickup store card counts before store submit.
 - [x] Continue Milestone 11 with checkout form validation, focus movement, and announced errors.
-- [ ] Start Milestone 12 with PayPal SDK v6 provider/loading and backend SDK config wiring.
+- [x] Start Milestone 12 with PayPal SDK v6 provider/loading and backend SDK config wiring.
+- [ ] Continue Milestone 12 with selected PayPal standalone button rendering under Order Summary.

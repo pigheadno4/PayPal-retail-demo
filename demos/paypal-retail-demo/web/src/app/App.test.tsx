@@ -68,7 +68,7 @@ describe("App shell", () => {
     expect(html).toContain('id="main-content"');
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Open minicart"');
-    expect(html).toContain('class="paypal-provider-boundary"');
+    expect(html).toContain('class="paypal-provider-scope"');
     expect(html).toContain(
       'data-paypal-provider-key="paypal:sandbox:popmart:us:v1"',
     );

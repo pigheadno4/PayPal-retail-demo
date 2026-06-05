@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 11 checkout UI is implemented on branch `milestone8-shell-config-foundation`: Delivery/Pickup checkout tabs, preserved draft state shells, detailed Delivery/Pickup accordions, checkout step status labels, validation summary/errors with focus target behavior, mode-aware order summary, pickup ready/unavailable split, partial pickup store cards, selected-payment slot, and mobile sticky action shell are implemented. Next implementation slice is Milestone 12 payment UI integration, starting with PayPal SDK v6 provider/loading and backend SDK config wiring. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 12 payment UI integration is in progress on branch `milestone8-shell-config-foundation`: the PayPal SDK v6 provider scope now fetches backend SDK config, renders loading/error/SDK status regions, verifies the installed v9.2.0 SDK v6 `testBuyerCountry` type, keeps currency/buyer-country/Pay Later buyer-country metadata available for child payment surfaces, and maps sandbox `sandbox_test_buyer_country` to `PayPalProvider` `testBuyerCountry`. Next implementation slice is rendering the selected PayPal standalone button under Order Summary. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 

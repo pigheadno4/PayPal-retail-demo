@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "../api/client.js";
 import {
   AppProviders,
-  PayPalProviderBoundary,
   useApiClient,
   useStorefrontRuntime,
 } from "./appProviders.js";
@@ -32,11 +31,9 @@ describe("app providers", () => {
           >
             API ready
           </span>
-          <PayPalProviderBoundary
-            providerKey={runtime.config.paypal.providerKey}
-          >
+          <span data-paypal-provider-key={runtime.config.paypal.providerKey}>
             Payment subtree
-          </PayPalProviderBoundary>
+          </span>
         </section>
       );
     }
@@ -49,7 +46,6 @@ describe("app providers", () => {
 
     expect(html).toContain('data-profile="popmart"');
     expect(html).toContain('data-api-client="yes"');
-    expect(html).toContain('class="paypal-provider-boundary"');
     expect(html).toContain(
       'data-paypal-provider-key="paypal:sandbox:popmart:us:v1"',
     );

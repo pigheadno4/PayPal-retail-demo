@@ -77,22 +77,3 @@ export function useStorefrontRuntime(): StorefrontRuntimeValue {
 
   return runtime;
 }
-
-export interface PayPalProviderBoundaryProps {
-  readonly providerKey: string;
-  readonly children: ReactNode;
-}
-
-export function PayPalProviderBoundary({
-  providerKey,
-  children,
-}: PayPalProviderBoundaryProps) {
-  return (
-    <div
-      className="paypal-provider-boundary"
-      data-paypal-provider-key={providerKey}
-    >
-      {children}
-    </div>
-  );
-}

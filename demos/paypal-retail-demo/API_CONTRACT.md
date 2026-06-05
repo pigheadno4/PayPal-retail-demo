@@ -419,6 +419,7 @@ Rules:
 - `locale` is used for SDK/provider instance creation.
 - `buyer_country` and `paylater_buyer_country` are used for Pay Later messages and method details where the SDK requires buyer-country context.
 - In sandbox, map `sandbox_test_buyer_country` to PayPal JS SDK v6 `createInstance({ testBuyerCountry })` so the SDK simulates the buyer environment.
+- Local verification with `@paypal/react-paypal-js` v9.2.0 found that the React SDK v6 `PayPalProvider` accepts `environment`, `components`, `locale`, `pageType`, and `testBuyerCountry`; it does not expose a `sdkBaseUrl` prop. Keep `sdk_url` as backend/debug metadata unless the installed SDK type changes.
 - Before coding against the installed package, verify `testBuyerCountry` still exists in the local `@paypal/react-paypal-js` v9 / SDK v6 types. If the installed type differs from the `wiki-v2` snapshot, stop and update this contract before implementing the provider.
 - Pay Later, Venmo, Apple Pay, and Google Pay UI rows must be hidden unless runtime eligibility says they can render.
 

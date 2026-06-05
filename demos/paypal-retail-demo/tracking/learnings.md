@@ -127,6 +127,7 @@ Reusable implementation lessons from this demo should be added here during miles
 ## PayPal API Routes
 
 - The SDK config route should stay browser-safe: return client ID, market, component, provider-key, and token-required flags, but never client secret or OAuth/token internals.
+- The installed `@paypal/react-paypal-js` v9.2.0 SDK v6 provider accepts `environment`, `components`, `locale`, `pageType`, and `testBuyerCountry`; it does not expose `sdkBaseUrl`, so `sdk_url` should remain backend/debug metadata unless local types change.
 - Client-token generation should be a server-side PayPal OAuth wrapper that maps PayPal's `access_token` field into our buyer-facing `client_token` field.
 - Use `PUBLIC_HTTPS_ORIGIN` as the preferred default client-token domain, falling back to `APP_BASE_URL` only for local/basic development; PayPal may reject localhost domains for domain-bound token flows.
 - Keep PayPal order creation split into three layers: route validates buyer/source context, repository prepares merchant-locked order inputs from Supabase, and gateway performs OAuth plus `/v2/checkout/orders`.
