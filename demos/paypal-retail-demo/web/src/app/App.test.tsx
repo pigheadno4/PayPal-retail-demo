@@ -68,10 +68,7 @@ describe("App shell", () => {
     expect(html).toContain('id="main-content"');
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Open minicart"');
-    expect(html).toContain('class="paypal-provider-scope"');
-    expect(html).toContain(
-      'data-paypal-provider-key="paypal:sandbox:popmart:us:v1"',
-    );
+    expect(html).not.toContain('class="paypal-provider-scope"');
     expect(html).not.toContain('href="/admin"');
   });
 
@@ -162,6 +159,9 @@ describe("App shell", () => {
     expect(html).toContain("Shipping address");
     expect(html).toContain("Pickup location");
     expect(html).toContain("Delivery order");
+    expect(html).toContain('class="paypal-provider-scope"');
+    expect(html).toContain('data-paypal-sdk-page-type="checkout"');
+    expect(html).toContain('data-paypal-sdk-status="loading"');
     expect(html).not.toContain('href="/admin"');
   });
 });
@@ -330,6 +330,7 @@ function checkoutData(): CheckoutPageData {
     lockedReason: "Switching requires abandoning this payment attempt.",
     delivery: {
       label: "Delivery",
+      checkoutDraftId: "draft_delivery_123",
       summary: {
         title: "Delivery order",
         contextLabel: "Ground delivery",
@@ -337,6 +338,7 @@ function checkoutData(): CheckoutPageData {
         promoLabel: "Auto promo calculating",
         totalLabel: "$25.98",
         selectedPaymentLabel: "PayPal selected",
+        selectedPaymentMethod: "paypal",
       },
       steps: [
         {
@@ -349,6 +351,7 @@ function checkoutData(): CheckoutPageData {
     },
     pickup: {
       label: "Pickup",
+      checkoutDraftId: "draft_pickup_123",
       summary: {
         title: "Pickup order",
         contextLabel: "POP MART Soho",
@@ -356,6 +359,7 @@ function checkoutData(): CheckoutPageData {
         promoLabel: "Pickup promo recalculating",
         totalLabel: "$12.99",
         selectedPaymentLabel: "PayPal selected",
+        selectedPaymentMethod: "paypal",
         readyItemsLabel: "Ready for pickup: 1 item",
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",

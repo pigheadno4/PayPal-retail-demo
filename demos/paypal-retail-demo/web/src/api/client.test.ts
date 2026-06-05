@@ -54,6 +54,55 @@ describe("web API client", () => {
       status: 404,
     } satisfies Partial<ApiClientError>);
   });
+
+  it("posts JSON app API requests with normalized query params", async () => {
+    const calls: Array<{
+      readonly url: string;
+      readonly init: RequestInit;
+    }> = [];
+    const client = createApiClient({
+      baseUrl: "https://demo.example.test/",
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {},
+        });
+        return responseJson({
+          ok: true,
+          data: { paypal_order_id: "PAYPAL_ORDER_123" },
+          debug_id: "dbg_post",
+        });
+      },
+    });
+
+    const result = await client.post(
+      "/api/paypal/orders/delivery",
+      {
+        checkout_draft_id: "draft_delivery_123",
+        method: "paypal",
+      },
+      {
+        market: "US",
+      },
+    );
+
+    expect(result).toEqual({ paypal_order_id: "PAYPAL_ORDER_123" });
+    expect(calls).toEqual([
+      {
+        url: "https://demo.example.test/api/paypal/orders/delivery?market=US",
+        init: {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            checkout_draft_id: "draft_delivery_123",
+            method: "paypal",
+          }),
+        },
+      },
+    ]);
+  });
 });
 
 function responseJson(body: unknown, status = 200): Response {

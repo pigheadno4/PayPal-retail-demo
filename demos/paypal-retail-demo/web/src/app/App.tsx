@@ -1,3 +1,5 @@
+import { type ReactNode } from "react";
+
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
@@ -20,12 +22,11 @@ import {
 import {
   CheckoutPage,
   defaultCheckoutPageData,
+  type CheckoutPaymentActionContext,
   type CheckoutPageData,
 } from "../features/checkout/CheckoutPage.js";
-import {
-  PayPalSdkProviderScope,
-  type PayPalSdkConfigRequest,
-} from "../features/payments/PayPalSdkProviderScope.js";
+import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
+import { PayPalStandaloneAction } from "../features/payments/PayPalStandaloneAction.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders } from "../state/appProviders.js";
 import {
@@ -144,19 +145,13 @@ function BuyerShell({
           productPages={productPages}
           cartData={cartData}
           checkoutData={checkoutData}
+          renderCheckoutPaymentAction={(context) =>
+            renderCheckoutPaymentAction({
+              config,
+              context,
+            })
+          }
         />
-        <PayPalSdkProviderScope
-          key={config.paypal.providerKey}
-          providerKey={config.paypal.providerKey}
-          configRequest={{
-            market: config.market.code,
-            pageType: resolvePayPalSdkPageType(route),
-            flow: "standard",
-            method: "paypal",
-          }}
-        >
-          <PaymentActionSlot />
-        </PayPalSdkProviderScope>
       </main>
       <StatusRegion id="shell-status" className="sr-only">
         Storefront ready.
@@ -174,6 +169,7 @@ function RouteStage({
   productPages,
   cartData,
   checkoutData,
+  renderCheckoutPaymentAction,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
@@ -181,9 +177,17 @@ function RouteStage({
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
+  readonly renderCheckoutPaymentAction: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
 }) {
   if (route.page === "checkout") {
-    return <CheckoutPage data={checkoutData} />;
+    return (
+      <CheckoutPage
+        data={checkoutData}
+        renderPaymentAction={renderCheckoutPaymentAction}
+      />
+    );
   }
 
   if (route.page === "cart") {
@@ -220,43 +224,43 @@ function RouteStage({
   return <HomePage data={homePageData} />;
 }
 
+function renderCheckoutPaymentAction({
+  config,
+  context,
+}: {
+  readonly config: StorefrontRuntimeConfig;
+  readonly context: CheckoutPaymentActionContext;
+}) {
+  if (context.selectedPaymentMethod !== "paypal" || !context.checkoutDraftId) {
+    return null;
+  }
+
+  return (
+    <PayPalSdkProviderScope
+      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:${context.selectedPaymentMethod}`}
+      providerKey={config.paypal.providerKey}
+      configRequest={{
+        market: config.market.code,
+        pageType: "checkout",
+        flow: "standard",
+        method: "paypal",
+      }}
+    >
+      <PayPalStandaloneAction
+        checkoutDraftId={context.checkoutDraftId}
+        fulfillmentMode={context.fulfillmentMode}
+        market={config.market.code}
+      />
+    </PayPalSdkProviderScope>
+  );
+}
+
 function NotFoundStage() {
   return (
     <section className="route-stage route-stage--not-found">
       <p className="route-stage__eyebrow">Not Found</p>
       <h1>Page unavailable</h1>
     </section>
-  );
-}
-
-function resolvePayPalSdkPageType(
-  route: Extract<AppRoute, { readonly scope: "buyer" }>,
-): PayPalSdkConfigRequest["pageType"] {
-  if (route.page === "product") {
-    return "product-details";
-  }
-
-  if (route.page === "catalog") {
-    return "product-listing";
-  }
-
-  if (route.page === "cart") {
-    return "cart";
-  }
-
-  if (route.page === "checkout") {
-    return "checkout";
-  }
-
-  return "home";
-}
-
-function PaymentActionSlot() {
-  return (
-    <section
-      className="payment-action-slot"
-      aria-label="Selected payment action"
-    />
   );
 }
 

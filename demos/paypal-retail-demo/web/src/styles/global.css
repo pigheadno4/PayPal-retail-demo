@@ -1433,6 +1433,17 @@ a {
   min-height: 52px;
 }
 
+.paypal-standalone-action {
+  display: grid;
+  gap: 8px;
+  min-height: 52px;
+  padding: 8px;
+}
+
+.paypal-standalone-action paypal-button {
+  min-height: 44px;
+}
+
 .checkout-sticky-action {
   align-items: center;
   background: var(--shell-panel);
@@ -1509,10 +1520,6 @@ p {
 }
 
 .paypal-provider-scope {
-  min-height: 1px;
-}
-
-.payment-action-slot {
   min-height: 1px;
 }
 

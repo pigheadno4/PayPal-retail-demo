@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   FieldError,
@@ -63,6 +69,7 @@ export interface CheckoutOrderSummary {
   readonly promoLabel: string;
   readonly totalLabel: string;
   readonly selectedPaymentLabel: string;
+  readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
   readonly readyItemsLabel?: string;
   readonly unavailableItemsLabel?: string;
   readonly partialInventoryNote?: string;
@@ -83,8 +90,24 @@ export interface CheckoutValidationState {
 
 export interface CheckoutFulfillmentDraft {
   readonly label: string;
+  readonly checkoutDraftId?: string;
   readonly steps: readonly CheckoutStep[];
   readonly summary: CheckoutOrderSummary;
+}
+
+export type CheckoutSelectedPaymentMethod =
+  | "paypal"
+  | "paylater"
+  | "card"
+  | "apple_pay"
+  | "google_pay"
+  | "venmo";
+
+export interface CheckoutPaymentActionContext {
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly checkoutDraftId: string | null;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
+  readonly totalLabel: string;
 }
 
 export interface CheckoutPageData {
@@ -98,6 +121,9 @@ export interface CheckoutPageData {
 
 export interface CheckoutPageProps {
   readonly data?: CheckoutPageData;
+  readonly renderPaymentAction?: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
 }
 
 const stepStateLabels = {
@@ -112,12 +138,20 @@ const stepStateLabels = {
 
 export function CheckoutPage({
   data = defaultCheckoutPageData,
+  renderPaymentAction,
 }: CheckoutPageProps) {
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
     data.activeMode,
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
+  const paymentAction = renderPaymentAction?.({
+    fulfillmentMode: activeMode,
+    checkoutDraftId: activeDraft.checkoutDraftId ?? null,
+    selectedPaymentMethod:
+      activeDraft.summary.selectedPaymentMethod ?? "paypal",
+    totalLabel: activeDraft.summary.totalLabel,
+  });
 
   useEffect(() => {
     if (data.validation?.focusStepId) {
@@ -199,7 +233,10 @@ export function CheckoutPage({
           />
         </section>
 
-        <CheckoutSummary summary={activeDraft.summary} />
+        <CheckoutSummary
+          summary={activeDraft.summary}
+          paymentAction={paymentAction}
+        />
       </div>
 
       <div
@@ -421,8 +458,10 @@ function CheckoutStepDetails({
 
 function CheckoutSummary({
   summary,
+  paymentAction,
 }: {
   readonly summary: CheckoutOrderSummary;
+  readonly paymentAction?: ReactNode;
 }) {
   return (
     <aside className="checkout-summary" aria-label="Order summary">
@@ -456,7 +495,7 @@ function CheckoutSummary({
         aria-label="Selected payment method"
       >
         <span>{summary.selectedPaymentLabel}</span>
-        <div className="checkout-summary__slot" />
+        <div className="checkout-summary__slot">{paymentAction}</div>
       </section>
     </aside>
   );
@@ -684,6 +723,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
   lockedReason: "Switching requires abandoning this payment attempt.",
   delivery: {
     label: "Delivery",
+    checkoutDraftId: "draft_delivery_123",
     summary: {
       title: "Delivery order",
       contextLabel: "Ground delivery",
@@ -691,6 +731,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
       promoLabel: "Auto promo calculating",
       totalLabel: "$25.98",
       selectedPaymentLabel: "PayPal selected",
+      selectedPaymentMethod: "paypal",
     },
     steps: [
       {
@@ -721,6 +762,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
   },
   pickup: {
     label: "Pickup",
+    checkoutDraftId: "draft_pickup_123",
     summary: {
       title: "Pickup order",
       contextLabel: "POP MART Soho",
@@ -728,6 +770,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
       promoLabel: "Pickup promo recalculating",
       totalLabel: "$12.99",
       selectedPaymentLabel: "PayPal selected",
+      selectedPaymentMethod: "paypal",
       readyItemsLabel: "Ready for pickup: 1 item",
       unavailableItemsLabel: "Not available at this store: 1 item",
       partialInventoryNote: "Unavailable items stay in the original cart.",

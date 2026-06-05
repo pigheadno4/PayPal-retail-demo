@@ -53,6 +53,11 @@ export interface ApiClient {
     path: string,
     query?: ApiQueryParams,
   ) => Promise<TData>;
+  readonly post: <TData = unknown>(
+    path: string,
+    body?: unknown,
+    query?: ApiQueryParams,
+  ) => Promise<TData>;
 }
 
 export function createApiClient(input: ApiClientInput = {}): ApiClient {
@@ -64,21 +69,39 @@ export function createApiClient(input: ApiClientInput = {}): ApiClient {
       const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
         method: "GET",
       });
-      const envelope = (await response.json()) as ApiEnvelope<TData>;
-
-      if (!envelope.ok) {
-        throw new ApiClientError({
-          status: response.status,
-          code: envelope.error.code,
-          message: envelope.error.message,
-          debugId: envelope.debug_id,
-          details: envelope.error.details ?? {},
-        });
-      }
-
-      return envelope.data;
+      return readApiEnvelope<TData>(response);
+    },
+    async post<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+      return readApiEnvelope<TData>(response);
     },
   };
+}
+
+async function readApiEnvelope<TData>(response: Response): Promise<TData> {
+  const envelope = (await response.json()) as ApiEnvelope<TData>;
+
+  if (!envelope.ok) {
+    throw new ApiClientError({
+      status: response.status,
+      code: envelope.error.code,
+      message: envelope.error.message,
+      debugId: envelope.debug_id,
+      details: envelope.error.details ?? {},
+    });
+  }
+
+  return envelope.data;
 }
 
 function buildApiUrl(

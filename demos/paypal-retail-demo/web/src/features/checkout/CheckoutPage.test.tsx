@@ -141,6 +141,30 @@ describe("CheckoutPage", () => {
       "City is required before shipping options can be quoted.",
     );
   });
+
+  it("renders the selected payment action inside Order Summary with active draft context", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({ activeMode: "pickup" })}
+        renderPaymentAction={(context) => (
+          <div
+            data-payment-action-placement="order-summary"
+            data-payment-checkout-draft-id={context.checkoutDraftId}
+            data-payment-fulfillment-mode={context.fulfillmentMode}
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Payment action
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Selected payment method"');
+    expect(html).toContain('data-payment-action-placement="order-summary"');
+    expect(html).toContain('data-payment-checkout-draft-id="draft_pickup_123"');
+    expect(html).toContain('data-payment-fulfillment-mode="pickup"');
+    expect(html).toContain('data-payment-method="paypal"');
+  });
 });
 
 function checkoutData(
@@ -154,6 +178,7 @@ function checkoutData(
     lockedReason: "Switching requires abandoning this payment attempt.",
     delivery: {
       label: "Delivery",
+      checkoutDraftId: "draft_delivery_123",
       summary: {
         title: "Delivery order",
         contextLabel: "Ground delivery",
@@ -161,6 +186,7 @@ function checkoutData(
         promoLabel: "Auto promo calculating",
         totalLabel: "$25.98",
         selectedPaymentLabel: "PayPal selected",
+        selectedPaymentMethod: "paypal",
       },
       steps: [
         {
@@ -191,6 +217,7 @@ function checkoutData(
     },
     pickup: {
       label: "Pickup",
+      checkoutDraftId: "draft_pickup_123",
       summary: {
         title: "Pickup order",
         contextLabel: "POP MART Soho",
@@ -198,6 +225,7 @@ function checkoutData(
         promoLabel: "Pickup promo recalculating",
         totalLabel: "$12.99",
         selectedPaymentLabel: "PayPal selected",
+        selectedPaymentMethod: "paypal",
         readyItemsLabel: "Ready for pickup: 1 item",
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",
