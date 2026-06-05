@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { CheckoutPage, type CheckoutPageData } from "./CheckoutPage.js";
+import {
+  CheckoutPage,
+  type CheckoutPageData,
+  type CheckoutValidationState,
+} from "./CheckoutPage.js";
 
 describe("CheckoutPage", () => {
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
@@ -107,12 +111,44 @@ describe("CheckoutPage", () => {
     expect(html).toContain("PayPal");
     expect(html).toContain("Pay Later");
   });
+
+  it("announces checkout validation errors and marks the first invalid field as the focus target", () => {
+    const validation: CheckoutValidationState = {
+      summaryMessage: "Shipping address needs attention.",
+      focusStepId: "shipping-address",
+      messages: [
+        {
+          id: "shipping-address-city-error",
+          stepId: "shipping-address",
+          fieldLabel: "City",
+          message: "City is required before shipping options can be quoted.",
+        },
+      ],
+    };
+
+    const html = renderToStaticMarkup(
+      <CheckoutPage data={checkoutData({ validation })} />,
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('aria-live="assertive"');
+    expect(html).toContain("Shipping address needs attention.");
+    expect(html).toContain('data-focus-target="true"');
+    expect(html).toContain('tabindex="-1"');
+    expect(html).toContain('aria-describedby="shipping-address-city-error"');
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain(
+      "City is required before shipping options can be quoted.",
+    );
+  });
 });
 
 function checkoutData(
-  overrides: Partial<Pick<CheckoutPageData, "activeMode" | "modeLocked">> = {},
+  overrides: Partial<
+    Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation">
+  > = {},
 ): CheckoutPageData {
-  return {
+  const data: CheckoutPageData = {
     activeMode: overrides.activeMode ?? "delivery",
     modeLocked: overrides.modeLocked ?? false,
     lockedReason: "Switching requires abandoning this payment attempt.",
@@ -200,4 +236,8 @@ function checkoutData(
       ],
     },
   };
+
+  return overrides.validation
+    ? { ...data, validation: overrides.validation }
+    : data;
 }

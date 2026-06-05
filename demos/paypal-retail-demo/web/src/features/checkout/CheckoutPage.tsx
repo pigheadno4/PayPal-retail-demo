@@ -1,4 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+
+import {
+  FieldError,
+  StatusRegion,
+  mergeDescribedByIds,
+} from "../../components/accessibility.js";
 
 export type CheckoutFulfillmentMode = "delivery" | "pickup";
 
@@ -62,6 +68,19 @@ export interface CheckoutOrderSummary {
   readonly partialInventoryNote?: string;
 }
 
+export interface CheckoutValidationMessage {
+  readonly id: string;
+  readonly stepId: string;
+  readonly fieldLabel?: string;
+  readonly message: string;
+}
+
+export interface CheckoutValidationState {
+  readonly summaryMessage: string;
+  readonly focusStepId: string;
+  readonly messages: readonly CheckoutValidationMessage[];
+}
+
 export interface CheckoutFulfillmentDraft {
   readonly label: string;
   readonly steps: readonly CheckoutStep[];
@@ -74,6 +93,7 @@ export interface CheckoutPageData {
   readonly lockedReason: string;
   readonly delivery: CheckoutFulfillmentDraft;
   readonly pickup: CheckoutFulfillmentDraft;
+  readonly validation?: CheckoutValidationState;
 }
 
 export interface CheckoutPageProps {
@@ -96,7 +116,14 @@ export function CheckoutPage({
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
     data.activeMode,
   );
+  const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
+
+  useEffect(() => {
+    if (data.validation?.focusStepId) {
+      focusTargetRef.current?.focus();
+    }
+  }, [activeMode, data.validation?.focusStepId]);
 
   function selectMode(mode: CheckoutFulfillmentMode) {
     if (!data.modeLocked) {
@@ -113,6 +140,15 @@ export function CheckoutPage({
           <p className="checkout-lock-notice">
             <strong>Payment session started.</strong> {data.lockedReason}
           </p>
+        ) : null}
+        {data.validation ? (
+          <StatusRegion
+            id="checkout-validation-summary"
+            tone="assertive"
+            className="checkout-validation-summary"
+          >
+            {data.validation.summaryMessage}
+          </StatusRegion>
         ) : null}
       </header>
 
@@ -151,11 +187,15 @@ export function CheckoutPage({
             draft={data.delivery}
             mode="delivery"
             active={activeMode === "delivery"}
+            validation={data.validation}
+            focusTargetRef={focusTargetRef}
           />
           <CheckoutModePanel
             draft={data.pickup}
             mode="pickup"
             active={activeMode === "pickup"}
+            validation={data.validation}
+            focusTargetRef={focusTargetRef}
           />
         </section>
 
@@ -178,10 +218,14 @@ function CheckoutModePanel({
   draft,
   mode,
   active,
+  validation,
+  focusTargetRef,
 }: {
   readonly draft: CheckoutFulfillmentDraft;
   readonly mode: CheckoutFulfillmentMode;
   readonly active: boolean;
+  readonly validation: CheckoutValidationState | undefined;
+  readonly focusTargetRef: RefObject<HTMLElement | null>;
 }) {
   return (
     <section
@@ -192,31 +236,66 @@ function CheckoutModePanel({
       hidden={!active}
     >
       <div className="checkout-steps">
-        {draft.steps.map((step) => (
-          <article
-            className="checkout-step"
-            data-step-state={step.state}
-            key={step.id}
-          >
-            <header>
-              <h2>{step.title}</h2>
-              <span>{stepStateLabels[step.state]}</span>
-            </header>
-            <p>{step.body}</p>
-            <CheckoutStepDetails step={withDefaultStepDetails(step)} />
-          </article>
-        ))}
+        {draft.steps.map((step) => {
+          const stepWithDetails = withDefaultStepDetails(step);
+          const validationMessages = getValidationMessagesForStep(
+            validation,
+            step.id,
+          );
+          const describedById = mergeDescribedByIds(
+            ...validationMessages.map((message) => message.id),
+          );
+          const isFocusTarget = validation?.focusStepId === step.id;
+
+          return (
+            <article
+              aria-describedby={describedById}
+              className="checkout-step"
+              data-focus-target={isFocusTarget ? "true" : undefined}
+              data-step-state={step.state}
+              key={step.id}
+              ref={isFocusTarget ? focusTargetRef : undefined}
+              tabIndex={isFocusTarget ? -1 : undefined}
+            >
+              <header>
+                <h2>{step.title}</h2>
+                <span>{stepStateLabels[step.state]}</span>
+              </header>
+              <p>{step.body}</p>
+              <CheckoutStepDetails
+                step={stepWithDetails}
+                validationMessages={validationMessages}
+              />
+            </article>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function CheckoutStepDetails({ step }: { readonly step: CheckoutStep }) {
+function getValidationMessagesForStep(
+  validation: CheckoutValidationState | undefined,
+  stepId: string,
+): readonly CheckoutValidationMessage[] {
+  return (
+    validation?.messages.filter((message) => message.stepId === stepId) ?? []
+  );
+}
+
+function CheckoutStepDetails({
+  step,
+  validationMessages,
+}: {
+  readonly step: CheckoutStep;
+  readonly validationMessages: readonly CheckoutValidationMessage[];
+}) {
   const hasDetails =
     step.fields?.length ||
     step.choices?.length ||
     step.storeCards?.length ||
-    step.primaryActionLabel;
+    step.primaryActionLabel ||
+    validationMessages.length;
 
   if (!hasDetails) {
     return null;
@@ -226,25 +305,54 @@ function CheckoutStepDetails({ step }: { readonly step: CheckoutStep }) {
     <div className="checkout-step__details">
       {step.fields?.length ? (
         <div className="checkout-fields">
-          {step.fields.map((field) => (
-            <label
-              className={
-                field.type === "checkbox"
-                  ? "checkout-field checkout-field--checkbox"
-                  : "checkout-field"
-              }
-              key={field.label}
-            >
-              <span>{field.label}</span>
-              <input
-                checked={field.type === "checkbox" ? field.checked : undefined}
-                placeholder={field.placeholder}
-                readOnly
-                type={field.type}
-                value={field.type === "text" ? (field.value ?? "") : undefined}
-              />
-            </label>
-          ))}
+          {step.fields.map((field) => {
+            const validationMessage = validationMessages.find(
+              (message) => message.fieldLabel === field.label,
+            );
+
+            return (
+              <label
+                className={
+                  field.type === "checkbox"
+                    ? "checkout-field checkout-field--checkbox"
+                    : "checkout-field"
+                }
+                key={field.label}
+              >
+                <span>{field.label}</span>
+                <input
+                  aria-describedby={validationMessage?.id}
+                  aria-invalid={validationMessage ? true : undefined}
+                  checked={
+                    field.type === "checkbox" ? field.checked : undefined
+                  }
+                  placeholder={field.placeholder}
+                  readOnly
+                  type={field.type}
+                  value={
+                    field.type === "text" ? (field.value ?? "") : undefined
+                  }
+                />
+                {validationMessage ? (
+                  <FieldError id={validationMessage.id}>
+                    {validationMessage.message}
+                  </FieldError>
+                ) : null}
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {validationMessages.some((message) => !message.fieldLabel) ? (
+        <div className="checkout-step__errors">
+          {validationMessages
+            .filter((message) => !message.fieldLabel)
+            .map((message) => (
+              <FieldError id={message.id} key={message.id}>
+                {message.message}
+              </FieldError>
+            ))}
         </div>
       ) : null}
 

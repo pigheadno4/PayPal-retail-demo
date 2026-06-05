@@ -207,6 +207,9 @@
 - [x] Delivery checkout accordion renders shipping address fields, same-as-shipping billing checkbox, cheapest-default shipping options, and payment method choices.
 - [x] Pickup checkout accordion renders ZIP/default-location controls, store selection cards, billing address fields, store-specific pickup date choices, and payment method choices.
 - [x] Pickup store cards show available and unavailable item counts before store submit, including a partial-inventory callout.
+- [x] Checkout validation summary renders as an assertive live region.
+- [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
+- [x] Checkout validation marks the first invalid step as a keyboard focus target.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.

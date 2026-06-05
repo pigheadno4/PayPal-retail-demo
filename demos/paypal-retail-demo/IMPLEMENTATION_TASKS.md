@@ -314,7 +314,7 @@ Verification:
 - [x] Build Delivery accordion: shipping address, billing address, shipping option, payment.
 - [x] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
 - [x] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
-- [ ] Build focus movement and announced errors for checkout form validation.
+- [x] Build focus movement and announced errors for checkout form validation.
 - [x] Build partial pickup store card counts before store submit.
 - [x] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
 - [x] Build mobile sticky payment action for selected non-card methods.

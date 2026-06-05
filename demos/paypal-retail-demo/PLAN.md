@@ -23,9 +23,10 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 11 checkout UI is in progress on branch `milestone8-shell-config-foundation`: Delivery/Pickup checkout tabs, preserved draft state shells, detailed Delivery/Pickup accordions, checkout step status labels, mode-aware order summary, pickup ready/unavailable split, partial pickup store cards, selected-payment slot, and mobile sticky action shell are implemented. Next slice is checkout validation/focus behavior. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 11 checkout UI is implemented on branch `milestone8-shell-config-foundation`: Delivery/Pickup checkout tabs, preserved draft state shells, detailed Delivery/Pickup accordions, checkout step status labels, validation summary/errors with focus target behavior, mode-aware order summary, pickup ready/unavailable split, partial pickup store cards, selected-payment slot, and mobile sticky action shell are implemented. Next implementation slice is Milestone 12 payment UI integration, starting with PayPal SDK v6 provider/loading and backend SDK config wiring. Broader responsive screenshot QA remains open. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
+
 - Supabase strategy: both local CLI and remote project.
 - PayPal sandbox strategy: credentials through local env only, no committed secrets.
 - TypeScript scaffold: strict mode for app-owned web, server, shared, test, and seed code.
@@ -33,6 +34,7 @@ Milestone 0 decision gates confirmed on 2026-05-26:
 - Apple Pay / Google Pay: local eligibility/debug/manual verification; full wallet verification later through hosted preview or approved HTTPS tunnel.
 
 Operational setup still required during Milestone 1 and before migrations:
+
 - Create `.env.example` without secrets during scaffold.
 - Install or configure Supabase CLI before Milestone 2 migrations.
 - Verify final PayPal sandbox account capabilities before payment implementation.
@@ -40,6 +42,7 @@ Operational setup still required during Milestone 1 and before migrations:
 ## Source Documents
 
 Read these before implementation:
+
 - `DEMO.md`: demo purpose, audience, flow map, boundaries.
 - `DESIGN.md`: buyer/admin UX contract, accessibility rules, visual QA gates.
 - `DATA_MODEL.md`: Supabase schema draft, seed shape, constraints, indexes.
@@ -62,6 +65,7 @@ Read these before implementation:
 ## Task 0: Close Milestone 0 Gates
 
 **Files:**
+
 - Modify: `demos/paypal-retail-demo/tracking/todos.md`
 - Modify: `demos/paypal-retail-demo/tracking/progress.md`
 - Modify only if decisions change: `demos/paypal-retail-demo/ENVIRONMENT.md`
@@ -71,6 +75,7 @@ Read these before implementation:
 - [x] **Step 1: Review source docs**
 
 Read:
+
 ```bash
 sed -n '1,220p' demos/paypal-retail-demo/DEMO.md
 sed -n '1,460p' demos/paypal-retail-demo/DESIGN.md
@@ -85,6 +90,7 @@ Expected: no contradictions with TypeScript, BOPIS v1 semantics, shared market/s
 Record the selected approach in `tracking/todos.md` and, if wording changes, `ENVIRONMENT.md`.
 
 Selected v1 approach:
+
 - local Supabase CLI for migrations and deterministic tests
 - remote Supabase project for stable demo data when presentation readiness begins
 
@@ -93,6 +99,7 @@ Selected v1 approach:
 Record where local env values will come from without writing secrets into repo files.
 
 Expected secret boundary:
+
 - browser receives only browser-safe client config from Express
 - PayPal client secret, webhook secret, access tokens, and Supabase service role stay server-only
 
@@ -105,6 +112,7 @@ Apple Pay and Google Pay remain eligibility/debug/manual verification locally. F
 Record source folder and filename convention for customer-specific POP MART assets.
 
 Expected target folder:
+
 ```text
 demos/paypal-retail-demo/web/public/assets/popmart/
 ```
@@ -112,11 +120,13 @@ demos/paypal-retail-demo/web/public/assets/popmart/
 - [x] **Step 6: Verify planning structure**
 
 Run:
+
 ```bash
 bash scripts/check-agent-system.sh
 ```
 
 Expected:
+
 ```text
 Agent system structure looks good.
 ```
@@ -126,6 +136,7 @@ Agent system structure looks good.
 Execute after Task 0 gates are closed.
 
 **Files:**
+
 - Create: `demos/paypal-retail-demo/package.json`
 - Create: `demos/paypal-retail-demo/tsconfig.base.json`
 - Create: `demos/paypal-retail-demo/.env.example`
@@ -147,6 +158,7 @@ Create `.env.example` from `ENVIRONMENT.md` with explicit browser-safe versus se
 Add package scripts for install verification, typecheck, and tests.
 
 Expected commands after scaffold:
+
 ```bash
 npm install
 npm run typecheck
@@ -178,6 +190,7 @@ After Milestone 1, execute `IMPLEMENTATION_TASKS.md` in order:
 - Milestone 16: QA, UX review, and demo polish.
 
 For each milestone:
+
 - [ ] Write or confirm tests before implementation when behavior is deterministic.
 - [ ] Implement only the current milestone or a clearly bounded slice.
 - [ ] Run the milestone verification commands.
@@ -187,6 +200,7 @@ For each milestone:
 ## Stop Conditions
 
 Stop and ask the user before proceeding if:
+
 - PayPal behavior is not confirmed in `wiki-v2`.
 - A PayPal API payload requires a business assumption not already documented.
 - A change would alter BOPIS v1 Create Order semantics.
@@ -198,18 +212,21 @@ Stop and ask the user before proceeding if:
 ## Verification Commands
 
 Run from repo root:
+
 ```bash
 bash scripts/check-agent-system.sh
 git status --short --branch
 ```
 
 Run from the demo folder after Milestone 1 creates scripts:
+
 ```bash
 npm run typecheck
 npm test
 ```
 
 Use Playwright or browser QA after web pages exist for:
+
 - 375px, 768px, 1024px, and 1440px screenshots
 - sticky header and sticky payment bar overlap
 - PayPal button/message layout stability

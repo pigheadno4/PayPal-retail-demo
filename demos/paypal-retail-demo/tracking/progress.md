@@ -109,3 +109,7 @@
 - Completed Milestone 10 cart/minicart UI with TDD: added the shared cart model, `/cart` route, minicart item summary, full cart item rows with quantity controls, merchandise-only cart total calculation, amount-aware Pay Later cart messaging, checkout/view-cart actions, delivery-only PayPal/Pay Later express metadata, and pickup hints as text only with no pickup button.
 - Started Milestone 11 checkout UI with TDD: added the checkout page component, `/checkout` route wiring, Delivery/Pickup tab shell with preserved per-mode drafts, explicit checkout step state labels, fulfillment-mode lock notice/disabled inactive tabs, mode-aware order summary, pickup ready/unavailable item split, selected-payment slot placeholder, and mobile sticky selected-payment action shell.
 - Continued Milestone 11 detailed checkout accordions with TDD: added data-driven step details for delivery shipping/billing/shipping-option/payment content, pickup ZIP/default-location/store-selection/billing/pickup-date/payment content, and pickup store cards with distance, phone, available/unavailable item counts, selected state, and partial-inventory callout before store submit.
+
+## 2026-06-05
+
+- Completed the Milestone 11 checkout validation UI with TDD: added a typed validation state contract, assertive validation summary, field-level `aria-invalid`/described-by errors, focus-target step markup, browser focus movement to the first invalid step, and visible error/focus styling.
