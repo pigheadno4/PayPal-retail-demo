@@ -39,3 +39,7 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 - Saved-payment capture handling intentionally runs only for authenticated buyers with `vault_requested = true`; guest and one-time captures do not create saved payment records.
 - PayPal webhook processing reserves the `provider + event_id` audit row before mutation so PayPal retries do not repeat saved-payment/order state updates.
 - M8 web-shell stash `m8-web-shell-wip` was applied after fast-forwarding `milestone8-web-shell` to merged M7; the stash entry is intentionally kept as a recovery point until the M8 slice is committed and reviewed.
+
+## 2026-06-05
+
+- Card Fields SDK v6 uses PayPal-hosted iframes that fill their parent containers. The checkout card box therefore gives number/expiry/CVV containers stable `min-height` and `width` before rendering `PayPalCardNumberField`, `PayPalCardExpiryField`, and `PayPalCardCvvField`.

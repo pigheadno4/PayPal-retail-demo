@@ -143,7 +143,7 @@
 - [ ] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
 - [ ] Checkout form errors are announced and focus moves to the first invalid field.
 - [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
-- [ ] Card payment button remains inside the card fields box on mobile and desktop.
+- [x] Card payment button remains inside the card fields box on mobile and desktop.
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.
 - [ ] Guest checkout completes and offers inline account creation.
@@ -166,6 +166,8 @@
 - [x] Installed `@paypal/react-paypal-js` v9.2.0 / SDK v6 types compile with `CreateInstanceOptions.testBuyerCountry`.
 - [x] Checkout Order Summary renders the scoped PayPal standalone action when PayPal is selected and passes the active Delivery/Pickup draft context to create-order request selection.
 - [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config and create-order request selection.
+- [x] Checkout selected-card row renders a scoped `card-fields` provider, hosted card fields, local save checkbox, and card pay button inside the payment step.
+- [x] Card fields create-order request builders select Delivery/BOPIS endpoints and send `method=card` plus `vault_requested`.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.

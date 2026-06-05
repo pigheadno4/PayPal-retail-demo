@@ -1287,6 +1287,15 @@ a {
   min-width: 0;
 }
 
+.checkout-choice__card-box {
+  background: #f8f8f6;
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 12px;
+}
+
 .checkout-choice b {
   font-weight: 900;
   white-space: nowrap;
@@ -1450,6 +1459,60 @@ a {
   gap: 10px;
   min-height: 104px;
   padding: 8px;
+}
+
+.card-fields-checkout-action {
+  display: grid;
+  gap: 12px;
+}
+
+.card-fields-checkout-action__row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card-fields-checkout-action__field {
+  color: #191919;
+  display: grid;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.card-fields-checkout-action__hosted-field {
+  background: #ffffff;
+  border: 1px solid var(--shell-border);
+  border-radius: 6px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 10px;
+  width: 100%;
+}
+
+.card-fields-checkout-action__save {
+  align-items: center;
+  color: var(--shell-muted);
+  display: flex;
+  font-size: 0.84rem;
+  font-weight: 800;
+  gap: 8px;
+}
+
+.card-fields-checkout-action__save input {
+  height: 18px;
+  width: 18px;
+}
+
+.card-fields-checkout-action__submit {
+  background: #191919;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 44px;
+  padding: 0 14px;
 }
 
 .paypal-standalone-action paypal-button,
@@ -1813,6 +1876,12 @@ p {
   .checkout-choice b,
   .checkout-choice__message {
     grid-column: 2;
+  }
+
+  .checkout-choice__card-box,
+  .card-fields-checkout-action__row {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
   }
 
   .checkout-sticky-action {

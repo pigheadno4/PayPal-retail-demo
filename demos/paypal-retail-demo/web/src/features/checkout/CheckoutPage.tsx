@@ -127,6 +127,9 @@ export interface CheckoutPageProps {
   readonly renderPaymentAction?: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
+  readonly renderCardPaymentBox?: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
   readonly renderPayLaterRowMessage?: (
     context: CheckoutPayLaterRowMessageContext,
   ) => ReactNode;
@@ -145,6 +148,7 @@ const stepStateLabels = {
 export function CheckoutPage({
   data = defaultCheckoutPageData,
   renderPaymentAction,
+  renderCardPaymentBox,
   renderPayLaterRowMessage,
 }: CheckoutPageProps) {
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
@@ -152,20 +156,22 @@ export function CheckoutPage({
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
-  const paymentAction = renderPaymentAction?.({
+  const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
     selectedPaymentMethod:
       activeDraft.summary.selectedPaymentMethod ?? "paypal",
     totalLabel: activeDraft.summary.totalLabel,
-  });
-  const payLaterRowMessage = renderPayLaterRowMessage?.({
-    fulfillmentMode: activeMode,
-    checkoutDraftId: activeDraft.checkoutDraftId ?? null,
-    selectedPaymentMethod:
-      activeDraft.summary.selectedPaymentMethod ?? "paypal",
-    totalLabel: activeDraft.summary.totalLabel,
-  });
+  };
+  const paymentAction =
+    activePaymentContext.selectedPaymentMethod === "card"
+      ? null
+      : renderPaymentAction?.(activePaymentContext);
+  const cardPaymentBox =
+    activePaymentContext.selectedPaymentMethod === "card"
+      ? renderCardPaymentBox?.(activePaymentContext)
+      : null;
+  const payLaterRowMessage = renderPayLaterRowMessage?.(activePaymentContext);
 
   useEffect(() => {
     if (data.validation?.focusStepId) {
@@ -240,6 +246,7 @@ export function CheckoutPage({
             payLaterRowMessage={
               activeMode === "delivery" ? payLaterRowMessage : null
             }
+            cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
           />
           <CheckoutModePanel
             draft={data.pickup}
@@ -250,6 +257,7 @@ export function CheckoutPage({
             payLaterRowMessage={
               activeMode === "pickup" ? payLaterRowMessage : null
             }
+            cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
           />
         </section>
 
@@ -259,14 +267,16 @@ export function CheckoutPage({
         />
       </div>
 
-      <div
-        className="checkout-sticky-action"
-        aria-label="Selected payment action"
-      >
-        <span>{activeDraft.summary.selectedPaymentLabel}</span>
-        <strong>{activeDraft.summary.totalLabel}</strong>
-        <button type="button">Continue</button>
-      </div>
+      {activePaymentContext.selectedPaymentMethod === "card" ? null : (
+        <div
+          className="checkout-sticky-action"
+          aria-label="Selected payment action"
+        >
+          <span>{activeDraft.summary.selectedPaymentLabel}</span>
+          <strong>{activeDraft.summary.totalLabel}</strong>
+          <button type="button">Continue</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -278,6 +288,7 @@ function CheckoutModePanel({
   validation,
   focusTargetRef,
   payLaterRowMessage,
+  cardPaymentBox,
 }: {
   readonly draft: CheckoutFulfillmentDraft;
   readonly mode: CheckoutFulfillmentMode;
@@ -285,6 +296,7 @@ function CheckoutModePanel({
   readonly validation: CheckoutValidationState | undefined;
   readonly focusTargetRef: RefObject<HTMLElement | null>;
   readonly payLaterRowMessage?: ReactNode;
+  readonly cardPaymentBox?: ReactNode;
 }) {
   return (
     <section
@@ -296,7 +308,10 @@ function CheckoutModePanel({
     >
       <div className="checkout-steps">
         {draft.steps.map((step) => {
-          const stepWithDetails = withDefaultStepDetails(step);
+          const stepWithDetails = withDefaultStepDetails(
+            step,
+            draft.summary.selectedPaymentMethod ?? "paypal",
+          );
           const validationMessages = getValidationMessagesForStep(
             validation,
             step.id,
@@ -324,6 +339,7 @@ function CheckoutModePanel({
               <CheckoutStepDetails
                 step={stepWithDetails}
                 payLaterRowMessage={payLaterRowMessage}
+                cardPaymentBox={cardPaymentBox}
                 validationMessages={validationMessages}
               />
             </article>
@@ -346,10 +362,12 @@ function getValidationMessagesForStep(
 function CheckoutStepDetails({
   step,
   payLaterRowMessage,
+  cardPaymentBox,
   validationMessages,
 }: {
   readonly step: CheckoutStep;
   readonly payLaterRowMessage?: ReactNode;
+  readonly cardPaymentBox?: ReactNode;
   readonly validationMessages: readonly CheckoutValidationMessage[];
 }) {
   const hasDetails =
@@ -436,6 +454,11 @@ function CheckoutStepDetails({
               {choice.method === "paylater" && payLaterRowMessage ? (
                 <div className="checkout-choice__message">
                   {payLaterRowMessage}
+                </div>
+              ) : null}
+              {choice.method === "card" && choice.selected && cardPaymentBox ? (
+                <div className="checkout-choice__card-box">
+                  {cardPaymentBox}
                 </div>
               ) : null}
               {choice.badgeLabel ? <em>{choice.badgeLabel}</em> : null}
@@ -535,7 +558,10 @@ function CheckoutSummary({
   );
 }
 
-function withDefaultStepDetails(step: CheckoutStep): CheckoutStep {
+function withDefaultStepDetails(
+  step: CheckoutStep,
+  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+): CheckoutStep {
   const defaults = defaultStepDetailsById[step.id];
 
   if (!defaults) {
@@ -546,7 +572,11 @@ function withDefaultStepDetails(step: CheckoutStep): CheckoutStep {
     ...step,
   };
   const fields = step.fields ?? defaults.fields;
-  const choices = step.choices ?? defaults.choices;
+  const choices = normalizePaymentChoices(
+    step.id,
+    step.choices ?? defaults.choices,
+    selectedPaymentMethod,
+  );
   const storeCards = step.storeCards ?? defaults.storeCards;
   const primaryActionLabel =
     step.primaryActionLabel ?? defaults.primaryActionLabel;
@@ -580,6 +610,28 @@ function withDefaultStepDetails(step: CheckoutStep): CheckoutStep {
   }
 
   return stepWithDetails;
+}
+
+function normalizePaymentChoices(
+  stepId: string,
+  choices: readonly CheckoutChoice[] | undefined,
+  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+): readonly CheckoutChoice[] | undefined {
+  if (
+    !choices ||
+    (stepId !== "payment-method" && stepId !== "pickup-payment-method")
+  ) {
+    return choices;
+  }
+
+  return choices.map((choice) =>
+    choice.method
+      ? {
+          ...choice,
+          selected: choice.method === selectedPaymentMethod,
+        }
+      : choice,
+  );
 }
 
 const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {

@@ -335,7 +335,7 @@ Verification:
 - [x] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
 - [x] Render PayPal standalone button when PayPal radio is selected.
 - [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
-- [ ] Render card fields expanded in the payment step with save checkbox inside card box.
+- [x] Render card fields expanded in the payment step with save checkbox inside card box.
 - [ ] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
 - [ ] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
 - [ ] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.

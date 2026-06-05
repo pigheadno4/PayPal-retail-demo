@@ -178,6 +178,24 @@ describe("App shell", () => {
     expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).toContain('data-paypal-sdk-status="loading"');
   });
+
+  it("renders the card checkout provider scope inside the payment step when card is selected", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/checkout"
+        initialCheckout={checkoutData({ selectedPaymentMethod: "card" })}
+      />,
+    );
+
+    expect(html).toContain("Credit or debit card selected");
+    expect(html).toContain('data-payment-method-row="card"');
+    expect(html).toContain('class="checkout-choice__card-box"');
+    expect(html).toContain('data-paypal-sdk-page-type="checkout"');
+    expect(html).toContain('data-paypal-sdk-method="card"');
+    expect(html).toContain('data-paypal-sdk-status="loading"');
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
+    expect(html).not.toContain('class="checkout-sticky-action"');
+  });
 });
 
 function categoryPageData(): CategoryPageData {
@@ -340,12 +358,14 @@ function cartData(): CartData {
 function checkoutData({
   selectedPaymentMethod = "paypal",
 }: {
-  readonly selectedPaymentMethod?: "paypal" | "paylater";
+  readonly selectedPaymentMethod?: "paypal" | "paylater" | "card";
 } = {}): CheckoutPageData {
   const selectedPaymentLabel =
     selectedPaymentMethod === "paylater"
       ? "Pay Later selected"
-      : "PayPal selected";
+      : selectedPaymentMethod === "card"
+        ? "Credit or debit card selected"
+        : "PayPal selected";
 
   return {
     activeMode: "delivery",
@@ -370,6 +390,12 @@ function checkoutData({
           state: "idle",
           body: "Use saved shipping address or enter a new delivery address.",
         },
+        {
+          id: "payment-method",
+          title: "Payment method",
+          state: "editing",
+          body: "Radio-first payment method wall renders here.",
+        },
       ],
     },
     pickup: {
@@ -393,6 +419,12 @@ function checkoutData({
           title: "Pickup location",
           state: "idle",
           body: "Use ZIP or default address to rank nearby stores.",
+        },
+        {
+          id: "pickup-payment-method",
+          title: "Payment method",
+          state: "editing",
+          body: "Pickup payment method wall renders here.",
         },
       ],
     },

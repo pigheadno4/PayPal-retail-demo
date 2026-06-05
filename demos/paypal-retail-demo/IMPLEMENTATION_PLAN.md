@@ -71,7 +71,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - PayPal webhook verification uses `POST /v1/notifications/verify-webhook-signature` with `PAYPAL_WEBHOOK_ID` and notification headers before any state mutation.
 - PayPal and Pay Later use the `paypal-payments` component.
 - Pay Later should be gated by eligibility. Amount-aware messages must use the current product/cart/order amount; message amount does not change the actual captured order amount.
-- Card fields use the `card-fields` component, render PayPal-hosted iframe fields, submit the PayPal order ID as a plain string, and capture server-side after successful submit/3DS handling.
+- Card fields use the `card-fields` component, render PayPal-hosted iframe fields, submit the PayPal order ID as a plain string, and capture server-side after successful submit/3DS handling. The checkout UI keeps the card fields, save checkbox, and card pay button inside the expanded payment row rather than the Order Summary or mobile sticky bar.
 - Apple Pay uses `applepay-payments` and has domain validation/browser/device prerequisites. Apple Pay go-live requires domain association and PayPal capability setup.
 - Google Pay uses `googlepay-payments`, the Google Pay SDK, PayPal eligibility/config, `confirmOrder`, and possible 3DS payer action handling.
 - Venmo uses `venmo-payments`, is US/USD focused, and has sandbox limitations. Desktop sandbox may not match production QR behavior.

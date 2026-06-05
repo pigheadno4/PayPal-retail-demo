@@ -191,13 +191,56 @@ describe("CheckoutPage", () => {
     );
     expect(html).toContain('data-paylater-message-fulfillment-mode="delivery"');
   });
+
+  it("expands selected card fields inside the payment step without a sticky payment action", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({ selectedPaymentMethod: "card" })}
+        renderCardPaymentBox={(context) => (
+          <div
+            data-card-payment-box="true"
+            data-payment-checkout-draft-id={context.checkoutDraftId}
+            data-payment-fulfillment-mode={context.fulfillmentMode}
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Card fields
+          </div>
+        )}
+        renderPaymentAction={(context) => (
+          <div data-payment-action-placement="order-summary">
+            {context.selectedPaymentMethod}
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('data-payment-method-row="card"');
+    expect(html).toContain('data-card-payment-box="true"');
+    expect(html).toContain(
+      'data-payment-checkout-draft-id="draft_delivery_123"',
+    );
+    expect(html).toContain('data-payment-fulfillment-mode="delivery"');
+    expect(html).toContain('data-payment-method="card"');
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
+    expect(html).not.toContain('class="checkout-sticky-action"');
+  });
 });
 
 function checkoutData(
   overrides: Partial<
-    Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation">
+    Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation"> & {
+      readonly selectedPaymentMethod: "paypal" | "paylater" | "card";
+    }
   > = {},
 ): CheckoutPageData {
+  const selectedPaymentMethod = overrides.selectedPaymentMethod ?? "paypal";
+  const selectedPaymentLabel =
+    selectedPaymentMethod === "paylater"
+      ? "Pay Later selected"
+      : selectedPaymentMethod === "card"
+        ? "Credit or debit card selected"
+        : "PayPal selected";
+
   const data: CheckoutPageData = {
     activeMode: overrides.activeMode ?? "delivery",
     modeLocked: overrides.modeLocked ?? false,
@@ -211,8 +254,8 @@ function checkoutData(
         subtotalLabel: "$25.98",
         promoLabel: "Auto promo calculating",
         totalLabel: "$25.98",
-        selectedPaymentLabel: "PayPal selected",
-        selectedPaymentMethod: "paypal",
+        selectedPaymentLabel,
+        selectedPaymentMethod,
       },
       steps: [
         {
@@ -250,8 +293,8 @@ function checkoutData(
         subtotalLabel: "$12.99",
         promoLabel: "Pickup promo recalculating",
         totalLabel: "$12.99",
-        selectedPaymentLabel: "PayPal selected",
-        selectedPaymentMethod: "paypal",
+        selectedPaymentLabel,
+        selectedPaymentMethod,
         readyItemsLabel: "Ready for pickup: 1 item",
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",

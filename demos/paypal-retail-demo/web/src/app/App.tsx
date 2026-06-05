@@ -25,6 +25,7 @@ import {
   type CheckoutPaymentActionContext,
   type CheckoutPageData,
 } from "../features/checkout/CheckoutPage.js";
+import { CardFieldsCheckoutAction } from "../features/payments/CardFieldsCheckoutAction.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
 import {
   PayLaterAmountMessage,
@@ -149,6 +150,12 @@ function BuyerShell({
           productPages={productPages}
           cartData={cartData}
           checkoutData={checkoutData}
+          renderCardPaymentBox={(context) =>
+            renderCardPaymentBox({
+              config,
+              context,
+            })
+          }
           renderCheckoutPaymentAction={(context) =>
             renderCheckoutPaymentAction({
               config,
@@ -179,6 +186,7 @@ function RouteStage({
   productPages,
   cartData,
   checkoutData,
+  renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderPayLaterRowMessage,
 }: {
@@ -188,6 +196,9 @@ function RouteStage({
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
+  readonly renderCardPaymentBox: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
   readonly renderCheckoutPaymentAction: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -199,6 +210,7 @@ function RouteStage({
     return (
       <CheckoutPage
         data={checkoutData}
+        renderCardPaymentBox={renderCardPaymentBox}
         renderPaymentAction={renderCheckoutPaymentAction}
         renderPayLaterRowMessage={renderPayLaterRowMessage}
       />
@@ -282,6 +294,37 @@ function renderCheckoutPaymentAction({
           market={config.market.code}
         />
       )}
+    </PayPalSdkProviderScope>
+  );
+}
+
+function renderCardPaymentBox({
+  config,
+  context,
+}: {
+  readonly config: StorefrontRuntimeConfig;
+  readonly context: CheckoutPaymentActionContext;
+}) {
+  if (context.selectedPaymentMethod !== "card" || !context.checkoutDraftId) {
+    return null;
+  }
+
+  return (
+    <PayPalSdkProviderScope
+      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:card`}
+      providerKey={config.paypal.providerKey}
+      configRequest={{
+        market: config.market.code,
+        pageType: "checkout",
+        flow: "standard",
+        method: "card",
+      }}
+    >
+      <CardFieldsCheckoutAction
+        checkoutDraftId={context.checkoutDraftId}
+        fulfillmentMode={context.fulfillmentMode}
+        market={config.market.code}
+      />
     </PayPalSdkProviderScope>
   );
 }

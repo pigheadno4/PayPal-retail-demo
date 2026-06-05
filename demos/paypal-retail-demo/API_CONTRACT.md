@@ -540,6 +540,7 @@ Rules:
 - use `shipping_preference: "SET_PROVIDED_ADDRESS"` so the selected checkout shipping address remains the order address
 - do not use server-side shipping callbacks in full checkout Delivery; address, shipping option, tax, promo, and amount are finalized before payment approval
 - include detailed item data when available and keep `items[]` reconciled with `amount.breakdown.item_total`
+- checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend includes card vault attributes only when the authenticated buyer opted in and is eligible
 
 ### `POST /api/paypal/orders/express-delivery`
 
@@ -626,6 +627,7 @@ Rules:
 - BOPIS uses the selected store as the PayPal purchase unit shipping address.
 - BOPIS amount breakdown excludes shipping fee.
 - Do not attach server-side shipping callback config to v1 BOPIS orders.
+- Checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend preserves pickup shipping semantics while applying card payment/vault attributes only when eligible.
 
 ### `POST /api/paypal/orders/:callbackContextId/shipping-callback`
 
