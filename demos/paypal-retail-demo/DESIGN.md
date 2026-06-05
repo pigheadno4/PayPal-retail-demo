@@ -243,7 +243,7 @@ Rules:
 
 - PayPal selected by default if eligible.
 - PayPal selected: standalone PayPal button under Order Summary.
-- Pay Later row includes official Pay Later message when eligible.
+- Pay Later row includes official amount-aware Pay Later message when eligible, tied to the active Delivery/Pickup draft total.
 - Pay Later selected: standalone Pay Later button under Order Summary and Pay Later message below.
 - Apple Pay selected: official Apple Pay button under Order Summary when eligible.
 - Google Pay selected: official Google Pay button under Order Summary when eligible.

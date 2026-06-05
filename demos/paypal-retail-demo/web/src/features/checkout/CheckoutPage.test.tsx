@@ -165,6 +165,32 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-payment-fulfillment-mode="pickup"');
     expect(html).toContain('data-payment-method="paypal"');
   });
+
+  it("renders the Pay Later row message for the active checkout draft", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({ activeMode: "delivery" })}
+        renderPayLaterRowMessage={(context) => (
+          <div
+            data-paylater-message-placement="payment-row"
+            data-paylater-message-amount-label={context.totalLabel}
+            data-paylater-message-checkout-draft-id={context.checkoutDraftId}
+            data-paylater-message-fulfillment-mode={context.fulfillmentMode}
+          >
+            Pay Later row message
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('data-payment-method-row="paylater"');
+    expect(html).toContain('data-paylater-message-placement="payment-row"');
+    expect(html).toContain('data-paylater-message-amount-label="$25.98"');
+    expect(html).toContain(
+      'data-paylater-message-checkout-draft-id="draft_delivery_123"',
+    );
+    expect(html).toContain('data-paylater-message-fulfillment-mode="delivery"');
+  });
 });
 
 function checkoutData(

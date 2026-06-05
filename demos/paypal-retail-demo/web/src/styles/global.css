@@ -1282,6 +1282,11 @@ a {
   font-style: normal;
 }
 
+.checkout-choice__message {
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+
 .checkout-choice b {
   font-weight: 900;
   white-space: nowrap;
@@ -1440,8 +1445,29 @@ a {
   padding: 8px;
 }
 
-.paypal-standalone-action paypal-button {
+.paylater-standalone-action {
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 8px;
+}
+
+.paypal-standalone-action paypal-button,
+.paylater-standalone-action paypal-pay-later-button {
   min-height: 44px;
+}
+
+.paylater-amount-message {
+  background: #ffffff;
+  border: 1px solid #d9e4f8;
+  border-radius: 6px;
+  min-height: 42px;
+  padding: 6px;
+}
+
+.paylater-amount-message paypal-message {
+  display: block;
+  min-height: 28px;
 }
 
 .checkout-sticky-action {
@@ -1784,7 +1810,8 @@ p {
   }
 
   .checkout-choice em,
-  .checkout-choice b {
+  .checkout-choice b,
+  .checkout-choice__message {
     grid-column: 2;
   }
 

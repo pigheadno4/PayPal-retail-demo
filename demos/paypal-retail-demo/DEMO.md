@@ -60,7 +60,7 @@ Out of v1:
 
 Entry point: `/checkout`, Delivery tab.
 
-Frontend payment layer: radio-first payment wall. PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected actions render under Order Summary. Card fields expand inside the payment section.
+Frontend payment layer: radio-first payment wall. PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected actions render under Order Summary. Pay Later also renders an amount-aware message in its radio row using the active checkout draft total. Card fields expand inside the payment section.
 
 Backend APIs:
 

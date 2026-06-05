@@ -158,12 +158,14 @@
 ## PayPal Sandbox
 
 - [ ] PayPal renders and captures in delivery checkout.
-- [ ] Pay Later message/button renders where eligible.
+- [x] Pay Later radio-row message and selected Order Summary button/message surfaces render in checkout UI.
+- [ ] Pay Later message/button renders and completes where eligible in sandbox.
 - [x] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
 - [x] Web PayPal SDK provider scope renders loading state while fetching backend SDK config.
 - [x] Web PayPal SDK provider scope keeps currency, buyer country, Pay Later buyer country, SDK URL, and test buyer country metadata available for child payment surfaces.
 - [x] Installed `@paypal/react-paypal-js` v9.2.0 / SDK v6 types compile with `CreateInstanceOptions.testBuyerCountry`.
 - [x] Checkout Order Summary renders the scoped PayPal standalone action when PayPal is selected and passes the active Delivery/Pickup draft context to create-order request selection.
+- [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config and create-order request selection.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.

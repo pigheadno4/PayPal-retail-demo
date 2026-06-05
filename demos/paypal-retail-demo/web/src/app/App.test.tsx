@@ -164,6 +164,20 @@ describe("App shell", () => {
     expect(html).toContain('data-paypal-sdk-status="loading"');
     expect(html).not.toContain('href="/admin"');
   });
+
+  it("renders the Pay Later checkout provider scope when Pay Later is selected", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/checkout"
+        initialCheckout={checkoutData({ selectedPaymentMethod: "paylater" })}
+      />,
+    );
+
+    expect(html).toContain("Pay Later selected");
+    expect(html).toContain('data-paypal-sdk-page-type="checkout"');
+    expect(html).toContain('data-paypal-sdk-method="paylater"');
+    expect(html).toContain('data-paypal-sdk-status="loading"');
+  });
 });
 
 function categoryPageData(): CategoryPageData {
@@ -323,7 +337,16 @@ function cartData(): CartData {
   };
 }
 
-function checkoutData(): CheckoutPageData {
+function checkoutData({
+  selectedPaymentMethod = "paypal",
+}: {
+  readonly selectedPaymentMethod?: "paypal" | "paylater";
+} = {}): CheckoutPageData {
+  const selectedPaymentLabel =
+    selectedPaymentMethod === "paylater"
+      ? "Pay Later selected"
+      : "PayPal selected";
+
   return {
     activeMode: "delivery",
     modeLocked: false,
@@ -337,8 +360,8 @@ function checkoutData(): CheckoutPageData {
         subtotalLabel: "$25.98",
         promoLabel: "Auto promo calculating",
         totalLabel: "$25.98",
-        selectedPaymentLabel: "PayPal selected",
-        selectedPaymentMethod: "paypal",
+        selectedPaymentLabel,
+        selectedPaymentMethod,
       },
       steps: [
         {
@@ -358,8 +381,8 @@ function checkoutData(): CheckoutPageData {
         subtotalLabel: "$12.99",
         promoLabel: "Pickup promo recalculating",
         totalLabel: "$12.99",
-        selectedPaymentLabel: "PayPal selected",
-        selectedPaymentMethod: "paypal",
+        selectedPaymentLabel,
+        selectedPaymentMethod,
         readyItemsLabel: "Ready for pickup: 1 item",
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",

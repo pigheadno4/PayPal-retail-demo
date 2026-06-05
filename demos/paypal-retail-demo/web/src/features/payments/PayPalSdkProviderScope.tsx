@@ -169,6 +169,8 @@ export function PayPalSdkProviderScope({
         loadState.config?.paylater_buyer_country
       }
       data-paypal-provider-key={providerKey}
+      data-paypal-sdk-flow={configRequest.flow}
+      data-paypal-sdk-method={configRequest.method}
       data-paypal-sdk-page-type={configRequest.pageType}
       data-paypal-sdk-status={loadState.status}
       data-paypal-sdk-url={loadState.config?.sdk_url}

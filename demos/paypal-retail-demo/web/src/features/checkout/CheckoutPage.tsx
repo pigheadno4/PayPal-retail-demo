@@ -44,6 +44,7 @@ export interface CheckoutField {
 
 export interface CheckoutChoice {
   readonly label: string;
+  readonly method?: CheckoutSelectedPaymentMethod;
   readonly description?: string;
   readonly amountLabel?: string;
   readonly badgeLabel?: string;
@@ -110,6 +111,8 @@ export interface CheckoutPaymentActionContext {
   readonly totalLabel: string;
 }
 
+export type CheckoutPayLaterRowMessageContext = CheckoutPaymentActionContext;
+
 export interface CheckoutPageData {
   readonly activeMode: CheckoutFulfillmentMode;
   readonly modeLocked: boolean;
@@ -123,6 +126,9 @@ export interface CheckoutPageProps {
   readonly data?: CheckoutPageData;
   readonly renderPaymentAction?: (
     context: CheckoutPaymentActionContext,
+  ) => ReactNode;
+  readonly renderPayLaterRowMessage?: (
+    context: CheckoutPayLaterRowMessageContext,
   ) => ReactNode;
 }
 
@@ -139,6 +145,7 @@ const stepStateLabels = {
 export function CheckoutPage({
   data = defaultCheckoutPageData,
   renderPaymentAction,
+  renderPayLaterRowMessage,
 }: CheckoutPageProps) {
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
     data.activeMode,
@@ -146,6 +153,13 @@ export function CheckoutPage({
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
   const paymentAction = renderPaymentAction?.({
+    fulfillmentMode: activeMode,
+    checkoutDraftId: activeDraft.checkoutDraftId ?? null,
+    selectedPaymentMethod:
+      activeDraft.summary.selectedPaymentMethod ?? "paypal",
+    totalLabel: activeDraft.summary.totalLabel,
+  });
+  const payLaterRowMessage = renderPayLaterRowMessage?.({
     fulfillmentMode: activeMode,
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
     selectedPaymentMethod:
@@ -223,6 +237,9 @@ export function CheckoutPage({
             active={activeMode === "delivery"}
             validation={data.validation}
             focusTargetRef={focusTargetRef}
+            payLaterRowMessage={
+              activeMode === "delivery" ? payLaterRowMessage : null
+            }
           />
           <CheckoutModePanel
             draft={data.pickup}
@@ -230,6 +247,9 @@ export function CheckoutPage({
             active={activeMode === "pickup"}
             validation={data.validation}
             focusTargetRef={focusTargetRef}
+            payLaterRowMessage={
+              activeMode === "pickup" ? payLaterRowMessage : null
+            }
           />
         </section>
 
@@ -257,12 +277,14 @@ function CheckoutModePanel({
   active,
   validation,
   focusTargetRef,
+  payLaterRowMessage,
 }: {
   readonly draft: CheckoutFulfillmentDraft;
   readonly mode: CheckoutFulfillmentMode;
   readonly active: boolean;
   readonly validation: CheckoutValidationState | undefined;
   readonly focusTargetRef: RefObject<HTMLElement | null>;
+  readonly payLaterRowMessage?: ReactNode;
 }) {
   return (
     <section
@@ -301,6 +323,7 @@ function CheckoutModePanel({
               <p>{step.body}</p>
               <CheckoutStepDetails
                 step={stepWithDetails}
+                payLaterRowMessage={payLaterRowMessage}
                 validationMessages={validationMessages}
               />
             </article>
@@ -322,9 +345,11 @@ function getValidationMessagesForStep(
 
 function CheckoutStepDetails({
   step,
+  payLaterRowMessage,
   validationMessages,
 }: {
   readonly step: CheckoutStep;
+  readonly payLaterRowMessage?: ReactNode;
   readonly validationMessages: readonly CheckoutValidationMessage[];
 }) {
   const hasDetails =
@@ -396,7 +421,11 @@ function CheckoutStepDetails({
       {step.choices?.length ? (
         <div className="checkout-choices">
           {step.choices.map((choice) => (
-            <label className="checkout-choice" key={choice.label}>
+            <label
+              className="checkout-choice"
+              data-payment-method-row={choice.method}
+              key={choice.label}
+            >
               <input checked={choice.selected ?? false} readOnly type="radio" />
               <span>
                 <strong>{choice.label}</strong>
@@ -404,6 +433,11 @@ function CheckoutStepDetails({
                   <small>{choice.description}</small>
                 ) : null}
               </span>
+              {choice.method === "paylater" && payLaterRowMessage ? (
+                <div className="checkout-choice__message">
+                  {payLaterRowMessage}
+                </div>
+              ) : null}
               {choice.badgeLabel ? <em>{choice.badgeLabel}</em> : null}
               {choice.amountLabel ? <b>{choice.amountLabel}</b> : null}
             </label>
@@ -610,21 +644,26 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
     choices: [
       {
         label: "PayPal",
+        method: "paypal",
         selected: true,
       },
       {
         label: "Pay Later",
+        method: "paylater",
         description: "Pay Later message renders in the eligible row.",
       },
       {
         label: "Credit or debit card",
+        method: "card",
         description: "Card fields expand inside this step.",
       },
       {
         label: "Apple Pay",
+        method: "apple_pay",
       },
       {
         label: "Google Pay",
+        method: "google_pay",
       },
     ],
   },
@@ -705,13 +744,16 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
     choices: [
       {
         label: "PayPal",
+        method: "paypal",
         selected: true,
       },
       {
         label: "Pay Later",
+        method: "paylater",
       },
       {
         label: "Credit or debit card",
+        method: "card",
       },
     ],
   },

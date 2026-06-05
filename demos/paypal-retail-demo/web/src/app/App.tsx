@@ -26,6 +26,10 @@ import {
   type CheckoutPageData,
 } from "../features/checkout/CheckoutPage.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
+import {
+  PayLaterAmountMessage,
+  PayLaterStandaloneAction,
+} from "../features/payments/PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "../features/payments/PayPalStandaloneAction.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders } from "../state/appProviders.js";
@@ -151,6 +155,12 @@ function BuyerShell({
               context,
             })
           }
+          renderPayLaterRowMessage={(context) =>
+            renderPayLaterRowMessage({
+              config,
+              context,
+            })
+          }
         />
       </main>
       <StatusRegion id="shell-status" className="sr-only">
@@ -170,6 +180,7 @@ function RouteStage({
   cartData,
   checkoutData,
   renderCheckoutPaymentAction,
+  renderPayLaterRowMessage,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
   readonly homePageData: HomePageData;
@@ -180,12 +191,16 @@ function RouteStage({
   readonly renderCheckoutPaymentAction: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
+  readonly renderPayLaterRowMessage: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
 }) {
   if (route.page === "checkout") {
     return (
       <CheckoutPage
         data={checkoutData}
         renderPaymentAction={renderCheckoutPaymentAction}
+        renderPayLaterRowMessage={renderPayLaterRowMessage}
       />
     );
   }
@@ -231,9 +246,14 @@ function renderCheckoutPaymentAction({
   readonly config: StorefrontRuntimeConfig;
   readonly context: CheckoutPaymentActionContext;
 }) {
-  if (context.selectedPaymentMethod !== "paypal" || !context.checkoutDraftId) {
+  if (
+    (context.selectedPaymentMethod !== "paypal" &&
+      context.selectedPaymentMethod !== "paylater") ||
+    !context.checkoutDraftId
+  ) {
     return null;
   }
+  const isPayLater = context.selectedPaymentMethod === "paylater";
 
   return (
     <PayPalSdkProviderScope
@@ -243,16 +263,61 @@ function renderCheckoutPaymentAction({
         market: config.market.code,
         pageType: "checkout",
         flow: "standard",
-        method: "paypal",
+        method: isPayLater ? "paylater" : "paypal",
       }}
     >
-      <PayPalStandaloneAction
-        checkoutDraftId={context.checkoutDraftId}
-        fulfillmentMode={context.fulfillmentMode}
-        market={config.market.code}
+      {isPayLater ? (
+        <PayLaterStandaloneAction
+          buyerCountry={resolvePayLaterBuyerCountry(config)}
+          checkoutDraftId={context.checkoutDraftId}
+          currencyCode={config.market.currencyCode}
+          fulfillmentMode={context.fulfillmentMode}
+          market={config.market.code}
+          totalLabel={context.totalLabel}
+        />
+      ) : (
+        <PayPalStandaloneAction
+          checkoutDraftId={context.checkoutDraftId}
+          fulfillmentMode={context.fulfillmentMode}
+          market={config.market.code}
+        />
+      )}
+    </PayPalSdkProviderScope>
+  );
+}
+
+function renderPayLaterRowMessage({
+  config,
+  context,
+}: {
+  readonly config: StorefrontRuntimeConfig;
+  readonly context: CheckoutPaymentActionContext;
+}) {
+  return (
+    <PayPalSdkProviderScope
+      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:paylater-row-message`}
+      providerKey={config.paypal.providerKey}
+      configRequest={{
+        market: config.market.code,
+        pageType: "checkout",
+        flow: "standard",
+        method: "paylater",
+      }}
+    >
+      <PayLaterAmountMessage
+        amountLabel={context.totalLabel}
+        buyerCountry={resolvePayLaterBuyerCountry(config)}
+        currencyCode={config.market.currencyCode}
+        placement="payment-row"
       />
     </PayPalSdkProviderScope>
   );
+}
+
+function resolvePayLaterBuyerCountry(
+  config: StorefrontRuntimeConfig,
+): "US" | "GB" {
+  return config.market.code === "GB" ? "GB" : "US";
 }
 
 function NotFoundStage() {

@@ -380,6 +380,7 @@ Required for:
 - Keep POP MART mode image-led and retail-first; do not apply heavy glassmorphism or generic profile colors to the POP MART storefront.
 - Reserve layout space for PayPal buttons and Pay Later messages to avoid large layout shifts after eligibility checks.
 - Scope the PayPal SDK provider around the selected checkout payment action so Order Summary can render PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo without reinitializing the whole app shell.
+- Render Pay Later with `method=paylater`, `paypal-payments` plus `paypal-messages`, an amount-aware `<paypal-message>` in the Pay Later row, and the selected Pay Later button/message under Order Summary.
 
 ### Backend
 
