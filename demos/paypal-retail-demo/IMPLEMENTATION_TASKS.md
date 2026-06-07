@@ -331,16 +331,19 @@ Verification:
 
 Purpose: close the gap between visual shells and working buyer actions before continuing deeper PayPal confirm/capture work.
 
-- [ ] Re-audit checked Milestone 9-12 UI items and label any remaining visual-shell-only behavior before changing payment semantics.
-- [ ] Wire PDP add-to-cart into cart state and ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
+- [x] Re-audit checked Milestone 9-12 UI items and label any remaining visual-shell-only behavior before changing payment semantics.
+- [x] Wire PDP add-to-cart into cart state.
+- [ ] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
 - [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
 - [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
-- [ ] Wire Delivery checkout steps: shipping address, same-as-shipping billing, alternate billing, shipping option selection, promo/tax/shipping recalculation hooks, and payment-method selection.
+- [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
+- [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
 - [ ] Wire Pickup checkout steps: buyer/default location, store selection with partial inventory, billing address, store-specific pickup date, promo/tax/inventory recalculation hooks, and payment-method selection.
-- [ ] Drive PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo surfaces from the selected checkout payment method instead of static fixture state.
+- [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
+- [ ] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
 - [ ] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
 - [ ] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard in Milestone 13.
-- [ ] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
+- [x] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
 
 Verification:
 
@@ -348,7 +351,8 @@ Verification:
 - Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
 - Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
 - Buyer can complete all Pickup checkout sections from store selection to pickup date and selected payment method.
-- Payment method radio changes render the matching PayPal/Pay Later/card/wallet surface and hide unrelated selected-action surfaces.
+- Payment method radio changes render the matching PayPal/Pay Later/card surface and hide unrelated selected-action surfaces.
+- Wallet radio surfaces remain open until Apple Pay, Google Pay, and Venmo runtime eligibility checks are verified.
 - No visible checkout/cart/PDP action is a silent placeholder.
 
 ## Milestone 12: Payment UI Integration

@@ -150,6 +150,15 @@ const stepStateLabels = {
   locked: "Locked",
 } satisfies Record<CheckoutStepState, string>;
 
+const paymentMethodLabels = {
+  paypal: "PayPal",
+  paylater: "Pay Later",
+  card: "Credit or debit card",
+  apple_pay: "Apple Pay",
+  google_pay: "Google Pay",
+  venmo: "Venmo",
+} satisfies Record<CheckoutSelectedPaymentMethod, string>;
+
 type CheckoutFieldValue = string | boolean;
 
 export function CheckoutPage({
@@ -167,13 +176,37 @@ export function CheckoutPage({
   const [stepStateOverrides, setStepStateOverrides] = useState<
     Readonly<Record<string, CheckoutStepState>>
   >({});
+  const [choiceSelections, setChoiceSelections] = useState<
+    Readonly<Record<string, string>>
+  >({});
+  const [selectedPaymentMethods, setSelectedPaymentMethods] = useState<
+    Readonly<
+      Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
+    >
+  >({});
   const [collapsedStepIds, setCollapsedStepIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
+  const deliverySelectedPaymentMethod = getSelectedPaymentMethodForMode(
+    "delivery",
+    data.delivery,
+    selectedPaymentMethods,
+  );
+  const pickupSelectedPaymentMethod = getSelectedPaymentMethodForMode(
+    "pickup",
+    data.pickup,
+    selectedPaymentMethods,
+  );
   const activeSelectedPaymentMethod =
-    activeDraft.summary.selectedPaymentMethod ?? "paypal";
+    activeMode === "delivery"
+      ? deliverySelectedPaymentMethod
+      : pickupSelectedPaymentMethod;
+  const activeSummary = withSelectedPaymentSummary(
+    activeDraft.summary,
+    activeSelectedPaymentMethod,
+  );
   const activeSelectedPaymentEligible = isSelectedPaymentMethodEligible(
     activeDraft,
     activeSelectedPaymentMethod,
@@ -183,10 +216,10 @@ export function CheckoutPage({
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
     saveForFutureEligible:
       activeSelectedPaymentEligible &&
-      isSaveForFutureEligible(activeDraft.summary, activeSelectedPaymentMethod),
+      isSaveForFutureEligible(activeSummary, activeSelectedPaymentMethod),
     selectedPaymentEligible: activeSelectedPaymentEligible,
     selectedPaymentMethod: activeSelectedPaymentMethod,
-    totalLabel: activeDraft.summary.totalLabel,
+    totalLabel: activeSummary.totalLabel,
   };
   const paymentAction =
     activePaymentContext.selectedPaymentMethod === "card" ||
@@ -223,21 +256,51 @@ export function CheckoutPage({
   }
 
   function submitStep(step: CheckoutStep) {
-    if (step.id !== "shipping-address") {
+    if (step.id === "shipping-address") {
+      saveStepAndEditNext(step.id, "billing-address");
       return;
     }
 
+    if (step.id === "billing-address") {
+      saveStepAndEditNext(step.id, "shipping-options");
+      return;
+    }
+
+    if (step.id === "shipping-options") {
+      saveStepAndEditNext(step.id, "payment-method");
+    }
+  }
+
+  function saveStepAndEditNext(stepId: string, nextStepId: string) {
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
-      "billing-address": "editing",
-      [step.id]: "saved",
+      [nextStepId]: "editing",
+      [stepId]: "saved",
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
-      nextStepIds.add(step.id);
+      nextStepIds.add(stepId);
 
       return nextStepIds;
     });
+  }
+
+  function updateChoiceSelection(
+    stepId: string,
+    label: string,
+    method?: CheckoutSelectedPaymentMethod,
+  ) {
+    setChoiceSelections((currentSelections) => ({
+      ...currentSelections,
+      [stepId]: label,
+    }));
+
+    if (method && isPaymentStepId(stepId)) {
+      setSelectedPaymentMethods((currentMethods) => ({
+        ...currentMethods,
+        [stepId === "pickup-payment-method" ? "pickup" : "delivery"]: method,
+      }));
+    }
   }
 
   function editStep(step: CheckoutStep) {
@@ -314,7 +377,10 @@ export function CheckoutPage({
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
             collapsedStepIds={collapsedStepIds}
+            choiceSelections={choiceSelections}
+            selectedPaymentMethod={deliverySelectedPaymentMethod}
             onFieldChange={updateFieldValue}
+            onChoiceChange={updateChoiceSelection}
             onStepEdit={editStep}
             onStepSubmit={submitStep}
             payLaterRowMessage={
@@ -331,7 +397,10 @@ export function CheckoutPage({
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
             collapsedStepIds={collapsedStepIds}
+            choiceSelections={choiceSelections}
+            selectedPaymentMethod={pickupSelectedPaymentMethod}
             onFieldChange={updateFieldValue}
+            onChoiceChange={updateChoiceSelection}
             onStepEdit={editStep}
             onStepSubmit={submitStep}
             payLaterRowMessage={
@@ -342,7 +411,7 @@ export function CheckoutPage({
         </section>
 
         <CheckoutSummary
-          summary={activeDraft.summary}
+          summary={activeSummary}
           paymentAction={paymentAction}
         />
       </div>
@@ -353,8 +422,8 @@ export function CheckoutPage({
           className="checkout-sticky-action"
           aria-label="Selected payment action"
         >
-          <span>{activeDraft.summary.selectedPaymentLabel}</span>
-          <strong>{activeDraft.summary.totalLabel}</strong>
+          <span>{activeSummary.selectedPaymentLabel}</span>
+          <strong>{activeSummary.totalLabel}</strong>
           <button type="button">Continue</button>
         </div>
       )}
@@ -371,7 +440,10 @@ function CheckoutModePanel({
   fieldValues,
   stepStateOverrides,
   collapsedStepIds,
+  choiceSelections,
+  selectedPaymentMethod,
   onFieldChange,
+  onChoiceChange,
   onStepEdit,
   onStepSubmit,
   payLaterRowMessage,
@@ -385,10 +457,17 @@ function CheckoutModePanel({
   readonly fieldValues: Readonly<Record<string, CheckoutFieldValue>>;
   readonly stepStateOverrides: Readonly<Record<string, CheckoutStepState>>;
   readonly collapsedStepIds: ReadonlySet<string>;
+  readonly choiceSelections: Readonly<Record<string, string>>;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
   readonly onFieldChange: (
     stepId: string,
     label: string,
     value: CheckoutFieldValue,
+  ) => void;
+  readonly onChoiceChange: (
+    stepId: string,
+    label: string,
+    method?: CheckoutSelectedPaymentMethod,
   ) => void;
   readonly onStepEdit: (step: CheckoutStep) => void;
   readonly onStepSubmit: (step: CheckoutStep) => void;
@@ -407,12 +486,18 @@ function CheckoutModePanel({
         {draft.steps.map((step) => {
           const stepState = stepStateOverrides[step.id] ?? step.state;
           const stepWithDetails = withEditableFieldValues(
-            withDefaultStepDetails(
-              {
-                ...step,
-                state: stepState,
-              },
-              draft.summary.selectedPaymentMethod ?? "paypal",
+            withInteractiveChoiceSelection(
+              withInteractiveStepFields(
+                withDefaultStepDetails(
+                  {
+                    ...step,
+                    state: stepState,
+                  },
+                  selectedPaymentMethod,
+                ),
+                fieldValues,
+              ),
+              choiceSelections,
             ),
             fieldValues,
           );
@@ -453,6 +538,7 @@ function CheckoutModePanel({
                   cardPaymentBox={cardPaymentBox}
                   validationMessages={validationMessages}
                   onFieldChange={onFieldChange}
+                  onChoiceChange={onChoiceChange}
                   onStepSubmit={onStepSubmit}
                 />
               )}
@@ -462,6 +548,48 @@ function CheckoutModePanel({
       </div>
     </section>
   );
+}
+
+function withInteractiveStepFields(
+  step: CheckoutStep,
+  fieldValues: Readonly<Record<string, CheckoutFieldValue>>,
+): CheckoutStep {
+  if (step.id !== "billing-address") {
+    return step;
+  }
+
+  const sameAsShippingValue =
+    fieldValues[fieldValueKey(step.id, "Same as shipping")];
+  const sameAsShipping =
+    sameAsShippingValue === undefined ? true : sameAsShippingValue === true;
+
+  if (sameAsShipping) {
+    return step;
+  }
+
+  return {
+    ...step,
+    fields: [...(step.fields ?? []), ...deliveryBillingAddressFields],
+  };
+}
+
+function withInteractiveChoiceSelection(
+  step: CheckoutStep,
+  choiceSelections: Readonly<Record<string, string>>,
+): CheckoutStep {
+  const selectedChoiceLabel = choiceSelections[step.id];
+
+  if (!step.choices || !selectedChoiceLabel) {
+    return step;
+  }
+
+  return {
+    ...step,
+    choices: step.choices.map((choice) => ({
+      ...choice,
+      selected: choice.label === selectedChoiceLabel,
+    })),
+  };
 }
 
 function withEditableFieldValues(
@@ -498,6 +626,35 @@ function fieldValueKey(stepId: string, label: string): string {
   return `${stepId}:${label}`;
 }
 
+function getSelectedPaymentMethodForMode(
+  mode: CheckoutFulfillmentMode,
+  draft: CheckoutFulfillmentDraft,
+  selectedPaymentMethods: Readonly<
+    Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
+  >,
+): CheckoutSelectedPaymentMethod {
+  return (
+    selectedPaymentMethods[mode] ??
+    draft.summary.selectedPaymentMethod ??
+    "paypal"
+  );
+}
+
+function withSelectedPaymentSummary(
+  summary: CheckoutOrderSummary,
+  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+): CheckoutOrderSummary {
+  return {
+    ...summary,
+    selectedPaymentLabel: `${paymentMethodLabels[selectedPaymentMethod]} selected`,
+    selectedPaymentMethod,
+  };
+}
+
+function isPaymentStepId(stepId: string): boolean {
+  return stepId === "payment-method" || stepId === "pickup-payment-method";
+}
+
 function getValidationMessagesForStep(
   validation: CheckoutValidationState | undefined,
   stepId: string,
@@ -518,21 +675,35 @@ function CheckoutStepSummary({
     step.fields?.filter(
       (field) => field.type === "text" && Boolean(field.value),
     ) ?? [];
+  const selectedChoices =
+    step.choices?.filter((choice) => choice.selected === true) ?? [];
 
-  if (!summaryFields.length) {
+  if (!summaryFields.length && !selectedChoices.length) {
     return null;
   }
 
   return (
     <div className="checkout-step__summary">
-      <dl>
-        {summaryFields.map((field) => (
-          <div key={field.label}>
-            <dt>{field.label}</dt>
-            <dd>{field.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {summaryFields.length ? (
+        <dl>
+          {summaryFields.map((field) => (
+            <div key={field.label}>
+              <dt>{field.label}</dt>
+              <dd>{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {selectedChoices.length ? (
+        <ul>
+          {selectedChoices.map((choice) => (
+            <li key={choice.label}>
+              <strong>{choice.label}</strong>
+              {choice.amountLabel ? <span>{choice.amountLabel}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <button type="button" onClick={() => onStepEdit(step)}>
         Edit {step.title.toLowerCase()}
       </button>
@@ -546,6 +717,7 @@ function CheckoutStepDetails({
   cardPaymentBox,
   validationMessages,
   onFieldChange,
+  onChoiceChange,
   onStepSubmit,
 }: {
   readonly step: CheckoutStep;
@@ -556,6 +728,11 @@ function CheckoutStepDetails({
     stepId: string,
     label: string,
     value: CheckoutFieldValue,
+  ) => void;
+  readonly onChoiceChange: (
+    stepId: string,
+    label: string,
+    method?: CheckoutSelectedPaymentMethod,
   ) => void;
   readonly onStepSubmit: (step: CheckoutStep) => void;
 }) {
@@ -641,7 +818,14 @@ function CheckoutStepDetails({
               data-payment-method-row={choice.method}
               key={choice.label}
             >
-              <input checked={choice.selected ?? false} readOnly type="radio" />
+              <input
+                checked={choice.selected ?? false}
+                name={step.id}
+                onChange={() =>
+                  onChoiceChange(step.id, choice.label, choice.method)
+                }
+                type="radio"
+              />
               <span>
                 <strong>{choice.label}</strong>
                 {choice.description ? (
@@ -875,6 +1059,24 @@ function isSaveForFutureEligible(
     (selectedPaymentMethod === "paypal" || selectedPaymentMethod === "card")
   );
 }
+
+const deliveryBillingAddressFields: readonly CheckoutField[] = [
+  {
+    label: "Billing street address",
+    type: "text",
+    value: "",
+  },
+  {
+    label: "Billing city",
+    type: "text",
+    value: "",
+  },
+  {
+    label: "Billing ZIP code",
+    type: "text",
+    value: "",
+  },
+];
 
 const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
   "shipping-address": {

@@ -150,10 +150,11 @@
 - [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
 - [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
-- [ ] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection.
+- [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [ ] M11.5 Pickup checkout advances through location/store, billing address, pickup date, and payment selection.
 - [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
-- [ ] M11.5 payment radio selection renders only the matching selected PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo surface.
+- [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
+- [ ] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
 - [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
 - [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.

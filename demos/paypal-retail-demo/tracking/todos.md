@@ -84,7 +84,9 @@
 - [x] Continue Milestone 11.5 with PDP add-to-cart and cart/minicart shared state wiring.
 - [ ] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
 - [x] Continue Milestone 11.5 with editable Delivery shipping address expand/shrink behavior.
+- [x] Continue Milestone 11.5 with Delivery billing-address and shipping-option expand/shrink progression.
+- [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
-- [ ] Continue Milestone 11.5 with payment-method-driven PayPal/Pay Later/card/wallet surface switching.
+- [ ] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
 - [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
