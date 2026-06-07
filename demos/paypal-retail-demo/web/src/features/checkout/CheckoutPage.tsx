@@ -150,6 +150,8 @@ const stepStateLabels = {
   locked: "Locked",
 } satisfies Record<CheckoutStepState, string>;
 
+type CheckoutFieldValue = string | boolean;
+
 export function CheckoutPage({
   data = defaultCheckoutPageData,
   renderPaymentAction,
@@ -158,6 +160,15 @@ export function CheckoutPage({
 }: CheckoutPageProps) {
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
     data.activeMode,
+  );
+  const [fieldValues, setFieldValues] = useState<
+    Readonly<Record<string, CheckoutFieldValue>>
+  >({});
+  const [stepStateOverrides, setStepStateOverrides] = useState<
+    Readonly<Record<string, CheckoutStepState>>
+  >({});
+  const [collapsedStepIds, setCollapsedStepIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
@@ -198,6 +209,48 @@ export function CheckoutPage({
     if (!data.modeLocked) {
       setActiveMode(mode);
     }
+  }
+
+  function updateFieldValue(
+    stepId: string,
+    label: string,
+    value: CheckoutFieldValue,
+  ) {
+    setFieldValues((currentValues) => ({
+      ...currentValues,
+      [fieldValueKey(stepId, label)]: value,
+    }));
+  }
+
+  function submitStep(step: CheckoutStep) {
+    if (step.id !== "shipping-address") {
+      return;
+    }
+
+    setStepStateOverrides((currentStates) => ({
+      ...currentStates,
+      "billing-address": "editing",
+      [step.id]: "saved",
+    }));
+    setCollapsedStepIds((currentStepIds) => {
+      const nextStepIds = new Set(currentStepIds);
+      nextStepIds.add(step.id);
+
+      return nextStepIds;
+    });
+  }
+
+  function editStep(step: CheckoutStep) {
+    setStepStateOverrides((currentStates) => ({
+      ...currentStates,
+      [step.id]: "editing",
+    }));
+    setCollapsedStepIds((currentStepIds) => {
+      const nextStepIds = new Set(currentStepIds);
+      nextStepIds.delete(step.id);
+
+      return nextStepIds;
+    });
   }
 
   return (
@@ -258,6 +311,12 @@ export function CheckoutPage({
             active={activeMode === "delivery"}
             validation={data.validation}
             focusTargetRef={focusTargetRef}
+            fieldValues={fieldValues}
+            stepStateOverrides={stepStateOverrides}
+            collapsedStepIds={collapsedStepIds}
+            onFieldChange={updateFieldValue}
+            onStepEdit={editStep}
+            onStepSubmit={submitStep}
             payLaterRowMessage={
               activeMode === "delivery" ? payLaterRowMessage : null
             }
@@ -269,6 +328,12 @@ export function CheckoutPage({
             active={activeMode === "pickup"}
             validation={data.validation}
             focusTargetRef={focusTargetRef}
+            fieldValues={fieldValues}
+            stepStateOverrides={stepStateOverrides}
+            collapsedStepIds={collapsedStepIds}
+            onFieldChange={updateFieldValue}
+            onStepEdit={editStep}
+            onStepSubmit={submitStep}
             payLaterRowMessage={
               activeMode === "pickup" ? payLaterRowMessage : null
             }
@@ -303,6 +368,12 @@ function CheckoutModePanel({
   active,
   validation,
   focusTargetRef,
+  fieldValues,
+  stepStateOverrides,
+  collapsedStepIds,
+  onFieldChange,
+  onStepEdit,
+  onStepSubmit,
   payLaterRowMessage,
   cardPaymentBox,
 }: {
@@ -311,6 +382,16 @@ function CheckoutModePanel({
   readonly active: boolean;
   readonly validation: CheckoutValidationState | undefined;
   readonly focusTargetRef: RefObject<HTMLElement | null>;
+  readonly fieldValues: Readonly<Record<string, CheckoutFieldValue>>;
+  readonly stepStateOverrides: Readonly<Record<string, CheckoutStepState>>;
+  readonly collapsedStepIds: ReadonlySet<string>;
+  readonly onFieldChange: (
+    stepId: string,
+    label: string,
+    value: CheckoutFieldValue,
+  ) => void;
+  readonly onStepEdit: (step: CheckoutStep) => void;
+  readonly onStepSubmit: (step: CheckoutStep) => void;
   readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
 }) {
@@ -324,10 +405,18 @@ function CheckoutModePanel({
     >
       <div className="checkout-steps">
         {draft.steps.map((step) => {
-          const stepWithDetails = withDefaultStepDetails(
-            step,
-            draft.summary.selectedPaymentMethod ?? "paypal",
+          const stepState = stepStateOverrides[step.id] ?? step.state;
+          const stepWithDetails = withEditableFieldValues(
+            withDefaultStepDetails(
+              {
+                ...step,
+                state: stepState,
+              },
+              draft.summary.selectedPaymentMethod ?? "paypal",
+            ),
+            fieldValues,
           );
+          const isCollapsed = collapsedStepIds.has(step.id);
           const validationMessages = getValidationMessagesForStep(
             validation,
             step.id,
@@ -342,28 +431,71 @@ function CheckoutModePanel({
               aria-describedby={describedById}
               className="checkout-step"
               data-focus-target={isFocusTarget ? "true" : undefined}
-              data-step-state={step.state}
+              data-step-state={stepState}
               key={step.id}
               ref={isFocusTarget ? focusTargetRef : undefined}
               tabIndex={isFocusTarget ? -1 : undefined}
             >
               <header>
                 <h2>{step.title}</h2>
-                <span>{stepStateLabels[step.state]}</span>
+                <span>{stepStateLabels[stepState]}</span>
               </header>
               <p>{step.body}</p>
-              <CheckoutStepDetails
-                step={stepWithDetails}
-                payLaterRowMessage={payLaterRowMessage}
-                cardPaymentBox={cardPaymentBox}
-                validationMessages={validationMessages}
-              />
+              {isCollapsed ? (
+                <CheckoutStepSummary
+                  step={stepWithDetails}
+                  onStepEdit={onStepEdit}
+                />
+              ) : (
+                <CheckoutStepDetails
+                  step={stepWithDetails}
+                  payLaterRowMessage={payLaterRowMessage}
+                  cardPaymentBox={cardPaymentBox}
+                  validationMessages={validationMessages}
+                  onFieldChange={onFieldChange}
+                  onStepSubmit={onStepSubmit}
+                />
+              )}
             </article>
           );
         })}
       </div>
     </section>
   );
+}
+
+function withEditableFieldValues(
+  step: CheckoutStep,
+  fieldValues: Readonly<Record<string, CheckoutFieldValue>>,
+): CheckoutStep {
+  if (!step.fields) {
+    return step;
+  }
+
+  return {
+    ...step,
+    fields: step.fields.map((field) => {
+      const value = fieldValues[fieldValueKey(step.id, field.label)];
+
+      if (value === undefined) {
+        return field;
+      }
+
+      return field.type === "checkbox"
+        ? {
+            ...field,
+            checked: value === true,
+          }
+        : {
+            ...field,
+            value: String(value),
+          };
+    }),
+  };
+}
+
+function fieldValueKey(stepId: string, label: string): string {
+  return `${stepId}:${label}`;
 }
 
 function getValidationMessagesForStep(
@@ -375,16 +507,57 @@ function getValidationMessagesForStep(
   );
 }
 
+function CheckoutStepSummary({
+  step,
+  onStepEdit,
+}: {
+  readonly step: CheckoutStep;
+  readonly onStepEdit: (step: CheckoutStep) => void;
+}) {
+  const summaryFields =
+    step.fields?.filter(
+      (field) => field.type === "text" && Boolean(field.value),
+    ) ?? [];
+
+  if (!summaryFields.length) {
+    return null;
+  }
+
+  return (
+    <div className="checkout-step__summary">
+      <dl>
+        {summaryFields.map((field) => (
+          <div key={field.label}>
+            <dt>{field.label}</dt>
+            <dd>{field.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <button type="button" onClick={() => onStepEdit(step)}>
+        Edit {step.title.toLowerCase()}
+      </button>
+    </div>
+  );
+}
+
 function CheckoutStepDetails({
   step,
   payLaterRowMessage,
   cardPaymentBox,
   validationMessages,
+  onFieldChange,
+  onStepSubmit,
 }: {
   readonly step: CheckoutStep;
   readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
   readonly validationMessages: readonly CheckoutValidationMessage[];
+  readonly onFieldChange: (
+    stepId: string,
+    label: string,
+    value: CheckoutFieldValue,
+  ) => void;
+  readonly onStepSubmit: (step: CheckoutStep) => void;
 }) {
   const hasDetails =
     step.fields?.length ||
@@ -422,8 +595,16 @@ function CheckoutStepDetails({
                   checked={
                     field.type === "checkbox" ? field.checked : undefined
                   }
+                  onChange={(event) => {
+                    onFieldChange(
+                      step.id,
+                      field.label,
+                      field.type === "checkbox"
+                        ? event.currentTarget.checked
+                        : event.currentTarget.value,
+                    );
+                  }}
                   placeholder={field.placeholder}
-                  readOnly
                   type={field.type}
                   value={
                     field.type === "text" ? (field.value ?? "") : undefined
@@ -521,7 +702,11 @@ function CheckoutStepDetails({
       ) : null}
 
       {step.primaryActionLabel ? (
-        <button className="checkout-step__action" type="button">
+        <button
+          className="checkout-step__action"
+          type="button"
+          onClick={() => onStepSubmit(step)}
+        >
           {step.primaryActionLabel}
         </button>
       ) : null}
