@@ -42,9 +42,13 @@ export interface ProductDetailPageData {
 
 export interface ProductDetailPageProps {
   readonly data: ProductDetailPageData;
+  readonly onAddToCart?: (product: ProductDetailPageData) => void;
 }
 
-export function ProductDetailPage({ data }: ProductDetailPageProps) {
+export function ProductDetailPage({
+  data,
+  onAddToCart,
+}: ProductDetailPageProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = data.gallery[activeImageIndex] ?? data.gallery[0];
   const showReviews = data.purchasable && data.reviews.length > 0;
@@ -121,6 +125,11 @@ export function ProductDetailPage({ data }: ProductDetailPageProps) {
             className="button button--primary"
             type="button"
             disabled={!data.purchasable}
+            onClick={() => {
+              if (data.purchasable) {
+                onAddToCart?.(data);
+              }
+            }}
           >
             Add to cart
           </button>

@@ -76,6 +76,35 @@ export function resolveCartItemQuantity(
   return Math.min(Math.max(normalizedQuantity, 0), item.maxQuantity);
 }
 
+export function setCartItemQuantity(
+  cart: CartData,
+  slug: string,
+  nextQuantity: number,
+): CartData {
+  return {
+    ...cart,
+    items: cart.items.map((item) =>
+      item.slug === slug
+        ? {
+            ...item,
+            quantity: resolveCartItemQuantity(item, {
+              [slug]: nextQuantity,
+            }),
+          }
+        : item,
+    ),
+  };
+}
+
+export function incrementCartItemQuantity(
+  cart: CartData,
+  slug: string,
+): CartData {
+  const item = cart.items.find((cartItem) => cartItem.slug === slug);
+
+  return item ? setCartItemQuantity(cart, slug, item.quantity + 1) : cart;
+}
+
 export const defaultCartData: CartData = {
   title: "Shopping cart",
   checkoutHref: "/checkout",

@@ -79,8 +79,10 @@
 - [x] Continue Milestone 12 with reserved layout-space polish and authenticated save-for-future gating.
 - [x] Start Milestone 13 with the express Review and Confirm route/page.
 - [x] Add Milestone 11.5 Buyer Flow Interaction Recovery after the done-milestone gap audit.
-- [ ] Start Milestone 11.5 with failing buyer-flow tests for PDP/cart/minicart actions and checkout section progression.
-- [ ] Continue Milestone 11.5 with PDP add-to-cart, cart/minicart state wiring, and delivery-only express entry behavior.
+- [x] Start Milestone 11.5 with failing buyer-flow tests for PDP/cart/minicart shared cart actions.
+- [ ] Add failing buyer-flow tests for checkout section progression.
+- [x] Continue Milestone 11.5 with PDP add-to-cart and cart/minicart shared state wiring.
+- [ ] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [ ] Continue Milestone 11.5 with payment-method-driven PayPal/Pay Later/card/wallet surface switching.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.

@@ -1,9 +1,15 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
-import { defaultCartData, type CartData } from "../features/cart/cartModel.js";
+import {
+  calculateCartItemCount,
+  defaultCartData,
+  incrementCartItemQuantity,
+  setCartItemQuantity,
+  type CartData,
+} from "../features/cart/cartModel.js";
 import {
   CategoryPage,
   defaultCategoryPageData,
@@ -128,6 +134,25 @@ function BuyerShell({
   >["panels"]["minicart"];
 }) {
   const assets = resolveProfileAssets(config.profile);
+  const [currentCart, setCurrentCart] = useState(cartData);
+  const [currentMinicartState, setCurrentMinicartState] =
+    useState(minicartState);
+  const [shellStatus, setShellStatus] = useState("Storefront ready.");
+  const cartItemCount = calculateCartItemCount(currentCart);
+
+  function openMinicart() {
+    setCurrentMinicartState("open");
+  }
+
+  function handleAddProductToCart(product: ProductDetailPageData) {
+    setCurrentCart((cart) => incrementCartItemQuantity(cart, product.slug));
+    setCurrentMinicartState("open");
+    setShellStatus(`Added ${product.name} to cart.`);
+  }
+
+  function handleCartQuantityChange(slug: string, nextQuantity: number) {
+    setCurrentCart((cart) => setCartItemQuantity(cart, slug, nextQuantity));
+  }
 
   return (
     <div
@@ -151,8 +176,12 @@ function BuyerShell({
         </nav>
         <div className="site-header__actions">
           <button type="button">Sign in</button>
-          <button type="button" aria-label="Open minicart">
-            Cart
+          <button
+            type="button"
+            aria-label="Open minicart"
+            onClick={openMinicart}
+          >
+            Cart ({cartItemCount})
           </button>
         </div>
       </header>
@@ -162,9 +191,11 @@ function BuyerShell({
           homePageData={homePageData}
           categoryPageData={categoryPageData}
           productPages={productPages}
-          cartData={cartData}
+          cartData={currentCart}
           checkoutData={checkoutData}
           expressReviewData={expressReviewData}
+          onAddProductToCart={handleAddProductToCart}
+          onCartQuantityChange={handleCartQuantityChange}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
               config,
@@ -186,10 +217,10 @@ function BuyerShell({
         />
       </main>
       <StatusRegion id="shell-status" className="sr-only">
-        Storefront ready.
+        {shellStatus}
       </StatusRegion>
       <AuthModalShell state={authModalState} />
-      <MinicartShell state={minicartState} cart={cartData} />
+      <MinicartShell state={currentMinicartState} cart={currentCart} />
     </div>
   );
 }
@@ -202,6 +233,8 @@ function RouteStage({
   cartData,
   checkoutData,
   expressReviewData,
+  onAddProductToCart,
+  onCartQuantityChange,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderPayLaterRowMessage,
@@ -213,6 +246,8 @@ function RouteStage({
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
   readonly expressReviewData: ExpressReviewPageData;
+  readonly onAddProductToCart: (product: ProductDetailPageData) => void;
+  readonly onCartQuantityChange: (slug: string, nextQuantity: number) => void;
   readonly renderCardPaymentBox: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -239,7 +274,7 @@ function RouteStage({
   }
 
   if (route.page === "cart") {
-    return <CartPage data={cartData} />;
+    return <CartPage data={cartData} onQuantityChange={onCartQuantityChange} />;
   }
 
   if (route.page === "account") {
@@ -255,7 +290,7 @@ function RouteStage({
     const productPage = productPages[route.productSlug];
 
     return productPage ? (
-      <ProductDetailPage data={productPage} />
+      <ProductDetailPage data={productPage} onAddToCart={onAddProductToCart} />
     ) : (
       <NotFoundStage />
     );

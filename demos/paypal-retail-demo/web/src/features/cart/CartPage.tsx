@@ -13,19 +13,32 @@ import {
 
 export interface CartPageProps {
   readonly data?: CartData;
+  readonly onQuantityChange?: (slug: string, nextQuantity: number) => void;
 }
 
-export function CartPage({ data = defaultCartData }: CartPageProps) {
+export function CartPage({
+  data = defaultCartData,
+  onQuantityChange,
+}: CartPageProps) {
   const [quantityOverrides, setQuantityOverrides] =
     useState<CartQuantityOverrides>({});
-  const itemCount = calculateCartItemCount(data, quantityOverrides);
+  const effectiveQuantityOverrides = onQuantityChange ? {} : quantityOverrides;
+  const itemCount = calculateCartItemCount(data, effectiveQuantityOverrides);
   const subtotalLabel = formatCartAmount(
-    calculateCartMerchandiseTotalCents(data, quantityOverrides),
+    calculateCartMerchandiseTotalCents(data, effectiveQuantityOverrides),
     data,
   );
-  const payLaterMessage = buildCartPayLaterMessage(data, quantityOverrides);
+  const payLaterMessage = buildCartPayLaterMessage(
+    data,
+    effectiveQuantityOverrides,
+  );
 
   function updateQuantity(slug: string, nextQuantity: number) {
+    if (onQuantityChange) {
+      onQuantityChange(slug, nextQuantity);
+      return;
+    }
+
     setQuantityOverrides((currentQuantities) => ({
       ...currentQuantities,
       [slug]: nextQuantity,
@@ -44,7 +57,10 @@ export function CartPage({ data = defaultCartData }: CartPageProps) {
 
       <section className="cart-items" aria-label="Cart items">
         {data.items.map((item) => {
-          const quantity = resolveCartItemQuantity(item, quantityOverrides);
+          const quantity = resolveCartItemQuantity(
+            item,
+            effectiveQuantityOverrides,
+          );
 
           return (
             <article className="cart-item" key={item.slug}>
