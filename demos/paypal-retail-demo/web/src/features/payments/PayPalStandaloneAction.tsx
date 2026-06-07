@@ -1,5 +1,5 @@
 import { PayPalOneTimePaymentButton } from "@paypal/react-paypal-js/sdk-v6";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type {
   OnApproveDataOneTimePayments,
   OnCancelDataOneTimePayments,
@@ -21,6 +21,7 @@ export interface PayPalCreateOrderResponse {
 }
 
 export interface PayPalStandaloneActionProps {
+  readonly canSavePaymentMethod?: boolean;
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
@@ -31,21 +32,26 @@ export interface PayPalCreateOrderRequest {
   readonly body: {
     readonly checkout_draft_id: string;
     readonly method: "paypal";
+    readonly vault_requested?: true;
   };
   readonly query: ApiQueryParams;
 }
 
 export function PayPalStandaloneAction({
+  canSavePaymentMethod = false,
   checkoutDraftId,
   fulfillmentMode,
   market,
 }: PayPalStandaloneActionProps) {
   const apiClient = useApiClient();
+  const [vaultRequested, setVaultRequested] = useState(false);
+  const effectiveVaultRequested = canSavePaymentMethod && vaultRequested;
   const createOrder = useCallback(async () => {
     const request = buildPayPalCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
       market,
+      vaultRequested: effectiveVaultRequested,
     });
     const order = await apiClient.post<PayPalCreateOrderResponse>(
       request.path,
@@ -57,12 +63,19 @@ export function PayPalStandaloneAction({
       paypalOrderId: order.paypal_order_id,
       paymentSessionId: order.payment_session_id ?? null,
       merchantOrderId: order.merchant_order_id ?? null,
+      vaultRequested: effectiveVaultRequested,
     });
 
     return {
       orderId: order.paypal_order_id,
     };
-  }, [apiClient, checkoutDraftId, fulfillmentMode, market]);
+  }, [
+    apiClient,
+    checkoutDraftId,
+    effectiveVaultRequested,
+    fulfillmentMode,
+    market,
+  ]);
 
   const handleApprove = useCallback(
     async (data: OnApproveDataOneTimePayments) => {
@@ -96,6 +109,16 @@ export function PayPalStandaloneAction({
         presentationMode="auto"
         type="pay"
       />
+      {canSavePaymentMethod ? (
+        <label className="paypal-standalone-action__save">
+          <input
+            checked={vaultRequested}
+            onChange={(event) => setVaultRequested(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>Save PayPal for future purchases</span>
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -104,10 +127,12 @@ export function buildPayPalCreateOrderRequest({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  vaultRequested,
 }: {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly vaultRequested?: boolean;
 }): PayPalCreateOrderRequest {
   return {
     path:
@@ -117,6 +142,7 @@ export function buildPayPalCreateOrderRequest({
     body: {
       checkout_draft_id: checkoutDraftId,
       method: "paypal",
+      ...(vaultRequested ? { vault_requested: true } : {}),
     },
     query: {
       market,

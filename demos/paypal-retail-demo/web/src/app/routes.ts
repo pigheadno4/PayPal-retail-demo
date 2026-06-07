@@ -18,6 +18,10 @@ export type AppRoute =
     }
   | {
       readonly scope: "buyer";
+      readonly page: "express_review";
+    }
+  | {
+      readonly scope: "buyer";
       readonly page: "cart";
     }
   | {
@@ -76,6 +80,13 @@ export function resolveAppRoute(pathname: string): AppRoute {
     return {
       scope: "buyer",
       page: "checkout",
+    };
+  }
+
+  if (path === "/checkout/express-review") {
+    return {
+      scope: "buyer",
+      page: "express_review",
     };
   }
 

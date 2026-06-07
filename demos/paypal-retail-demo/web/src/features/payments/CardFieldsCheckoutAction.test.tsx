@@ -78,6 +78,7 @@ describe("CardFieldsCheckoutAction", () => {
           initialSdkConfig={sdkConfig()}
         >
           <CardFieldsCheckoutAction
+            canSavePaymentMethod
             checkoutDraftId="draft_delivery_123"
             fulfillmentMode="delivery"
             market="US"
@@ -100,6 +101,41 @@ describe("CardFieldsCheckoutAction", () => {
     expect(html).toContain('type="checkbox"');
     expect(html).toContain("Pay by card");
     expect(html).toContain("Card payment fields ready.");
+  });
+
+  it("hides the save checkbox when card vaulting is not eligible", () => {
+    const apiClient = createApiClient({
+      baseUrl: "https://demo.example.test",
+      fetch: async () =>
+        ({
+          status: 200,
+          json: async () => ({ ok: true, data: {}, debug_id: "dbg_test" }),
+        }) as Response,
+    });
+
+    const html = renderToStaticMarkup(
+      <AppProviders apiClient={apiClient}>
+        <PayPalSdkProviderScope
+          providerKey={sdkConfig().provider_key}
+          configRequest={{
+            market: "US",
+            pageType: "checkout",
+            flow: "standard",
+            method: "card",
+          }}
+          initialSdkConfig={sdkConfig()}
+        >
+          <CardFieldsCheckoutAction
+            checkoutDraftId="draft_delivery_123"
+            fulfillmentMode="delivery"
+            market="US"
+          />
+        </PayPalSdkProviderScope>
+      </AppProviders>,
+    );
+
+    expect(html).not.toContain("Save card for future purchases");
+    expect(html).toContain("Pay by card");
   });
 });
 

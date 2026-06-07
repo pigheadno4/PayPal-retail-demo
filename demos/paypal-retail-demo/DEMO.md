@@ -47,7 +47,7 @@ Out of v1:
 - Delivery checkout
 - BOPIS checkout
 - PayPal and Pay Later express from PDP/cart/minicart for delivery only
-- Review and Confirm page for PDP/cart/minicart express only
+- Review and Confirm page at `/checkout/express-review` for PDP/cart/minicart express only
 - Guest checkout and guest order lookup
 - Account registration/login
 - Account address book, saved payments, order history, reviews submitted
@@ -60,7 +60,7 @@ Out of v1:
 
 Entry point: `/checkout`, Delivery tab.
 
-Frontend payment layer: radio-first payment wall. PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected actions render under Order Summary. Pay Later also renders an amount-aware message in its radio row using the active checkout draft total. Card fields expand inside the active payment row with PayPal-hosted number, expiry, and CVV fields; the card pay button and save checkbox stay inside that card box on desktop and mobile.
+Frontend payment layer: radio-first payment wall. PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected actions render under Order Summary when eligible; ineligible wallet rows are hidden and cannot leave behind an active selected action. Pay Later also renders an amount-aware message in its radio row using the active checkout draft total. Card fields expand inside the active payment row with PayPal-hosted number, expiry, and CVV fields; the card pay button stays inside that card box on desktop and mobile. Async PayPal buttons/messages reserve layout space to avoid large checkout jumps.
 
 Backend APIs:
 
@@ -97,7 +97,7 @@ Backend APIs:
 
 - Create a delivery PayPal order/session.
 - Use PayPal shipping/order update callbacks for delivery address, shipping option, promo, tax, and amount updates.
-- Return buyer to merchant Review and Confirm page.
+- Return buyer to merchant Review and Confirm page at `/checkout/express-review`.
 - Capture only after buyer confirms on merchant page.
 - Guard capture using the locked merchant/provider amount snapshot; store the sanitized PayPal capture response for Admin/debug review.
 
@@ -161,7 +161,7 @@ Frontend payment layer:
 
 - PayPal save checkbox under PayPal button.
 - Card save checkbox inside expanded card box.
-- No save checkbox for guest checkout.
+- No save checkbox for guest checkout or unsupported methods.
 
 Backend APIs:
 

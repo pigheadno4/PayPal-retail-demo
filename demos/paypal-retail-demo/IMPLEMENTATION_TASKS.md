@@ -327,6 +327,30 @@ Verification:
 - Sticky payment bar does not cover checkout content.
 - Card payment stays inside the expanded card fields box on mobile and desktop.
 
+## Milestone 11.5: Buyer Flow Interaction Recovery
+
+Purpose: close the gap between visual shells and working buyer actions before continuing deeper PayPal confirm/capture work.
+
+- [ ] Re-audit checked Milestone 9-12 UI items and label any remaining visual-shell-only behavior before changing payment semantics.
+- [ ] Wire PDP add-to-cart into cart state and ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
+- [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
+- [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
+- [ ] Wire Delivery checkout steps: shipping address, same-as-shipping billing, alternate billing, shipping option selection, promo/tax/shipping recalculation hooks, and payment-method selection.
+- [ ] Wire Pickup checkout steps: buyer/default location, store selection with partial inventory, billing address, store-specific pickup date, promo/tax/inventory recalculation hooks, and payment-method selection.
+- [ ] Drive PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo surfaces from the selected checkout payment method instead of static fixture state.
+- [ ] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
+- [ ] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard in Milestone 13.
+- [ ] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
+
+Verification:
+
+- PDP add-to-cart changes the cart and refreshes amount-aware Pay Later messaging.
+- Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
+- Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
+- Buyer can complete all Pickup checkout sections from store selection to pickup date and selected payment method.
+- Payment method radio changes render the matching PayPal/Pay Later/card/wallet surface and hide unrelated selected-action surfaces.
+- No visible checkout/cart/PDP action is a silent placeholder.
+
 ## Milestone 12: Payment UI Integration
 
 - [x] Integrate PayPal SDK v6 provider/loading.
@@ -336,9 +360,9 @@ Verification:
 - [x] Render PayPal standalone button when PayPal radio is selected.
 - [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
 - [x] Render card fields expanded in the payment step with save checkbox inside card box.
-- [ ] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
-- [ ] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
-- [ ] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
+- [x] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
+- [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
+- [x] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
 
 Verification:
 
@@ -351,7 +375,7 @@ Verification:
 
 ## Milestone 13: Express Review And Confirm
 
-- [ ] Build express Review and Confirm route/page.
+- [x] Build express Review and Confirm route/page.
 - [ ] Show synchronized PayPal shipping callback totals.
 - [ ] Show final item, shipping, promo, tax, and total snapshot.
 - [ ] Capture only when buyer confirms.

@@ -145,6 +145,15 @@
 - [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
 - [x] Card payment button remains inside the card fields box on mobile and desktop.
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
+- [ ] M11.5 PDP add-to-cart mutates app cart state and refreshes minicart/cart totals.
+- [ ] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
+- [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
+- [ ] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection.
+- [ ] M11.5 Pickup checkout advances through location/store, billing address, pickup date, and payment selection.
+- [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
+- [ ] M11.5 payment radio selection renders only the matching selected PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo surface.
+- [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
+- [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
@@ -168,6 +177,14 @@
 - [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config and create-order request selection.
 - [x] Checkout selected-card row renders a scoped `card-fields` provider, hosted card fields, local save checkbox, and card pay button inside the payment step.
 - [x] Card fields create-order request builders select Delivery/BOPIS endpoints and send `method=card` plus `vault_requested`.
+- [x] Checkout payment wall hides wallet rows marked ineligible and withholds the selected wallet Order Summary/mobile sticky action.
+- [x] Checkout Order Summary requests method-scoped SDK provider surfaces for selected Apple Pay, Google Pay, and Venmo methods.
+- [x] Wallet create-order request builders select Delivery/BOPIS endpoints and send `method=apple_pay`, `method=google_pay`, or `method=venmo`.
+- [x] Google Pay checkout surface remains runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
+- [x] Checkout selected payment context exposes save-for-future eligibility only for eligible PayPal/card selections.
+- [x] PayPal wallet create-order request builder sends `vault_requested` only when the eligible buyer opts into save-for-future.
+- [x] PayPal save checkbox renders under the PayPal button only when the selected checkout context is save-eligible.
+- [x] Card save checkbox renders inside the card fields box only when the selected checkout context is save-eligible.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.
@@ -218,9 +235,10 @@
 - [x] Checkout validation summary renders as an assertive live region.
 - [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
 - [x] Checkout validation marks the first invalid step as a keyboard focus target.
+- [x] Checkout Order Summary and Pay Later row reserve stable layout space for async PayPal button/message surfaces in component tests.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.
-- [ ] PayPal buttons and Pay Later messages render without major layout shift.
+- [ ] PayPal buttons and Pay Later messages render without major layout shift in responsive browser screenshots.
 - [ ] Sticky header and sticky payment bar do not obscure content.
 - [ ] Text fits inside buttons, cards, accordions, and payment rows.

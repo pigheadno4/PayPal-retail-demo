@@ -11,6 +11,13 @@ Reusable implementation lessons from this demo should be added here during miles
 - The installed `@paypal/react-paypal-js` v9 / `@paypal/paypal-js` v9 package types still expose `testBuyerCountry`, matching the local wiki snapshot checked during Milestone 4 SDK config work.
 - Production SDK config should null `sandbox_test_buyer_country`; sandbox config should return it so the frontend can map it to SDK v6 `createInstance({ testBuyerCountry })`.
 
+## Milestone Completion Gates
+
+- Treat `IMPLEMENTATION_TASKS.md` as the canonical milestone checklist, and use `PLAN.md` only as the current execution router.
+- A buyer-facing UI milestone is not complete just because the screen renders. Visible actions must be wired, disabled with a reason, or explicitly deferred in tracking.
+- Milestone close evidence should include interaction tests or manual verification notes for the promised buyer journey, not only render tests.
+- If a milestone is discovered to have shell-level gaps after being checked, add a corrective milestone instead of silently moving the plan forward.
+
 ## PayPal Express Delivery Shipping Callbacks
 
 - Express delivery from PDP, minicart, or cart should keep fulfillment locked to delivery and use `shipping_preference: "GET_FROM_FILE"` so PayPal wallet shipping can drive server-side updates.

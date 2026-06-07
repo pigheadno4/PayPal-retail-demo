@@ -248,7 +248,10 @@ Rules:
 - Apple Pay selected: official Apple Pay button under Order Summary when eligible.
 - Google Pay selected: official Google Pay button under Order Summary when eligible.
 - Venmo selected: official Venmo button under Order Summary when eligible.
+- Ineligible wallet rows are hidden and do not render Order Summary or sticky actions. Google Pay must stay runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
 - Card selected: card fields expand in payment section; card pay button is inside card box.
+- Order Summary reserves stable space for selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo action surfaces.
+- Pay Later row message reserves stable space while PayPal eligibility/message rendering finishes.
 - Mobile: selected non-card action appears in sticky bottom payment bar.
 - Mobile sticky bar shows only one selected non-card payment action at a time.
 - Mobile sticky bar reserves space for the selected method label, total, button, and any required Pay Later message without overlapping content.
@@ -258,13 +261,15 @@ Guests cannot save payment methods.
 
 Vaulting:
 
-- PayPal save checkbox under PayPal button.
-- Card save checkbox inside card box.
+- Eligible logged-in PayPal selected: unchecked save checkbox under PayPal button.
+- Eligible logged-in card selected: unchecked save checkbox inside card box.
 - No save checkbox for Pay Later / Apple Pay / Google Pay / Venmo unless official support is confirmed.
 
 ## Express Review And Confirm
 
 Applies only to PayPal/Pay Later express started outside full checkout from PDP/cart/minicart.
+
+Route: `/checkout/express-review`.
 
 Flow:
 

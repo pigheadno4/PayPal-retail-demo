@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   CheckoutPage,
+  type CheckoutChoice,
   type CheckoutPageData,
+  type CheckoutSelectedPaymentMethod,
   type CheckoutValidationState,
 } from "./CheckoutPage.js";
 
@@ -88,6 +90,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Credit or debit card");
     expect(html).toContain("Apple Pay");
     expect(html).toContain("Google Pay");
+    expect(html).toContain("Venmo");
   });
 
   it("renders detailed Pickup accordion content and partial store counts before store submit", () => {
@@ -164,6 +167,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-payment-checkout-draft-id="draft_pickup_123"');
     expect(html).toContain('data-payment-fulfillment-mode="pickup"');
     expect(html).toContain('data-payment-method="paypal"');
+    expect(html).toContain('data-payment-action-reserved-space="true"');
   });
 
   it("renders the Pay Later row message for the active checkout draft", () => {
@@ -224,12 +228,144 @@ describe("CheckoutPage", () => {
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
   });
+
+  it("passes save-for-future eligibility only for supported selected methods", () => {
+    const paypalHtml = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          saveForFutureEligible: true,
+          selectedPaymentMethod: "paypal",
+        })}
+        renderPaymentAction={(context) => (
+          <div data-save-for-future-eligible={context.saveForFutureEligible}>
+            PayPal action
+          </div>
+        )}
+      />,
+    );
+    const payLaterHtml = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          saveForFutureEligible: true,
+          selectedPaymentMethod: "paylater",
+        })}
+        renderPaymentAction={(context) => (
+          <div data-save-for-future-eligible={context.saveForFutureEligible}>
+            Pay Later action
+          </div>
+        )}
+      />,
+    );
+    const cardHtml = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          saveForFutureEligible: true,
+          selectedPaymentMethod: "card",
+        })}
+        renderCardPaymentBox={(context) => (
+          <div data-save-for-future-eligible={context.saveForFutureEligible}>
+            Card box
+          </div>
+        )}
+      />,
+    );
+    const walletHtml = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          saveForFutureEligible: true,
+          selectedPaymentMethod: "venmo",
+        })}
+        renderPaymentAction={(context) => (
+          <div data-save-for-future-eligible={context.saveForFutureEligible}>
+            Wallet action
+          </div>
+        )}
+      />,
+    );
+
+    expect(paypalHtml).toContain('data-save-for-future-eligible="true"');
+    expect(cardHtml).toContain('data-save-for-future-eligible="true"');
+    expect(payLaterHtml).toContain('data-save-for-future-eligible="false"');
+    expect(walletHtml).toContain('data-save-for-future-eligible="false"');
+  });
+
+  it("hides ineligible wallet rows and withholds the selected payment action", () => {
+    const paymentChoices: readonly (CheckoutChoice & {
+      readonly eligible: boolean;
+      readonly ineligibleReasonLabel?: string;
+    })[] = [
+      {
+        label: "PayPal",
+        method: "paypal",
+        eligible: true,
+      },
+      {
+        label: "Apple Pay",
+        method: "apple_pay",
+        eligible: false,
+        ineligibleReasonLabel: "Apple Pay is unavailable in this browser.",
+      },
+      {
+        label: "Venmo",
+        method: "venmo",
+        eligible: true,
+      },
+    ];
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          paymentChoices,
+          selectedPaymentMethod: "apple_pay",
+        })}
+        renderPaymentAction={() => (
+          <div data-payment-action-placement="order-summary">
+            Payment action
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('data-payment-method-row="paypal"');
+    expect(html).toContain('data-payment-method-row="venmo"');
+    expect(html).not.toContain('data-payment-method-row="apple_pay"');
+    expect(html).not.toContain("Apple Pay is unavailable in this browser.");
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
+    expect(html).not.toContain('class="checkout-sticky-action"');
+  });
+
+  it("passes eligible selected wallet context to the order summary action", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({ selectedPaymentMethod: "venmo" })}
+        renderPaymentAction={(context) => (
+          <div
+            data-payment-action-placement="order-summary"
+            data-payment-checkout-draft-id={context.checkoutDraftId}
+            data-payment-fulfillment-mode={context.fulfillmentMode}
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Wallet action
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('data-payment-method-row="venmo"');
+    expect(html).toContain('data-payment-action-placement="order-summary"');
+    expect(html).toContain(
+      'data-payment-checkout-draft-id="draft_delivery_123"',
+    );
+    expect(html).toContain('data-payment-fulfillment-mode="delivery"');
+    expect(html).toContain('data-payment-method="venmo"');
+  });
 });
 
 function checkoutData(
   overrides: Partial<
     Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation"> & {
-      readonly selectedPaymentMethod: "paypal" | "paylater" | "card";
+      readonly paymentChoices: readonly CheckoutChoice[];
+      readonly saveForFutureEligible: boolean;
+      readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
     }
   > = {},
 ): CheckoutPageData {
@@ -239,7 +375,13 @@ function checkoutData(
       ? "Pay Later selected"
       : selectedPaymentMethod === "card"
         ? "Credit or debit card selected"
-        : "PayPal selected";
+        : selectedPaymentMethod === "apple_pay"
+          ? "Apple Pay selected"
+          : selectedPaymentMethod === "google_pay"
+            ? "Google Pay selected"
+            : selectedPaymentMethod === "venmo"
+              ? "Venmo selected"
+              : "PayPal selected";
 
   const data: CheckoutPageData = {
     activeMode: overrides.activeMode ?? "delivery",
@@ -256,6 +398,9 @@ function checkoutData(
         totalLabel: "$25.98",
         selectedPaymentLabel,
         selectedPaymentMethod,
+        ...(overrides.saveForFutureEligible === undefined
+          ? {}
+          : { saveForFutureEligible: overrides.saveForFutureEligible }),
       },
       steps: [
         {
@@ -281,6 +426,9 @@ function checkoutData(
           title: "Payment method",
           state: "editing",
           body: "Radio-first payment method wall renders here.",
+          ...(overrides.paymentChoices
+            ? { choices: overrides.paymentChoices }
+            : {}),
         },
       ],
     },
@@ -295,6 +443,9 @@ function checkoutData(
         totalLabel: "$12.99",
         selectedPaymentLabel,
         selectedPaymentMethod,
+        ...(overrides.saveForFutureEligible === undefined
+          ? {}
+          : { saveForFutureEligible: overrides.saveForFutureEligible }),
         readyItemsLabel: "Ready for pickup: 1 item",
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",
@@ -329,6 +480,9 @@ function checkoutData(
           title: "Payment method",
           state: "idle",
           body: "Pickup payment method wall renders here.",
+          ...(overrides.paymentChoices
+            ? { choices: overrides.paymentChoices }
+            : {}),
         },
       ],
     },

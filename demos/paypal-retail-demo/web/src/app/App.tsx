@@ -25,6 +25,11 @@ import {
   type CheckoutPaymentActionContext,
   type CheckoutPageData,
 } from "../features/checkout/CheckoutPage.js";
+import {
+  defaultExpressReviewPageData,
+  ExpressReviewPage,
+  type ExpressReviewPageData,
+} from "../features/checkout/ExpressReviewPage.js";
 import { CardFieldsCheckoutAction } from "../features/payments/CardFieldsCheckoutAction.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
 import {
@@ -32,6 +37,10 @@ import {
   PayLaterStandaloneAction,
 } from "../features/payments/PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "../features/payments/PayPalStandaloneAction.js";
+import {
+  WalletCheckoutAction,
+  type WalletPaymentMethod,
+} from "../features/payments/WalletCheckoutAction.js";
 import { StatusRegion } from "../components/accessibility.js";
 import { AppProviders } from "../state/appProviders.js";
 import {
@@ -52,6 +61,7 @@ export interface AppProps {
   >;
   readonly initialCart?: CartData;
   readonly initialCheckout?: CheckoutPageData;
+  readonly initialExpressReview?: ExpressReviewPageData;
 }
 
 export function App({
@@ -62,6 +72,7 @@ export function App({
   initialProductPages,
   initialCart,
   initialCheckout,
+  initialExpressReview,
 }: AppProps = {}) {
   const route = resolveAppRoute(initialPathname ?? browserPathname());
   const shellState = createInitialStorefrontState();
@@ -81,6 +92,7 @@ export function App({
         productPages={initialProductPages ?? defaultProductDetailPages}
         cartData={initialCart ?? defaultCartData}
         checkoutData={initialCheckout ?? defaultCheckoutPageData}
+        expressReviewData={initialExpressReview ?? defaultExpressReviewPageData}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -96,6 +108,7 @@ function BuyerShell({
   productPages,
   cartData,
   checkoutData,
+  expressReviewData,
   authModalState,
   minicartState,
 }: {
@@ -106,6 +119,7 @@ function BuyerShell({
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
+  readonly expressReviewData: ExpressReviewPageData;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -150,6 +164,7 @@ function BuyerShell({
           productPages={productPages}
           cartData={cartData}
           checkoutData={checkoutData}
+          expressReviewData={expressReviewData}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
               config,
@@ -186,6 +201,7 @@ function RouteStage({
   productPages,
   cartData,
   checkoutData,
+  expressReviewData,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderPayLaterRowMessage,
@@ -196,6 +212,7 @@ function RouteStage({
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
+  readonly expressReviewData: ExpressReviewPageData;
   readonly renderCardPaymentBox: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -215,6 +232,10 @@ function RouteStage({
         renderPayLaterRowMessage={renderPayLaterRowMessage}
       />
     );
+  }
+
+  if (route.page === "express_review") {
+    return <ExpressReviewPage data={expressReviewData} />;
   }
 
   if (route.page === "cart") {
@@ -259,13 +280,16 @@ function renderCheckoutPaymentAction({
   readonly context: CheckoutPaymentActionContext;
 }) {
   if (
+    !context.checkoutDraftId ||
+    !context.selectedPaymentEligible ||
     (context.selectedPaymentMethod !== "paypal" &&
-      context.selectedPaymentMethod !== "paylater") ||
-    !context.checkoutDraftId
+      context.selectedPaymentMethod !== "paylater" &&
+      !isWalletPaymentMethod(context.selectedPaymentMethod))
   ) {
     return null;
   }
   const isPayLater = context.selectedPaymentMethod === "paylater";
+  const isWallet = isWalletPaymentMethod(context.selectedPaymentMethod);
 
   return (
     <PayPalSdkProviderScope
@@ -275,10 +299,20 @@ function renderCheckoutPaymentAction({
         market: config.market.code,
         pageType: "checkout",
         flow: "standard",
-        method: isPayLater ? "paylater" : "paypal",
+        method: context.selectedPaymentMethod,
       }}
     >
-      {isPayLater ? (
+      {isWallet ? (
+        <WalletCheckoutAction
+          checkoutDraftId={context.checkoutDraftId}
+          currencyCode={config.market.currencyCode}
+          fulfillmentMode={context.fulfillmentMode}
+          market={config.market.code}
+          method={context.selectedPaymentMethod}
+          storeDisplayName={config.profile.displayName}
+          totalLabel={context.totalLabel}
+        />
+      ) : isPayLater ? (
         <PayLaterStandaloneAction
           buyerCountry={resolvePayLaterBuyerCountry(config)}
           checkoutDraftId={context.checkoutDraftId}
@@ -289,12 +323,21 @@ function renderCheckoutPaymentAction({
         />
       ) : (
         <PayPalStandaloneAction
+          canSavePaymentMethod={context.saveForFutureEligible}
           checkoutDraftId={context.checkoutDraftId}
           fulfillmentMode={context.fulfillmentMode}
           market={config.market.code}
         />
       )}
     </PayPalSdkProviderScope>
+  );
+}
+
+function isWalletPaymentMethod(
+  method: CheckoutPaymentActionContext["selectedPaymentMethod"],
+): method is WalletPaymentMethod {
+  return (
+    method === "apple_pay" || method === "google_pay" || method === "venmo"
   );
 }
 
@@ -321,6 +364,7 @@ function renderCardPaymentBox({
       }}
     >
       <CardFieldsCheckoutAction
+        canSavePaymentMethod={context.saveForFutureEligible}
         checkoutDraftId={context.checkoutDraftId}
         fulfillmentMode={context.fulfillmentMode}
         market={config.market.code}

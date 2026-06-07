@@ -14,6 +14,7 @@ import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
 
 export interface CardFieldsCheckoutActionProps {
+  readonly canSavePaymentMethod?: boolean;
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
@@ -30,6 +31,7 @@ export interface CardFieldsCreateOrderRequest {
 }
 
 export function CardFieldsCheckoutAction({
+  canSavePaymentMethod = false,
   checkoutDraftId,
   fulfillmentMode,
   market,
@@ -37,6 +39,7 @@ export function CardFieldsCheckoutAction({
   return (
     <PayPalCardFieldsProvider>
       <CardFieldsCheckoutForm
+        canSavePaymentMethod={canSavePaymentMethod}
         checkoutDraftId={checkoutDraftId}
         fulfillmentMode={fulfillmentMode}
         market={market}
@@ -46,6 +49,7 @@ export function CardFieldsCheckoutAction({
 }
 
 function CardFieldsCheckoutForm({
+  canSavePaymentMethod = false,
   checkoutDraftId,
   fulfillmentMode,
   market,
@@ -57,13 +61,14 @@ function CardFieldsCheckoutForm({
   );
   const { error, submit, submitResponse } =
     usePayPalCardFieldsOneTimePaymentSession();
+  const effectiveVaultRequested = canSavePaymentMethod && vaultRequested;
 
   const createOrder = useCallback(async () => {
     const request = buildCardFieldsCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
       market,
-      vaultRequested,
+      vaultRequested: effectiveVaultRequested,
     });
     const order = await apiClient.post<PayPalCreateOrderResponse>(
       request.path,
@@ -75,11 +80,17 @@ function CardFieldsCheckoutForm({
       paypalOrderId: order.paypal_order_id,
       paymentSessionId: order.payment_session_id ?? null,
       merchantOrderId: order.merchant_order_id ?? null,
-      vaultRequested,
+      vaultRequested: effectiveVaultRequested,
     });
 
     return order.paypal_order_id;
-  }, [apiClient, checkoutDraftId, fulfillmentMode, market, vaultRequested]);
+  }, [
+    apiClient,
+    checkoutDraftId,
+    effectiveVaultRequested,
+    fulfillmentMode,
+    market,
+  ]);
 
   const handleSubmit = useCallback(async () => {
     setSubmitStatus("Submitting card payment.");
@@ -159,14 +170,16 @@ function CardFieldsCheckoutForm({
           />
         </label>
       </div>
-      <label className="card-fields-checkout-action__save">
-        <input
-          checked={vaultRequested}
-          onChange={(event) => setVaultRequested(event.currentTarget.checked)}
-          type="checkbox"
-        />
-        <span>Save card for future purchases</span>
-      </label>
+      {canSavePaymentMethod ? (
+        <label className="card-fields-checkout-action__save">
+          <input
+            checked={vaultRequested}
+            onChange={(event) => setVaultRequested(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>Save card for future purchases</span>
+        </label>
+      ) : null}
       <button className="card-fields-checkout-action__submit" type="submit">
         Pay by card
       </button>

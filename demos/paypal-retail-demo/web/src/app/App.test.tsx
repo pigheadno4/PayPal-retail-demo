@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { CategoryPageData } from "../features/catalog/CategoryPage.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
-import type { CheckoutPageData } from "../features/checkout/CheckoutPage.js";
+import type {
+  CheckoutChoice,
+  CheckoutPageData,
+  CheckoutSelectedPaymentMethod,
+} from "../features/checkout/CheckoutPage.js";
+import type { ExpressReviewPageData } from "../features/checkout/ExpressReviewPage.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import { App } from "./App.js";
 
@@ -163,6 +168,27 @@ describe("App shell", () => {
     expect(html).toContain('data-paypal-sdk-page-type="checkout"');
     expect(html).toContain('data-paypal-sdk-status="loading"');
     expect(html).not.toContain('href="/admin"');
+    expect(html).not.toContain("Review and Confirm");
+  });
+
+  it("renders the express Review and Confirm page for express checkout return routes", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/checkout/express-review"
+        initialExpressReview={expressReviewData()}
+      />,
+    );
+
+    expect(html).toContain('data-route-page="express_review"');
+    expect(html).toContain("Review and Confirm");
+    expect(html).toContain("Delivery express from minicart");
+    expect(html).toContain("DO-20260607-000777");
+    expect(html).toContain("PayPal order 4MX98765YA1234567");
+    expect(html).toContain("Payment session synchronized");
+    expect(html).toContain("Confirm and pay");
+    expect(html).not.toContain("Pickup");
+    expect(html).not.toContain('class="paypal-provider-scope"');
+    expect(html).not.toContain("Delivery or Pickup");
   });
 
   it("renders the Pay Later checkout provider scope when Pay Later is selected", () => {
@@ -195,6 +221,44 @@ describe("App shell", () => {
     expect(html).toContain('data-paypal-sdk-status="loading"');
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
+  });
+
+  it.each([
+    ["Apple Pay", "apple_pay"],
+    ["Google Pay", "google_pay"],
+    ["Venmo", "venmo"],
+  ] as const)(
+    "renders the %s checkout provider scope when selected",
+    (_label, selectedPaymentMethod) => {
+      const html = renderToStaticMarkup(
+        <App
+          initialPathname="/checkout"
+          initialCheckout={checkoutData({ selectedPaymentMethod })}
+        />,
+      );
+
+      expect(html).toContain(
+        `data-paypal-sdk-method="${selectedPaymentMethod}"`,
+      );
+      expect(html).toContain('data-paypal-sdk-status="loading"');
+    },
+  );
+
+  it("does not render an ineligible selected wallet action", () => {
+    const html = renderToStaticMarkup(
+      <App
+        initialPathname="/checkout"
+        initialCheckout={checkoutData({
+          selectedPaymentMethod: "apple_pay",
+          walletEligible: false,
+        })}
+      />,
+    );
+
+    expect(html).not.toContain('data-payment-method-row="apple_pay"');
+    expect(html).not.toContain('data-paypal-sdk-method="apple_pay"');
+    expect(html).not.toContain('data-wallet-method="apple_pay"');
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
   });
 });
 
@@ -355,17 +419,111 @@ function cartData(): CartData {
   };
 }
 
+function expressReviewData(): ExpressReviewPageData {
+  return {
+    sourceLabel: "Delivery express from minicart",
+    merchantOrderNumber: "DO-20260607-000777",
+    paypalOrderId: "4MX98765YA1234567",
+    paymentMethodLabel: "Pay Later",
+    statusLabel: "Payment session synchronized",
+    shippingAddress: {
+      name: "Taylor Chen",
+      line1: "88 Spring Street",
+      line2: "New York, NY 10012",
+      country: "United States",
+    },
+    shippingOption: {
+      label: "Standard shipping",
+      detail: "Arrives in 4-6 business days",
+      amountLabel: "$5.00",
+    },
+    items: [
+      {
+        id: "line-1",
+        name: "Labubu Have a Seat",
+        detail: "Blind Boxes - Qty 1",
+        amountLabel: "$12.99",
+      },
+    ],
+    totals: [
+      {
+        label: "Merchandise subtotal",
+        amountLabel: "$12.99",
+      },
+      {
+        label: "Shipping",
+        amountLabel: "$5.00",
+      },
+      {
+        label: "Promo",
+        amountLabel: "-$2.00",
+      },
+      {
+        label: "Tax",
+        amountLabel: "$1.32",
+      },
+      {
+        label: "Total",
+        amountLabel: "$17.31",
+        emphasis: true,
+      },
+    ],
+    amountGuard: {
+      status: "verified",
+      label: "Amount verified",
+      body: "Merchant total matches the synchronized PayPal order amount.",
+    },
+  };
+}
+
 function checkoutData({
   selectedPaymentMethod = "paypal",
+  walletEligible = true,
 }: {
-  readonly selectedPaymentMethod?: "paypal" | "paylater" | "card";
+  readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
+  readonly walletEligible?: boolean;
 } = {}): CheckoutPageData {
   const selectedPaymentLabel =
     selectedPaymentMethod === "paylater"
       ? "Pay Later selected"
       : selectedPaymentMethod === "card"
         ? "Credit or debit card selected"
-        : "PayPal selected";
+        : selectedPaymentMethod === "apple_pay"
+          ? "Apple Pay selected"
+          : selectedPaymentMethod === "google_pay"
+            ? "Google Pay selected"
+            : selectedPaymentMethod === "venmo"
+              ? "Venmo selected"
+              : "PayPal selected";
+  const paymentChoices: readonly CheckoutChoice[] = [
+    {
+      label: "PayPal",
+      method: "paypal",
+    },
+    {
+      label: "Pay Later",
+      method: "paylater",
+    },
+    {
+      label: "Credit or debit card",
+      method: "card",
+    },
+    {
+      label: "Apple Pay",
+      method: "apple_pay",
+      eligible: selectedPaymentMethod === "apple_pay" ? walletEligible : true,
+    },
+    {
+      label: "Google Pay",
+      method: "google_pay",
+      eligible: selectedPaymentMethod === "google_pay" ? walletEligible : true,
+    },
+    {
+      label: "Venmo",
+      method: "venmo",
+      eligible: selectedPaymentMethod === "venmo" ? walletEligible : true,
+    },
+  ];
 
   return {
     activeMode: "delivery",
@@ -395,6 +553,7 @@ function checkoutData({
           title: "Payment method",
           state: "editing",
           body: "Radio-first payment method wall renders here.",
+          choices: paymentChoices,
         },
       ],
     },
@@ -425,6 +584,7 @@ function checkoutData({
           title: "Payment method",
           state: "editing",
           body: "Pickup payment method wall renders here.",
+          choices: paymentChoices,
         },
       ],
     },

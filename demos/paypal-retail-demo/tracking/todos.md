@@ -75,4 +75,13 @@
 - [x] Continue Milestone 12 with selected PayPal standalone button rendering under Order Summary.
 - [x] Continue Milestone 12 with Pay Later radio-row message and selected Pay Later button/message under Order Summary.
 - [x] Continue Milestone 12 with expanded card fields and save checkbox inside the card payment box.
-- [ ] Continue Milestone 12 with Apple Pay, Google Pay, and Venmo eligible button surfaces.
+- [x] Continue Milestone 12 with Apple Pay, Google Pay, and Venmo eligible button surfaces.
+- [x] Continue Milestone 12 with reserved layout-space polish and authenticated save-for-future gating.
+- [x] Start Milestone 13 with the express Review and Confirm route/page.
+- [x] Add Milestone 11.5 Buyer Flow Interaction Recovery after the done-milestone gap audit.
+- [ ] Start Milestone 11.5 with failing buyer-flow tests for PDP/cart/minicart actions and checkout section progression.
+- [ ] Continue Milestone 11.5 with PDP add-to-cart, cart/minicart state wiring, and delivery-only express entry behavior.
+- [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
+- [ ] Continue Milestone 11.5 with payment-method-driven PayPal/Pay Later/card/wallet surface switching.
+- [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
+- [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.

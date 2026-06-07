@@ -66,12 +66,12 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - PayPal Client ID is browser-safe and should be delivered to the frontend through the backend SDK config API.
 - PayPal Client Secret and OAuth access tokens are server-only.
 - PayPal client token should be generated only for flows that require it, such as vault-enabled card or PayPal wallet flows.
-- Authenticated save-for-future captures create local saved-payment records only when `vault_requested = true`: `VAULTED` becomes active immediately, while `APPROVED` stays pending until a verified `VAULT.PAYMENT-TOKEN.CREATED` webhook provides the vault ID.
+- Authenticated save-for-future captures create local saved-payment records only when `vault_requested = true`: the checkout UI can send that flag only from eligible PayPal/card save controls, `VAULTED` becomes active immediately, while `APPROVED` stays pending until a verified `VAULT.PAYMENT-TOKEN.CREATED` webhook provides the vault ID.
 - Saved payment deletion uses PayPal Payment Method Tokens delete when a vault ID exists, then marks the local account record deleted.
 - PayPal webhook verification uses `POST /v1/notifications/verify-webhook-signature` with `PAYPAL_WEBHOOK_ID` and notification headers before any state mutation.
 - PayPal and Pay Later use the `paypal-payments` component.
 - Pay Later should be gated by eligibility. Amount-aware messages must use the current product/cart/order amount; message amount does not change the actual captured order amount.
-- Card fields use the `card-fields` component, render PayPal-hosted iframe fields, submit the PayPal order ID as a plain string, and capture server-side after successful submit/3DS handling. The checkout UI keeps the card fields, save checkbox, and card pay button inside the expanded payment row rather than the Order Summary or mobile sticky bar.
+- Card fields use the `card-fields` component, render PayPal-hosted iframe fields, submit the PayPal order ID as a plain string, and capture server-side after successful submit/3DS handling. The checkout UI keeps the card fields, eligible-only save checkbox, and card pay button inside the expanded payment row rather than the Order Summary or mobile sticky bar.
 - Apple Pay uses `applepay-payments` and has domain validation/browser/device prerequisites. Apple Pay go-live requires domain association and PayPal capability setup.
 - Google Pay uses `googlepay-payments`, the Google Pay SDK, PayPal eligibility/config, `confirmOrder`, and possible 3DS payer action handling.
 - Venmo uses `venmo-payments`, is US/USD focused, and has sandbox limitations. Desktop sandbox may not match production QR behavior.
@@ -83,7 +83,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Delivery express Create Order should use `shipping_preference: "GET_FROM_FILE"` so wallet address changes can trigger shipping callbacks.
 - Subscribe to `SHIPPING_ADDRESS` first. Add `SHIPPING_OPTIONS` only if implementation needs recalculation when the buyer changes the selected option inside PayPal.
 - Callback responses must keep PayPal amount breakdown internally consistent: selected shipping cost, item total, tax total, currency, and purchase unit total must all match the merchant snapshot.
-- After PayPal approval, show merchant Review and Confirm for express only, then capture after final amount consistency verification.
+- After PayPal approval, show merchant Review and Confirm at `/checkout/express-review` for express only, then capture after final amount consistency verification.
 - Backend capture uses the locked merchant/provider amount snapshot before calling PayPal; the sanitized Orders capture response is stored for Admin/debug review.
 - Successful capture is the durable finalization point: order status becomes paid, payment session becomes captured, inventory decrements, lifecycle/total snapshots are written, and only paid order items are removed from the active cart.
 
@@ -381,6 +381,8 @@ Required for:
 - Reserve layout space for PayPal buttons and Pay Later messages to avoid large layout shifts after eligibility checks.
 - Scope the PayPal SDK provider around the selected checkout payment action so Order Summary can render PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo without reinitializing the whole app shell.
 - Render Pay Later with `method=paylater`, `paypal-payments` plus `paypal-messages`, an amount-aware `<paypal-message>` in the Pay Later row, and the selected Pay Later button/message under Order Summary.
+- Render wallet methods only from eligible checkout rows. Apple Pay uses the React SDK v6 wallet component only after PayPal eligibility returns Apple Pay config; Venmo uses the React SDK v6 wallet component when the provider is ready; Google Pay is runtime-gated because PayPal exposes the Google Pay session while Google's PaymentsClient owns the button/payment-data flow.
+- Render save-for-future controls only for authenticated eligible PayPal/card methods; Pay Later, Apple Pay, Google Pay, Venmo, and guests do not show save controls in v1.
 
 ### Backend
 

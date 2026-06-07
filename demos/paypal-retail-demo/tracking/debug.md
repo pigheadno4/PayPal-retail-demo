@@ -43,3 +43,10 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 ## 2026-06-05
 
 - Card Fields SDK v6 uses PayPal-hosted iframes that fill their parent containers. The checkout card box therefore gives number/expiry/CVV containers stable `min-height` and `width` before rendering `PayPalCardNumberField`, `PayPalCardExpiryField`, and `PayPalCardCvvField`.
+- Apple Pay and Venmo are available as React SDK v6 components in `@paypal/react-paypal-js@9.2.0`, but their custom elements only render after SDK hydration and real wallet eligibility. Server-rendered tests therefore assert the wrapper/status/required-component metadata, not a hydrated wallet element.
+- The installed React SDK v6 package does not export a Google Pay React button component. Google Pay uses the PayPal JS SDK `createGooglePayOneTimePaymentSession()` plus Google's PaymentsClient-controlled button/payment-data flow, so the current checkout surface is runtime-gated until both the PayPal Google Pay session and Google PaymentsClient are available.
+
+## 2026-06-07
+
+- Done-milestone gap root cause: some M9-M12 UI items were marked complete when the screen layout and component tests existed, but the actual buyer actions were still shell-level. Evidence includes checkout address inputs rendered as `readOnly`, checkout option rows rendered as non-changing fixture choices, section buttons without submit behavior, and PDP/cart/minicart action controls that render without completing the promised cart/payment session behavior.
+- Prevention rule: do not close a UI milestone unless every visible action is wired, disabled with a buyer-facing reason, or explicitly recorded as deferred. Completion evidence must include interaction tests or manual verification notes, not only render/snapshot coverage.

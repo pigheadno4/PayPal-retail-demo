@@ -429,7 +429,7 @@ Payment method mapping rules:
 - Pay Later maps to `paypal-payments` plus `paypal-messages`, `findEligibleMethods().isEligible("paylater")`, `getDetails("paylater")`, `createPayLaterOneTimePaymentSession`, `<paypal-pay-later-button>`, and amount-aware messages.
 - Card maps to `card-fields`, `findEligibleMethods().isEligible("advanced_cards")`, `createCardFieldsOneTimePaymentSession`, and hosted card fields. Its pay button stays inside the card box, including mobile.
 - Apple Pay maps to `applepay-payments`, Apple Pay config eligibility, `createApplePayOneTimePaymentSession`, and an official Apple Pay button surface.
-- Google Pay maps to `googlepay-payments`, Google Pay config eligibility, `createGooglePayOneTimePaymentSession`, and an official Google Pay button surface.
+- Google Pay maps to `googlepay-payments`, Google Pay config eligibility, `createGooglePayOneTimePaymentSession`, and a Google PaymentsClient-controlled button/payment-data surface. The PayPal SDK owns the Google Pay payment session and confirmation bridge; Google's runtime owns the button rendering.
 - Venmo maps to `venmo-payments`, `findEligibleMethods().isEligible("venmo")`, `createVenmoOneTimePaymentSession`, and `<venmo-button>`. V1 demo hides Venmo outside US/USD even if generic runtime checks are stubbed as eligible.
 - The method plan returns renderable rows, the selected/default method, required components for renderable rows, and hidden methods with debug reasons.
 
@@ -540,6 +540,7 @@ Rules:
 - use `shipping_preference: "SET_PROVIDED_ADDRESS"` so the selected checkout shipping address remains the order address
 - do not use server-side shipping callbacks in full checkout Delivery; address, shipping option, tax, promo, and amount are finalized before payment approval
 - include detailed item data when available and keep `items[]` reconciled with `amount.breakdown.item_total`
+- checkout PayPal wallet calls can include `method: "paypal"` plus `vault_requested` only when the authenticated eligible buyer opted into save-for-future
 - checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend includes card vault attributes only when the authenticated buyer opted in and is eligible
 
 ### `POST /api/paypal/orders/express-delivery`
@@ -555,7 +556,7 @@ Rules:
 - include `payment_source.paypal.experience_context.order_update_callback_config`
 - default callback subscription is `["SHIPPING_ADDRESS"]`; add `SHIPPING_OPTIONS` only when the selected shipping option must trigger a fresh amount/promo recalculation
 - callback URL points to `POST /api/paypal/orders/:callbackContextId/shipping-callback` with enough internal cart/session context for server-side recalculation. Because PayPal order ID is not known until Create Order returns, the initial callback context can be the merchant order/payment-session identifier; the callback handler should also read the PayPal order ID from PayPal's callback payload when present.
-- return buyer to merchant Review and Confirm after PayPal approval
+- return buyer to merchant Review and Confirm at `/checkout/express-review` after PayPal approval
 
 ### `POST /api/paypal/orders/bopis`
 
@@ -627,6 +628,7 @@ Rules:
 - BOPIS uses the selected store as the PayPal purchase unit shipping address.
 - BOPIS amount breakdown excludes shipping fee.
 - Do not attach server-side shipping callback config to v1 BOPIS orders.
+- Checkout PayPal wallet calls can include `method: "paypal"` plus `vault_requested` only when the authenticated eligible buyer opted into save-for-future.
 - Checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend preserves pickup shipping semantics while applying card payment/vault attributes only when eligible.
 
 ### `POST /api/paypal/orders/:callbackContextId/shipping-callback`

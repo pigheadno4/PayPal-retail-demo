@@ -6,7 +6,7 @@ Every promoted learning must be listed in the Entries table below. Each row link
 
 | Entry | Category | Summary |
 |-------|----------|---------|
-| _none yet_ | — | First promoted learning goes here. |
+| [Milestone Close Gates For Demo Work](demo-ops/milestone-close-gates.md) | Demo Operations | Rendered UI is shell progress; milestones need verified user behavior or explicit deferral. |
 
 ## Categories
 

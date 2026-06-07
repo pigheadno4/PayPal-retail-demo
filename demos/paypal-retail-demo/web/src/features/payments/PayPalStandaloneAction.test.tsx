@@ -32,6 +32,27 @@ describe("PayPalStandaloneAction", () => {
     });
   });
 
+  it("builds the delivery create-order request with save-for-future opt-in", () => {
+    expect(
+      buildPayPalCreateOrderRequest({
+        checkoutDraftId: "draft_delivery_123",
+        fulfillmentMode: "delivery",
+        market: "US",
+        vaultRequested: true,
+      }),
+    ).toEqual({
+      path: "/api/paypal/orders/delivery",
+      body: {
+        checkout_draft_id: "draft_delivery_123",
+        method: "paypal",
+        vault_requested: true,
+      },
+      query: {
+        market: "US",
+      },
+    });
+  });
+
   it("builds the pickup create-order request used by the PayPal button", () => {
     expect(
       buildPayPalCreateOrderRequest({
@@ -89,7 +110,45 @@ describe("PayPalStandaloneAction", () => {
     expect(html).toContain(
       'data-payment-checkout-draft-id="draft_delivery_123"',
     );
+    expect(html).not.toContain("Save PayPal for future purchases");
     expect(html).toContain("PayPal payment button ready.");
+  });
+
+  it("renders the save-for-future checkbox only when eligible", () => {
+    const apiClient = createApiClient({
+      baseUrl: "https://demo.example.test",
+      fetch: async () =>
+        ({
+          status: 200,
+          json: async () => ({ ok: true, data: {}, debug_id: "dbg_test" }),
+        }) as Response,
+    });
+
+    const html = renderToStaticMarkup(
+      <AppProviders apiClient={apiClient}>
+        <PayPalSdkProviderScope
+          providerKey={sdkConfig().provider_key}
+          configRequest={{
+            market: "US",
+            pageType: "checkout",
+            flow: "standard",
+            method: "paypal",
+          }}
+          initialSdkConfig={sdkConfig()}
+        >
+          <PayPalStandaloneAction
+            canSavePaymentMethod
+            checkoutDraftId="draft_delivery_123"
+            fulfillmentMode="delivery"
+            market="US"
+          />
+        </PayPalSdkProviderScope>
+      </AppProviders>,
+    );
+
+    expect(html).toContain("Save PayPal for future purchases");
+    expect(html).toContain('type="checkbox"');
+    expect(html).not.toContain("checked");
   });
 });
 

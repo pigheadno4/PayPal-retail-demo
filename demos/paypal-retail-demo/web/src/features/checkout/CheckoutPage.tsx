@@ -48,6 +48,8 @@ export interface CheckoutChoice {
   readonly description?: string;
   readonly amountLabel?: string;
   readonly badgeLabel?: string;
+  readonly eligible?: boolean;
+  readonly ineligibleReasonLabel?: string;
   readonly selected?: boolean;
 }
 
@@ -71,6 +73,7 @@ export interface CheckoutOrderSummary {
   readonly totalLabel: string;
   readonly selectedPaymentLabel: string;
   readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
+  readonly saveForFutureEligible?: boolean;
   readonly readyItemsLabel?: string;
   readonly unavailableItemsLabel?: string;
   readonly partialInventoryNote?: string;
@@ -107,6 +110,8 @@ export type CheckoutSelectedPaymentMethod =
 export interface CheckoutPaymentActionContext {
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly checkoutDraftId: string | null;
+  readonly saveForFutureEligible: boolean;
+  readonly selectedPaymentEligible: boolean;
   readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
   readonly totalLabel: string;
 }
@@ -156,15 +161,25 @@ export function CheckoutPage({
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
+  const activeSelectedPaymentMethod =
+    activeDraft.summary.selectedPaymentMethod ?? "paypal";
+  const activeSelectedPaymentEligible = isSelectedPaymentMethodEligible(
+    activeDraft,
+    activeSelectedPaymentMethod,
+  );
   const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
-    selectedPaymentMethod:
-      activeDraft.summary.selectedPaymentMethod ?? "paypal",
+    saveForFutureEligible:
+      activeSelectedPaymentEligible &&
+      isSaveForFutureEligible(activeDraft.summary, activeSelectedPaymentMethod),
+    selectedPaymentEligible: activeSelectedPaymentEligible,
+    selectedPaymentMethod: activeSelectedPaymentMethod,
     totalLabel: activeDraft.summary.totalLabel,
   };
   const paymentAction =
-    activePaymentContext.selectedPaymentMethod === "card"
+    activePaymentContext.selectedPaymentMethod === "card" ||
+    !activePaymentContext.selectedPaymentEligible
       ? null
       : renderPaymentAction?.(activePaymentContext);
   const cardPaymentBox =
@@ -267,7 +282,8 @@ export function CheckoutPage({
         />
       </div>
 
-      {activePaymentContext.selectedPaymentMethod === "card" ? null : (
+      {activePaymentContext.selectedPaymentMethod === "card" ||
+      !activePaymentContext.selectedPaymentEligible ? null : (
         <div
           className="checkout-sticky-action"
           aria-label="Selected payment action"
@@ -552,7 +568,12 @@ function CheckoutSummary({
         aria-label="Selected payment method"
       >
         <span>{summary.selectedPaymentLabel}</span>
-        <div className="checkout-summary__slot">{paymentAction}</div>
+        <div
+          className="checkout-summary__slot"
+          data-payment-action-reserved-space="true"
+        >
+          {paymentAction}
+        </div>
       </section>
     </aside>
   );
@@ -624,13 +645,49 @@ function normalizePaymentChoices(
     return choices;
   }
 
-  return choices.map((choice) =>
-    choice.method
-      ? {
-          ...choice,
-          selected: choice.method === selectedPaymentMethod,
-        }
-      : choice,
+  return choices
+    .filter((choice) => choice.eligible !== false)
+    .map((choice) =>
+      choice.method
+        ? {
+            ...choice,
+            selected: choice.method === selectedPaymentMethod,
+          }
+        : choice,
+    );
+}
+
+function isSelectedPaymentMethodEligible(
+  draft: CheckoutFulfillmentDraft,
+  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+): boolean {
+  const paymentStep = draft.steps.find(
+    (step) =>
+      step.id === "payment-method" || step.id === "pickup-payment-method",
+  );
+
+  if (!paymentStep) {
+    return false;
+  }
+
+  const stepWithDetails = withDefaultStepDetails(
+    paymentStep,
+    selectedPaymentMethod,
+  );
+  const selectedChoice = stepWithDetails.choices?.find(
+    (choice) => choice.method === selectedPaymentMethod,
+  );
+
+  return selectedChoice?.eligible !== false && selectedChoice !== undefined;
+}
+
+function isSaveForFutureEligible(
+  summary: CheckoutOrderSummary,
+  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+): boolean {
+  return (
+    summary.saveForFutureEligible === true &&
+    (selectedPaymentMethod === "paypal" || selectedPaymentMethod === "card")
   );
 }
 
@@ -716,6 +773,10 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       {
         label: "Google Pay",
         method: "google_pay",
+      },
+      {
+        label: "Venmo",
+        method: "venmo",
       },
     ],
   },
@@ -806,6 +867,18 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       {
         label: "Credit or debit card",
         method: "card",
+      },
+      {
+        label: "Apple Pay",
+        method: "apple_pay",
+      },
+      {
+        label: "Google Pay",
+        method: "google_pay",
+      },
+      {
+        label: "Venmo",
+        method: "venmo",
       },
     ],
   },
