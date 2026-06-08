@@ -30,7 +30,9 @@ Create a customer-ready collectible retail demo that feels like a real POP MART 
 - Local assets live under `web/public/assets/popmart/`.
 - Requires 25 products, 5 categories, and 3-4 real images per product.
 - No product gallery placeholders.
-- Visual contract: clean retail storefront, white/light neutral content surfaces, image-led product grids, compact badges, simple category navigation, and strong product photography.
+- Visual contract: playful premium collectible retail. The POP MART profile should feel lively, cute, surprising, and collectible, while still being polished enough for a customer sales demo.
+- Storefront foundation: warm light surfaces, image-led product grids, compact category navigation, strong product photography, and tactile product cards.
+- Mood keywords: blind-box reveal, toy shelf, collector drop, playful premium, cute designer collectible, limited release.
 - Do not apply the generic profile's vintage blue/amber/cream direction to the POP MART buyer storefront.
 
 ### Generic Profile
@@ -57,11 +59,40 @@ No PayPal-heavy hero, header, nav, or promotional co-branding.
 ## Visual System Rules
 
 - Favor product imagery, collectible character art, and retail merchandising density over abstract decorative effects.
+- Use a multi-accent POP MART profile palette instead of a one-accent red/white system: coral red for primary CTAs, candy pink for surprise/reveal accents, lemon yellow for drops/new arrivals, mint green for pickup/availability, sky blue for informational/payment-support surfaces, warm white for page background, and deep ink for body text.
+- Use color as modular section identity, not page-wide noise. Homepage modules, category chips, release calendar markers, promo cards, and inventory badges can each carry a small accent; product photography must remain the hero.
+- Use rounded, tactile, toy-like geometry where it improves delight: product cards, category pills, badges, and store cards can use 10-14px radii, soft shadows, and sticker-like tags. Checkout/payment controls should stay calmer and more utility-focused.
+- Badges should feel like retail stickers or collectible labels: `Limited`, `Hot`, `New drop`, `Low stock`, `Ready for pickup`, and `Not available at this store` should be compact, high-contrast, and text-based.
+- Prefer gentle hover/focus feedback: color shift, border highlight, soft lift, or shadow change in 150-300ms. Do not rely on hover-only behavior for touch users.
+- Typography should feel rounder than a generic SaaS UI. POP MART profile should prefer Rubik for headings and Nunito Sans for body/UI if web font loading is acceptable; otherwise keep system fonts but increase heading weight, friendliness, and spacing through CSS.
 - Avoid heavy glassmorphism, blurred translucent panels, large gradients, and decorative orbs; these reduce readability and do not match the POP MART storefront goal.
+- Avoid making the storefront look childish, carnival-like, or overloaded. The target is collectible retail energy, not a kids app.
 - Use restrained motion: hover/focus transitions around 150-300ms, with `prefers-reduced-motion` support.
 - Use icon buttons where the action is familiar, with accessible labels/tooltips.
 - Preserve space for async Pay Later messages and payment buttons so layout does not jump when PayPal eligibility finishes loading.
 - Text contrast must meet at least 4.5:1 for normal text. Do not communicate inventory, promo, release, or error state by color alone.
+
+### POP MART Profile Visual Language
+
+Homepage:
+
+- Hero should feel like a blind-box drop or collection launch, not a generic ecommerce banner.
+- Hot sales and popular series should use vivid but controlled labels such as `Trending`, `Limited`, `Last chance`, and `New drop`.
+- Category cards should feel like capsule/toy-shelf entries with strong images, short labels, and soft colored backgrounds.
+- New arrivals calendar should read as a drop calendar; outlined release dates can use small sticker-like markers with text labels.
+- Promo banners should feel like collectible event cards rather than plain information panels.
+
+Category and PDP:
+
+- Product cards should show clear current/regular price, release status, sale labels, and pickup availability without turning the whole grid into a dense table.
+- PDP should feel like inspecting a collectible: large gallery, thumbnails, concise story/details, status badge, and strong add-to-cart/payment hierarchy.
+- Unreleased products should stay visually exciting but have unmistakable disabled purchase states and no reviews.
+
+Cart, minicart, and checkout:
+
+- Cart/minicart can carry small pickup and Pay Later callouts, but should not become visually crowded with buttons.
+- Checkout should inherit the playful brand through accents, step badges, and selected summaries, but payment rows and official PayPal surfaces must remain stable and readable.
+- Pickup store cards can feel like store tickets: address, phone, distance, available/unavailable counts, and partial-inventory note in a compact, scannable block.
 
 ## Accessibility And Form Rules
 
@@ -174,6 +205,17 @@ Checkout is one `/checkout` page with top-level tabs:
 
 Each tab has its own accordion flow. Order Summary stays visible and reflects active tab draft totals/context.
 
+Accordion interaction contract:
+
+- Only one checkout section is expanded in the active tab at a time.
+- Initial Delivery state expands Shipping address only; all later sections are collapsed previews.
+- Initial Pickup guest state expands Pickup location only; all later sections are collapsed previews.
+- Initial Pickup logged-in state shows the preselected store summary in Store selection and lets the buyer change it from a store picker modal.
+- Submitting a section saves and collapses that section, then expands the next actionable section.
+- Editing a submitted section expands only that section, collapses the others, and marks downstream totals as needing recalculation where applicable.
+- Collapsed submitted sections show a compact buyer-readable summary plus an Edit action.
+- Accordions move focus to the newly expanded step after successful submit or edit.
+
 Checkout steps must define these UI states:
 
 - idle
@@ -211,14 +253,39 @@ After payment session/order:
 
 Logged-in buyer uses default address for ranking. Guest enters ZIP/postcode first.
 
-1. Rank stores.
-2. Preselect nearest store even if partial inventory.
-3. Buyer submits store.
-4. Billing expands.
-5. Buyer explicitly submits billing.
-6. Store-specific pickup calendar expands.
-7. Buyer selects date only.
-8. Payment method expands.
+Guest flow:
+
+1. Pickup location expands with ZIP/postcode input.
+2. Buyer submits ZIP/postcode.
+3. Store picker modal opens with ranked pickup stores.
+4. Buyer selects a store in the modal.
+5. Store selection collapses to the selected store summary.
+6. Billing expands.
+7. Buyer explicitly submits billing.
+8. Store-specific pickup calendar expands.
+9. Buyer selects date and submits.
+10. Payment method expands.
+
+Logged-in buyer flow:
+
+1. Store selection starts with the nearest store preselected from the default shipping address, even if partial inventory.
+2. Buyer can click Change store.
+3. Store picker modal opens with ranked pickup stores.
+4. Buyer keeps the preselected store or chooses another store.
+5. Buyer submits store.
+6. Billing expands.
+7. Buyer explicitly submits billing.
+8. Store-specific pickup calendar expands.
+9. Buyer selects date and submits.
+10. Payment method expands.
+
+Store picker modal:
+
+- Opens from guest ZIP/postcode submit or logged-in Change store.
+- Uses an accessible dialog with labelled title, close action, keyboard access, and focus return to the triggering control.
+- Store cards show store name, address, phone, distance, available item count, unavailable item count, and full/partial inventory status.
+- Store cards are selectable controls, not static cards.
+- Confirming a selected store updates Pickup Order Summary before payment.
 
 ### Partial Pickup
 
@@ -487,9 +554,13 @@ Order snapshots store addresses, item prices, fulfillment mode, inventory contex
 
 - Check responsive screenshots at 375px, 768px, 1024px, and 1440px.
 - Required screenshot pages: homepage, category, PDP, cart, minicart, delivery checkout payment step, pickup checkout partial inventory step, express Review and Confirm, order confirmation, account order detail, and Admin order detail.
+- Verify POP MART profile reads as playful premium collectible retail, not a generic white/red ecommerce shell.
+- Verify the multi-accent palette is controlled and section-based: no page-wide rainbow effect, no generic blue/amber/cream inheritance, and no childish clutter.
+- Verify product/category cards, badges, release calendar, promo cards, and pickup store cards use the tactile/sticker/store-ticket language defined above.
 - Verify sticky header and sticky payment bar do not cover content.
 - Verify all text fits inside buttons, cards, accordions, and payment rows.
 - Verify PayPal buttons/messages render without causing major layout shift.
+- Verify official PayPal buttons/messages remain visually stable, readable, and undistorted after the playful visual refresh.
 
 ## Open Decisions
 

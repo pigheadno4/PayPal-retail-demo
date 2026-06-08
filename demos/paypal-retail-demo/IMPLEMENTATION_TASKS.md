@@ -336,9 +336,13 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [ ] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
 - [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
 - [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
+- [ ] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
 - [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
 - [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
-- [ ] Wire Pickup checkout steps: buyer/default location, store selection with partial inventory, billing address, store-specific pickup date, promo/tax/inventory recalculation hooks, and payment-method selection.
+- [ ] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection.
+- [ ] Wire Pickup logged-in flow: nearest/default-address store preselected, Change store modal, selected-store summary, billing, pickup date, and payment-method selection.
+- [ ] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
+- [ ] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
 - [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
 - [ ] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
 - [ ] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
@@ -349,8 +353,11 @@ Verification:
 
 - PDP add-to-cart changes the cart and refreshes amount-aware Pay Later messaging.
 - Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
+- Delivery checkout starts with only Shipping address expanded; submitting or editing a section leaves only one section expanded.
 - Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
-- Buyer can complete all Pickup checkout sections from store selection to pickup date and selected payment method.
+- Guest Pickup opens a store-list modal after ZIP/postcode submit and can advance from selected store to pickup date and selected payment method.
+- Logged-in Pickup starts with a preselected nearest/default-address store, can change store from a modal, and can advance to pickup date and selected payment method.
+- Partial Pickup store selection updates the Pickup Order Summary and excludes unavailable items from the payable pickup amount while preserving original cart intent.
 - Payment method radio changes render the matching PayPal/Pay Later/card surface and hide unrelated selected-action surfaces.
 - Wallet radio surfaces remain open until Apple Pay, Google Pay, and Venmo runtime eligibility checks are verified.
 - No visible checkout/cart/PDP action is a silent placeholder.
@@ -430,12 +437,19 @@ Verification:
 
 - [ ] Run unit/API/UI test suite.
 - [ ] Run manual PayPal sandbox checklist.
+- [ ] Add POP MART playful collectible visual refresh tokens: coral CTA, candy pink, lemon yellow, mint green, sky blue, warm white, deep ink, and separate generic profile tokens.
+- [ ] Refresh storefront typography toward rounder retail character, preferring Rubik headings and Nunito Sans body/UI where web font loading is acceptable.
+- [ ] Refresh homepage visual language: blind-box/drop hero, hot-sales stickers, capsule/toy-shelf category cards, drop-calendar treatment, and collectible-event promo cards.
+- [ ] Refresh category and PDP product surfaces: tactile product cards, sticker-like status labels, clear current/regular price, release state, and pickup availability without table-like clutter.
+- [ ] Refresh cart, minicart, and checkout accents so the brand feels playful while PayPal official surfaces remain stable, readable, and visually undistorted.
+- [ ] Refresh Pickup store cards as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory notes.
 - [ ] Run responsive visual QA at 375px, 768px, 1024px, and 1440px.
 - [ ] Verify sticky header and sticky bottom payment bar do not cover content.
 - [ ] Verify checkout forms announce errors and move focus predictably.
 - [ ] Verify release calendar, promo, inventory, and lifecycle states do not rely on color alone.
 - [ ] Verify PayPal buttons/messages render without major layout shift.
-- [ ] Verify POP MART mode does not inherit generic profile colors or visual treatment.
+- [ ] Verify POP MART mode is playful premium collectible retail, not a generic white/red ecommerce shell and not the generic profile's blue/amber/cream treatment.
+- [ ] Verify visual accents stay controlled: no childish clutter, no heavy glassmorphism, no decorative orbs, no page-wide rainbow effect, and product imagery remains the hero.
 - [ ] Verify POP MART asset quality and replace weak images.
 - [ ] Verify generic MochiToy profile assets are public-safe.
 - [ ] Update runbook with exact commands.

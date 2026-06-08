@@ -377,7 +377,9 @@ Required for:
 - Build shared product/category/cart/checkout components.
 - Build account and guest order lookup pages.
 - Build `/admin` React portal.
-- Keep POP MART mode image-led and retail-first; do not apply heavy glassmorphism or generic profile colors to the POP MART storefront.
+- Keep POP MART mode image-led, playful, and retail-first; do not apply heavy glassmorphism or generic profile colors to the POP MART storefront.
+- Add a POP MART playful collectible visual pass after the buyer-flow recovery: multi-accent profile tokens, rounded/tactile product and category cards, sticker-like retail badges, drop-calendar styling, collectible-event promo cards, and calmer but branded checkout accents.
+- Keep PayPal official surfaces visually stable and readable during the visual pass; do not decorate or recolor official PayPal buttons/messages beyond their intended placement and reserved layout space.
 - Reserve layout space for PayPal buttons and Pay Later messages to avoid large layout shifts after eligibility checks.
 - Scope the PayPal SDK provider around the selected checkout payment action so Order Summary can render PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo without reinitializing the whole app shell.
 - Render Pay Later with `method=paylater`, `paypal-payments` plus `paypal-messages`, an amount-aware `<paypal-message>` in the Pay Later row, and the selected Pay Later button/message under Order Summary.
@@ -538,7 +540,8 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 
 - Manual sandbox checklist.
 - UI polish, accessibility checks, and responsive screenshot checks.
-- POP MART asset pass.
+- POP MART playful collectible visual pass.
+- POP MART asset quality pass.
 - MochiToy generated asset review.
 - Tracking updates.
 

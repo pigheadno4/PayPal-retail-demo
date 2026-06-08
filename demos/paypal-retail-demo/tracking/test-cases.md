@@ -151,7 +151,13 @@
 - [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
-- [ ] M11.5 Pickup checkout advances through location/store, billing address, pickup date, and payment selection.
+- [ ] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
+- [ ] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
+- [ ] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
+- [ ] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
+- [ ] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
+- [ ] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
+- [ ] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
 - [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
 - [ ] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
@@ -241,6 +247,12 @@
 - [x] Checkout Order Summary and Pay Later row reserve stable layout space for async PayPal button/message surfaces in component tests.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
+- [ ] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.
+- [ ] POP MART profile no longer reads as a generic white/red ecommerce shell across homepage, category, PDP, cart, minicart, and checkout screenshots.
+- [ ] Homepage hero, hot sales, category cards, release calendar, and promo cards communicate blind-box drop, collectible shelf, and limited-release energy without childish clutter.
+- [ ] Product/category cards use tactile rounded surfaces, soft hover/focus feedback, and sticker-like text badges without relying on color alone.
+- [ ] Checkout, cart, and minicart use playful accents sparingly while keeping PayPal official buttons/messages stable, readable, and visually undistorted.
+- [ ] Pickup store cards read as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory note.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.
 - [ ] PayPal buttons and Pay Later messages render without major layout shift in responsive browser screenshots.
 - [ ] Sticky header and sticky payment bar do not obscure content.

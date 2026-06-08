@@ -86,7 +86,14 @@
 - [x] Continue Milestone 11.5 with editable Delivery shipping address expand/shrink behavior.
 - [x] Continue Milestone 11.5 with Delivery billing-address and shipping-option expand/shrink progression.
 - [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
+- [ ] Continue Milestone 11.5 with single-expanded-section checkout accordion behavior.
+- [ ] Continue Milestone 11.5 with Pickup guest ZIP/postcode-to-store-list modal behavior.
+- [ ] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
+- [ ] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [ ] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
 - [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
+- [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
+- [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
+- [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.
