@@ -137,3 +137,4 @@
 ## 2026-06-09
 
 - Continued Milestone 11.5 checkout recovery with TDD: added the single-expanded-section accordion contract, then wired Delivery/Pickup panels so only the active step renders editable details, submitted Delivery steps collapse to summaries, edit reopens only the edited step, and payment rows/card boxes render only when the payment step is active.
+- Continued Milestone 11.5 Pickup guest recovery with TDD: added a failing ZIP/postcode-to-store-modal interaction test, then wired the Pickup location submit action, accessible ranked store-list dialog, selected store radio/confirm behavior, selected-store collapsed summary, Change store affordance, and billing-section handoff.

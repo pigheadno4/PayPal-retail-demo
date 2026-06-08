@@ -208,6 +208,69 @@ describe("CheckoutPage interactions", () => {
     expect(within(paymentStep).getByText("Card fields for card")).toBeTruthy();
     expect(screen.queryByText("Selected card")).toBeNull();
   });
+
+  it("opens a ranked Pickup store modal from guest ZIP and saves the selected store summary", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage />);
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+
+    const pickupLocationStep = getStep("Pickup location");
+    const postcode = within(pickupLocationStep).getByLabelText(
+      "ZIP or postcode",
+    ) as HTMLInputElement;
+
+    await user.clear(postcode);
+    await user.type(postcode, "SW1A 1AA");
+    await user.click(
+      within(pickupLocationStep).getByRole("button", {
+        name: "Find pickup stores",
+      }),
+    );
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    expect(within(storeDialog).getByText("POP MART Soho")).toBeTruthy();
+    expect(
+      within(storeDialog).getByText("POP MART Covent Garden"),
+    ).toBeTruthy();
+
+    await user.click(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Covent Garden/,
+      }),
+    );
+    await user.click(
+      within(storeDialog).getByRole("button", {
+        name: "Confirm pickup store",
+      }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(pickupLocationStep).queryByLabelText("ZIP or postcode")).toBe(
+      null,
+    );
+    expect(within(pickupLocationStep).getByText("SW1A 1AA")).toBeTruthy();
+
+    const storeSelectionStep = getStep("Store selection");
+    expect(
+      within(storeSelectionStep).getByText("POP MART Covent Garden"),
+    ).toBeTruthy();
+    expect(within(storeSelectionStep).getByText("Full inventory")).toBeTruthy();
+    expect(
+      within(storeSelectionStep).getByRole("button", {
+        name: "Change store",
+      }),
+    ).toBeTruthy();
+
+    const billingStep = getStep("Billing address");
+    expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      within(billingStep).getByLabelText("Billing street address"),
+    ).toBeTruthy();
+  });
 });
 
 async function advanceDeliveryToPayment(

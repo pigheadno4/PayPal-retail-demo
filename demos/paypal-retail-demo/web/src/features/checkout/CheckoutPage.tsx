@@ -184,6 +184,13 @@ export function CheckoutPage({
       Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
     >
   >({});
+  const [pickupStoreModalOpen, setPickupStoreModalOpen] = useState(false);
+  const [selectedPickupStoreName, setSelectedPickupStoreName] = useState<
+    string | null
+  >(() => getDefaultPickupStoreName(data.pickup));
+  const [pendingPickupStoreName, setPendingPickupStoreName] = useState<
+    string | null
+  >(() => getDefaultPickupStoreName(data.pickup));
   const [expandedStepIds, setExpandedStepIds] = useState<
     Readonly<Record<CheckoutFulfillmentMode, string | null>>
   >(() => ({
@@ -237,6 +244,7 @@ export function CheckoutPage({
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
   const payLaterRowMessage = renderPayLaterRowMessage?.(activePaymentContext);
+  const pickupStoreCards = getPickupStoreCards(data.pickup);
 
   useEffect(() => {
     if (data.validation?.focusStepId) {
@@ -274,6 +282,16 @@ export function CheckoutPage({
 
     if (step.id === "shipping-options") {
       saveStepAndEditNext("delivery", step.id, "payment-method");
+      return;
+    }
+
+    if (step.id === "pickup-location") {
+      openPickupStoreModal();
+      return;
+    }
+
+    if (step.id === "store-selection") {
+      savePickupStoreAndEditBilling();
     }
   }
 
@@ -318,6 +336,11 @@ export function CheckoutPage({
   }
 
   function editStep(step: CheckoutStep, mode: CheckoutFulfillmentMode) {
+    if (mode === "pickup" && step.id === "store-selection") {
+      openPickupStoreModal();
+      return;
+    }
+
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [step.id]: "editing",
@@ -329,6 +352,43 @@ export function CheckoutPage({
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
       nextStepIds.delete(step.id);
+
+      return nextStepIds;
+    });
+  }
+
+  function openPickupStoreModal() {
+    setPendingPickupStoreName(
+      selectedPickupStoreName ?? getDefaultPickupStoreName(data.pickup),
+    );
+    setPickupStoreModalOpen(true);
+  }
+
+  function savePickupStoreAndEditBilling() {
+    const nextStoreName =
+      pendingPickupStoreName ??
+      selectedPickupStoreName ??
+      pickupStoreCards[0]?.name;
+
+    if (nextStoreName) {
+      setSelectedPickupStoreName(nextStoreName);
+    }
+
+    setPickupStoreModalOpen(false);
+    setStepStateOverrides((currentStates) => ({
+      ...currentStates,
+      "pickup-billing-address": "editing",
+      "pickup-location": "saved",
+      "store-selection": "saved",
+    }));
+    setExpandedStepIds((currentStepIds) => ({
+      ...currentStepIds,
+      pickup: "pickup-billing-address",
+    }));
+    setCollapsedStepIds((currentStepIds) => {
+      const nextStepIds = new Set(currentStepIds);
+      nextStepIds.add("pickup-location");
+      nextStepIds.add("store-selection");
 
       return nextStepIds;
     });
@@ -397,6 +457,7 @@ export function CheckoutPage({
             expandedStepId={expandedStepIds.delivery}
             collapsedStepIds={collapsedStepIds}
             choiceSelections={choiceSelections}
+            selectedPickupStoreName={selectedPickupStoreName}
             selectedPaymentMethod={deliverySelectedPaymentMethod}
             onFieldChange={updateFieldValue}
             onChoiceChange={updateChoiceSelection}
@@ -418,6 +479,7 @@ export function CheckoutPage({
             expandedStepId={expandedStepIds.pickup}
             collapsedStepIds={collapsedStepIds}
             choiceSelections={choiceSelections}
+            selectedPickupStoreName={selectedPickupStoreName}
             selectedPaymentMethod={pickupSelectedPaymentMethod}
             onFieldChange={updateFieldValue}
             onChoiceChange={updateChoiceSelection}
@@ -435,6 +497,21 @@ export function CheckoutPage({
           paymentAction={paymentAction}
         />
       </div>
+
+      {pickupStoreModalOpen ? (
+        <PickupStoreModal
+          stores={pickupStoreCards}
+          selectedStoreName={
+            pendingPickupStoreName ??
+            selectedPickupStoreName ??
+            pickupStoreCards[0]?.name ??
+            null
+          }
+          onClose={() => setPickupStoreModalOpen(false)}
+          onConfirm={savePickupStoreAndEditBilling}
+          onSelect={setPendingPickupStoreName}
+        />
+      ) : null}
 
       {activePaymentContext.selectedPaymentMethod === "card" ||
       !activePaymentContext.selectedPaymentEligible ? null : (
@@ -462,6 +539,7 @@ function CheckoutModePanel({
   expandedStepId,
   collapsedStepIds,
   choiceSelections,
+  selectedPickupStoreName,
   selectedPaymentMethod,
   onFieldChange,
   onChoiceChange,
@@ -480,6 +558,7 @@ function CheckoutModePanel({
   readonly expandedStepId: string | null;
   readonly collapsedStepIds: ReadonlySet<string>;
   readonly choiceSelections: Readonly<Record<string, string>>;
+  readonly selectedPickupStoreName: string | null;
   readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
   readonly onFieldChange: (
     stepId: string,
@@ -510,21 +589,24 @@ function CheckoutModePanel({
       <div className="checkout-steps">
         {draft.steps.map((step) => {
           const stepState = stepStateOverrides[step.id] ?? step.state;
-          const stepWithDetails = withEditableFieldValues(
-            withInteractiveChoiceSelection(
-              withInteractiveStepFields(
-                withDefaultStepDetails(
-                  {
-                    ...step,
-                    state: stepState,
-                  },
-                  selectedPaymentMethod,
+          const stepWithDetails = withSelectedPickupStore(
+            withEditableFieldValues(
+              withInteractiveChoiceSelection(
+                withInteractiveStepFields(
+                  withDefaultStepDetails(
+                    {
+                      ...step,
+                      state: stepState,
+                    },
+                    selectedPaymentMethod,
+                  ),
+                  fieldValues,
                 ),
-                fieldValues,
+                choiceSelections,
               ),
-              choiceSelections,
+              fieldValues,
             ),
-            fieldValues,
+            selectedPickupStoreName,
           );
           const isExpanded = step.id === expandedStepId;
           const isSubmitted = collapsedStepIds.has(step.id);
@@ -649,6 +731,23 @@ function withEditableFieldValues(
   };
 }
 
+function withSelectedPickupStore(
+  step: CheckoutStep,
+  selectedStoreName: string | null,
+): CheckoutStep {
+  if (step.id !== "store-selection" || !step.storeCards || !selectedStoreName) {
+    return step;
+  }
+
+  return {
+    ...step,
+    storeCards: step.storeCards.map((store) => ({
+      ...store,
+      selected: store.name === selectedStoreName,
+    })),
+  };
+}
+
 function fieldValueKey(stepId: string, label: string): string {
   return `${stepId}:${label}`;
 }
@@ -709,10 +808,21 @@ function CheckoutStepSummary({
     ) ?? [];
   const selectedChoices =
     step.choices?.filter((choice) => choice.selected === true) ?? [];
+  const selectedStores =
+    step.storeCards?.filter((store) => store.selected === true) ?? [];
 
-  if (!summaryFields.length && !selectedChoices.length) {
+  if (
+    !summaryFields.length &&
+    !selectedChoices.length &&
+    !selectedStores.length
+  ) {
     return null;
   }
+
+  const editLabel =
+    step.id === "store-selection"
+      ? "Change store"
+      : `Edit ${step.title.toLowerCase()}`;
 
   return (
     <div className="checkout-step__summary">
@@ -736,9 +846,92 @@ function CheckoutStepSummary({
           ))}
         </ul>
       ) : null}
+      {selectedStores.length ? (
+        <ul>
+          {selectedStores.map((store) => (
+            <li key={store.name}>
+              <strong>{store.name}</strong>
+              <span>{store.statusLabel ?? store.distanceLabel}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <button type="button" onClick={() => onStepEdit(step, mode)}>
-        Edit {step.title.toLowerCase()}
+        {editLabel}
       </button>
+    </div>
+  );
+}
+
+function PickupStoreModal({
+  stores,
+  selectedStoreName,
+  onClose,
+  onConfirm,
+  onSelect,
+}: {
+  readonly stores: readonly CheckoutStoreCard[];
+  readonly selectedStoreName: string | null;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly onSelect: (storeName: string) => void;
+}) {
+  return (
+    <div
+      aria-labelledby="pickup-store-modal-title"
+      aria-modal="true"
+      className="checkout-modal"
+      role="dialog"
+    >
+      <div className="checkout-modal__panel">
+        <header className="checkout-modal__header">
+          <div>
+            <p className="homepage-eyebrow">Pickup nearby</p>
+            <h2 id="pickup-store-modal-title">Choose pickup store</h2>
+          </div>
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="checkout-store-grid checkout-store-grid--modal">
+          {stores.map((store) => (
+            <label
+              className="checkout-store-card checkout-store-card--selectable"
+              data-selected={
+                store.name === selectedStoreName ? "true" : "false"
+              }
+              key={store.name}
+            >
+              <input
+                checked={store.name === selectedStoreName}
+                name="pickup-store-options"
+                onChange={() => onSelect(store.name)}
+                type="radio"
+              />
+              <span className="checkout-store-card__body">
+                <span className="checkout-store-card__heading">
+                  <strong>{store.name}</strong>
+                  <small>{store.distanceLabel}</small>
+                </span>
+                <span>{store.address}</span>
+                <span>{store.phoneLabel}</span>
+                <span>
+                  {store.availableItemsLabel} / {store.unavailableItemsLabel}
+                </span>
+                {store.statusLabel ? <em>{store.statusLabel}</em> : null}
+              </span>
+            </label>
+          ))}
+        </div>
+        <footer className="checkout-modal__actions">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm}>
+            Confirm pickup store
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -1092,6 +1285,28 @@ function isSaveForFutureEligible(
   );
 }
 
+function getPickupStoreCards(
+  draft: CheckoutFulfillmentDraft,
+): readonly CheckoutStoreCard[] {
+  const storeStep = draft.steps.find((step) => step.id === "store-selection");
+  const defaultStoreCards = defaultStepDetailsById["store-selection"]
+    ?.storeCards as readonly CheckoutStoreCard[] | undefined;
+
+  return storeStep?.storeCards ?? defaultStoreCards ?? [];
+}
+
+function getDefaultPickupStoreName(
+  draft: CheckoutFulfillmentDraft,
+): string | null {
+  const storeCards = getPickupStoreCards(draft);
+
+  return (
+    storeCards.find((store) => store.selected === true)?.name ??
+    storeCards[0]?.name ??
+    null
+  );
+}
+
 const deliveryBillingAddressFields: readonly CheckoutField[] = [
   {
     label: "Billing street address",
@@ -1212,6 +1427,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
         checked: true,
       },
     ],
+    primaryActionLabel: "Find pickup stores",
   },
   "store-selection": {
     storeCards: [

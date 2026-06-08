@@ -1524,6 +1524,46 @@ a {
   color: var(--shell-accent);
 }
 
+.checkout-store-grid--modal {
+  grid-template-columns: 1fr;
+}
+
+.checkout-store-card--selectable {
+  cursor: pointer;
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+.checkout-store-card--selectable input {
+  height: 18px;
+  margin-top: 2px;
+  width: 18px;
+}
+
+.checkout-store-card__body {
+  color: var(--shell-muted);
+  display: grid;
+  gap: 6px;
+}
+
+.checkout-store-card__heading {
+  align-items: baseline;
+  color: #191919;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.checkout-store-card__heading small {
+  color: var(--shell-accent);
+  font-weight: 900;
+}
+
+.checkout-store-card__body em {
+  color: var(--shell-accent);
+  font-style: normal;
+  font-weight: 900;
+}
+
 .checkout-step__action {
   background: var(--shell-accent);
   border: 0;
@@ -1534,6 +1574,66 @@ a {
   justify-self: start;
   min-height: 40px;
   padding: 0 14px;
+}
+
+.checkout-modal {
+  align-items: center;
+  background: rgba(10, 34, 64, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 30;
+}
+
+.checkout-modal__panel {
+  background: var(--shell-panel);
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(10, 34, 64, 0.24);
+  display: grid;
+  gap: 16px;
+  max-height: min(680px, calc(100vh - 36px));
+  max-width: 680px;
+  overflow: auto;
+  padding: 18px;
+  width: min(680px, 100%);
+}
+
+.checkout-modal__header,
+.checkout-modal__actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.checkout-modal__header h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.checkout-modal__header button,
+.checkout-modal__actions button {
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.checkout-modal__header button,
+.checkout-modal__actions button:first-child {
+  background: #ffffff;
+  border: 1px solid var(--shell-border);
+  color: var(--shell-ink);
+}
+
+.checkout-modal__actions button:last-child {
+  background: var(--shell-accent);
+  border: 0;
+  color: #ffffff;
 }
 
 .checkout-summary {

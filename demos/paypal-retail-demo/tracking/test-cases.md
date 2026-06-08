@@ -153,11 +153,11 @@
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
 - [x] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
-- [ ] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
+- [x] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
 - [ ] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
 - [ ] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
 - [ ] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
-- [ ] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
+- [ ] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection. Selected-store summary and billing handoff are wired; pickup billing submit, pickup date, and payment progression remain open.
 - [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
 - [ ] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.

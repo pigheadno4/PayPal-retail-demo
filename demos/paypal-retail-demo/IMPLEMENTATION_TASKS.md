@@ -339,7 +339,7 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
 - [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
 - [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
-- [ ] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection.
+- [ ] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection. ZIP/postcode to ranked store-list modal and selected-store summary are wired; billing/date/payment progression remains open.
 - [ ] Wire Pickup logged-in flow: nearest/default-address store preselected, Change store modal, selected-store summary, billing, pickup date, and payment-method selection.
 - [ ] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
 - [ ] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
