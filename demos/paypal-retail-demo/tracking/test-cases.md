@@ -138,7 +138,7 @@
 - [x] Homepage Pay Later promo uses brief amount-free copy.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
 - [ ] Cart and minicart show pickup hints without pickup buttons.
-- [ ] Delivery checkout completes all accordion steps.
+- [x] Delivery checkout completes all accordion steps.
 - [ ] Pickup checkout completes store, billing, pickup date, payment.
 - [ ] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
 - [ ] Checkout form errors are announced and focus moves to the first invalid field.
@@ -151,8 +151,8 @@
 - [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
-- [ ] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
-- [ ] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
+- [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
+- [x] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
 - [ ] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
 - [ ] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
 - [ ] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.

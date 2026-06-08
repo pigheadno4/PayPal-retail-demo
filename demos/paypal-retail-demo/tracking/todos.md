@@ -86,7 +86,7 @@
 - [x] Continue Milestone 11.5 with editable Delivery shipping address expand/shrink behavior.
 - [x] Continue Milestone 11.5 with Delivery billing-address and shipping-option expand/shrink progression.
 - [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
-- [ ] Continue Milestone 11.5 with single-expanded-section checkout accordion behavior.
+- [x] Continue Milestone 11.5 with single-expanded-section checkout accordion behavior.
 - [ ] Continue Milestone 11.5 with Pickup guest ZIP/postcode-to-store-list modal behavior.
 - [ ] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
 - [ ] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.

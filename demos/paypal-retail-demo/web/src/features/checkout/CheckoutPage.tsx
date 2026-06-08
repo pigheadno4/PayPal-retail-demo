@@ -184,6 +184,12 @@ export function CheckoutPage({
       Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
     >
   >({});
+  const [expandedStepIds, setExpandedStepIds] = useState<
+    Readonly<Record<CheckoutFulfillmentMode, string | null>>
+  >(() => ({
+    delivery: data.delivery.steps[0]?.id ?? null,
+    pickup: data.pickup.steps[0]?.id ?? null,
+  }));
   const [collapsedStepIds, setCollapsedStepIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -257,25 +263,33 @@ export function CheckoutPage({
 
   function submitStep(step: CheckoutStep) {
     if (step.id === "shipping-address") {
-      saveStepAndEditNext(step.id, "billing-address");
+      saveStepAndEditNext("delivery", step.id, "billing-address");
       return;
     }
 
     if (step.id === "billing-address") {
-      saveStepAndEditNext(step.id, "shipping-options");
+      saveStepAndEditNext("delivery", step.id, "shipping-options");
       return;
     }
 
     if (step.id === "shipping-options") {
-      saveStepAndEditNext(step.id, "payment-method");
+      saveStepAndEditNext("delivery", step.id, "payment-method");
     }
   }
 
-  function saveStepAndEditNext(stepId: string, nextStepId: string) {
+  function saveStepAndEditNext(
+    mode: CheckoutFulfillmentMode,
+    stepId: string,
+    nextStepId: string,
+  ) {
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [nextStepId]: "editing",
       [stepId]: "saved",
+    }));
+    setExpandedStepIds((currentStepIds) => ({
+      ...currentStepIds,
+      [mode]: nextStepId,
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
@@ -303,10 +317,14 @@ export function CheckoutPage({
     }
   }
 
-  function editStep(step: CheckoutStep) {
+  function editStep(step: CheckoutStep, mode: CheckoutFulfillmentMode) {
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [step.id]: "editing",
+    }));
+    setExpandedStepIds((currentStepIds) => ({
+      ...currentStepIds,
+      [mode]: step.id,
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
@@ -376,6 +394,7 @@ export function CheckoutPage({
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
+            expandedStepId={expandedStepIds.delivery}
             collapsedStepIds={collapsedStepIds}
             choiceSelections={choiceSelections}
             selectedPaymentMethod={deliverySelectedPaymentMethod}
@@ -396,6 +415,7 @@ export function CheckoutPage({
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
+            expandedStepId={expandedStepIds.pickup}
             collapsedStepIds={collapsedStepIds}
             choiceSelections={choiceSelections}
             selectedPaymentMethod={pickupSelectedPaymentMethod}
@@ -439,6 +459,7 @@ function CheckoutModePanel({
   focusTargetRef,
   fieldValues,
   stepStateOverrides,
+  expandedStepId,
   collapsedStepIds,
   choiceSelections,
   selectedPaymentMethod,
@@ -456,6 +477,7 @@ function CheckoutModePanel({
   readonly focusTargetRef: RefObject<HTMLElement | null>;
   readonly fieldValues: Readonly<Record<string, CheckoutFieldValue>>;
   readonly stepStateOverrides: Readonly<Record<string, CheckoutStepState>>;
+  readonly expandedStepId: string | null;
   readonly collapsedStepIds: ReadonlySet<string>;
   readonly choiceSelections: Readonly<Record<string, string>>;
   readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
@@ -469,7 +491,10 @@ function CheckoutModePanel({
     label: string,
     method?: CheckoutSelectedPaymentMethod,
   ) => void;
-  readonly onStepEdit: (step: CheckoutStep) => void;
+  readonly onStepEdit: (
+    step: CheckoutStep,
+    mode: CheckoutFulfillmentMode,
+  ) => void;
   readonly onStepSubmit: (step: CheckoutStep) => void;
   readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
@@ -501,7 +526,8 @@ function CheckoutModePanel({
             ),
             fieldValues,
           );
-          const isCollapsed = collapsedStepIds.has(step.id);
+          const isExpanded = step.id === expandedStepId;
+          const isSubmitted = collapsedStepIds.has(step.id);
           const validationMessages = getValidationMessagesForStep(
             validation,
             step.id,
@@ -526,12 +552,7 @@ function CheckoutModePanel({
                 <span>{stepStateLabels[stepState]}</span>
               </header>
               <p>{step.body}</p>
-              {isCollapsed ? (
-                <CheckoutStepSummary
-                  step={stepWithDetails}
-                  onStepEdit={onStepEdit}
-                />
-              ) : (
+              {isExpanded ? (
                 <CheckoutStepDetails
                   step={stepWithDetails}
                   payLaterRowMessage={payLaterRowMessage}
@@ -541,7 +562,13 @@ function CheckoutModePanel({
                   onChoiceChange={onChoiceChange}
                   onStepSubmit={onStepSubmit}
                 />
-              )}
+              ) : isSubmitted ? (
+                <CheckoutStepSummary
+                  step={stepWithDetails}
+                  mode={mode}
+                  onStepEdit={onStepEdit}
+                />
+              ) : null}
             </article>
           );
         })}
@@ -666,10 +693,15 @@ function getValidationMessagesForStep(
 
 function CheckoutStepSummary({
   step,
+  mode,
   onStepEdit,
 }: {
   readonly step: CheckoutStep;
-  readonly onStepEdit: (step: CheckoutStep) => void;
+  readonly mode: CheckoutFulfillmentMode;
+  readonly onStepEdit: (
+    step: CheckoutStep,
+    mode: CheckoutFulfillmentMode,
+  ) => void;
 }) {
   const summaryFields =
     step.fields?.filter(
@@ -704,7 +736,7 @@ function CheckoutStepSummary({
           ))}
         </ul>
       ) : null}
-      <button type="button" onClick={() => onStepEdit(step)}>
+      <button type="button" onClick={() => onStepEdit(step, mode)}>
         Edit {step.title.toLowerCase()}
       </button>
     </div>

@@ -133,3 +133,7 @@
 - Continued Milestone 11.5 checkout interaction recovery with TDD: added failing Delivery billing/shipping-option and payment-radio tests, then wired billing same-as-shipping expansion, saved summary collapse, shipping-option selection collapse, payment editing handoff, and PayPal/Pay Later/card surface switching from the selected radio method.
 - Re-aligned the M11.5 checkout UX plan after review: the remaining work now explicitly requires a single-expanded-section accordion, guest Pickup ZIP/postcode to ranked store-list modal, logged-in preselected nearest/default-address store with Change store modal, accessible modal focus behavior, and partial-inventory Order Summary updates before Pickup can be marked interactive.
 - Re-aligned the visual direction after a UI/UX review: the POP MART profile was too restrained for a blind-box collectible storefront, so Milestone 16 now includes a playful premium collectible visual refresh with multi-accent tokens, rounder retail typography, tactile product/category cards, sticker-like badges, drop-calendar styling, collectible-event promo cards, compact store-ticket pickup cards, and guarded PayPal surface readability.
+
+## 2026-06-09
+
+- Continued Milestone 11.5 checkout recovery with TDD: added the single-expanded-section accordion contract, then wired Delivery/Pickup panels so only the active step renders editable details, submitted Delivery steps collapse to summaries, edit reopens only the edited step, and payment rows/card boxes render only when the payment step is active.

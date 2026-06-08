@@ -11,6 +11,58 @@ afterEach(() => {
 });
 
 describe("CheckoutPage interactions", () => {
+  it("keeps only one delivery checkout section expanded at a time", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage />);
+
+    const shippingStep = getStep("Shipping address");
+    const billingStep = getStep("Billing address");
+    const shippingOptionsStep = getStep("Shipping options");
+    const paymentStep = getStep("Payment method");
+
+    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(billingStep).queryByLabelText("Same as shipping")).toBeNull();
+    expect(
+      within(shippingOptionsStep).queryByRole("radio", {
+        name: /Standard shipping/,
+      }),
+    ).toBeNull();
+    expect(
+      within(paymentStep).queryByRole("radio", {
+        name: /PayPal/,
+      }),
+    ).toBeNull();
+
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+    expect(within(billingStep).getByLabelText("Same as shipping")).toBeTruthy();
+    expect(
+      within(shippingOptionsStep).queryByRole("radio", {
+        name: /Standard shipping/,
+      }),
+    ).toBeNull();
+    expect(
+      within(paymentStep).queryByRole("radio", {
+        name: /PayPal/,
+      }),
+    ).toBeNull();
+
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Edit shipping address",
+      }),
+    );
+
+    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(billingStep).queryByLabelText("Same as shipping")).toBeNull();
+  });
+
   it("saves and collapses the delivery shipping address before editing billing", async () => {
     const user = userEvent.setup();
 
@@ -133,6 +185,8 @@ describe("CheckoutPage interactions", () => {
       />,
     );
 
+    await advanceDeliveryToPayment(user);
+
     const paymentStep = getStep("Payment method");
     expect(screen.getByText("Selected paypal")).toBeTruthy();
 
@@ -155,6 +209,26 @@ describe("CheckoutPage interactions", () => {
     expect(screen.queryByText("Selected card")).toBeNull();
   });
 });
+
+async function advanceDeliveryToPayment(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  await user.click(
+    within(getStep("Shipping address")).getByRole("button", {
+      name: "Submit shipping address",
+    }),
+  );
+  await user.click(
+    within(getStep("Billing address")).getByRole("button", {
+      name: "Save billing address",
+    }),
+  );
+  await user.click(
+    within(getStep("Shipping options")).getByRole("button", {
+      name: "Submit shipping option",
+    }),
+  );
+}
 
 function getStep(title: string): HTMLElement {
   const heading = screen.getByRole("heading", { name: title });

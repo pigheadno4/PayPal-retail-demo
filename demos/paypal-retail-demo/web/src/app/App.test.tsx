@@ -7,6 +7,7 @@ import type {
   CheckoutChoice,
   CheckoutPageData,
   CheckoutSelectedPaymentMethod,
+  CheckoutStep,
 } from "../features/checkout/CheckoutPage.js";
 import type { ExpressReviewPageData } from "../features/checkout/ExpressReviewPage.js";
 import type { CartData } from "../features/cart/cartModel.js";
@@ -209,7 +210,10 @@ describe("App shell", () => {
     const html = renderToStaticMarkup(
       <App
         initialPathname="/checkout"
-        initialCheckout={checkoutData({ selectedPaymentMethod: "card" })}
+        initialCheckout={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "card",
+        })}
       />,
     );
 
@@ -477,9 +481,11 @@ function expressReviewData(): ExpressReviewPageData {
 }
 
 function checkoutData({
+  activeDeliveryStepId,
   selectedPaymentMethod = "paypal",
   walletEligible = true,
 }: {
+  readonly activeDeliveryStepId?: string;
   readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
   readonly walletEligible?: boolean;
 } = {}): CheckoutPageData {
@@ -524,6 +530,21 @@ function checkoutData({
       eligible: selectedPaymentMethod === "venmo" ? walletEligible : true,
     },
   ];
+  const deliverySteps: readonly CheckoutStep[] = [
+    {
+      id: "shipping-address",
+      title: "Shipping address",
+      state: "idle",
+      body: "Use saved shipping address or enter a new delivery address.",
+    },
+    {
+      id: "payment-method",
+      title: "Payment method",
+      state: "editing",
+      body: "Radio-first payment method wall renders here.",
+      choices: paymentChoices,
+    },
+  ];
 
   return {
     activeMode: "delivery",
@@ -541,21 +562,7 @@ function checkoutData({
         selectedPaymentLabel,
         selectedPaymentMethod,
       },
-      steps: [
-        {
-          id: "shipping-address",
-          title: "Shipping address",
-          state: "idle",
-          body: "Use saved shipping address or enter a new delivery address.",
-        },
-        {
-          id: "payment-method",
-          title: "Payment method",
-          state: "editing",
-          body: "Radio-first payment method wall renders here.",
-          choices: paymentChoices,
-        },
-      ],
+      steps: moveStepFirst(deliverySteps, activeDeliveryStepId),
     },
     pickup: {
       label: "Pickup",
@@ -589,4 +596,19 @@ function checkoutData({
       ],
     },
   };
+}
+
+function moveStepFirst(
+  steps: readonly CheckoutStep[],
+  activeStepId: string | undefined,
+): readonly CheckoutStep[] {
+  if (!activeStepId) {
+    return steps;
+  }
+
+  const activeStep = steps.find((step) => step.id === activeStepId);
+
+  return activeStep
+    ? [activeStep, ...steps.filter((step) => step.id !== activeStepId)]
+    : steps;
 }

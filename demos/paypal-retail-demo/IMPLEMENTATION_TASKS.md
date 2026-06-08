@@ -336,7 +336,7 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [ ] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
 - [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
 - [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
-- [ ] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
+- [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
 - [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
 - [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
 - [ ] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection.

@@ -6,6 +6,7 @@ import {
   type CheckoutChoice,
   type CheckoutPageData,
   type CheckoutSelectedPaymentMethod,
+  type CheckoutStep,
   type CheckoutValidationState,
 } from "./CheckoutPage.js";
 
@@ -70,7 +71,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain('aria-disabled="true"');
   });
 
-  it("renders detailed Delivery accordion content and default choices", () => {
+  it("renders only the active Delivery shipping section before accordion progression", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 
     expect(html).toContain("Full name");
@@ -79,40 +80,53 @@ describe("CheckoutPage", () => {
     expect(html).toContain("State");
     expect(html).toContain("ZIP code");
     expect(html).toContain("Submit shipping address");
-    expect(html).toContain("Same as shipping");
-    expect(html).toContain("Save billing address");
-    expect(html).toContain("Standard shipping");
-    expect(html).toContain("Cheapest option");
-    expect(html).toContain("Express shipping");
-    expect(html).toContain("Submit shipping option");
-    expect(html).toContain("PayPal");
-    expect(html).toContain("Pay Later");
-    expect(html).toContain("Credit or debit card");
-    expect(html).toContain("Apple Pay");
-    expect(html).toContain("Google Pay");
-    expect(html).toContain("Venmo");
+    expect(html).not.toContain("Save billing address");
+    expect(html).not.toContain("Standard shipping");
+    expect(html).not.toContain("Cheapest option");
+    expect(html).not.toContain("Express shipping");
+    expect(html).not.toContain("Submit shipping option");
+    expect(html).not.toContain("Credit or debit card");
+    expect(html).not.toContain("Apple Pay");
+    expect(html).not.toContain("Google Pay");
+    expect(html).not.toContain("Venmo");
   });
 
-  it("renders detailed Pickup accordion content and partial store counts before store submit", () => {
+  it("renders only the active Pickup location section before store selection", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage data={checkoutData({ activeMode: "pickup" })} />,
     );
 
     expect(html).toContain("ZIP or postcode");
     expect(html).toContain("Use default address");
+    expect(html).toContain("Store selection");
+    expect(html).not.toContain("1.2 mi");
+    expect(html).not.toContain("Available: 1 item");
+    expect(html).not.toContain("Unavailable: 1 item");
+    expect(html).not.toContain("Partial inventory");
+    expect(html).not.toContain("Submit pickup store");
+    expect(html).not.toContain("Billing street address");
+    expect(html).not.toContain("Save billing address");
+    expect(html).not.toContain("June 12");
+    expect(html).not.toContain("June 13");
+    expect(html).not.toContain("Submit pickup date");
+  });
+
+  it("renders detailed Pickup store cards when store selection is the active section", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeMode: "pickup",
+          activePickupStepId: "store-selection",
+        })}
+      />,
+    );
+
     expect(html).toContain("POP MART Soho");
     expect(html).toContain("1.2 mi");
     expect(html).toContain("Available: 1 item");
     expect(html).toContain("Unavailable: 1 item");
     expect(html).toContain("Partial inventory");
     expect(html).toContain("Submit pickup store");
-    expect(html).toContain("Billing street address");
-    expect(html).toContain("Save billing address");
-    expect(html).toContain("June 12");
-    expect(html).toContain("June 13");
-    expect(html).toContain("Submit pickup date");
-    expect(html).toContain("PayPal");
-    expect(html).toContain("Pay Later");
   });
 
   it("announces checkout validation errors and marks the first invalid field as the focus target", () => {
@@ -173,7 +187,10 @@ describe("CheckoutPage", () => {
   it("renders the Pay Later row message for the active checkout draft", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
-        data={checkoutData({ activeMode: "delivery" })}
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          activeMode: "delivery",
+        })}
         renderPayLaterRowMessage={(context) => (
           <div
             data-paylater-message-placement="payment-row"
@@ -199,7 +216,10 @@ describe("CheckoutPage", () => {
   it("expands selected card fields inside the payment step without a sticky payment action", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
-        data={checkoutData({ selectedPaymentMethod: "card" })}
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "card",
+        })}
         renderCardPaymentBox={(context) => (
           <div
             data-card-payment-box="true"
@@ -259,6 +279,7 @@ describe("CheckoutPage", () => {
     const cardHtml = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
+          activeDeliveryStepId: "payment-method",
           saveForFutureEligible: true,
           selectedPaymentMethod: "card",
         })}
@@ -314,6 +335,7 @@ describe("CheckoutPage", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
+          activeDeliveryStepId: "payment-method",
           paymentChoices,
           selectedPaymentMethod: "apple_pay",
         })}
@@ -336,7 +358,10 @@ describe("CheckoutPage", () => {
   it("passes eligible selected wallet context to the order summary action", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
-        data={checkoutData({ selectedPaymentMethod: "venmo" })}
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "venmo",
+        })}
         renderPaymentAction={(context) => (
           <div
             data-payment-action-placement="order-summary"
@@ -363,6 +388,8 @@ describe("CheckoutPage", () => {
 function checkoutData(
   overrides: Partial<
     Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation"> & {
+      readonly activeDeliveryStepId: string;
+      readonly activePickupStepId: string;
       readonly paymentChoices: readonly CheckoutChoice[];
       readonly saveForFutureEligible: boolean;
       readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
@@ -383,6 +410,71 @@ function checkoutData(
               ? "Venmo selected"
               : "PayPal selected";
 
+  const deliverySteps: readonly CheckoutStep[] = [
+    {
+      id: "shipping-address",
+      title: "Shipping address",
+      state: "idle",
+      body: "Use saved shipping address or enter a new delivery address.",
+    },
+    {
+      id: "billing-address",
+      title: "Billing address",
+      state: "saving",
+      body: "Same as shipping is checked by default.",
+    },
+    {
+      id: "shipping-options",
+      title: "Shipping options",
+      state: "saved",
+      body: "Cheapest eligible option is selected by default.",
+    },
+    {
+      id: "payment-method",
+      title: "Payment method",
+      state: "editing",
+      body: "Radio-first payment method wall renders here.",
+      ...(overrides.paymentChoices
+        ? { choices: overrides.paymentChoices }
+        : {}),
+    },
+  ];
+  const pickupSteps: readonly CheckoutStep[] = [
+    {
+      id: "pickup-location",
+      title: "Pickup location",
+      state: "recalculating",
+      body: "Use ZIP or default address to rank nearby stores.",
+    },
+    {
+      id: "store-selection",
+      title: "Store selection",
+      state: "blocked",
+      body: "Store card shows available and unavailable item counts.",
+    },
+    {
+      id: "pickup-billing-address",
+      title: "Billing address",
+      state: "locked",
+      body: "Billing address is locked after payment session starts.",
+    },
+    {
+      id: "pickup-date",
+      title: "Pickup date",
+      state: "idle",
+      body: "Store-specific pickup calendar renders here.",
+    },
+    {
+      id: "pickup-payment-method",
+      title: "Payment method",
+      state: "idle",
+      body: "Pickup payment method wall renders here.",
+      ...(overrides.paymentChoices
+        ? { choices: overrides.paymentChoices }
+        : {}),
+    },
+  ];
+
   const data: CheckoutPageData = {
     activeMode: overrides.activeMode ?? "delivery",
     modeLocked: overrides.modeLocked ?? false,
@@ -402,35 +494,7 @@ function checkoutData(
           ? {}
           : { saveForFutureEligible: overrides.saveForFutureEligible }),
       },
-      steps: [
-        {
-          id: "shipping-address",
-          title: "Shipping address",
-          state: "idle",
-          body: "Use saved shipping address or enter a new delivery address.",
-        },
-        {
-          id: "billing-address",
-          title: "Billing address",
-          state: "saving",
-          body: "Same as shipping is checked by default.",
-        },
-        {
-          id: "shipping-options",
-          title: "Shipping options",
-          state: "saved",
-          body: "Cheapest eligible option is selected by default.",
-        },
-        {
-          id: "payment-method",
-          title: "Payment method",
-          state: "editing",
-          body: "Radio-first payment method wall renders here.",
-          ...(overrides.paymentChoices
-            ? { choices: overrides.paymentChoices }
-            : {}),
-        },
-      ],
+      steps: moveStepFirst(deliverySteps, overrides.activeDeliveryStepId),
     },
     pickup: {
       label: "Pickup",
@@ -450,45 +514,26 @@ function checkoutData(
         unavailableItemsLabel: "Not available at this store: 1 item",
         partialInventoryNote: "Unavailable items stay in the original cart.",
       },
-      steps: [
-        {
-          id: "pickup-location",
-          title: "Pickup location",
-          state: "recalculating",
-          body: "Use ZIP or default address to rank nearby stores.",
-        },
-        {
-          id: "store-selection",
-          title: "Store selection",
-          state: "blocked",
-          body: "Store card shows available and unavailable item counts.",
-        },
-        {
-          id: "pickup-billing-address",
-          title: "Billing address",
-          state: "locked",
-          body: "Billing address is locked after payment session starts.",
-        },
-        {
-          id: "pickup-date",
-          title: "Pickup date",
-          state: "idle",
-          body: "Store-specific pickup calendar renders here.",
-        },
-        {
-          id: "pickup-payment-method",
-          title: "Payment method",
-          state: "idle",
-          body: "Pickup payment method wall renders here.",
-          ...(overrides.paymentChoices
-            ? { choices: overrides.paymentChoices }
-            : {}),
-        },
-      ],
+      steps: moveStepFirst(pickupSteps, overrides.activePickupStepId),
     },
   };
 
   return overrides.validation
     ? { ...data, validation: overrides.validation }
     : data;
+}
+
+function moveStepFirst(
+  steps: readonly CheckoutStep[],
+  activeStepId: string | undefined,
+): readonly CheckoutStep[] {
+  if (!activeStepId) {
+    return steps;
+  }
+
+  const activeStep = steps.find((step) => step.id === activeStepId);
+
+  return activeStep
+    ? [activeStep, ...steps.filter((step) => step.id !== activeStepId)]
+    : steps;
 }
