@@ -88,7 +88,7 @@
 - [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
 - [x] Continue Milestone 11.5 with single-expanded-section checkout accordion behavior.
 - [x] Continue Milestone 11.5 with Pickup guest ZIP/postcode-to-store-list modal behavior.
-- [ ] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
+- [x] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
 - [ ] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [ ] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.

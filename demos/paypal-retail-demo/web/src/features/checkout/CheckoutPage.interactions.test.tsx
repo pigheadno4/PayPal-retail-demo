@@ -4,7 +4,11 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CheckoutPage } from "./CheckoutPage.js";
+import {
+  CheckoutPage,
+  defaultCheckoutPageData,
+  type CheckoutPageData,
+} from "./CheckoutPage.js";
 
 afterEach(() => {
   cleanup();
@@ -271,6 +275,43 @@ describe("CheckoutPage interactions", () => {
       within(billingStep).getByLabelText("Billing street address"),
     ).toBeTruthy();
   });
+
+  it("starts logged-in Pickup with a preselected store and returns focus after closing Change store", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage data={loggedInPickupData()} />);
+
+    const pickupLocationStep = getStep("Pickup location");
+    expect(
+      within(pickupLocationStep).queryByLabelText("ZIP or postcode"),
+    ).toBeNull();
+
+    const storeSelectionStep = getStep("Store selection");
+    expect(within(storeSelectionStep).getByText("POP MART Soho")).toBeTruthy();
+    expect(
+      within(storeSelectionStep).getByText("Partial inventory"),
+    ).toBeTruthy();
+
+    const changeStoreButton = within(storeSelectionStep).getByRole("button", {
+      name: "Change store",
+    });
+
+    await user.click(changeStoreButton);
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    const selectedStore = within(storeDialog).getByRole("radio", {
+      name: /POP MART Soho/,
+    });
+
+    expect(document.activeElement).toBe(selectedStore);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(changeStoreButton);
+  });
 });
 
 async function advanceDeliveryToPayment(
@@ -302,4 +343,12 @@ function getStep(title: string): HTMLElement {
   }
 
   return step;
+}
+
+function loggedInPickupData(): CheckoutPageData {
+  return {
+    ...defaultCheckoutPageData,
+    activeMode: "pickup",
+    pickupStoreMode: "preselected",
+  };
 }

@@ -122,6 +122,7 @@ export interface CheckoutPageData {
   readonly activeMode: CheckoutFulfillmentMode;
   readonly modeLocked: boolean;
   readonly lockedReason: string;
+  readonly pickupStoreMode?: "guest" | "preselected";
   readonly delivery: CheckoutFulfillmentDraft;
   readonly pickup: CheckoutFulfillmentDraft;
   readonly validation?: CheckoutValidationState;
@@ -167,6 +168,8 @@ export function CheckoutPage({
   renderCardPaymentBox,
   renderPayLaterRowMessage,
 }: CheckoutPageProps) {
+  const pickupStartsWithPreselectedStore =
+    data.pickupStoreMode === "preselected";
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
     data.activeMode,
   );
@@ -195,12 +198,20 @@ export function CheckoutPage({
     Readonly<Record<CheckoutFulfillmentMode, string | null>>
   >(() => ({
     delivery: data.delivery.steps[0]?.id ?? null,
-    pickup: data.pickup.steps[0]?.id ?? null,
+    pickup: pickupStartsWithPreselectedStore
+      ? null
+      : (data.pickup.steps[0]?.id ?? null),
   }));
   const [collapsedStepIds, setCollapsedStepIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
+    () =>
+      new Set(
+        pickupStartsWithPreselectedStore
+          ? ["pickup-location", "store-selection"]
+          : [],
+      ),
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
+  const pickupStoreTriggerRef = useRef<HTMLElement | null>(null);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
   const deliverySelectedPaymentMethod = getSelectedPaymentMethodForMode(
     "delivery",
@@ -358,10 +369,22 @@ export function CheckoutPage({
   }
 
   function openPickupStoreModal() {
+    if (
+      typeof document !== "undefined" &&
+      document.activeElement instanceof HTMLElement
+    ) {
+      pickupStoreTriggerRef.current = document.activeElement;
+    }
+
     setPendingPickupStoreName(
       selectedPickupStoreName ?? getDefaultPickupStoreName(data.pickup),
     );
     setPickupStoreModalOpen(true);
+  }
+
+  function closePickupStoreModal() {
+    setPickupStoreModalOpen(false);
+    pickupStoreTriggerRef.current?.focus();
   }
 
   function savePickupStoreAndEditBilling() {
@@ -507,7 +530,7 @@ export function CheckoutPage({
             pickupStoreCards[0]?.name ??
             null
           }
-          onClose={() => setPickupStoreModalOpen(false)}
+          onClose={closePickupStoreModal}
           onConfirm={savePickupStoreAndEditBilling}
           onSelect={setPendingPickupStoreName}
         />
@@ -876,11 +899,23 @@ function PickupStoreModal({
   readonly onConfirm: () => void;
   readonly onSelect: (storeName: string) => void;
 }) {
+  const selectedStoreRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    selectedStoreRef.current?.focus();
+  }, []);
+
   return (
     <div
       aria-labelledby="pickup-store-modal-title"
       aria-modal="true"
       className="checkout-modal"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
       role="dialog"
     >
       <div className="checkout-modal__panel">
@@ -906,6 +941,7 @@ function PickupStoreModal({
                 checked={store.name === selectedStoreName}
                 name="pickup-store-options"
                 onChange={() => onSelect(store.name)}
+                ref={store.name === selectedStoreName ? selectedStoreRef : null}
                 type="radio"
               />
               <span className="checkout-store-card__body">
