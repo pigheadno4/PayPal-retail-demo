@@ -256,6 +256,14 @@ export function CheckoutPage({
       : null;
   const payLaterRowMessage = renderPayLaterRowMessage?.(activePaymentContext);
   const pickupStoreCards = getPickupStoreCards(data.pickup);
+  const selectedPickupStore = getPickupStoreByName(
+    pickupStoreCards,
+    selectedPickupStoreName,
+  );
+  const displayedSummary =
+    activeMode === "pickup"
+      ? withSelectedPickupStoreSummary(activeSummary, selectedPickupStore)
+      : activeSummary;
 
   useEffect(() => {
     if (data.validation?.focusStepId) {
@@ -516,7 +524,7 @@ export function CheckoutPage({
         </section>
 
         <CheckoutSummary
-          summary={activeSummary}
+          summary={displayedSummary}
           paymentAction={paymentAction}
         />
       </div>
@@ -798,6 +806,43 @@ function withSelectedPaymentSummary(
     selectedPaymentLabel: `${paymentMethodLabels[selectedPaymentMethod]} selected`,
     selectedPaymentMethod,
   };
+}
+
+function withSelectedPickupStoreSummary(
+  summary: CheckoutOrderSummary,
+  selectedStore: CheckoutStoreCard | null,
+): CheckoutOrderSummary {
+  if (!selectedStore) {
+    return summary;
+  }
+
+  const unavailableCount = parseInventoryCount(
+    selectedStore.unavailableItemsLabel,
+  );
+  const partialInventoryNote =
+    unavailableCount > 0 ? selectedStore.partialInventoryNote : undefined;
+  const {
+    partialInventoryNote: _previousPartialInventoryNote,
+    ...baseSummary
+  } = summary;
+
+  return {
+    ...baseSummary,
+    contextLabel: selectedStore.name,
+    ...(partialInventoryNote ? { partialInventoryNote } : {}),
+    readyItemsLabel: selectedStore.availableItemsLabel.replace(
+      /^Available:/,
+      "Ready for pickup:",
+    ),
+    unavailableItemsLabel: selectedStore.unavailableItemsLabel.replace(
+      /^Unavailable:/,
+      "Not available at this store:",
+    ),
+  };
+}
+
+function parseInventoryCount(label: string): number {
+  return Number(label.match(/\d+/)?.[0] ?? 0);
 }
 
 function isPaymentStepId(stepId: string): boolean {
@@ -1329,6 +1374,18 @@ function getPickupStoreCards(
     ?.storeCards as readonly CheckoutStoreCard[] | undefined;
 
   return storeStep?.storeCards ?? defaultStoreCards ?? [];
+}
+
+function getPickupStoreByName(
+  stores: readonly CheckoutStoreCard[],
+  storeName: string | null,
+): CheckoutStoreCard | null {
+  return (
+    stores.find((store) => store.name === storeName) ??
+    stores.find((store) => store.selected === true) ??
+    stores[0] ??
+    null
+  );
 }
 
 function getDefaultPickupStoreName(

@@ -312,6 +312,59 @@ describe("CheckoutPage interactions", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(changeStoreButton);
   });
+
+  it("updates Pickup Order Summary ready and unavailable lines when store inventory changes", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage />);
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+
+    await choosePickupStore(user, "POP MART Covent Garden");
+
+    let orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(
+      within(orderSummary).getByText("POP MART Covent Garden"),
+    ).toBeTruthy();
+    expect(
+      within(orderSummary).getByText("Ready for pickup: 2 items"),
+    ).toBeTruthy();
+    expect(
+      within(orderSummary).getByText("Not available at this store: 0 items"),
+    ).toBeTruthy();
+    expect(
+      within(orderSummary).queryByText(
+        "Unavailable items stay in the original cart.",
+      ),
+    ).toBeNull();
+
+    const storeSelectionStep = getStep("Store selection");
+    await user.click(
+      within(storeSelectionStep).getByRole("button", {
+        name: "Change store",
+      }),
+    );
+    await choosePickupStore(user, "POP MART Soho");
+
+    orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("POP MART Soho")).toBeTruthy();
+    expect(
+      within(orderSummary).getByText("Ready for pickup: 1 item"),
+    ).toBeTruthy();
+    expect(
+      within(orderSummary).getByText("Not available at this store: 1 item"),
+    ).toBeTruthy();
+    expect(
+      within(orderSummary).getByText(
+        "Unavailable items stay in the original cart.",
+      ),
+    ).toBeTruthy();
+  });
 });
 
 async function advanceDeliveryToPayment(
@@ -330,6 +383,44 @@ async function advanceDeliveryToPayment(
   await user.click(
     within(getStep("Shipping options")).getByRole("button", {
       name: "Submit shipping option",
+    }),
+  );
+}
+
+async function openPickupStoreModalFromGuestZip(
+  user: ReturnType<typeof userEvent.setup>,
+  postcode: string,
+) {
+  const pickupLocationStep = getStep("Pickup location");
+  const postcodeInput = within(pickupLocationStep).getByLabelText(
+    "ZIP or postcode",
+  ) as HTMLInputElement;
+
+  await user.clear(postcodeInput);
+  await user.type(postcodeInput, postcode);
+  await user.click(
+    within(pickupLocationStep).getByRole("button", {
+      name: "Find pickup stores",
+    }),
+  );
+}
+
+async function choosePickupStore(
+  user: ReturnType<typeof userEvent.setup>,
+  storeName: string,
+) {
+  const storeDialog = screen.getByRole("dialog", {
+    name: "Choose pickup store",
+  });
+
+  await user.click(
+    within(storeDialog).getByRole("radio", {
+      name: new RegExp(storeName),
+    }),
+  );
+  await user.click(
+    within(storeDialog).getByRole("button", {
+      name: "Confirm pickup store",
     }),
   );
 }

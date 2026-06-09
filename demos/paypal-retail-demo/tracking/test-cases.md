@@ -156,7 +156,7 @@
 - [x] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
 - [x] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
 - [x] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
-- [ ] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
+- [x] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
 - [ ] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection. Selected-store summary and billing handoff are wired; pickup billing submit, pickup date, and payment progression remain open.
 - [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.

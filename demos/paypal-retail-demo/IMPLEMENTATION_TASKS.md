@@ -341,7 +341,7 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
 - [ ] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection. ZIP/postcode to ranked store-list modal and selected-store summary are wired; billing/date/payment progression remains open.
 - [ ] Wire Pickup logged-in flow: nearest/default-address store preselected, Change store modal, selected-store summary, billing, pickup date, and payment-method selection. Preselected-store summary, Change store modal, and close/Escape focus return are wired; submit-to-date/payment progression remains open.
-- [ ] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
+- [x] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
 - [ ] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
 - [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
 - [ ] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
