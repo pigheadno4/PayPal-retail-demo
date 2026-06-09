@@ -311,6 +311,16 @@ export function CheckoutPage({
 
     if (step.id === "store-selection") {
       savePickupStoreAndEditBilling();
+      return;
+    }
+
+    if (step.id === "pickup-billing-address") {
+      saveStepAndEditNext("pickup", step.id, "pickup-date");
+      return;
+    }
+
+    if (step.id === "pickup-date") {
+      saveStepAndEditNext("pickup", step.id, "pickup-payment-method");
     }
   }
 

@@ -90,6 +90,7 @@
 - [x] Continue Milestone 11.5 with Pickup guest ZIP/postcode-to-store-list modal behavior.
 - [x] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
 - [x] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.
+- [x] Continue Milestone 11.5 with Pickup billing-address, pickup-date, and payment-selection progression.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [ ] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.

@@ -365,6 +365,83 @@ describe("CheckoutPage interactions", () => {
       ),
     ).toBeTruthy();
   });
+
+  it("advances Pickup billing and pickup date sections before payment selection", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CheckoutPage
+        renderPaymentAction={(context) => (
+          <div>Selected {context.selectedPaymentMethod}</div>
+        )}
+        renderPayLaterRowMessage={() => <div>Pay Later row message</div>}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+    await choosePickupStore(user, "POP MART Covent Garden");
+
+    const billingStep = getStep("Billing address");
+    expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+
+    await user.clear(
+      within(billingStep).getByLabelText("Billing street address"),
+    );
+    await user.type(
+      within(billingStep).getByLabelText("Billing street address"),
+      "88 Sakura Lane",
+    );
+    await user.clear(within(billingStep).getByLabelText("City"));
+    await user.type(within(billingStep).getByLabelText("City"), "London");
+    await user.clear(within(billingStep).getByLabelText("ZIP code"));
+    await user.type(within(billingStep).getByLabelText("ZIP code"), "WC2E 9DD");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+
+    expect(billingStep.getAttribute("data-step-state")).toBe("saved");
+    expect(
+      within(billingStep).queryByLabelText("Billing street address"),
+    ).toBeNull();
+    expect(within(billingStep).getByText("88 Sakura Lane")).toBeTruthy();
+
+    const pickupDateStep = getStep("Pickup date");
+    expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
+    await user.click(
+      within(pickupDateStep).getByRole("radio", {
+        name: /June 13/,
+      }),
+    );
+    await user.click(
+      within(pickupDateStep).getByRole("button", {
+        name: "Submit pickup date",
+      }),
+    );
+
+    expect(pickupDateStep.getAttribute("data-step-state")).toBe("saved");
+    expect(within(pickupDateStep).getByText("June 13")).toBeTruthy();
+    expect(
+      within(pickupDateStep).queryByRole("radio", {
+        name: /June 13/,
+      }),
+    ).toBeNull();
+
+    const paymentStep = getStep("Payment method");
+    expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    expect(screen.getByText("Selected paypal")).toBeTruthy();
+
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /Pay Later/,
+      }),
+    );
+
+    expect(screen.getByText("Selected paylater")).toBeTruthy();
+    expect(within(paymentStep).getByText("Pay Later row message")).toBeTruthy();
+  });
 });
 
 async function advanceDeliveryToPayment(
