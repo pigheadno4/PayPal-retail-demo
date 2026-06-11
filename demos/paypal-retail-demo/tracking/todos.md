@@ -92,6 +92,7 @@
 - [x] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.
 - [x] Continue Milestone 11.5 with Pickup billing-address, pickup-date, and payment-selection progression.
 - [x] Continue Milestone 11.5 with logged-in Pickup direct continuation from the preselected store.
+- [x] Continue Milestone 11.5 with checkout section saving/recalculating/saved submit transitions.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.

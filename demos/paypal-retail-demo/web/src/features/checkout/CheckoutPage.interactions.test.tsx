@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CheckoutPage,
@@ -11,10 +19,59 @@ import {
 } from "./CheckoutPage.js";
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
 });
 
 describe("CheckoutPage interactions", () => {
+  it("shows saving and recalculating states before collapsing a submitted section", async () => {
+    vi.useFakeTimers();
+
+    try {
+      render(<CheckoutPage />);
+
+      const shippingStep = getStep("Shipping address");
+      const billingStep = getStep("Billing address");
+
+      fireEvent.click(
+        within(shippingStep).getByRole("button", {
+          name: "Submit shipping address",
+        }),
+      );
+
+      expect(shippingStep.getAttribute("data-step-state")).toBe("saving");
+      expect(within(shippingStep).getByText("Saving")).toBeTruthy();
+      expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+      expect(
+        within(billingStep).queryByLabelText("Same as shipping"),
+      ).toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+
+      expect(shippingStep.getAttribute("data-step-state")).toBe(
+        "recalculating",
+      );
+      expect(
+        within(shippingStep).getByText("Recalculating totals"),
+      ).toBeTruthy();
+
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+
+      expect(shippingStep.getAttribute("data-step-state")).toBe("saved");
+      expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+      expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+      expect(
+        within(billingStep).getByLabelText("Same as shipping"),
+      ).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps only one delivery checkout section expanded at a time", async () => {
     const user = userEvent.setup();
 
@@ -43,6 +100,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit shipping address",
       }),
     );
+    await waitForStepState(shippingStep, "saved");
 
     expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
     expect(within(billingStep).getByLabelText("Same as shipping")).toBeTruthy();
@@ -84,6 +142,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit shipping address",
       }),
     );
+    await waitForStepState(shippingStep, "saved");
 
     expect(shippingStep.getAttribute("data-step-state")).toBe("saved");
     expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
@@ -119,6 +178,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit shipping address",
       }),
     );
+    await waitForStepState(shippingStep, "saved");
 
     const billingStep = getStep("Billing address");
     await user.click(within(billingStep).getByLabelText("Same as shipping"));
@@ -139,6 +199,7 @@ describe("CheckoutPage interactions", () => {
         name: "Save billing address",
       }),
     );
+    await waitForStepState(billingStep, "saved");
 
     expect(billingStep.getAttribute("data-step-state")).toBe("saved");
     expect(
@@ -158,6 +219,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit shipping option",
       }),
     );
+    await waitForStepState(shippingOptionsStep, "saved");
 
     expect(shippingOptionsStep.getAttribute("data-step-state")).toBe("saved");
     expect(
@@ -338,6 +400,7 @@ describe("CheckoutPage interactions", () => {
         name: "Continue with this store",
       }),
     );
+    await waitForStepState(storeSelectionStep, "saved");
 
     expect(screen.queryByRole("dialog")).toBeNull();
 
@@ -348,6 +411,7 @@ describe("CheckoutPage interactions", () => {
         name: "Save billing address",
       }),
     );
+    await waitForStepState(billingStep, "saved");
 
     const pickupDateStep = getStep("Pickup date");
     expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
@@ -356,6 +420,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit pickup date",
       }),
     );
+    await waitForStepState(pickupDateStep, "saved");
 
     const paymentStep = getStep("Payment method");
     expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
@@ -450,6 +515,7 @@ describe("CheckoutPage interactions", () => {
         name: "Save billing address",
       }),
     );
+    await waitForStepState(billingStep, "saved");
 
     expect(billingStep.getAttribute("data-step-state")).toBe("saved");
     expect(
@@ -469,6 +535,7 @@ describe("CheckoutPage interactions", () => {
         name: "Submit pickup date",
       }),
     );
+    await waitForStepState(pickupDateStep, "saved");
 
     expect(pickupDateStep.getAttribute("data-step-state")).toBe("saved");
     expect(within(pickupDateStep).getByText("June 13")).toBeTruthy();
@@ -496,21 +563,29 @@ describe("CheckoutPage interactions", () => {
 async function advanceDeliveryToPayment(
   user: ReturnType<typeof userEvent.setup>,
 ) {
+  const shippingStep = getStep("Shipping address");
   await user.click(
-    within(getStep("Shipping address")).getByRole("button", {
+    within(shippingStep).getByRole("button", {
       name: "Submit shipping address",
     }),
   );
+  await waitForStepState(shippingStep, "saved");
+
+  const billingStep = getStep("Billing address");
   await user.click(
-    within(getStep("Billing address")).getByRole("button", {
+    within(billingStep).getByRole("button", {
       name: "Save billing address",
     }),
   );
+  await waitForStepState(billingStep, "saved");
+
+  const shippingOptionsStep = getStep("Shipping options");
   await user.click(
-    within(getStep("Shipping options")).getByRole("button", {
+    within(shippingOptionsStep).getByRole("button", {
       name: "Submit shipping option",
     }),
   );
+  await waitForStepState(shippingOptionsStep, "saved");
 }
 
 async function openPickupStoreModalFromGuestZip(
@@ -560,6 +635,12 @@ function getStep(title: string): HTMLElement {
   }
 
   return step;
+}
+
+async function waitForStepState(step: HTMLElement, state: string) {
+  await waitFor(() => {
+    expect(step.getAttribute("data-step-state")).toBe(state);
+  });
 }
 
 function loggedInPickupData(): CheckoutPageData {

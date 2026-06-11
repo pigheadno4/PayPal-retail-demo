@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -106,21 +112,29 @@ describe("App buyer interactions", () => {
 async function advanceDeliveryCheckoutToPayment(
   user: ReturnType<typeof userEvent.setup>,
 ) {
+  const shippingStep = getStep("Shipping address");
   await user.click(
-    within(getStep("Shipping address")).getByRole("button", {
+    within(shippingStep).getByRole("button", {
       name: "Submit shipping address",
     }),
   );
+  await waitForStepState(shippingStep, "saved");
+
+  const billingStep = getStep("Billing address");
   await user.click(
-    within(getStep("Billing address")).getByRole("button", {
+    within(billingStep).getByRole("button", {
       name: "Save billing address",
     }),
   );
+  await waitForStepState(billingStep, "saved");
+
+  const shippingOptionsStep = getStep("Shipping options");
   await user.click(
-    within(getStep("Shipping options")).getByRole("button", {
+    within(shippingOptionsStep).getByRole("button", {
       name: "Submit shipping option",
     }),
   );
+  await waitForStepState(shippingOptionsStep, "saved");
 }
 
 function getStep(title: string): HTMLElement {
@@ -132,6 +146,12 @@ function getStep(title: string): HTMLElement {
   }
 
   return step;
+}
+
+async function waitForStepState(step: HTMLElement, state: string) {
+  await waitFor(() => {
+    expect(step.getAttribute("data-step-state")).toBe(state);
+  });
 }
 
 function singleItemCart({ quantity }: { readonly quantity: number }): CartData {

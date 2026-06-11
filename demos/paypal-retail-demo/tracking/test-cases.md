@@ -140,7 +140,7 @@
 - [ ] Cart and minicart show pickup hints without pickup buttons.
 - [x] Delivery checkout completes all accordion steps.
 - [x] Pickup checkout completes store, billing, pickup date, payment.
-- [ ] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
+- [x] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
 - [ ] Checkout form errors are announced and focus moves to the first invalid field.
 - [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
 - [x] Card payment button remains inside the card fields box on mobile and desktop.
@@ -159,7 +159,7 @@
 - [x] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
 - [x] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
 - [x] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
-- [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
+- [x] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
 - [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
 - [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.

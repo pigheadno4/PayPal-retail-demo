@@ -160,6 +160,8 @@ const paymentMethodLabels = {
   venmo: "Venmo",
 } satisfies Record<CheckoutSelectedPaymentMethod, string>;
 
+const checkoutSubmitTransitionDelayMs = 50;
+
 type CheckoutFieldValue = string | boolean;
 
 export function CheckoutPage({
@@ -219,6 +221,7 @@ export function CheckoutPage({
   );
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const pickupStoreTriggerRef = useRef<HTMLElement | null>(null);
+  const submitTransitionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
   const deliverySelectedPaymentMethod = getSelectedPaymentMethodForMode(
     "delivery",
@@ -277,6 +280,15 @@ export function CheckoutPage({
       focusTargetRef.current?.focus();
     }
   }, [activeMode, data.validation?.focusStepId]);
+
+  useEffect(
+    () => () => {
+      submitTransitionTimersRef.current.forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+    },
+    [],
+  );
 
   function selectMode(mode: CheckoutFulfillmentMode) {
     if (!data.modeLocked) {
@@ -338,19 +350,45 @@ export function CheckoutPage({
   ) {
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
-      [nextStepId]: "editing",
-      [stepId]: "saved",
+      [stepId]: "saving",
     }));
+
     setExpandedStepIds((currentStepIds) => ({
       ...currentStepIds,
-      [mode]: nextStepId,
+      [mode]: stepId,
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
-      nextStepIds.add(stepId);
+      nextStepIds.delete(stepId);
 
       return nextStepIds;
     });
+
+    const recalculatingTimerId = setTimeout(() => {
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        [stepId]: "recalculating",
+      }));
+    }, checkoutSubmitTransitionDelayMs);
+    const savedTimerId = setTimeout(() => {
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        [nextStepId]: "editing",
+        [stepId]: "saved",
+      }));
+      setExpandedStepIds((currentStepIds) => ({
+        ...currentStepIds,
+        [mode]: nextStepId,
+      }));
+      setCollapsedStepIds((currentStepIds) => {
+        const nextStepIds = new Set(currentStepIds);
+        nextStepIds.add(stepId);
+
+        return nextStepIds;
+      });
+    }, checkoutSubmitTransitionDelayMs * 2);
+
+    submitTransitionTimersRef.current.push(recalculatingTimerId, savedTimerId);
   }
 
   function updateChoiceSelection(
