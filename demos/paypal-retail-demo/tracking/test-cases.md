@@ -161,7 +161,7 @@
 - [x] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
 - [ ] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
-- [ ] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
+- [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
 - [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
 - [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
 - [ ] PDP/cart/minicart express returns to Review and Confirm.

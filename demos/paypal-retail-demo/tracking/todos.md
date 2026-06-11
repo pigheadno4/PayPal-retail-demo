@@ -93,7 +93,7 @@
 - [x] Continue Milestone 11.5 with Pickup billing-address, pickup-date, and payment-selection progression.
 - [x] Continue Milestone 11.5 with logged-in Pickup direct continuation from the preselected store.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
-- [ ] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
+- [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
 - [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.

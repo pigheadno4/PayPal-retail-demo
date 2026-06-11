@@ -69,7 +69,70 @@ describe("App buyer interactions", () => {
       ),
     ).toBeTruthy();
   });
+
+  it("switches eligible checkout wallet radios into the selected order summary action", async () => {
+    const user = userEvent.setup();
+
+    render(<App initialPathname="/checkout" />);
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const paymentStep = getStep("Payment method");
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+
+    for (const [label, method] of [
+      ["Apple Pay", "apple_pay"],
+      ["Google Pay", "google_pay"],
+      ["Venmo", "venmo"],
+    ] as const) {
+      await user.click(
+        within(paymentStep).getByRole("radio", {
+          name: label,
+        }),
+      );
+
+      expect(
+        orderSummary.querySelector(
+          `.checkout-summary__slot [data-paypal-sdk-method="${method}"]`,
+        ),
+      ).toBeTruthy();
+      expect(orderSummary.textContent).toContain(`${label} selected`);
+    }
+  });
 });
+
+async function advanceDeliveryCheckoutToPayment(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  await user.click(
+    within(getStep("Shipping address")).getByRole("button", {
+      name: "Submit shipping address",
+    }),
+  );
+  await user.click(
+    within(getStep("Billing address")).getByRole("button", {
+      name: "Save billing address",
+    }),
+  );
+  await user.click(
+    within(getStep("Shipping options")).getByRole("button", {
+      name: "Submit shipping option",
+    }),
+  );
+}
+
+function getStep(title: string): HTMLElement {
+  const heading = screen.getByRole("heading", { name: title });
+  const step = heading.closest("article");
+
+  if (!step) {
+    throw new Error(`Could not find checkout step for ${title}`);
+  }
+
+  return step;
+}
 
 function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
   return {

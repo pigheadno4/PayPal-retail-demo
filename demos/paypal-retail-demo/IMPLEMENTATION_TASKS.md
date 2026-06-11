@@ -344,7 +344,7 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [x] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
 - [ ] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
 - [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
-- [ ] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
+- [x] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
 - [ ] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
 - [ ] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard in Milestone 13.
 - [x] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
@@ -359,7 +359,7 @@ Verification:
 - Logged-in Pickup starts with a preselected nearest/default-address store, can change store from a modal, and can advance to pickup date and selected payment method.
 - Partial Pickup store selection updates the Pickup Order Summary and excludes unavailable items from the payable pickup amount while preserving original cart intent.
 - Payment method radio changes render the matching PayPal/Pay Later/card surface and hide unrelated selected-action surfaces.
-- Wallet radio surfaces remain open until Apple Pay, Google Pay, and Venmo runtime eligibility checks are verified.
+- Wallet radio surfaces switch from buyer interaction, render only eligible rows, and keep Apple Pay/Google Pay/Venmo runtime eligibility evidence visible.
 - No visible checkout/cart/PDP action is a silent placeholder.
 
 ## Milestone 12: Payment UI Integration
