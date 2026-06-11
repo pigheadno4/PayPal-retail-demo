@@ -178,7 +178,14 @@ export function CheckoutPage({
   >({});
   const [stepStateOverrides, setStepStateOverrides] = useState<
     Readonly<Record<string, CheckoutStepState>>
-  >({});
+  >(() =>
+    pickupStartsWithPreselectedStore
+      ? {
+          "pickup-location": "saved",
+          "store-selection": "saved",
+        }
+      : {},
+  );
   const [choiceSelections, setChoiceSelections] = useState<
     Readonly<Record<string, string>>
   >({});
@@ -690,6 +697,7 @@ function CheckoutModePanel({
                   step={stepWithDetails}
                   mode={mode}
                   onStepEdit={onStepEdit}
+                  onStepSubmit={onStepSubmit}
                 />
               ) : null}
             </article>
@@ -872,6 +880,7 @@ function CheckoutStepSummary({
   step,
   mode,
   onStepEdit,
+  onStepSubmit,
 }: {
   readonly step: CheckoutStep;
   readonly mode: CheckoutFulfillmentMode;
@@ -879,6 +888,7 @@ function CheckoutStepSummary({
     step: CheckoutStep,
     mode: CheckoutFulfillmentMode,
   ) => void;
+  readonly onStepSubmit: (step: CheckoutStep) => void;
 }) {
   const summaryFields =
     step.fields?.filter(
@@ -937,6 +947,13 @@ function CheckoutStepSummary({
       <button type="button" onClick={() => onStepEdit(step, mode)}>
         {editLabel}
       </button>
+      {mode === "pickup" &&
+      step.id === "store-selection" &&
+      selectedStores.length ? (
+        <button type="button" onClick={() => onStepSubmit(step)}>
+          Continue with this store
+        </button>
+      ) : null}
     </div>
   );
 }

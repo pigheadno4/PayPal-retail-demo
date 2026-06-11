@@ -313,6 +313,55 @@ describe("CheckoutPage interactions", () => {
     expect(document.activeElement).toBe(changeStoreButton);
   });
 
+  it("lets logged-in Pickup continue from the preselected store into billing and payment", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CheckoutPage
+        data={loggedInPickupData()}
+        renderPaymentAction={(context) => (
+          <div>Selected {context.selectedPaymentMethod}</div>
+        )}
+      />,
+    );
+
+    const storeSelectionStep = getStep("Store selection");
+    expect(within(storeSelectionStep).getByText("POP MART Soho")).toBeTruthy();
+    expect(
+      within(getStep("Billing address")).queryByLabelText(
+        "Billing street address",
+      ),
+    ).toBeNull();
+
+    await user.click(
+      within(storeSelectionStep).getByRole("button", {
+        name: "Continue with this store",
+      }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    const billingStep = getStep("Billing address");
+    expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+
+    const pickupDateStep = getStep("Pickup date");
+    expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
+    await user.click(
+      within(pickupDateStep).getByRole("button", {
+        name: "Submit pickup date",
+      }),
+    );
+
+    const paymentStep = getStep("Payment method");
+    expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    expect(screen.getByText("Selected paypal")).toBeTruthy();
+  });
+
   it("updates Pickup Order Summary ready and unavailable lines when store inventory changes", async () => {
     const user = userEvent.setup();
 

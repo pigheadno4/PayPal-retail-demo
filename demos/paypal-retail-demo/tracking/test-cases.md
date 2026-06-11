@@ -155,6 +155,7 @@
 - [x] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
 - [x] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
 - [x] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
+- [x] M11.5 Pickup logged-in buyer can continue from the preselected store directly into billing, pickup date, and payment selection.
 - [x] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
 - [x] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
 - [x] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
