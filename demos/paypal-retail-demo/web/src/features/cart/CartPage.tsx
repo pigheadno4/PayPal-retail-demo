@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 
 import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 import {
@@ -14,6 +14,7 @@ import {
 
 export interface CartPageProps {
   readonly data?: CartData;
+  readonly onCheckoutNavigate?: () => void;
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
   ) => void;
@@ -22,6 +23,7 @@ export interface CartPageProps {
 
 export function CartPage({
   data = defaultCartData,
+  onCheckoutNavigate,
   onDeliveryExpressStart,
   onQuantityChange,
 }: CartPageProps) {
@@ -128,7 +130,13 @@ export function CartPage({
           <h2 id="cart-paylater-title">Pay Later with PayPal</h2>
           <p>{payLaterMessage}</p>
         </section>
-        <a className="button button--primary" href={data.checkoutHref}>
+        <a
+          className="button button--primary"
+          href={data.checkoutHref}
+          onClick={(event) =>
+            handleOptionalNavigation(event, onCheckoutNavigate)
+          }
+        >
           Go to checkout
         </a>
         <DeliveryExpressActions onExpressStart={onDeliveryExpressStart} />
@@ -136,6 +144,16 @@ export function CartPage({
       </aside>
     </div>
   );
+}
+
+function handleOptionalNavigation(
+  event: MouseEvent<HTMLAnchorElement>,
+  onNavigate: (() => void) | undefined,
+) {
+  if (onNavigate) {
+    event.preventDefault();
+    onNavigate();
+  }
 }
 
 export interface DeliveryExpressActionsProps {

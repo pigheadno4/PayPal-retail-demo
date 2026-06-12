@@ -149,7 +149,8 @@
 - [x] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
 - [x] M11.5 PDP/cart/minicart delivery express UI entry moves the buyer to Review and Confirm with delivery-only source/method context.
 - [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
-- [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
+- [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
+- [ ] M11.5 logged-in/session cart quantity updates reconcile with the backend before checkout/express start.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.

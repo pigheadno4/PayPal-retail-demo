@@ -94,6 +94,8 @@
 - [x] Continue Milestone 11.5 with logged-in Pickup direct continuation from the preselected store.
 - [x] Continue Milestone 11.5 with checkout section saving/recalculating/saved submit transitions.
 - [x] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
+- [x] Continue Milestone 11.5 with minicart close, View cart, Checkout, and full-cart checkout App-state navigation.
+- [ ] Continue Milestone 11.5 with server-backed cart quantity update/reconcile before checkout/express start.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.

@@ -75,6 +75,11 @@ export interface AppProps {
   readonly initialExpressReview?: ExpressReviewPageData;
 }
 
+interface BuyerNavigationContext {
+  readonly pathname: string;
+  readonly statusMessage: string;
+}
+
 export function App({
   initialPathname,
   initialConfig,
@@ -152,6 +157,24 @@ function BuyerShell({
     setCurrentMinicartState("open");
   }
 
+  function closeMinicart() {
+    setCurrentMinicartState("closed");
+    setShellStatus("Minicart closed.");
+  }
+
+  function navigateBuyer({ pathname, statusMessage }: BuyerNavigationContext) {
+    const nextRoute = resolveAppRoute(pathname);
+
+    if (nextRoute.scope !== "buyer") {
+      return;
+    }
+
+    setCurrentRoute(nextRoute);
+    setCurrentMinicartState("closed");
+    setShellStatus(statusMessage);
+    pushBuyerHistory(pathname);
+  }
+
   function handleAddProductToCart(product: ProductDetailPageData) {
     setCurrentCart((cart) => incrementCartItemQuantity(cart, product.slug));
     setCurrentMinicartState("open");
@@ -221,6 +244,7 @@ function BuyerShell({
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
           onDeliveryExpressStart={handleDeliveryExpressStart}
+          onNavigate={navigateBuyer}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
               config,
@@ -248,6 +272,19 @@ function BuyerShell({
       <MinicartShell
         state={currentMinicartState}
         cart={currentCart}
+        onCartNavigate={() =>
+          navigateBuyer({
+            pathname: currentCart.cartHref,
+            statusMessage: "Opened cart.",
+          })
+        }
+        onCheckoutNavigate={() =>
+          navigateBuyer({
+            pathname: currentCart.checkoutHref,
+            statusMessage: "Opened checkout.",
+          })
+        }
+        onClose={closeMinicart}
         onDeliveryExpressStart={(method) =>
           handleDeliveryExpressStart({
             method,
@@ -270,6 +307,7 @@ function RouteStage({
   onAddProductToCart,
   onCartQuantityChange,
   onDeliveryExpressStart,
+  onNavigate,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderPayLaterRowMessage,
@@ -286,6 +324,7 @@ function RouteStage({
   readonly onDeliveryExpressStart: (
     context: DeliveryExpressStartContext,
   ) => void;
+  readonly onNavigate: (navigation: BuyerNavigationContext) => void;
   readonly renderCardPaymentBox: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -315,6 +354,12 @@ function RouteStage({
     return (
       <CartPage
         data={cartData}
+        onCheckoutNavigate={() =>
+          onNavigate({
+            pathname: cartData.checkoutHref,
+            statusMessage: "Opened checkout.",
+          })
+        }
         onDeliveryExpressStart={(method) =>
           onDeliveryExpressStart({
             method,
@@ -538,4 +583,10 @@ function AdminShell({
 
 function browserPathname(): string {
   return globalThis.location?.pathname ?? "/";
+}
+
+function pushBuyerHistory(pathname: string) {
+  if (globalThis.location?.pathname !== pathname) {
+    globalThis.history?.pushState(null, "", pathname);
+  }
 }

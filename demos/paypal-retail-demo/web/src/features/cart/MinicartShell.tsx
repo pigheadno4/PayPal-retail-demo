@@ -1,5 +1,6 @@
 import type { StorefrontShellPanels } from "../../state/storefrontState.js";
 import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
+import { type MouseEvent } from "react";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
@@ -11,6 +12,9 @@ import { DeliveryExpressActions } from "./CartPage.js";
 export interface MinicartShellProps {
   readonly state: StorefrontShellPanels["minicart"];
   readonly cart?: CartData;
+  readonly onCartNavigate?: () => void;
+  readonly onCheckoutNavigate?: () => void;
+  readonly onClose?: () => void;
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
   ) => void;
@@ -19,6 +23,9 @@ export interface MinicartShellProps {
 export function MinicartShell({
   state,
   cart = defaultCartData,
+  onCartNavigate,
+  onCheckoutNavigate,
+  onClose,
   onDeliveryExpressStart,
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
@@ -34,6 +41,11 @@ export function MinicartShell({
       <header className="minicart-shell__header">
         <h2>Cart</h2>
         <span>{itemCountLabel}</span>
+        {onClose ? (
+          <button type="button" aria-label="Close minicart" onClick={onClose}>
+            Close
+          </button>
+        ) : null}
       </header>
       <div className="minicart-shell__body">
         <ul className="minicart-items">
@@ -59,10 +71,20 @@ export function MinicartShell({
           <p>{buildCartPayLaterMessage(cart)}</p>
         </section>
         <div className="minicart-actions">
-          <a className="button button--secondary" href={cart.cartHref}>
+          <a
+            className="button button--secondary"
+            href={cart.cartHref}
+            onClick={(event) => handleOptionalNavigation(event, onCartNavigate)}
+          >
             View cart
           </a>
-          <a className="button button--primary" href={cart.checkoutHref}>
+          <a
+            className="button button--primary"
+            href={cart.checkoutHref}
+            onClick={(event) =>
+              handleOptionalNavigation(event, onCheckoutNavigate)
+            }
+          >
             Checkout
           </a>
         </div>
@@ -71,4 +93,14 @@ export function MinicartShell({
       </div>
     </aside>
   );
+}
+
+function handleOptionalNavigation(
+  event: MouseEvent<HTMLAnchorElement>,
+  onNavigate: (() => void) | undefined,
+) {
+  if (onNavigate) {
+    event.preventDefault();
+    onNavigate();
+  }
 }

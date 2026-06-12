@@ -76,6 +76,87 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
+  it("closes minicart and navigates cart checkout actions through app state", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <App initialPathname="/" initialCart={singleItemCart({ quantity: 1 })} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+
+    const openedMinicart = screen.getByLabelText("Minicart");
+    expect(openedMinicart.getAttribute("data-panel-state")).toBe("open");
+
+    await user.click(
+      within(openedMinicart).getByRole("button", {
+        name: "Close minicart",
+      }),
+    );
+
+    expect(openedMinicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.getByRole("status").textContent).toContain(
+      "Minicart closed.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const reopenedMinicart = screen.getByLabelText("Minicart");
+
+    await user.click(
+      within(reopenedMinicart).getByRole("link", {
+        name: "View cart",
+      }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Shopping cart" })).toBeTruthy();
+    expect(globalThis.location.pathname).toBe("/cart");
+    expect(reopenedMinicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.getByRole("status").textContent).toContain("Opened cart.");
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    await user.click(
+      within(orderSummary).getByRole("link", {
+        name: "Go to checkout",
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Delivery or Pickup" }),
+    ).toBeTruthy();
+    expect(globalThis.location.pathname).toBe("/checkout");
+    expect(screen.getByRole("status").textContent).toContain(
+      "Opened checkout.",
+    );
+  });
+
+  it("navigates from minicart checkout directly into checkout", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <App initialPathname="/" initialCart={singleItemCart({ quantity: 1 })} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+
+    await user.click(
+      within(minicart).getByRole("link", {
+        name: "Checkout",
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Delivery or Pickup" }),
+    ).toBeTruthy();
+    expect(globalThis.location.pathname).toBe("/checkout");
+    expect(minicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.getByRole("status").textContent).toContain(
+      "Opened checkout.",
+    );
+  });
+
   it("starts delivery express from PDP, cart, and minicart actions into Review and Confirm", async () => {
     const user = userEvent.setup();
 

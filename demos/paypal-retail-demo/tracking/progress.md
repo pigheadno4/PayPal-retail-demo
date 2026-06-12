@@ -148,3 +148,4 @@
 ## 2026-06-12
 
 - Continued Milestone 11.5 delivery express recovery with TDD: added a failing App interaction test for PDP/cart/minicart PayPal or Pay Later express entry, then wired the visible delivery-only express actions into App-owned route/status state so those entry points move the buyer to Review and Confirm with the selected source and payment method. The actual PayPal-approved return with synchronized shipping/tax/promo totals and capture stays open for Milestone 13.
+- Continued Milestone 11.5 cart/minicart action recovery with TDD: added failing App interaction tests for Close minicart, View cart, minicart Checkout, and full-cart Go to checkout behavior, then wired App-owned route/status state so those actions close the minicart and render Cart or Delivery/Pickup checkout without document-navigation fallbacks. Server-backed cart reconcile before checkout/express remains open.
