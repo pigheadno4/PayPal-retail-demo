@@ -76,6 +76,92 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
+  it("starts delivery express from PDP, cart, and minicart actions into Review and Confirm", async () => {
+    const user = userEvent.setup();
+
+    const expressEntries = [
+      {
+        initialPathname: "/products/labubu-have-a-seat",
+        initialProductPages: {
+          "labubu-have-a-seat": releasedProduct(),
+        },
+        trigger: async () => {
+          const purchaseActions = screen.getByLabelText("Purchase actions");
+
+          await user.click(
+            within(purchaseActions).getByRole("button", {
+              name: "PayPal",
+            }),
+          );
+        },
+        expectedSource: "Delivery express from product detail",
+        expectedMethod: "PayPal",
+      },
+      {
+        initialPathname: "/cart",
+        trigger: async () => {
+          const orderSummary = screen.getByRole("complementary", {
+            name: "Order summary",
+          });
+
+          await user.click(
+            within(orderSummary).getByRole("button", {
+              name: "Pay Later",
+            }),
+          );
+        },
+        expectedSource: "Delivery express from cart",
+        expectedMethod: "Pay Later",
+      },
+      {
+        initialPathname: "/",
+        trigger: async () => {
+          await user.click(
+            screen.getByRole("button", { name: "Open minicart" }),
+          );
+          const minicart = screen.getByLabelText("Minicart");
+
+          await user.click(
+            within(minicart).getByRole("button", {
+              name: "PayPal",
+            }),
+          );
+        },
+        expectedSource: "Delivery express from minicart",
+        expectedMethod: "PayPal",
+      },
+    ];
+
+    for (const entry of expressEntries) {
+      const rendered = render(
+        <App
+          initialPathname={entry.initialPathname}
+          initialCart={singleItemCart({ quantity: 1 })}
+          {...(entry.initialProductPages
+            ? { initialProductPages: entry.initialProductPages }
+            : {})}
+        />,
+      );
+
+      await entry.trigger();
+
+      expect(
+        screen.getByRole("heading", {
+          name: "Review and Confirm",
+        }),
+      ).toBeTruthy();
+      expect(screen.getByText(entry.expectedSource)).toBeTruthy();
+      expect(
+        screen.getByLabelText(`Payment method ${entry.expectedMethod}`),
+      ).toBeTruthy();
+      expect(screen.getByRole("status").textContent).toContain(
+        `Started ${entry.expectedMethod} delivery express.`,
+      );
+
+      rendered.unmount();
+    }
+  });
+
   it("switches eligible checkout wallet radios into the selected order summary action", async () => {
     const user = userEvent.setup();
 

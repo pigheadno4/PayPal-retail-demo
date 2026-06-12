@@ -333,7 +333,7 @@ Purpose: close the gap between visual shells and working buyer actions before co
 
 - [x] Re-audit checked Milestone 9-12 UI items and label any remaining visual-shell-only behavior before changing payment semantics.
 - [x] Wire PDP add-to-cart into cart state.
-- [ ] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
+- [x] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
 - [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
 - [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
 - [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
@@ -354,6 +354,7 @@ Verification:
 
 - PDP add-to-cart changes the cart and refreshes amount-aware Pay Later messaging.
 - Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
+- PDP/cart/minicart delivery express buttons start a delivery-only express UI session and route to Review and Confirm with the selected method/entry context; synchronized PayPal session return and capture remain Milestone 13.
 - Delivery checkout starts with only Shipping address expanded; submitting or editing a section leaves only one section expanded.
 - Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
 - Guest Pickup opens a store-list modal after ZIP/postcode submit and can advance from selected store to pickup date and selected payment method.

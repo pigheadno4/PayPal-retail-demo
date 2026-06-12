@@ -144,3 +144,7 @@
 - Continued Milestone 11.5 logged-in Pickup happy path recovery with TDD: added a failing direct-continue test for the preselected nearest/default-address store, then marked preselected pickup-location/store-selection steps saved and added a "Continue with this store" summary action that advances into billing, pickup date, and payment selection without opening the Change store modal.
 - Closed the stale Milestone 11.5 wallet-switching gap with buyer-flow evidence: added an App interaction test proving Delivery checkout can advance to payment and selecting Apple Pay, Google Pay, or Venmo updates the Order Summary payment action to the matching method while existing static coverage continues to hide ineligible wallet rows.
 - Continued Milestone 11.5 checkout submit-state recovery with TDD: added a failing timer-driven interaction test for section submit transitions, then wired save-capable Delivery/Pickup steps through saving, recalculating totals, saved/collapsed, and next-section editing states while updating existing buyer-flow helpers to wait for settled transitions.
+
+## 2026-06-12
+
+- Continued Milestone 11.5 delivery express recovery with TDD: added a failing App interaction test for PDP/cart/minicart PayPal or Pay Later express entry, then wired the visible delivery-only express actions into App-owned route/status state so those entry points move the buyer to Review and Confirm with the selected source and payment method. The actual PayPal-approved return with synchronized shipping/tax/promo totals and capture stays open for Milestone 13.

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
+
 export interface ProductGalleryImage {
   readonly imagePath: string;
   readonly imageAlt: string;
@@ -43,15 +45,26 @@ export interface ProductDetailPageData {
 export interface ProductDetailPageProps {
   readonly data: ProductDetailPageData;
   readonly onAddToCart?: (product: ProductDetailPageData) => void;
+  readonly onDeliveryExpressStart?: (
+    method: DeliveryExpressPaymentMethod,
+    product: ProductDetailPageData,
+  ) => void;
 }
 
 export function ProductDetailPage({
   data,
   onAddToCart,
+  onDeliveryExpressStart,
 }: ProductDetailPageProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = data.gallery[activeImageIndex] ?? data.gallery[0];
   const showReviews = data.purchasable && data.reviews.length > 0;
+
+  function startDeliveryExpress(method: DeliveryExpressPaymentMethod) {
+    if (data.purchasable) {
+      onDeliveryExpressStart?.(method, data);
+    }
+  }
 
   return (
     <div className="product-page">
@@ -136,15 +149,19 @@ export function ProductDetailPage({
           <div className="product-express-actions">
             <button
               className="product-express-actions__paypal"
+              data-fulfillment-mode="delivery"
               type="button"
               disabled={!data.purchasable}
+              onClick={() => startDeliveryExpress("paypal")}
             >
               PayPal
             </button>
             <button
               className="product-express-actions__paylater"
+              data-fulfillment-mode="delivery"
               type="button"
               disabled={!data.purchasable}
+              onClick={() => startDeliveryExpress("paylater")}
             >
               Pay Later
             </button>

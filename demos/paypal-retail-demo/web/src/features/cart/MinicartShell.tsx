@@ -1,4 +1,5 @@
 import type { StorefrontShellPanels } from "../../state/storefrontState.js";
+import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
@@ -10,11 +11,15 @@ import { DeliveryExpressActions } from "./CartPage.js";
 export interface MinicartShellProps {
   readonly state: StorefrontShellPanels["minicart"];
   readonly cart?: CartData;
+  readonly onDeliveryExpressStart?: (
+    method: DeliveryExpressPaymentMethod,
+  ) => void;
 }
 
 export function MinicartShell({
   state,
   cart = defaultCartData,
+  onDeliveryExpressStart,
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
   const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
@@ -61,7 +66,7 @@ export function MinicartShell({
             Checkout
           </a>
         </div>
-        <DeliveryExpressActions />
+        <DeliveryExpressActions onExpressStart={onDeliveryExpressStart} />
         <p className="cart-pickup-hint">{cart.pickupHint}</p>
       </div>
     </aside>

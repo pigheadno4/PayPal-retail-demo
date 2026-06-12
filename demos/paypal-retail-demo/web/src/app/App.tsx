@@ -44,6 +44,11 @@ import {
 } from "../features/payments/PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "../features/payments/PayPalStandaloneAction.js";
 import {
+  formatDeliveryExpressMethod,
+  formatDeliveryExpressSource,
+  type DeliveryExpressStartContext,
+} from "../features/payments/deliveryExpress.js";
+import {
   WalletCheckoutAction,
   type WalletPaymentMethod,
 } from "../features/payments/WalletCheckoutAction.js";
@@ -134,7 +139,10 @@ function BuyerShell({
   >["panels"]["minicart"];
 }) {
   const assets = resolveProfileAssets(config.profile);
+  const [currentRoute, setCurrentRoute] = useState(route);
   const [currentCart, setCurrentCart] = useState(cartData);
+  const [currentExpressReviewData, setCurrentExpressReviewData] =
+    useState(expressReviewData);
   const [currentMinicartState, setCurrentMinicartState] =
     useState(minicartState);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
@@ -154,11 +162,27 @@ function BuyerShell({
     setCurrentCart((cart) => setCartItemQuantity(cart, slug, nextQuantity));
   }
 
+  function handleDeliveryExpressStart(context: DeliveryExpressStartContext) {
+    const paymentMethodLabel = formatDeliveryExpressMethod(context.method);
+
+    setCurrentExpressReviewData((data) => ({
+      ...data,
+      sourceLabel: formatDeliveryExpressSource(context.source),
+      paymentMethodLabel,
+    }));
+    setCurrentMinicartState("closed");
+    setCurrentRoute({
+      scope: "buyer",
+      page: "express_review",
+    });
+    setShellStatus(`Started ${paymentMethodLabel} delivery express.`);
+  }
+
   return (
     <div
       className={`app-shell buyer-shell ${assets.themeClassName}`}
       data-route-scope="buyer"
-      data-route-page={route.page}
+      data-route-page={currentRoute.page}
       data-market={config.market.code}
     >
       <a className="skip-link" href="#main-content">
@@ -187,15 +211,16 @@ function BuyerShell({
       </header>
       <main className="buyer-shell__main" id="main-content" tabIndex={-1}>
         <RouteStage
-          route={route}
+          route={currentRoute}
           homePageData={homePageData}
           categoryPageData={categoryPageData}
           productPages={productPages}
           cartData={currentCart}
           checkoutData={checkoutData}
-          expressReviewData={expressReviewData}
+          expressReviewData={currentExpressReviewData}
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
+          onDeliveryExpressStart={handleDeliveryExpressStart}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
               config,
@@ -220,7 +245,16 @@ function BuyerShell({
         {shellStatus}
       </StatusRegion>
       <AuthModalShell state={authModalState} />
-      <MinicartShell state={currentMinicartState} cart={currentCart} />
+      <MinicartShell
+        state={currentMinicartState}
+        cart={currentCart}
+        onDeliveryExpressStart={(method) =>
+          handleDeliveryExpressStart({
+            method,
+            source: "minicart",
+          })
+        }
+      />
     </div>
   );
 }
@@ -235,6 +269,7 @@ function RouteStage({
   expressReviewData,
   onAddProductToCart,
   onCartQuantityChange,
+  onDeliveryExpressStart,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderPayLaterRowMessage,
@@ -248,6 +283,9 @@ function RouteStage({
   readonly expressReviewData: ExpressReviewPageData;
   readonly onAddProductToCart: (product: ProductDetailPageData) => void;
   readonly onCartQuantityChange: (slug: string, nextQuantity: number) => void;
+  readonly onDeliveryExpressStart: (
+    context: DeliveryExpressStartContext,
+  ) => void;
   readonly renderCardPaymentBox: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -274,7 +312,18 @@ function RouteStage({
   }
 
   if (route.page === "cart") {
-    return <CartPage data={cartData} onQuantityChange={onCartQuantityChange} />;
+    return (
+      <CartPage
+        data={cartData}
+        onDeliveryExpressStart={(method) =>
+          onDeliveryExpressStart({
+            method,
+            source: "cart",
+          })
+        }
+        onQuantityChange={onCartQuantityChange}
+      />
+    );
   }
 
   if (route.page === "account") {
@@ -290,7 +339,16 @@ function RouteStage({
     const productPage = productPages[route.productSlug];
 
     return productPage ? (
-      <ProductDetailPage data={productPage} onAddToCart={onAddProductToCart} />
+      <ProductDetailPage
+        data={productPage}
+        onAddToCart={onAddProductToCart}
+        onDeliveryExpressStart={(method) =>
+          onDeliveryExpressStart({
+            method,
+            source: "product_detail",
+          })
+        }
+      />
     ) : (
       <NotFoundStage />
     );

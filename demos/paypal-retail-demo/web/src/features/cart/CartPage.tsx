@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
@@ -13,11 +14,15 @@ import {
 
 export interface CartPageProps {
   readonly data?: CartData;
+  readonly onDeliveryExpressStart?: (
+    method: DeliveryExpressPaymentMethod,
+  ) => void;
   readonly onQuantityChange?: (slug: string, nextQuantity: number) => void;
 }
 
 export function CartPage({
   data = defaultCartData,
+  onDeliveryExpressStart,
   onQuantityChange,
 }: CartPageProps) {
   const [quantityOverrides, setQuantityOverrides] =
@@ -126,20 +131,36 @@ export function CartPage({
         <a className="button button--primary" href={data.checkoutHref}>
           Go to checkout
         </a>
-        <DeliveryExpressActions />
+        <DeliveryExpressActions onExpressStart={onDeliveryExpressStart} />
         <p className="cart-pickup-hint">{data.pickupHint}</p>
       </aside>
     </div>
   );
 }
 
-export function DeliveryExpressActions() {
+export interface DeliveryExpressActionsProps {
+  readonly onExpressStart?:
+    | ((method: DeliveryExpressPaymentMethod) => void)
+    | undefined;
+}
+
+export function DeliveryExpressActions({
+  onExpressStart,
+}: DeliveryExpressActionsProps) {
   return (
     <div className="cart-express-actions" aria-label="Delivery express payment">
-      <button type="button" data-fulfillment-mode="delivery">
+      <button
+        type="button"
+        data-fulfillment-mode="delivery"
+        onClick={() => onExpressStart?.("paypal")}
+      >
         PayPal
       </button>
-      <button type="button" data-fulfillment-mode="delivery">
+      <button
+        type="button"
+        data-fulfillment-mode="delivery"
+        onClick={() => onExpressStart?.("paylater")}
+      >
         Pay Later
       </button>
     </div>

@@ -146,7 +146,8 @@
 - [x] Card payment button remains inside the card fields box on mobile and desktop.
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
 - [x] M11.5 PDP add-to-cart mutates app cart state and refreshes minicart/cart totals.
-- [ ] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
+- [x] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
+- [x] M11.5 PDP/cart/minicart delivery express UI entry moves the buyer to Review and Confirm with delivery-only source/method context.
 - [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
 - [ ] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
@@ -164,7 +165,7 @@
 - [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
 - [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
 - [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
-- [ ] PDP/cart/minicart express returns to Review and Confirm.
+- [ ] M13 PDP/cart/minicart express returns to Review and Confirm after PayPal approval with synchronized session totals.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
