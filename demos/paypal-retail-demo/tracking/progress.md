@@ -149,3 +149,7 @@
 
 - Continued Milestone 11.5 delivery express recovery with TDD: added a failing App interaction test for PDP/cart/minicart PayPal or Pay Later express entry, then wired the visible delivery-only express actions into App-owned route/status state so those entry points move the buyer to Review and Confirm with the selected source and payment method. The actual PayPal-approved return with synchronized shipping/tax/promo totals and capture stays open for Milestone 13.
 - Continued Milestone 11.5 cart/minicart action recovery with TDD: added failing App interaction tests for Close minicart, View cart, minicart Checkout, and full-cart Go to checkout behavior, then wired App-owned route/status state so those actions close the minicart and render Cart or Delivery/Pickup checkout without document-navigation fallbacks. Server-backed cart reconcile before checkout/express remains open.
+
+## 2026-06-13
+
+- Continued Milestone 11.5 cart API recovery with TDD: added failing App and API-client tests for server-backed cart quantity sync, then added web API PATCH support, stable cart item IDs, optimistic quantity updates that call `PATCH /api/cart/items/:id`, and `POST /api/cart/refresh` triggers before checkout and delivery express entry. Mapping backend cart update/refresh response DTOs back into buyer `CartData` remains open as the next reconciliation slice.

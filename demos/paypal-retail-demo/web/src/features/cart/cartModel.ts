@@ -1,4 +1,5 @@
 export interface CartItem {
+  readonly id?: string;
   readonly slug: string;
   readonly name: string;
   readonly categoryName: string;
@@ -76,6 +77,10 @@ export function resolveCartItemQuantity(
   return Math.min(Math.max(normalizedQuantity, 0), item.maxQuantity);
 }
 
+export function resolveCartItemServerId(item: CartItem): string {
+  return item.id ?? item.slug;
+}
+
 export function setCartItemQuantity(
   cart: CartData,
   slug: string,
@@ -114,6 +119,7 @@ export const defaultCartData: CartData = {
   pickupHint: "Prefer pickup? Choose store pickup during checkout.",
   items: [
     {
+      id: "cart_item_labubu",
       slug: "labubu-have-a-seat",
       name: "Labubu Have a Seat",
       categoryName: "Blind Boxes",
@@ -127,6 +133,7 @@ export const defaultCartData: CartData = {
       href: "/products/labubu-have-a-seat",
     },
     {
+      id: "cart_item_hirono",
       slug: "hirono-little-mischief",
       name: "Hirono Little Mischief",
       categoryName: "Plush",

@@ -53,6 +53,11 @@ export interface ApiClient {
     path: string,
     query?: ApiQueryParams,
   ) => Promise<TData>;
+  readonly patch: <TData = unknown>(
+    path: string,
+    body?: unknown,
+    query?: ApiQueryParams,
+  ) => Promise<TData>;
   readonly post: <TData = unknown>(
     path: string,
     body?: unknown,
@@ -68,6 +73,20 @@ export function createApiClient(input: ApiClientInput = {}): ApiClient {
     async get<TData = unknown>(path: string, query?: ApiQueryParams) {
       const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
         method: "GET",
+      });
+      return readApiEnvelope<TData>(response);
+    },
+    async patch<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
       });
       return readApiEnvelope<TData>(response);
     },

@@ -336,7 +336,8 @@ Purpose: close the gap between visual shells and working buyer actions before co
 - [x] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
 - [ ] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
   - [x] Wire app-owned minicart open/close, View cart, Checkout, full-cart checkout navigation, Pay Later amount refresh, and delivery-only express UI entry.
-  - [ ] Wire server-backed cart quantity update/reconcile for logged-in/session carts.
+  - [x] Wire server-backed cart quantity PATCH plus cart refresh triggers before checkout and express payment start.
+  - [ ] Map backend cart update/refresh responses back into buyer `CartData` so server-side price, promo, tax, and blocker changes visibly reconcile.
 - [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
 - [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
 - [x] Wire checkout submit transitions through saving, recalculating totals, saved/collapsed, and next-section editing states for Delivery and Pickup step saves.

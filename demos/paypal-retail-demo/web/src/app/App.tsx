@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 
+import type { ApiClient, ApiQueryParams } from "../api/client.js";
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
@@ -53,7 +54,7 @@ import {
   type WalletPaymentMethod,
 } from "../features/payments/WalletCheckoutAction.js";
 import { StatusRegion } from "../components/accessibility.js";
-import { AppProviders } from "../state/appProviders.js";
+import { AppProviders, useApiClient } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
   defaultRuntimeConfig,
@@ -63,6 +64,7 @@ import { resolveAppRoute, type AppRoute } from "./routes.js";
 import { resolveProfileAssets } from "./profileAssets.js";
 
 export interface AppProps {
+  readonly apiClient?: ApiClient | undefined;
   readonly initialPathname?: string;
   readonly initialConfig?: StorefrontRuntimeConfig;
   readonly initialHomePage?: HomePageData;
@@ -78,9 +80,13 @@ export interface AppProps {
 interface BuyerNavigationContext {
   readonly pathname: string;
   readonly statusMessage: string;
+  readonly refreshTrigger?: CartRefreshTrigger;
 }
 
+type CartRefreshTrigger = "checkout_start" | "express_payment_start";
+
 export function App({
+  apiClient,
   initialPathname,
   initialConfig,
   initialHomePage,
@@ -99,7 +105,7 @@ export function App({
   }
 
   return (
-    <AppProviders initialConfig={config}>
+    <AppProviders initialConfig={config} {...(apiClient ? { apiClient } : {})}>
       <BuyerShell
         route={route}
         config={config}
@@ -143,6 +149,7 @@ function BuyerShell({
     typeof createInitialStorefrontState
   >["panels"]["minicart"];
 }) {
+  const apiClient = useApiClient();
   const assets = resolveProfileAssets(config.profile);
   const [currentRoute, setCurrentRoute] = useState(route);
   const [currentCart, setCurrentCart] = useState(cartData);
@@ -162,11 +169,60 @@ function BuyerShell({
     setShellStatus("Minicart closed.");
   }
 
-  function navigateBuyer({ pathname, statusMessage }: BuyerNavigationContext) {
+  function cartQuery(): ApiQueryParams {
+    return {
+      market: config.market.code,
+    };
+  }
+
+  async function refreshCartBefore(trigger: CartRefreshTrigger) {
+    try {
+      await apiClient.post(
+        "/api/cart/refresh",
+        {
+          trigger,
+        },
+        cartQuery(),
+      );
+    } catch (error) {
+      console.error("[paypal-retail-demo] Cart refresh failed", {
+        trigger,
+        error,
+      });
+    }
+  }
+
+  function syncCartQuantity(cartItemId: string, nextQuantity: number) {
+    void apiClient
+      .patch(
+        `/api/cart/items/${encodeURIComponent(cartItemId)}`,
+        {
+          quantity: nextQuantity,
+        },
+        cartQuery(),
+      )
+      .catch((error: unknown) => {
+        console.error("[paypal-retail-demo] Cart quantity sync failed", {
+          cartItemId,
+          nextQuantity,
+          error,
+        });
+      });
+  }
+
+  async function navigateBuyer({
+    pathname,
+    statusMessage,
+    refreshTrigger,
+  }: BuyerNavigationContext) {
     const nextRoute = resolveAppRoute(pathname);
 
     if (nextRoute.scope !== "buyer") {
       return;
+    }
+
+    if (refreshTrigger) {
+      await refreshCartBefore(refreshTrigger);
     }
 
     setCurrentRoute(nextRoute);
@@ -181,13 +237,21 @@ function BuyerShell({
     setShellStatus(`Added ${product.name} to cart.`);
   }
 
-  function handleCartQuantityChange(slug: string, nextQuantity: number) {
+  function handleCartQuantityChange(
+    slug: string,
+    nextQuantity: number,
+    cartItemId: string,
+  ) {
     setCurrentCart((cart) => setCartItemQuantity(cart, slug, nextQuantity));
+    syncCartQuantity(cartItemId, nextQuantity);
   }
 
-  function handleDeliveryExpressStart(context: DeliveryExpressStartContext) {
+  async function handleDeliveryExpressStart(
+    context: DeliveryExpressStartContext,
+  ) {
     const paymentMethodLabel = formatDeliveryExpressMethod(context.method);
 
+    await refreshCartBefore("express_payment_start");
     setCurrentExpressReviewData((data) => ({
       ...data,
       sourceLabel: formatDeliveryExpressSource(context.source),
@@ -282,6 +346,7 @@ function BuyerShell({
           navigateBuyer({
             pathname: currentCart.checkoutHref,
             statusMessage: "Opened checkout.",
+            refreshTrigger: "checkout_start",
           })
         }
         onClose={closeMinicart}
@@ -320,11 +385,17 @@ function RouteStage({
   readonly checkoutData: CheckoutPageData;
   readonly expressReviewData: ExpressReviewPageData;
   readonly onAddProductToCart: (product: ProductDetailPageData) => void;
-  readonly onCartQuantityChange: (slug: string, nextQuantity: number) => void;
+  readonly onCartQuantityChange: (
+    slug: string,
+    nextQuantity: number,
+    cartItemId: string,
+  ) => void;
   readonly onDeliveryExpressStart: (
     context: DeliveryExpressStartContext,
-  ) => void;
-  readonly onNavigate: (navigation: BuyerNavigationContext) => void;
+  ) => void | Promise<void>;
+  readonly onNavigate: (
+    navigation: BuyerNavigationContext,
+  ) => void | Promise<void>;
   readonly renderCardPaymentBox: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -358,6 +429,7 @@ function RouteStage({
           onNavigate({
             pathname: cartData.checkoutHref,
             statusMessage: "Opened checkout.",
+            refreshTrigger: "checkout_start",
           })
         }
         onDeliveryExpressStart={(method) =>

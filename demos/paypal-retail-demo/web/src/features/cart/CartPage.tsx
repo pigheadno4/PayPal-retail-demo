@@ -8,17 +8,23 @@ import {
   defaultCartData,
   formatCartAmount,
   resolveCartItemQuantity,
+  resolveCartItemServerId,
   type CartData,
+  type CartItem,
   type CartQuantityOverrides,
 } from "./cartModel.js";
 
 export interface CartPageProps {
   readonly data?: CartData;
-  readonly onCheckoutNavigate?: () => void;
+  readonly onCheckoutNavigate?: () => void | Promise<void>;
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
+  ) => void | Promise<void>;
+  readonly onQuantityChange?: (
+    slug: string,
+    nextQuantity: number,
+    cartItemId: string,
   ) => void;
-  readonly onQuantityChange?: (slug: string, nextQuantity: number) => void;
 }
 
 export function CartPage({
@@ -40,15 +46,15 @@ export function CartPage({
     effectiveQuantityOverrides,
   );
 
-  function updateQuantity(slug: string, nextQuantity: number) {
+  function updateQuantity(item: CartItem, nextQuantity: number) {
     if (onQuantityChange) {
-      onQuantityChange(slug, nextQuantity);
+      onQuantityChange(item.slug, nextQuantity, resolveCartItemServerId(item));
       return;
     }
 
     setQuantityOverrides((currentQuantities) => ({
       ...currentQuantities,
-      [slug]: nextQuantity,
+      [item.slug]: nextQuantity,
     }));
   }
 
@@ -91,7 +97,7 @@ export function CartPage({
                   type="button"
                   aria-label={`Decrease ${item.name} quantity`}
                   disabled={quantity <= 0}
-                  onClick={() => updateQuantity(item.slug, quantity - 1)}
+                  onClick={() => updateQuantity(item, quantity - 1)}
                 >
                   -
                 </button>
@@ -108,7 +114,7 @@ export function CartPage({
                   type="button"
                   aria-label={`Increase ${item.name} quantity`}
                   disabled={quantity >= item.maxQuantity}
-                  onClick={() => updateQuantity(item.slug, quantity + 1)}
+                  onClick={() => updateQuantity(item, quantity + 1)}
                 >
                   +
                 </button>
@@ -148,7 +154,7 @@ export function CartPage({
 
 function handleOptionalNavigation(
   event: MouseEvent<HTMLAnchorElement>,
-  onNavigate: (() => void) | undefined,
+  onNavigate: (() => void | Promise<void>) | undefined,
 ) {
   if (onNavigate) {
     event.preventDefault();

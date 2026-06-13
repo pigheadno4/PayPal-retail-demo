@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { ApiClient, ApiQueryParams } from "../api/client.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
@@ -24,6 +25,7 @@ describe("App buyer interactions", () => {
 
     render(
       <App
+        apiClient={createRecordingApiClient()}
         initialPathname="/products/labubu-have-a-seat"
         initialCart={singleItemCart({ quantity: 1 })}
         initialProductPages={{
@@ -43,9 +45,7 @@ describe("App buyer interactions", () => {
         "Flexible payment options may be available for $27.98 at checkout.",
       ),
     ).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toContain(
-      "Added Labubu Have a Seat to cart.",
-    );
+    expect(getShellStatusText()).toContain("Added Labubu Have a Seat to cart.");
   });
 
   it("shares full-cart quantity changes with the minicart and Pay Later amount", async () => {
@@ -53,6 +53,7 @@ describe("App buyer interactions", () => {
 
     render(
       <App
+        apiClient={createRecordingApiClient()}
         initialPathname="/cart"
         initialCart={singleItemCart({ quantity: 1 })}
       />,
@@ -76,11 +77,86 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
+  it("syncs cart quantity and refreshes before checkout or express starts", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient();
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "patch",
+        path: "/api/cart/items/cart_item_labubu",
+        body: { quantity: 2 },
+        query: { market: "US" },
+      });
+    });
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Delivery or Pickup" }),
+      ).toBeTruthy();
+    });
+    expect(apiClient.calls).toContainEqual({
+      method: "post",
+      path: "/api/cart/refresh",
+      body: { trigger: "checkout_start" },
+      query: { market: "US" },
+    });
+
+    cleanup();
+    apiClient.calls.length = 0;
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    await user.click(
+      within(orderSummary).getByRole("button", {
+        name: "PayPal",
+      }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Review and Confirm" }),
+      ).toBeTruthy();
+    });
+    expect(apiClient.calls).toContainEqual({
+      method: "post",
+      path: "/api/cart/refresh",
+      body: { trigger: "express_payment_start" },
+      query: { market: "US" },
+    });
+  });
+
   it("closes minicart and navigates cart checkout actions through app state", async () => {
     const user = userEvent.setup();
 
     render(
-      <App initialPathname="/" initialCart={singleItemCart({ quantity: 1 })} />,
+      <App
+        apiClient={createRecordingApiClient()}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
@@ -95,9 +171,7 @@ describe("App buyer interactions", () => {
     );
 
     expect(openedMinicart.getAttribute("data-panel-state")).toBe("closed");
-    expect(screen.getByRole("status").textContent).toContain(
-      "Minicart closed.",
-    );
+    expect(getShellStatusText()).toContain("Minicart closed.");
 
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
     const reopenedMinicart = screen.getByLabelText("Minicart");
@@ -111,7 +185,7 @@ describe("App buyer interactions", () => {
     expect(screen.getByRole("heading", { name: "Shopping cart" })).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/cart");
     expect(reopenedMinicart.getAttribute("data-panel-state")).toBe("closed");
-    expect(screen.getByRole("status").textContent).toContain("Opened cart.");
+    expect(getShellStatusText()).toContain("Opened cart.");
 
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
@@ -126,16 +200,18 @@ describe("App buyer interactions", () => {
       screen.getByRole("heading", { name: "Delivery or Pickup" }),
     ).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/checkout");
-    expect(screen.getByRole("status").textContent).toContain(
-      "Opened checkout.",
-    );
+    expect(getShellStatusText()).toContain("Opened checkout.");
   });
 
   it("navigates from minicart checkout directly into checkout", async () => {
     const user = userEvent.setup();
 
     render(
-      <App initialPathname="/" initialCart={singleItemCart({ quantity: 1 })} />,
+      <App
+        apiClient={createRecordingApiClient()}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
@@ -152,9 +228,7 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/checkout");
     expect(minicart.getAttribute("data-panel-state")).toBe("closed");
-    expect(screen.getByRole("status").textContent).toContain(
-      "Opened checkout.",
-    );
+    expect(getShellStatusText()).toContain("Opened checkout.");
   });
 
   it("starts delivery express from PDP, cart, and minicart actions into Review and Confirm", async () => {
@@ -216,6 +290,7 @@ describe("App buyer interactions", () => {
     for (const entry of expressEntries) {
       const rendered = render(
         <App
+          apiClient={createRecordingApiClient()}
           initialPathname={entry.initialPathname}
           initialCart={singleItemCart({ quantity: 1 })}
           {...(entry.initialProductPages
@@ -235,7 +310,7 @@ describe("App buyer interactions", () => {
       expect(
         screen.getByLabelText(`Payment method ${entry.expectedMethod}`),
       ).toBeTruthy();
-      expect(screen.getByRole("status").textContent).toContain(
+      expect(getShellStatusText()).toContain(
         `Started ${entry.expectedMethod} delivery express.`,
       );
 
@@ -246,7 +321,12 @@ describe("App buyer interactions", () => {
   it("switches eligible checkout wallet radios into the selected order summary action", async () => {
     const user = userEvent.setup();
 
-    render(<App initialPathname="/checkout" />);
+    render(
+      <App
+        apiClient={createRecordingApiClient()}
+        initialPathname="/checkout"
+      />,
+    );
 
     await advanceDeliveryCheckoutToPayment(user);
 
@@ -321,6 +401,10 @@ async function waitForStepState(step: HTMLElement, state: string) {
   });
 }
 
+function getShellStatusText(): string {
+  return document.querySelector("#shell-status")?.textContent ?? "";
+}
+
 function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
   return {
     title: "Shopping cart",
@@ -331,6 +415,7 @@ function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
     pickupHint: "Prefer pickup? Choose store pickup during checkout.",
     items: [
       {
+        id: "cart_item_labubu",
         slug: "labubu-have-a-seat",
         name: "Labubu Have a Seat",
         categoryName: "Blind Boxes",
@@ -344,6 +429,43 @@ function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
         href: "/products/labubu-have-a-seat",
       },
     ],
+  };
+}
+
+interface RecordingApiCall {
+  readonly method: "get" | "patch" | "post";
+  readonly path: string;
+  readonly body?: unknown;
+  readonly query?: ApiQueryParams | undefined;
+}
+
+function createRecordingApiClient(): ApiClient & {
+  readonly calls: RecordingApiCall[];
+} {
+  const calls: RecordingApiCall[] = [];
+
+  return {
+    calls,
+    async get<TData = unknown>(path: string, query?: ApiQueryParams) {
+      calls.push({ method: "get", path, query });
+      return {} as TData;
+    },
+    async patch<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      calls.push({ method: "patch", path, body, query });
+      return {} as TData;
+    },
+    async post<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      calls.push({ method: "post", path, body, query });
+      return {} as TData;
+    },
   };
 }
 

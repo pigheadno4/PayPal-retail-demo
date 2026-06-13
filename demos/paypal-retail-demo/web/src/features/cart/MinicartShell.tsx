@@ -12,12 +12,12 @@ import { DeliveryExpressActions } from "./CartPage.js";
 export interface MinicartShellProps {
   readonly state: StorefrontShellPanels["minicart"];
   readonly cart?: CartData;
-  readonly onCartNavigate?: () => void;
-  readonly onCheckoutNavigate?: () => void;
+  readonly onCartNavigate?: () => void | Promise<void>;
+  readonly onCheckoutNavigate?: () => void | Promise<void>;
   readonly onClose?: () => void;
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
-  ) => void;
+  ) => void | Promise<void>;
 }
 
 export function MinicartShell({
@@ -97,7 +97,7 @@ export function MinicartShell({
 
 function handleOptionalNavigation(
   event: MouseEvent<HTMLAnchorElement>,
-  onNavigate: (() => void) | undefined,
+  onNavigate: (() => void | Promise<void>) | undefined,
 ) {
   if (onNavigate) {
     event.preventDefault();

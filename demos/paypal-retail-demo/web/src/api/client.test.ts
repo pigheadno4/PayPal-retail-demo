@@ -103,6 +103,53 @@ describe("web API client", () => {
       },
     ]);
   });
+
+  it("patches JSON app API requests with normalized query params", async () => {
+    const calls: Array<{
+      readonly url: string;
+      readonly init: RequestInit;
+    }> = [];
+    const client = createApiClient({
+      baseUrl: "https://demo.example.test/",
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {},
+        });
+        return responseJson({
+          ok: true,
+          data: { quantity: 2 },
+          debug_id: "dbg_patch",
+        });
+      },
+    });
+
+    const result = await client.patch(
+      "/api/cart/items/cart_item_labubu",
+      {
+        quantity: 2,
+      },
+      {
+        market: "US",
+      },
+    );
+
+    expect(result).toEqual({ quantity: 2 });
+    expect(calls).toEqual([
+      {
+        url: "https://demo.example.test/api/cart/items/cart_item_labubu?market=US",
+        init: {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            quantity: 2,
+          }),
+        },
+      },
+    ]);
+  });
 });
 
 function responseJson(body: unknown, status = 200): Response {
