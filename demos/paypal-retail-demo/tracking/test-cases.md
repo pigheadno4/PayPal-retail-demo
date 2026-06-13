@@ -151,7 +151,7 @@
 - [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
 - [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 cart quantity changes call the backend cart item update API, and checkout/express entry refreshes the cart before buyer navigation advances.
-- [ ] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side reconciliation is visible.
+- [x] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side quantity, price, and checkout-blocker reconciliation is visible.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.

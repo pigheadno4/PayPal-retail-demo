@@ -96,7 +96,7 @@
 - [x] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
 - [x] Continue Milestone 11.5 with minicart close, View cart, Checkout, and full-cart checkout App-state navigation.
 - [x] Continue Milestone 11.5 with server-backed cart quantity update and checkout/express cart refresh triggers.
-- [ ] Continue Milestone 11.5 with backend cart update/refresh response mapping back into buyer `CartData`.
+- [x] Continue Milestone 11.5 with backend cart update/refresh response mapping back into buyer `CartData`.
 - [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
 - [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.

@@ -148,6 +148,61 @@ describe("App buyer interactions", () => {
     });
   });
 
+  it("reconciles server cart responses back into cart and minicart UI", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: cartApiResponse({
+        quantity: 3,
+        unitPriceMinor: 1099,
+      }),
+      postResponse: cartApiResponse({
+        quantity: 1,
+        unitPriceMinor: 999,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("3");
+    });
+    expect(screen.getByText("$32.97")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    expect(within(minicart).getByText("Qty 3 · $10.99")).toBeTruthy();
+    expect(
+      within(minicart).getByText(
+        "Flexible payment options may be available for $32.97 at checkout.",
+      ),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Delivery or Pickup" }),
+      ).toBeTruthy();
+    });
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("1");
+  });
+
   it("closes minicart and navigates cart checkout actions through app state", async () => {
     const user = userEvent.setup();
 
@@ -439,7 +494,15 @@ interface RecordingApiCall {
   readonly query?: ApiQueryParams | undefined;
 }
 
-function createRecordingApiClient(): ApiClient & {
+interface RecordingApiClientInput {
+  readonly getResponse?: unknown;
+  readonly patchResponse?: unknown;
+  readonly postResponse?: unknown;
+}
+
+function createRecordingApiClient(
+  input: RecordingApiClientInput = {},
+): ApiClient & {
   readonly calls: RecordingApiCall[];
 } {
   const calls: RecordingApiCall[] = [];
@@ -448,7 +511,7 @@ function createRecordingApiClient(): ApiClient & {
     calls,
     async get<TData = unknown>(path: string, query?: ApiQueryParams) {
       calls.push({ method: "get", path, query });
-      return {} as TData;
+      return (input.getResponse ?? {}) as TData;
     },
     async patch<TData = unknown>(
       path: string,
@@ -456,7 +519,7 @@ function createRecordingApiClient(): ApiClient & {
       query?: ApiQueryParams,
     ) {
       calls.push({ method: "patch", path, body, query });
-      return {} as TData;
+      return (input.patchResponse ?? {}) as TData;
     },
     async post<TData = unknown>(
       path: string,
@@ -464,8 +527,48 @@ function createRecordingApiClient(): ApiClient & {
       query?: ApiQueryParams,
     ) {
       calls.push({ method: "post", path, body, query });
-      return {} as TData;
+      return (input.postResponse ?? {}) as TData;
     },
+  };
+}
+
+function cartApiResponse({
+  quantity,
+  unitPriceMinor,
+}: {
+  readonly quantity: number;
+  readonly unitPriceMinor: number;
+}) {
+  return {
+    cart: {
+      id: "cart_guest_us",
+      cart_public_id: "cart_public_existing",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      buyer_kind: "guest",
+      status: "active",
+      currency_code: "USD",
+      items: [
+        {
+          id: "cart_item_labubu",
+          product_id: "product_labubu",
+          slug: "labubu-have-a-seat",
+          name: "Labubu Have a Seat",
+          image_path: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+          quantity,
+          unit_price_minor: unitPriceMinor,
+          line_subtotal_minor: unitPriceMinor * quantity,
+          checkout_eligible: true,
+        },
+      ],
+      totals: {
+        item_count: quantity,
+        subtotal_minor: unitPriceMinor * quantity,
+        currency_code: "USD",
+      },
+      binding: null,
+    },
+    adjustments: [],
   };
 }
 

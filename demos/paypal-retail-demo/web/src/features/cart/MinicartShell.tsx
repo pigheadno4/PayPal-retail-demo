@@ -59,6 +59,9 @@ export function MinicartShell({
                 <small>
                   Qty {item.quantity} · {item.currentPriceLabel}
                 </small>
+                {item.unavailableReason ? (
+                  <small>{item.unavailableReason}</small>
+                ) : null}
               </span>
             </li>
           ))}

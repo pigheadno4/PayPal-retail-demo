@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCartPayLaterMessage,
   calculateCartMerchandiseTotalCents,
+  reconcileCartDataFromApiResponse,
   type CartData,
 } from "./cartModel.js";
 
@@ -28,6 +29,57 @@ describe("cartModel", () => {
       }),
     ).toContain("$51.96");
   });
+
+  it("maps backend cart response items into buyer cart data", () => {
+    const cart = cartData();
+
+    const reconciled = reconcileCartDataFromApiResponse(cart, {
+      cart: {
+        currency_code: "USD",
+        items: [
+          {
+            id: "cart_item_1",
+            product_id: "product_labubu",
+            slug: "labubu-have-a-seat",
+            name: "Labubu Have a Seat",
+            image_path: "/assets/popmart/products/labubu-refreshed.webp",
+            quantity: 3,
+            unit_price_minor: 1099,
+            line_subtotal_minor: 3297,
+            checkout_eligible: false,
+          },
+        ],
+      },
+      adjustments: [
+        {
+          type: "checkout_blocked",
+          product_id: "product_labubu",
+          reason: "not_purchasable",
+        },
+      ],
+    });
+
+    expect(reconciled.items).toEqual([
+      {
+        id: "cart_item_1",
+        productId: "product_labubu",
+        slug: "labubu-have-a-seat",
+        name: "Labubu Have a Seat",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/labubu-refreshed.webp",
+        imageAlt: "Labubu Have a Seat collectible",
+        unitPriceCents: 1099,
+        currentPriceLabel: "$10.99",
+        regularPriceLabel: "$13.99",
+        quantity: 3,
+        maxQuantity: 5,
+        href: "/products/labubu-have-a-seat",
+        checkoutEligible: false,
+        unavailableReason: "This item is not available for checkout yet.",
+      },
+    ]);
+    expect(buildCartPayLaterMessage(reconciled)).toContain("$32.97");
+  });
 });
 
 function cartData(): CartData {
@@ -40,6 +92,8 @@ function cartData(): CartData {
     pickupHint: "Prefer pickup? Choose store pickup during checkout.",
     items: [
       {
+        id: "cart_item_1",
+        productId: "product_labubu",
         slug: "labubu-have-a-seat",
         name: "Labubu Have a Seat",
         categoryName: "Blind Boxes",
@@ -53,6 +107,8 @@ function cartData(): CartData {
         href: "/products/labubu-have-a-seat",
       },
       {
+        id: "cart_item_2",
+        productId: "product_hirono",
         slug: "hirono-little-mischief",
         name: "Hirono Little Mischief",
         categoryName: "Plush",

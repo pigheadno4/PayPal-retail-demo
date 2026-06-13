@@ -153,3 +153,4 @@
 ## 2026-06-13
 
 - Continued Milestone 11.5 cart API recovery with TDD: added failing App and API-client tests for server-backed cart quantity sync, then added web API PATCH support, stable cart item IDs, optimistic quantity updates that call `PATCH /api/cart/items/:id`, and `POST /api/cart/refresh` triggers before checkout and delivery express entry. Mapping backend cart update/refresh response DTOs back into buyer `CartData` remains open as the next reconciliation slice.
+- Closed the M11.5 cart response reconciliation gap with TDD: added a pure backend-cart-response mapper test and an App interaction test proving server-returned quantity/price changes replace optimistic cart state in the header, cart, minicart, subtotal, and Pay Later amount copy. The mapper preserves UI metadata, applies server item IDs/product IDs/prices/quantities, and renders checkout-blocker notices; checkout promo/tax/shipping recalculation hooks remain open.

@@ -8,7 +8,9 @@ import {
   calculateCartItemCount,
   defaultCartData,
   incrementCartItemQuantity,
+  reconcileCartDataFromApiResponse,
   setCartItemQuantity,
+  type CartApiResponse,
   type CartData,
 } from "../features/cart/cartModel.js";
 import {
@@ -177,13 +179,14 @@ function BuyerShell({
 
   async function refreshCartBefore(trigger: CartRefreshTrigger) {
     try {
-      await apiClient.post(
+      const response = await apiClient.post<CartApiResponse>(
         "/api/cart/refresh",
         {
           trigger,
         },
         cartQuery(),
       );
+      reconcileServerCart(response);
     } catch (error) {
       console.error("[paypal-retail-demo] Cart refresh failed", {
         trigger,
@@ -194,13 +197,16 @@ function BuyerShell({
 
   function syncCartQuantity(cartItemId: string, nextQuantity: number) {
     void apiClient
-      .patch(
+      .patch<CartApiResponse>(
         `/api/cart/items/${encodeURIComponent(cartItemId)}`,
         {
           quantity: nextQuantity,
         },
         cartQuery(),
       )
+      .then((response) => {
+        reconcileServerCart(response);
+      })
       .catch((error: unknown) => {
         console.error("[paypal-retail-demo] Cart quantity sync failed", {
           cartItemId,
@@ -208,6 +214,10 @@ function BuyerShell({
           error,
         });
       });
+  }
+
+  function reconcileServerCart(response: CartApiResponse) {
+    setCurrentCart((cart) => reconcileCartDataFromApiResponse(cart, response));
   }
 
   async function navigateBuyer({

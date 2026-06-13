@@ -91,6 +91,9 @@ export function CartPage({
                     <s>{item.regularPriceLabel}</s>
                   )}
                 </div>
+                {item.unavailableReason ? (
+                  <p className="cart-item__notice">{item.unavailableReason}</p>
+                ) : null}
               </div>
               <div className="cart-quantity">
                 <button
