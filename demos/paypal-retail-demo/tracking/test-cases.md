@@ -165,7 +165,7 @@
 - [x] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
 - [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
 - [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
-- [ ] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
+- [x] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
 - [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
 - [ ] M13 PDP/cart/minicart express returns to Review and Confirm after PayPal approval with synchronized session totals.
 - [ ] Guest checkout completes and offers inline account creation.
@@ -249,6 +249,10 @@
 - [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
 - [x] Checkout validation marks the first invalid step as a keyboard focus target.
 - [x] Checkout Order Summary and Pay Later row reserve stable layout space for async PayPal button/message surfaces in component tests.
+- [x] Delivery checkout step submits call checkout draft APIs for shipping address, billing address, and shipping option, then reconcile returned promo/tax/shipping totals into Order Summary.
+- [x] Pickup checkout step submits call checkout draft APIs for location, store, billing address, and pickup date, then reconcile returned promo/tax/inventory totals into Order Summary.
+- [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
+- [x] Buyer can move from full cart checkout through Pickup store selection, billing, pickup date, and payment selection.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.

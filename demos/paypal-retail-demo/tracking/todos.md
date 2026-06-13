@@ -82,7 +82,7 @@
 - [x] Start Milestone 11.5 with failing buyer-flow tests for PDP/cart/minicart shared cart actions.
 - [x] Add failing buyer-flow tests for Delivery shipping-address section progression.
 - [x] Continue Milestone 11.5 with PDP add-to-cart and cart/minicart shared state wiring.
-- [ ] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
+- [x] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
 - [x] Continue Milestone 11.5 with editable Delivery shipping address expand/shrink behavior.
 - [x] Continue Milestone 11.5 with Delivery billing-address and shipping-option expand/shrink progression.
 - [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
@@ -97,9 +97,12 @@
 - [x] Continue Milestone 11.5 with minicart close, View cart, Checkout, and full-cart checkout App-state navigation.
 - [x] Continue Milestone 11.5 with server-backed cart quantity update and checkout/express cart refresh triggers.
 - [x] Continue Milestone 11.5 with backend cart update/refresh response mapping back into buyer `CartData`.
-- [ ] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
+- [x] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
+- [x] Continue Milestone 11.5 with Delivery checkout draft API recalculation hooks for shipping address, billing address, shipping option, promo/tax/shipping totals, and Order Summary reconciliation.
+- [x] Continue Milestone 11.5 with Pickup checkout draft API recalculation hooks for location, store, billing, pickup date, promo/tax/inventory totals, and Order Summary reconciliation.
 - [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
-- [ ] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
+- [x] Continue Milestone 11.5 with cross-entry buyer journey tests from PDP/minicart and cart into checkout payment selection.
+- [x] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
 - [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.

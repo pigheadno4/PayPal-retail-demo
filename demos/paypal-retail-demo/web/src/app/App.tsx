@@ -31,9 +31,15 @@ import {
 import {
   CheckoutPage,
   defaultCheckoutPageData,
+  type CheckoutDraftUpdateRequest,
   type CheckoutPaymentActionContext,
   type CheckoutPageData,
+  type CheckoutSubmittedField,
 } from "../features/checkout/CheckoutPage.js";
+import {
+  reconcileCheckoutDataFromDraftResponse,
+  type CheckoutDraftApiResponse,
+} from "../features/checkout/checkoutDraftApi.js";
 import {
   defaultExpressReviewPageData,
   ExpressReviewPage,
@@ -220,6 +226,30 @@ function BuyerShell({
     setCurrentCart((cart) => reconcileCartDataFromApiResponse(cart, response));
   }
 
+  async function updateCheckoutDraft(
+    request: CheckoutDraftUpdateRequest,
+    currentData: CheckoutPageData,
+  ): Promise<CheckoutPageData> {
+    if (!request.draftId) {
+      return currentData;
+    }
+
+    try {
+      const response = await sendCheckoutDraftUpdate(
+        apiClient,
+        config,
+        request,
+      );
+      return reconcileCheckoutDataFromDraftResponse(currentData, response);
+    } catch (error) {
+      console.error("[paypal-retail-demo] Checkout draft update failed", {
+        error,
+        request,
+      });
+      return currentData;
+    }
+  }
+
   async function navigateBuyer({
     pathname,
     statusMessage,
@@ -317,6 +347,7 @@ function BuyerShell({
           expressReviewData={currentExpressReviewData}
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
+          onCheckoutDraftUpdate={updateCheckoutDraft}
           onDeliveryExpressStart={handleDeliveryExpressStart}
           onNavigate={navigateBuyer}
           renderCardPaymentBox={(context) =>
@@ -381,6 +412,7 @@ function RouteStage({
   expressReviewData,
   onAddProductToCart,
   onCartQuantityChange,
+  onCheckoutDraftUpdate,
   onDeliveryExpressStart,
   onNavigate,
   renderCardPaymentBox,
@@ -400,6 +432,10 @@ function RouteStage({
     nextQuantity: number,
     cartItemId: string,
   ) => void;
+  readonly onCheckoutDraftUpdate: (
+    request: CheckoutDraftUpdateRequest,
+    currentData: CheckoutPageData,
+  ) => Promise<CheckoutPageData>;
   readonly onDeliveryExpressStart: (
     context: DeliveryExpressStartContext,
   ) => void | Promise<void>;
@@ -420,6 +456,7 @@ function RouteStage({
     return (
       <CheckoutPage
         data={checkoutData}
+        onDraftUpdate={onCheckoutDraftUpdate}
         renderCardPaymentBox={renderCardPaymentBox}
         renderPaymentAction={renderCheckoutPaymentAction}
         renderPayLaterRowMessage={renderPayLaterRowMessage}
@@ -490,6 +527,180 @@ function RouteStage({
   }
 
   return <HomePage data={homePageData} />;
+}
+
+async function sendCheckoutDraftUpdate(
+  apiClient: ApiClient,
+  config: StorefrontRuntimeConfig,
+  request: CheckoutDraftUpdateRequest,
+): Promise<CheckoutDraftApiResponse> {
+  const draftPath = `/api/checkout/drafts/${encodeURIComponent(
+    request.draftId ?? "",
+  )}`;
+  const query = {
+    market: config.market.code,
+  };
+
+  switch (request.type) {
+    case "delivery_shipping_address":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/shipping-address`,
+        buildAddressBody(request.fields, config, {
+          cityLabel: "City",
+          nameLabel: "Full name",
+          postalCodeLabel: "ZIP code",
+          stateLabel: "State",
+          streetLabel: "Street address",
+        }),
+        query,
+      );
+    case "delivery_billing_address":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/billing-address`,
+        buildBillingAddressBody(request.fields, config),
+        query,
+      );
+    case "delivery_shipping_option":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/shipping-option`,
+        {
+          shipping_option_id:
+            request.selectedChoiceValue ??
+            slugifyCheckoutValue(request.selectedChoiceLabel ?? ""),
+        },
+        query,
+      );
+    case "pickup_location":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/pickup-location`,
+        {
+          country_code: config.market.code,
+          county: null,
+          postal_code: getSubmittedFieldValue(
+            request.fields,
+            "ZIP or postcode",
+          ),
+          state: null,
+        },
+        query,
+      );
+    case "pickup_store":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/pickup-store`,
+        {
+          store_id:
+            request.selectedStoreId ??
+            slugifyCheckoutValue(request.selectedStoreName ?? ""),
+        },
+        query,
+      );
+    case "pickup_billing_address":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/billing-address`,
+        {
+          address: buildAddressBody(request.fields, config, {
+            cityLabel: "City",
+            nameLabel: "Full name",
+            postalCodeLabel: "ZIP code",
+            stateLabel: "State",
+            streetLabel: "Billing street address",
+          }),
+          same_as_shipping: false,
+          save_to_address_book: true,
+        },
+        query,
+      );
+    case "pickup_date":
+      return apiClient.patch<CheckoutDraftApiResponse>(
+        `${draftPath}/pickup-date`,
+        {
+          pickup_date:
+            request.selectedChoiceValue ??
+            slugifyCheckoutValue(request.selectedChoiceLabel ?? ""),
+        },
+        query,
+      );
+  }
+}
+
+function buildBillingAddressBody(
+  fields: readonly CheckoutSubmittedField[],
+  config: StorefrontRuntimeConfig,
+) {
+  const sameAsShipping = getSubmittedBooleanFieldValue(
+    fields,
+    "Same as shipping",
+    true,
+  );
+
+  if (sameAsShipping) {
+    return {
+      same_as_shipping: true,
+      save_to_address_book: true,
+    };
+  }
+
+  return {
+    address: buildAddressBody(fields, config, {
+      cityLabel: "Billing city",
+      nameLabel: "Full name",
+      postalCodeLabel: "Billing ZIP code",
+      stateLabel: "State",
+      streetLabel: "Billing street address",
+    }),
+    same_as_shipping: false,
+    save_to_address_book: true,
+  };
+}
+
+function buildAddressBody(
+  fields: readonly CheckoutSubmittedField[],
+  config: StorefrontRuntimeConfig,
+  labels: {
+    readonly nameLabel: string;
+    readonly streetLabel: string;
+    readonly cityLabel: string;
+    readonly stateLabel: string;
+    readonly postalCodeLabel: string;
+  },
+) {
+  return {
+    address_line1: getSubmittedFieldValue(fields, labels.streetLabel),
+    address_line2: null,
+    city: getSubmittedFieldValue(fields, labels.cityLabel),
+    country_code: config.market.code,
+    county: null,
+    phone: null,
+    postal_code: getSubmittedFieldValue(fields, labels.postalCodeLabel),
+    recipient_name:
+      getSubmittedFieldValue(fields, labels.nameLabel) || "Pickup buyer",
+    state: getSubmittedFieldValue(fields, labels.stateLabel) || null,
+  };
+}
+
+function getSubmittedFieldValue(
+  fields: readonly CheckoutSubmittedField[],
+  label: string,
+): string {
+  const value = fields.find((field) => field.label === label)?.value;
+  return typeof value === "string" ? value : "";
+}
+
+function getSubmittedBooleanFieldValue(
+  fields: readonly CheckoutSubmittedField[],
+  label: string,
+  defaultValue: boolean,
+): boolean {
+  const value = fields.find((field) => field.label === label)?.value;
+  return typeof value === "boolean" ? value : defaultValue;
+}
+
+function slugifyCheckoutValue(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function renderCheckoutPaymentAction({

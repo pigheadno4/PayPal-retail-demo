@@ -44,6 +44,7 @@ export interface CheckoutField {
 
 export interface CheckoutChoice {
   readonly label: string;
+  readonly value?: string;
   readonly method?: CheckoutSelectedPaymentMethod;
   readonly description?: string;
   readonly amountLabel?: string;
@@ -54,6 +55,7 @@ export interface CheckoutChoice {
 }
 
 export interface CheckoutStoreCard {
+  readonly id?: string;
   readonly name: string;
   readonly address: string;
   readonly distanceLabel: string;
@@ -130,6 +132,10 @@ export interface CheckoutPageData {
 
 export interface CheckoutPageProps {
   readonly data?: CheckoutPageData;
+  readonly onDraftUpdate?: (
+    request: CheckoutDraftUpdateRequest,
+    currentData: CheckoutPageData,
+  ) => Promise<CheckoutPageData | void> | CheckoutPageData | void;
   readonly renderPaymentAction?: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
@@ -139,6 +145,31 @@ export interface CheckoutPageProps {
   readonly renderPayLaterRowMessage?: (
     context: CheckoutPayLaterRowMessageContext,
   ) => ReactNode;
+}
+
+export type CheckoutDraftUpdateType =
+  | "delivery_shipping_address"
+  | "delivery_billing_address"
+  | "delivery_shipping_option"
+  | "pickup_location"
+  | "pickup_store"
+  | "pickup_billing_address"
+  | "pickup_date";
+
+export interface CheckoutDraftUpdateRequest {
+  readonly type: CheckoutDraftUpdateType;
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly draftId: string | null;
+  readonly fields: readonly CheckoutSubmittedField[];
+  readonly selectedChoiceLabel?: string;
+  readonly selectedChoiceValue?: string;
+  readonly selectedStoreId?: string | null;
+  readonly selectedStoreName?: string | null;
+}
+
+export interface CheckoutSubmittedField {
+  readonly label: string;
+  readonly value: string | boolean;
 }
 
 const stepStateLabels = {
@@ -166,14 +197,17 @@ type CheckoutFieldValue = string | boolean;
 
 export function CheckoutPage({
   data = defaultCheckoutPageData,
+  onDraftUpdate,
   renderPaymentAction,
   renderCardPaymentBox,
   renderPayLaterRowMessage,
 }: CheckoutPageProps) {
+  const [currentData, setCurrentData] = useState(data);
+  const pageData = currentData;
   const pickupStartsWithPreselectedStore =
-    data.pickupStoreMode === "preselected";
+    pageData.pickupStoreMode === "preselected";
   const [activeMode, setActiveMode] = useState<CheckoutFulfillmentMode>(
-    data.activeMode,
+    pageData.activeMode,
   );
   const [fieldValues, setFieldValues] = useState<
     Readonly<Record<string, CheckoutFieldValue>>
@@ -222,15 +256,16 @@ export function CheckoutPage({
   const focusTargetRef = useRef<HTMLElement | null>(null);
   const pickupStoreTriggerRef = useRef<HTMLElement | null>(null);
   const submitTransitionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const activeDraft = activeMode === "delivery" ? data.delivery : data.pickup;
+  const activeDraft =
+    activeMode === "delivery" ? pageData.delivery : pageData.pickup;
   const deliverySelectedPaymentMethod = getSelectedPaymentMethodForMode(
     "delivery",
-    data.delivery,
+    pageData.delivery,
     selectedPaymentMethods,
   );
   const pickupSelectedPaymentMethod = getSelectedPaymentMethodForMode(
     "pickup",
-    data.pickup,
+    pageData.pickup,
     selectedPaymentMethods,
   );
   const activeSelectedPaymentMethod =
@@ -265,7 +300,7 @@ export function CheckoutPage({
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
   const payLaterRowMessage = renderPayLaterRowMessage?.(activePaymentContext);
-  const pickupStoreCards = getPickupStoreCards(data.pickup);
+  const pickupStoreCards = getPickupStoreCards(pageData.pickup);
   const selectedPickupStore = getPickupStoreByName(
     pickupStoreCards,
     selectedPickupStoreName,
@@ -276,10 +311,14 @@ export function CheckoutPage({
       : activeSummary;
 
   useEffect(() => {
-    if (data.validation?.focusStepId) {
+    setCurrentData(data);
+  }, [data]);
+
+  useEffect(() => {
+    if (pageData.validation?.focusStepId) {
       focusTargetRef.current?.focus();
     }
-  }, [activeMode, data.validation?.focusStepId]);
+  }, [activeMode, pageData.validation?.focusStepId]);
 
   useEffect(
     () => () => {
@@ -309,21 +348,59 @@ export function CheckoutPage({
 
   function submitStep(step: CheckoutStep) {
     if (step.id === "shipping-address") {
-      saveStepAndEditNext("delivery", step.id, "billing-address");
+      saveStepAndEditNext(
+        "delivery",
+        step.id,
+        "billing-address",
+        buildDraftUpdateRequest(
+          "delivery_shipping_address",
+          "delivery",
+          pageData.delivery.checkoutDraftId ?? null,
+          step,
+        ),
+      );
       return;
     }
 
     if (step.id === "billing-address") {
-      saveStepAndEditNext("delivery", step.id, "shipping-options");
+      saveStepAndEditNext(
+        "delivery",
+        step.id,
+        "shipping-options",
+        buildDraftUpdateRequest(
+          "delivery_billing_address",
+          "delivery",
+          pageData.delivery.checkoutDraftId ?? null,
+          step,
+        ),
+      );
       return;
     }
 
     if (step.id === "shipping-options") {
-      saveStepAndEditNext("delivery", step.id, "payment-method");
+      saveStepAndEditNext(
+        "delivery",
+        step.id,
+        "payment-method",
+        buildDraftUpdateRequest(
+          "delivery_shipping_option",
+          "delivery",
+          pageData.delivery.checkoutDraftId ?? null,
+          step,
+        ),
+      );
       return;
     }
 
     if (step.id === "pickup-location") {
+      void applyDraftUpdate(
+        buildDraftUpdateRequest(
+          "pickup_location",
+          "pickup",
+          pageData.pickup.checkoutDraftId ?? null,
+          step,
+        ),
+      );
       openPickupStoreModal();
       return;
     }
@@ -334,12 +411,40 @@ export function CheckoutPage({
     }
 
     if (step.id === "pickup-billing-address") {
-      saveStepAndEditNext("pickup", step.id, "pickup-date");
+      saveStepAndEditNext(
+        "pickup",
+        step.id,
+        "pickup-date",
+        buildDraftUpdateRequest(
+          "pickup_billing_address",
+          "pickup",
+          pageData.pickup.checkoutDraftId ?? null,
+          step,
+        ),
+      );
       return;
     }
 
     if (step.id === "pickup-date") {
-      saveStepAndEditNext("pickup", step.id, "pickup-payment-method");
+      saveStepAndEditNext(
+        "pickup",
+        step.id,
+        "pickup-payment-method",
+        buildDraftUpdateRequest(
+          "pickup_date",
+          "pickup",
+          pageData.pickup.checkoutDraftId ?? null,
+          step,
+        ),
+      );
+    }
+  }
+
+  async function applyDraftUpdate(request: CheckoutDraftUpdateRequest) {
+    const updatedData = await onDraftUpdate?.(request, currentData);
+
+    if (updatedData) {
+      setCurrentData(updatedData);
     }
   }
 
@@ -347,6 +452,7 @@ export function CheckoutPage({
     mode: CheckoutFulfillmentMode,
     stepId: string,
     nextStepId: string,
+    updateRequest?: CheckoutDraftUpdateRequest,
   ) {
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
@@ -371,21 +477,27 @@ export function CheckoutPage({
       }));
     }, checkoutSubmitTransitionDelayMs);
     const savedTimerId = setTimeout(() => {
-      setStepStateOverrides((currentStates) => ({
-        ...currentStates,
-        [nextStepId]: "editing",
-        [stepId]: "saved",
-      }));
-      setExpandedStepIds((currentStepIds) => ({
-        ...currentStepIds,
-        [mode]: nextStepId,
-      }));
-      setCollapsedStepIds((currentStepIds) => {
-        const nextStepIds = new Set(currentStepIds);
-        nextStepIds.add(stepId);
+      void (async () => {
+        if (updateRequest && onDraftUpdate) {
+          await applyDraftUpdate(updateRequest);
+        }
 
-        return nextStepIds;
-      });
+        setStepStateOverrides((currentStates) => ({
+          ...currentStates,
+          [nextStepId]: "editing",
+          [stepId]: "saved",
+        }));
+        setExpandedStepIds((currentStepIds) => ({
+          ...currentStepIds,
+          [mode]: nextStepId,
+        }));
+        setCollapsedStepIds((currentStepIds) => {
+          const nextStepIds = new Set(currentStepIds);
+          nextStepIds.add(stepId);
+
+          return nextStepIds;
+        });
+      })();
     }, checkoutSubmitTransitionDelayMs * 2);
 
     submitTransitionTimersRef.current.push(recalculatingTimerId, savedTimerId);
@@ -455,10 +567,23 @@ export function CheckoutPage({
       pendingPickupStoreName ??
       selectedPickupStoreName ??
       pickupStoreCards[0]?.name;
+    const nextStore = getPickupStoreByName(
+      pickupStoreCards,
+      nextStoreName ?? null,
+    );
 
     if (nextStoreName) {
       setSelectedPickupStoreName(nextStoreName);
     }
+
+    void applyDraftUpdate({
+      draftId: pageData.pickup.checkoutDraftId ?? null,
+      fields: [],
+      fulfillmentMode: "pickup",
+      selectedStoreId: nextStore?.id ?? null,
+      selectedStoreName: nextStoreName ?? null,
+      type: "pickup_store",
+    });
 
     setPickupStoreModalOpen(false);
     setStepStateOverrides((currentStates) => ({
@@ -485,18 +610,18 @@ export function CheckoutPage({
       <header className="checkout-hero">
         <p className="homepage-eyebrow">Checkout</p>
         <h1>Delivery or Pickup</h1>
-        {data.modeLocked ? (
+        {pageData.modeLocked ? (
           <p className="checkout-lock-notice">
-            <strong>Payment session started.</strong> {data.lockedReason}
+            <strong>Payment session started.</strong> {pageData.lockedReason}
           </p>
         ) : null}
-        {data.validation ? (
+        {pageData.validation ? (
           <StatusRegion
             id="checkout-validation-summary"
             tone="assertive"
             className="checkout-validation-summary"
           >
-            {data.validation.summaryMessage}
+            {pageData.validation.summaryMessage}
           </StatusRegion>
         ) : null}
       </header>
@@ -514,7 +639,7 @@ export function CheckoutPage({
               role="tab"
               aria-controls="checkout-panel-delivery"
               aria-selected={activeMode === "delivery"}
-              aria-disabled={data.modeLocked && activeMode !== "delivery"}
+              aria-disabled={pageData.modeLocked && activeMode !== "delivery"}
               onClick={() => selectMode("delivery")}
             >
               {data.delivery.label}
@@ -525,7 +650,7 @@ export function CheckoutPage({
               role="tab"
               aria-controls="checkout-panel-pickup"
               aria-selected={activeMode === "pickup"}
-              aria-disabled={data.modeLocked && activeMode !== "pickup"}
+              aria-disabled={pageData.modeLocked && activeMode !== "pickup"}
               onClick={() => selectMode("pickup")}
             >
               {data.pickup.label}
@@ -533,10 +658,10 @@ export function CheckoutPage({
           </div>
 
           <CheckoutModePanel
-            draft={data.delivery}
+            draft={pageData.delivery}
             mode="delivery"
             active={activeMode === "delivery"}
-            validation={data.validation}
+            validation={pageData.validation}
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
@@ -555,10 +680,10 @@ export function CheckoutPage({
             cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
           />
           <CheckoutModePanel
-            draft={data.pickup}
+            draft={pageData.pickup}
             mode="pickup"
             active={activeMode === "pickup"}
-            validation={data.validation}
+            validation={pageData.validation}
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
             stepStateOverrides={stepStateOverrides}
@@ -837,6 +962,36 @@ function withSelectedPickupStore(
 
 function fieldValueKey(stepId: string, label: string): string {
   return `${stepId}:${label}`;
+}
+
+function buildDraftUpdateRequest(
+  type: CheckoutDraftUpdateType,
+  fulfillmentMode: CheckoutFulfillmentMode,
+  draftId: string | null,
+  step: CheckoutStep,
+): CheckoutDraftUpdateRequest {
+  const selectedChoice = step.choices?.find(
+    (choice) => choice.selected === true,
+  );
+
+  return {
+    draftId,
+    fields: (step.fields ?? []).map((field) => ({
+      label: field.label,
+      value:
+        field.type === "checkbox"
+          ? field.checked === true
+          : (field.value ?? ""),
+    })),
+    fulfillmentMode,
+    ...(selectedChoice?.label
+      ? { selectedChoiceLabel: selectedChoice.label }
+      : {}),
+    ...(selectedChoice?.value
+      ? { selectedChoiceValue: selectedChoice.value }
+      : {}),
+    type,
+  };
 }
 
 function getSelectedPaymentMethodForMode(
@@ -1528,6 +1683,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
     choices: [
       {
         label: "Standard shipping",
+        value: "ship_standard",
         description: "Arrives in 4-6 business days",
         amountLabel: "$5.00",
         badgeLabel: "Cheapest option",
@@ -1535,6 +1691,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       },
       {
         label: "Express shipping",
+        value: "ship_express",
         description: "Arrives in 2 business days",
         amountLabel: "$12.00",
       },
@@ -1590,6 +1747,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
   "store-selection": {
     storeCards: [
       {
+        id: "store_popmart_soho",
         name: "POP MART Soho",
         address: "3 Peter Street, London W1F 0AA",
         distanceLabel: "1.2 mi",
@@ -1601,6 +1759,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
         selected: true,
       },
       {
+        id: "store_popmart_covent_garden",
         name: "POP MART Covent Garden",
         address: "12 Long Acre, London WC2E 9LA",
         distanceLabel: "1.8 mi",
@@ -1636,11 +1795,13 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
     choices: [
       {
         label: "June 12",
+        value: "2026-06-12",
         description: "10:00 AM - 1:00 PM",
         selected: true,
       },
       {
         label: "June 13",
+        value: "2026-06-13",
         description: "2:00 PM - 5:00 PM",
       },
     ],

@@ -10,6 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -24,6 +25,106 @@ afterEach(() => {
 });
 
 describe("CheckoutPage interactions", () => {
+  it("applies returned delivery draft recalculation data before moving to the next section", async () => {
+    const user = userEvent.setup();
+    const draftUpdates: TestDraftUpdateRequest[] = [];
+
+    render(
+      createElement(CheckoutPage, {
+        onDraftUpdate: async (request: TestDraftUpdateRequest) => {
+          draftUpdates.push(request);
+
+          return checkoutDataWithDeliveryTotal("$31.25", "SAVE10 applied");
+        },
+      } as Record<string, unknown>),
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.clear(within(shippingStep).getByLabelText("Full name"));
+    await user.type(
+      within(shippingStep).getByLabelText("Full name"),
+      "Jordan Li",
+    );
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(draftUpdates).toContainEqual(
+        expect.objectContaining({
+          draftId: "draft_delivery_123",
+          fulfillmentMode: "delivery",
+          type: "delivery_shipping_address",
+        }),
+      );
+    });
+    expect(draftUpdates[0]?.fields).toContainEqual(
+      expect.objectContaining({
+        label: "Full name",
+        value: "Jordan Li",
+      }),
+    );
+    await waitForStepState(shippingStep, "saved");
+
+    const billingStep = getStep("Billing address");
+    expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("SAVE10 applied")).toBeTruthy();
+    expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
+  });
+
+  it("applies returned Pickup draft recalculation data after location and store changes", async () => {
+    const user = userEvent.setup();
+    const draftUpdates: TestDraftUpdateRequest[] = [];
+
+    render(
+      createElement(CheckoutPage, {
+        onDraftUpdate: async (request: TestDraftUpdateRequest) => {
+          draftUpdates.push(request);
+
+          return checkoutDataWithPickupTotal("$13.49", "Pickup promo applied");
+        },
+      } as Record<string, unknown>),
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+
+    await waitFor(() => {
+      expect(draftUpdates).toContainEqual(
+        expect.objectContaining({
+          draftId: "draft_pickup_123",
+          fulfillmentMode: "pickup",
+          type: "pickup_location",
+        }),
+      );
+    });
+
+    await choosePickupStore(user, "POP MART Covent Garden");
+
+    await waitFor(() => {
+      expect(draftUpdates).toContainEqual(
+        expect.objectContaining({
+          draftId: "draft_pickup_123",
+          fulfillmentMode: "pickup",
+          selectedStoreName: "POP MART Covent Garden",
+          type: "pickup_store",
+        }),
+      );
+    });
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("Pickup promo applied")).toBeTruthy();
+    expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
+  });
+
   it("shows saving and recalculating states before collapsing a submitted section", async () => {
     vi.useFakeTimers();
 
@@ -648,5 +749,51 @@ function loggedInPickupData(): CheckoutPageData {
     ...defaultCheckoutPageData,
     activeMode: "pickup",
     pickupStoreMode: "preselected",
+  };
+}
+
+interface TestDraftUpdateRequest {
+  readonly type: string;
+  readonly fulfillmentMode: string;
+  readonly draftId: string | null;
+  readonly fields?: readonly {
+    readonly label: string;
+    readonly value: string | boolean;
+  }[];
+  readonly selectedStoreName?: string | null;
+}
+
+function checkoutDataWithDeliveryTotal(
+  totalLabel: string,
+  promoLabel: string,
+): CheckoutPageData {
+  return {
+    ...defaultCheckoutPageData,
+    delivery: {
+      ...defaultCheckoutPageData.delivery,
+      summary: {
+        ...defaultCheckoutPageData.delivery.summary,
+        promoLabel,
+        totalLabel,
+      },
+    },
+  };
+}
+
+function checkoutDataWithPickupTotal(
+  totalLabel: string,
+  promoLabel: string,
+): CheckoutPageData {
+  return {
+    ...defaultCheckoutPageData,
+    activeMode: "pickup",
+    pickup: {
+      ...defaultCheckoutPageData.pickup,
+      summary: {
+        ...defaultCheckoutPageData.pickup.summary,
+        promoLabel,
+        totalLabel,
+      },
+    },
   };
 }

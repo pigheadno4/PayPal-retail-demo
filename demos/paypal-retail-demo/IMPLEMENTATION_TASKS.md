@@ -338,19 +338,19 @@ Purpose: close the gap between visual shells and working buyer actions before co
   - [x] Wire app-owned minicart open/close, View cart, Checkout, full-cart checkout navigation, Pay Later amount refresh, and delivery-only express UI entry.
   - [x] Wire server-backed cart quantity PATCH plus cart refresh triggers before checkout and express payment start.
   - [x] Map backend cart update/refresh responses back into buyer `CartData` so server-side price and blocker changes visibly reconcile.
-- [ ] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
+- [x] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
 - [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
 - [x] Wire checkout submit transitions through saving, recalculating totals, saved/collapsed, and next-section editing states for Delivery and Pickup step saves.
 - [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
-- [ ] Wire Delivery checkout promo/tax/shipping recalculation hooks.
+- [x] Wire Delivery checkout promo/tax/shipping recalculation hooks.
 - [x] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection.
 - [x] Wire Pickup logged-in flow: nearest/default-address store preselected, Change store modal, selected-store summary, billing, pickup date, and payment-method selection.
 - [x] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
-- [ ] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
+- [x] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
 - [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
 - [x] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
-- [ ] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
-- [ ] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard in Milestone 13.
+- [x] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
+- [x] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard deferred to Milestone 13.
 - [x] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
 
 Verification:

@@ -409,6 +409,346 @@ describe("App buyer interactions", () => {
       expect(orderSummary.textContent).toContain(`${label} selected`);
     }
   });
+
+  it("updates checkout totals from delivery draft API recalculation", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.clear(within(shippingStep).getByLabelText("Full name"));
+    await user.type(
+      within(shippingStep).getByLabelText("Full name"),
+      "Jordan Li",
+    );
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: "/api/checkout/drafts/draft_delivery_123/shipping-address",
+        }),
+      );
+    });
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          recipient_name: "Jordan Li",
+          address_line1: "88 Spring Street",
+          city: "New York",
+          country_code: "US",
+          postal_code: "10012",
+          state: "NY",
+        }),
+      }),
+    );
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    await waitFor(() => {
+      expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
+    });
+    expect(within(orderSummary).getByText("SAVE10")).toBeTruthy();
+    await waitForStepState(shippingStep, "saved");
+
+    const billingStep = getStep("Billing address");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+    await waitForStepState(billingStep, "saved");
+
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        body: {
+          same_as_shipping: true,
+          save_to_address_book: true,
+        },
+        method: "patch",
+        path: "/api/checkout/drafts/draft_delivery_123/billing-address",
+      }),
+    );
+
+    const shippingOptionsStep = getStep("Shipping options");
+    await user.click(
+      within(shippingOptionsStep).getByRole("button", {
+        name: "Submit shipping option",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            shipping_option_id: "ship_standard",
+          },
+          method: "patch",
+          path: "/api/checkout/drafts/draft_delivery_123/shipping-option",
+        }),
+      );
+    });
+  });
+
+  it("updates checkout totals from pickup draft API recalculation", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "pickup",
+        promoLabel: "PICKUP5",
+        totalMinor: 1349,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    const pickupLocationStep = getStep("Pickup location");
+    await user.clear(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+    );
+    await user.type(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+      "SW1A 1AA",
+    );
+    await user.click(
+      within(pickupLocationStep).getByRole("button", {
+        name: "Find pickup stores",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            country_code: "US",
+            county: null,
+            postal_code: "SW1A 1AA",
+            state: null,
+          },
+          method: "patch",
+          path: "/api/checkout/drafts/draft_pickup_123/pickup-location",
+        }),
+      );
+    });
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    await user.click(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Covent Garden/,
+      }),
+    );
+    await user.click(
+      within(storeDialog).getByRole("button", {
+        name: "Confirm pickup store",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            store_id: "store_popmart_covent_garden",
+          },
+          method: "patch",
+          path: "/api/checkout/drafts/draft_pickup_123/pickup-store",
+        }),
+      );
+    });
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("PICKUP5")).toBeTruthy();
+    expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
+
+    const billingStep = getStep("Billing address");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+    await waitForStepState(billingStep, "saved");
+
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/checkout/drafts/draft_pickup_123/billing-address",
+      }),
+    );
+
+    const pickupDateStep = getStep("Pickup date");
+    await user.click(
+      within(pickupDateStep).getByRole("button", {
+        name: "Submit pickup date",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            pickup_date: "2026-06-12",
+          },
+          method: "patch",
+          path: "/api/checkout/drafts/draft_pickup_123/pickup-date",
+        }),
+      );
+    });
+  });
+
+  it("lets a buyer move from PDP add-to-cart through minicart checkout into Delivery payment selection", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <App
+        apiClient={createRecordingApiClient({
+          patchResponse: checkoutDraftApiResponse({
+            fulfillmentMode: "delivery",
+            promoLabel: "SAVE10",
+            totalMinor: 3125,
+          }),
+        })}
+        initialPathname="/products/labubu-have-a-seat"
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialProductPages={{
+          "labubu-have-a-seat": releasedProduct(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add to cart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(
+      within(minicart).getByRole("link", {
+        name: "Checkout",
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Delivery or Pickup" }),
+    ).toBeTruthy();
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const paymentStep = getStep("Payment method");
+    expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      (
+        within(paymentStep).getByRole("radio", {
+          name: "PayPal",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(
+      screen.getByRole("complementary", { name: "Order summary" }).textContent,
+    ).toContain("PayPal selected");
+  });
+
+  it("lets a buyer move from cart checkout into Pickup payment selection", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <App
+        apiClient={createRecordingApiClient({
+          patchResponse: checkoutDraftApiResponse({
+            fulfillmentMode: "pickup",
+            promoLabel: "PICKUP5",
+            totalMinor: 1349,
+          }),
+        })}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+
+    const pickupLocationStep = getStep("Pickup location");
+    await user.clear(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+    );
+    await user.type(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+      "SW1A 1AA",
+    );
+    await user.click(
+      within(pickupLocationStep).getByRole("button", {
+        name: "Find pickup stores",
+      }),
+    );
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    await user.click(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Covent Garden/,
+      }),
+    );
+    await user.click(
+      within(storeDialog).getByRole("button", {
+        name: "Confirm pickup store",
+      }),
+    );
+
+    const billingStep = getStep("Billing address");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+    await waitForStepState(billingStep, "saved");
+
+    const pickupDateStep = getStep("Pickup date");
+    await user.click(
+      within(pickupDateStep).getByRole("button", {
+        name: "Submit pickup date",
+      }),
+    );
+    await waitForStepState(pickupDateStep, "saved");
+
+    const paymentStep = getStep("Payment method");
+    expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      (
+        within(paymentStep).getByRole("radio", {
+          name: "PayPal",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(
+      screen.getByRole("complementary", { name: "Order summary" }).textContent,
+    ).toContain("PayPal selected");
+  });
 });
 
 async function advanceDeliveryCheckoutToPayment(
@@ -569,6 +909,71 @@ function cartApiResponse({
       binding: null,
     },
     adjustments: [],
+  };
+}
+
+function checkoutDraftApiResponse({
+  fulfillmentMode,
+  promoLabel,
+  totalMinor,
+}: {
+  readonly fulfillmentMode: "delivery" | "pickup";
+  readonly promoLabel: string;
+  readonly totalMinor: number;
+}) {
+  return {
+    draft: {
+      id:
+        fulfillmentMode === "delivery"
+          ? "draft_delivery_123"
+          : "draft_pickup_123",
+      cart_id: "cart_guest_us",
+      fulfillment_mode: fulfillmentMode,
+      status: "draft",
+      active_step:
+        fulfillmentMode === "delivery" ? "shipping_option" : "pickup_date",
+      delivery: {
+        shipping_address: null,
+        billing_address: null,
+        same_as_shipping: true,
+        shipping_options: [
+          {
+            id: "ship_standard",
+            service_code: "standard",
+            display_name: "Standard shipping",
+            amount_minor: 500,
+            estimated_days_min: 4,
+            estimated_days_max: 6,
+          },
+        ],
+        selected_shipping_option_id: "ship_standard",
+      },
+      pickup: {
+        location: null,
+        selected_store_id: null,
+        pickup_dates: [],
+        selected_pickup_date: null,
+        inventory: {
+          ready_items: [],
+          unavailable_items: [],
+          unavailable_subtotal_minor: 0,
+        },
+      },
+      summary: {
+        item_count: 1,
+        merchandise_subtotal_minor: 2598,
+        discount_minor: 400,
+        tax_minor: 227,
+        shipping_minor: 700,
+        total_minor: totalMinor,
+        currency_code: "USD",
+      },
+      promo: {
+        status: "selected",
+        recommended_codes: [promoLabel],
+        selected_codes: [promoLabel],
+      },
+    },
   };
 }
 
