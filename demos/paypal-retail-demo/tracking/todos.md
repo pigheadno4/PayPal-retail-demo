@@ -110,7 +110,12 @@
 - [x] Recover Delivery shipping-option saved state and Order Summary recalculation when the selected option changes.
 - [x] Add a UX state contract/mockup for the checkout recovery so implementation, QA, and tracking use the same source of truth.
 - [x] Add API error envelope coverage and checkout submit failure handling so section save failures stay visible and retryable.
-- [ ] Resolve or gate Supabase-backed checkout/cart failures before PayPal create-order is considered demo-ready.
+- [ ] Start Milestone 13.1 cart, checkout draft, and Pay Later recovery before confirm/capture work resumes.
+- [ ] Restore active browser cart binding from local cart ID/secret plus server cart read/refresh after browser reload.
+- [ ] Keep cart count and minicart contents stable when navigating to `/checkout`.
+- [ ] Add minicart quantity controls using the same server-backed update/reconcile path as full cart, or explicitly defer with buyer-facing copy.
+- [ ] Gate checkout and express create-order on server-ready cart/draft bindings and block fixture/missing IDs.
+- [ ] Wire Pay Later SDK v6 eligibility/detail gating before official Pay Later buttons render.
 - [ ] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
 - [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
 - [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.

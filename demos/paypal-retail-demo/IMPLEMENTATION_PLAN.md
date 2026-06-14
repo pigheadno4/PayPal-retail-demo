@@ -88,6 +88,8 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Backend capture uses the locked merchant/provider amount snapshot before calling PayPal; the sanitized Orders capture response is stored for Admin/debug review.
 - Successful capture is the durable finalization point: order status becomes paid, payment session becomes captured, inventory decrements, lifecycle/total snapshots are written, and only paid order items are removed from the active cart.
 
+Before capture work resumes, complete the M13.1 recovery bridge: active browser cart binding restore, checkout route cart continuity, minicart quantity controls, server-ready create-order gating, Pay Later eligibility/detail gating, and merchant-visible create-order failure feedback. This bridge turns the live QA gaps into explicit acceptance checks rather than treating them as generic M13 cleanup.
+
 ### BOPIS Evidence And Demo Decision
 
 - Do not use the authorize-at-checkout/capture-at-pickup BOPIS guide as the v1 implementation pattern. That document is not the flow this demo is intended to prove.
@@ -384,6 +386,7 @@ Required for:
 - Reserve layout space for PayPal buttons and Pay Later messages to avoid large layout shifts after eligibility checks.
 - Scope the PayPal SDK provider around the selected checkout payment action so Order Summary can render PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo without reinitializing the whole app shell.
 - Render Pay Later with `method=paylater`, `paypal-payments` plus `paypal-messages`, an amount-aware `<paypal-message>` in the Pay Later row, and the selected Pay Later button/message under Order Summary.
+- Render official Pay Later buttons only after the SDK v6 eligibility/details check succeeds for the current amount and currency; keep the buyer action hidden or unavailable while loading, errored, or ineligible.
 - Render wallet methods only from eligible checkout rows. Apple Pay uses the React SDK v6 wallet component only after PayPal eligibility returns Apple Pay config; Venmo uses the React SDK v6 wallet component when the provider is ready; Google Pay is runtime-gated because PayPal exposes the Google Pay session while Google's PaymentsClient owns the button/payment-data flow.
 - Render save-for-future controls only for authenticated eligible PayPal/card methods; Pay Later, Apple Pay, Google Pay, Venmo, and guests do not show save controls in v1.
 

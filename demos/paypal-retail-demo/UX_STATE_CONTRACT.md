@@ -17,6 +17,7 @@ Official PayPal, Pay Later, wallet, and card surfaces must mount only when all c
 3. The selected payment radio is eligible.
 4. The selected payment method has the matching official surface.
 5. The active checkout draft/cart binding is server-ready for that surface.
+6. Pay Later surfaces have completed the SDK v6 eligibility/details check for the current amount and currency.
 
 If any condition is false, Order Summary keeps reserved empty space but renders no official payment action and no sticky mobile payment bar.
 
@@ -28,6 +29,10 @@ Fixture IDs such as `draft_delivery_123` and `draft_pickup_123` are allowed only
 - Explicit mock mode: block real PayPal create-order and show buyer-safe copy that the demo is running without server checkout data.
 
 The app must not send fixture IDs to Supabase-backed endpoints. PayPal create-order buttons must be disabled or withheld until the binding is server-ready.
+
+Browser cart state must persist as an opaque server cart binding only, such as cart public ID plus client secret. A browser refresh must reload the active server cart from that binding; it must not reset to fixture/default cart data while a valid cart binding exists.
+
+Navigating to `/checkout` must not clear the header cart count or minicart contents. Checkout can refresh/reconcile the cart before creating a draft, but the buyer-facing shell must stay bound to the same active cart.
 
 ## Delivery Accordion
 
@@ -90,6 +95,10 @@ Checkout should be calmer than the homepage but still feel like collectible reta
 - Invalid or missing server checkout binding blocks create-order with visible copy instead of sending fixture IDs.
 - API failures leave the edited section expanded and announced.
 - PDP/cart/minicart official express surfaces call `/api/paypal/orders/express-delivery` only with active server cart binding.
+- Browser refresh reloads active server cart data from the saved cart binding instead of restoring fixture/default items.
+- Navigating to `/checkout` preserves header cart count and minicart contents.
+- Minicart quantity controls update through the same server-backed cart update/reconcile path as full-cart quantity controls.
+- Pay Later official buttons wait for SDK v6 eligibility/details for the current amount/currency before rendering.
 
 ## Current Implementation Status
 
@@ -102,9 +111,12 @@ Completed in the Milestone 13 checkout-recovery slice:
 - Order Summary shipping-line reconciliation from checkout draft responses.
 - Retryable inline section errors when checkout draft updates fail.
 - Standard JSON API error envelope for route dependency failures.
+- Official PDP/cart/minicart express SDK controls.
 
 Still open for the next Milestone 13 slices:
 
-- Official PDP/cart/minicart express SDK controls.
+- Browser cart binding restore and checkout-route cart continuity.
+- Minicart quantity editing through the server-backed cart path.
+- Pay Later SDK v6 eligibility/detail gating for official Pay Later buttons.
 - Merchant-visible PayPal create-order failure/debug feedback after popup close or backend failure.
 - Confirm-triggered capture and buyer-facing amount-guard blocking on Review and Confirm.

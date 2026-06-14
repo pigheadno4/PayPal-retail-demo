@@ -152,6 +152,9 @@
 - [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 cart quantity changes call the backend cart item update API, and checkout/express entry refreshes the cart before buyer navigation advances.
 - [x] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side quantity, price, and checkout-blocker reconciliation is visible.
+- [ ] M13.1 browser refresh restores active cart binding and server cart data instead of resetting to fixture/default cart.
+- [ ] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
+- [ ] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
@@ -210,7 +213,10 @@
 - [x] Checkout draft updates create a server UUID draft before PATCH and never send fixture draft IDs to Supabase-backed endpoints.
 - [x] Checkout draft submit API failures keep the current section expanded, announce a retryable inline error, and preserve downstream sections.
 - [x] Express API route dependency failures return the standard JSON error envelope instead of an HTML 500 page.
+- [ ] Checkout/express create-order is blocked with buyer-safe copy when server cart/draft binding is missing or not server-ready.
 - [ ] PayPal button click creates a PayPal order through the backend; if backend/Supabase/PayPal fails, the merchant UI shows a buyer-safe error and debug ID instead of silently closing the popup.
+- [ ] Pay Later SDK v6 calls eligibility with current amount/currency before rendering official Pay Later button.
+- [ ] Pay Later button stays hidden or buyer-safely unavailable while eligibility is loading, errors, or returns ineligible.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.

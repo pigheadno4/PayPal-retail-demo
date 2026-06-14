@@ -402,8 +402,21 @@ Verification:
 - [x] Recover Delivery accordion submit/collapse/edit behavior with live-data timing: shipping address collapses after save, billing address exposes an Edit action after save, and only one section is expanded at a time.
 - [x] Recover Delivery shipping option state: it is not marked saved before buyer confirmation, changing the selected option updates Order Summary shipping/total lines, and edit/re-submit behavior is verified.
 - [x] Resolve or explicitly gate Supabase-backed checkout draft submits so shipping/billing/shipping-option failures stay visible and retryable when the database is unreachable.
-- [ ] Resolve or explicitly gate Supabase-backed checkout/cart calls so PayPal create-order does not hang silently when the database is unreachable.
-- [ ] Verify PayPal button click through sandbox popup/create-order path; failures must stay visible in the merchant UI with debug evidence instead of closing the popup without explanation.
+
+### Milestone 13.1: Cart, Checkout Draft, And Pay Later Recovery
+
+Purpose: stabilize the cart/draft/payment readiness layer before confirm-triggered capture.
+
+- [ ] Restore browser cart binding on app load/refresh from local cart ID/secret plus server cart read/refresh; never reset a non-empty active cart to fixture defaults.
+- [ ] Keep cart and minicart state bound on `/checkout`, including cart count and minicart contents.
+- [ ] Add minicart quantity controls that use the same server-backed cart update/reconcile path as the full cart, or explicitly disable/defer with buyer-facing copy before closing this slice.
+- [ ] Gate checkout and express PayPal create-order on server-ready cart/draft bindings; do not call PayPal with fixture draft IDs, missing cart IDs, or stale cart data.
+- [ ] Add merchant-visible create-order failure handling for Supabase/PayPal failures with buyer-safe copy, debug ID, and retry affordance after popup close/failure.
+- [ ] Gate Pay Later SDK v6 buttons with `useEligibleMethods`/`findEligibleMethods`, amount/currency payload, and `getDetails("paylater")` before rendering official Pay Later buttons.
+- [ ] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
+
+### Milestone 13 Capture Completion
+
 - [ ] Capture only when buyer confirms.
 - [ ] Block capture if amount consistency guard fails.
 
@@ -411,6 +424,11 @@ Verification:
 
 - PDP/cart/minicart express returns to merchant Review and Confirm.
 - Full checkout does not add a separate Review and Confirm page.
+- Browser refresh preserves the active cart binding and reloads server cart data.
+- Checkout route does not reset cart count or minicart contents.
+- Minicart quantity edits reconcile with the same server-backed cart path as full cart edits.
+- Pay Later official button is absent while eligibility is loading/ineligible and appears only when eligible details are available.
+- PayPal create-order failures leave visible merchant-side error/debug evidence.
 
 ## Milestone 14: Account, Guest, Reviews
 
