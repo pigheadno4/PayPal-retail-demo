@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-label="Labubu Have a Seat collectible">
+  <rect width="640" height="640" rx="32" fill="#fff7f4"/>
+  <circle cx="320" cy="300" r="174" fill="#ef1f2d"/>
+  <circle cx="222" cy="228" r="74" fill="#ffd5dd"/>
+  <circle cx="418" cy="228" r="74" fill="#ffd5dd"/>
+  <circle cx="320" cy="318" r="136" fill="#f6c5cb"/>
+  <circle cx="274" cy="294" r="15" fill="#151515"/>
+  <circle cx="366" cy="294" r="15" fill="#151515"/>
+  <path d="M280 370c28 28 52 28 80 0" fill="none" stroke="#151515" stroke-width="12" stroke-linecap="round"/>
+  <text x="72" y="552" fill="#151515" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="900">Labubu</text>
+</svg>

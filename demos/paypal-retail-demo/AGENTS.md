@@ -13,6 +13,14 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 - Update `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, and `tracking/test-cases.md` when payment behavior changes.
 - Verify affected behavior before reporting completion.
 
+## Milestone Close Gates
+- Do not close PDP, cart, minicart, checkout, or payment UI milestones based only on rendered layout.
+- Every visible buyer action must be wired to demo state/API behavior, disabled with a buyer-facing reason, or explicitly listed as deferred in tracking.
+- Checkout/payment milestones require buyer-flow interaction evidence: editable fields, submit/collapse behavior, option selection, payment-method switching, and selected payment surface rendering.
+- Payment SDK surfaces require live browser evidence of the hydrated official provider/button/message on each promised placement; static labels or local HTML buttons do not count.
+- API-backed checkout steps require tested loading, success, and failure states against the real backend contract; a route transition alone does not prove payment or recalculation behavior.
+- Before moving to the next milestone, confirm `IMPLEMENTATION_TASKS.md`, `PLAN.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` agree on what is done versus still shell-only.
+
 ## Payment Rules
 - Do not invent PSP capabilities.
 - Confirm PayPal JS SDK v6, npm v9.x, Pay Later, card fields, Apple Pay, Google Pay, Venmo, and vaulting behavior via the payment wiki (`KNOWLEDGE_SOURCES.md`) before implementation.

@@ -419,6 +419,7 @@ Rules:
 - `locale` is used for SDK/provider instance creation.
 - `buyer_country` and `paylater_buyer_country` are used for Pay Later messages and method details where the SDK requires buyer-country context.
 - In sandbox, map `sandbox_test_buyer_country` to PayPal JS SDK v6 `createInstance({ testBuyerCountry })` so the SDK simulates the buyer environment.
+- Local verification with `@paypal/react-paypal-js` v9.2.0 found that the React SDK v6 `PayPalProvider` accepts `environment`, `components`, `locale`, `pageType`, and `testBuyerCountry`; it does not expose a `sdkBaseUrl` prop. Keep `sdk_url` as backend/debug metadata unless the installed SDK type changes.
 - Before coding against the installed package, verify `testBuyerCountry` still exists in the local `@paypal/react-paypal-js` v9 / SDK v6 types. If the installed type differs from the `wiki-v2` snapshot, stop and update this contract before implementing the provider.
 - Pay Later, Venmo, Apple Pay, and Google Pay UI rows must be hidden unless runtime eligibility says they can render.
 
@@ -428,7 +429,7 @@ Payment method mapping rules:
 - Pay Later maps to `paypal-payments` plus `paypal-messages`, `findEligibleMethods().isEligible("paylater")`, `getDetails("paylater")`, `createPayLaterOneTimePaymentSession`, `<paypal-pay-later-button>`, and amount-aware messages.
 - Card maps to `card-fields`, `findEligibleMethods().isEligible("advanced_cards")`, `createCardFieldsOneTimePaymentSession`, and hosted card fields. Its pay button stays inside the card box, including mobile.
 - Apple Pay maps to `applepay-payments`, Apple Pay config eligibility, `createApplePayOneTimePaymentSession`, and an official Apple Pay button surface.
-- Google Pay maps to `googlepay-payments`, Google Pay config eligibility, `createGooglePayOneTimePaymentSession`, and an official Google Pay button surface.
+- Google Pay maps to `googlepay-payments`, Google Pay config eligibility, `createGooglePayOneTimePaymentSession`, and a Google PaymentsClient-controlled button/payment-data surface. The PayPal SDK owns the Google Pay payment session and confirmation bridge; Google's runtime owns the button rendering.
 - Venmo maps to `venmo-payments`, `findEligibleMethods().isEligible("venmo")`, `createVenmoOneTimePaymentSession`, and `<venmo-button>`. V1 demo hides Venmo outside US/USD even if generic runtime checks are stubbed as eligible.
 - The method plan returns renderable rows, the selected/default method, required components for renderable rows, and hidden methods with debug reasons.
 
@@ -539,21 +540,33 @@ Rules:
 - use `shipping_preference: "SET_PROVIDED_ADDRESS"` so the selected checkout shipping address remains the order address
 - do not use server-side shipping callbacks in full checkout Delivery; address, shipping option, tax, promo, and amount are finalized before payment approval
 - include detailed item data when available and keep `items[]` reconciled with `amount.breakdown.item_total`
+- checkout PayPal wallet calls can include `method: "paypal"` plus `vault_requested` only when the authenticated eligible buyer opted into save-for-future
+- checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend includes card vault attributes only when the authenticated buyer opted in and is eligible
 
 ### `POST /api/paypal/orders/express-delivery`
 
 Creates PayPal order from PDP/cart/minicart delivery express.
 
+Request:
+
+```json
+{
+  "cart_id": "cart_public_guest",
+  "method": "paypal"
+}
+```
+
 Rules:
 
 - fulfillment mode is locked to `delivery`
+- frontend uses the active cart public binding as `cart_id`; express entry points do not send checkout draft IDs
 - create pending order when session starts
 - use server-side shipping callback config
 - use `shipping_preference: "GET_FROM_FILE"`
 - include `payment_source.paypal.experience_context.order_update_callback_config`
 - default callback subscription is `["SHIPPING_ADDRESS"]`; add `SHIPPING_OPTIONS` only when the selected shipping option must trigger a fresh amount/promo recalculation
 - callback URL points to `POST /api/paypal/orders/:callbackContextId/shipping-callback` with enough internal cart/session context for server-side recalculation. Because PayPal order ID is not known until Create Order returns, the initial callback context can be the merchant order/payment-session identifier; the callback handler should also read the PayPal order ID from PayPal's callback payload when present.
-- return buyer to merchant Review and Confirm after PayPal approval
+- return buyer to merchant Review and Confirm at `/checkout/express-review?paypal_order_id={paypalOrderId}` after PayPal approval
 
 ### `POST /api/paypal/orders/bopis`
 
@@ -625,6 +638,8 @@ Rules:
 - BOPIS uses the selected store as the PayPal purchase unit shipping address.
 - BOPIS amount breakdown excludes shipping fee.
 - Do not attach server-side shipping callback config to v1 BOPIS orders.
+- Checkout PayPal wallet calls can include `method: "paypal"` plus `vault_requested` only when the authenticated eligible buyer opted into save-for-future.
+- Checkout card fields call this same endpoint with `method: "card"` and `vault_requested`; the backend preserves pickup shipping semantics while applying card payment/vault attributes only when eligible.
 
 ### `POST /api/paypal/orders/:callbackContextId/shipping-callback`
 
@@ -655,6 +670,27 @@ Decline response:
 - supported issues include address/country/state/zip errors and unavailable shipping methods
 
 Response must keep PayPal amount breakdown consistent. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
+
+### `GET /api/paypal/orders/express-review`
+
+Loads the buyer-facing Review and Confirm snapshot after PayPal approves a PDP/cart/minicart delivery express order.
+
+Query:
+
+- `paypal_order_id` or `payment_session_id` is required.
+- `market` is passed by the frontend for the active storefront context.
+
+Response uses the standard app envelope and returns:
+
+- merchant order number and PayPal order ID
+- payment session ID and payment method label
+- delivery address captured from the latest PayPal shipping callback snapshot
+- selected shipping option label, estimate, and amount
+- item rows with product names, SKU/quantity detail, and line totals
+- merchandise subtotal, shipping, promo discount, tax, and total from the latest `paypal_shipping_update` total snapshot
+- amount guard result comparing the merchant synchronized total with the provider/payment-session total
+
+If no synchronized `paypal_shipping_update` snapshot exists yet, the endpoint returns `PAYPAL_EXPRESS_REVIEW_NOT_FOUND` instead of showing placeholder totals.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
 

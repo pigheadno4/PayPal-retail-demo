@@ -24,6 +24,15 @@ The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start ther
 - If automation is not practical, define manual verification before coding.
 - Do not report completion until verification is run or the blocker is documented.
 
+## Milestone Close Gates
+- For user-facing UI, rendered screens or component shells are not enough to mark a milestone complete.
+- Before checking a milestone item as done, every visible user action must be wired to real state/API behavior, disabled with a clear reason, or explicitly recorded as deferred.
+- Verify the promised user journey with interaction tests or a manual verification note; render/snapshot tests only prove the shell exists.
+- For PSP or wallet UI, verify the hydrated official SDK/provider surface in a browser for each promised placement; branded local buttons or static text are shell progress only.
+- For API-backed UI, verify loading, success, and failure states against the backend contract before marking the interaction complete.
+- Before moving phases, reconcile `IMPLEMENTATION_TASKS.md` or the active implementation plan with `tracking/test-cases.md`, `tracking/todos.md`, and `tracking/progress.md`.
+- If only the visual shell is complete, record it as shell progress and keep the behavior item open.
+
 ## Tracking Rules
 Each standard or complex demo should maintain (this is the canonical tracking-file list; other files point here):
 - `tracking/todos.md`

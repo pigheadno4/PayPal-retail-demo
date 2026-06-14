@@ -53,32 +53,74 @@ export interface ApiClient {
     path: string,
     query?: ApiQueryParams,
   ) => Promise<TData>;
+  readonly patch: <TData = unknown>(
+    path: string,
+    body?: unknown,
+    query?: ApiQueryParams,
+  ) => Promise<TData>;
+  readonly post: <TData = unknown>(
+    path: string,
+    body?: unknown,
+    query?: ApiQueryParams,
+  ) => Promise<TData>;
 }
 
 export function createApiClient(input: ApiClientInput = {}): ApiClient {
   const fetchClient = input.fetch ?? globalThis.fetch;
-  const baseUrl = input.baseUrl ?? globalThis.location?.origin ?? "/";
+  const baseUrl = input.baseUrl ?? resolveDefaultApiBaseUrl();
 
   return {
     async get<TData = unknown>(path: string, query?: ApiQueryParams) {
       const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
         method: "GET",
       });
-      const envelope = (await response.json()) as ApiEnvelope<TData>;
-
-      if (!envelope.ok) {
-        throw new ApiClientError({
-          status: response.status,
-          code: envelope.error.code,
-          message: envelope.error.message,
-          debugId: envelope.debug_id,
-          details: envelope.error.details ?? {},
-        });
-      }
-
-      return envelope.data;
+      return readApiEnvelope<TData>(response);
+    },
+    async patch<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+      return readApiEnvelope<TData>(response);
+    },
+    async post<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+    ) {
+      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+      return readApiEnvelope<TData>(response);
     },
   };
+}
+
+async function readApiEnvelope<TData>(response: Response): Promise<TData> {
+  const envelope = (await response.json()) as ApiEnvelope<TData>;
+
+  if (!envelope.ok) {
+    throw new ApiClientError({
+      status: response.status,
+      code: envelope.error.code,
+      message: envelope.error.message,
+      debugId: envelope.debug_id,
+      details: envelope.error.details ?? {},
+    });
+  }
+
+  return envelope.data;
 }
 
 function buildApiUrl(
@@ -95,6 +137,14 @@ function buildApiUrl(
     }
   }
   return url.toString();
+}
+
+function resolveDefaultApiBaseUrl(): string {
+  return (
+    import.meta.env.VITE_API_BASE_URL ??
+    globalThis.location?.origin ??
+    "http://localhost:3000"
+  );
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

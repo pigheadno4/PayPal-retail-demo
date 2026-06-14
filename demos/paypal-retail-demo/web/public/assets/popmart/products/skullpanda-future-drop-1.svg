@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-label="Skullpanda future drop collectible">
+  <rect width="640" height="640" rx="32" fill="#f5f5f8"/>
+  <circle cx="320" cy="308" r="166" fill="#22242c"/>
+  <circle cx="266" cy="286" r="38" fill="#ffffff"/>
+  <circle cx="374" cy="286" r="38" fill="#ffffff"/>
+  <circle cx="266" cy="286" r="14" fill="#22242c"/>
+  <circle cx="374" cy="286" r="14" fill="#22242c"/>
+  <path d="M250 390h140" stroke="#ef1f2d" stroke-width="16" stroke-linecap="round"/>
+  <text x="70" y="552" fill="#22242c" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="900">Skullpanda</text>
+</svg>

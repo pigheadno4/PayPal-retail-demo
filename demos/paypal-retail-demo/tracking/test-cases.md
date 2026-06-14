@@ -131,18 +131,45 @@
 
 ## Buyer Flows
 
-- [ ] Homepage calendar marks release dates with outlined circles.
-- [ ] Homepage calendar includes a legend and does not rely on color alone.
+- [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
+- [x] PayPal provider scope is limited to payment UI when `provider_key` changes.
+- [x] Homepage calendar marks release dates with outlined circles.
+- [x] Homepage calendar includes a legend and does not rely on color alone.
+- [x] Homepage Pay Later promo uses brief amount-free copy.
 - [ ] Unreleased PDP blocks checkout buttons and hides reviews.
 - [ ] Cart and minicart show pickup hints without pickup buttons.
-- [ ] Delivery checkout completes all accordion steps.
-- [ ] Pickup checkout completes store, billing, pickup date, payment.
-- [ ] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
+- [x] Delivery checkout completes all accordion steps.
+- [x] Pickup checkout completes store, billing, pickup date, payment.
+- [x] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
 - [ ] Checkout form errors are announced and focus moves to the first invalid field.
 - [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
-- [ ] Card payment button remains inside the card fields box on mobile and desktop.
+- [x] Card payment button remains inside the card fields box on mobile and desktop.
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
-- [ ] PDP/cart/minicart express returns to Review and Confirm.
+- [x] M11.5 PDP add-to-cart mutates app cart state and refreshes minicart/cart totals.
+- [x] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
+- [x] M11.5 PDP/cart/minicart delivery express UI entry is wired beyond a silent placeholder; M13 replaces the local route jump with official SDK approval return.
+- [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
+- [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
+- [x] M11.5 cart quantity changes call the backend cart item update API, and checkout/express entry refreshes the cart before buyer navigation advances.
+- [x] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side quantity, price, and checkout-blocker reconciliation is visible.
+- [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
+- [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
+- [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
+- [x] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
+- [x] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
+- [x] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
+- [x] M11.5 Pickup logged-in buyer can continue from the preselected store directly into billing, pickup date, and payment selection.
+- [x] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
+- [x] M11.5 Pickup partial-store selection updates Order Summary ready/unavailable lines while preserving original cart intent.
+- [x] M11.5 Pickup checkout advances through selected store, billing address, pickup date, and payment selection.
+- [x] M11.5 checkout section submit buttons transition sections through saving/recalculating/saved/collapsed states.
+- [x] M11.5 payment radio selection renders the matching selected PayPal, Pay Later, and card surfaces.
+- [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
+- [x] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
+- [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
+- [x] M13 PDP/cart/minicart express returns to Review and Confirm after PayPal approval with synchronized session totals.
+- [ ] M13 Review and Confirm calls capture only after buyer clicks Confirm and pay.
+- [ ] M13 Review and Confirm blocks buyer capture when the amount consistency guard fails.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
@@ -155,8 +182,35 @@
 ## PayPal Sandbox
 
 - [ ] PayPal renders and captures in delivery checkout.
-- [ ] Pay Later message/button renders where eligible.
-- [ ] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
+- [x] Pay Later radio-row message and selected Order Summary button/message surfaces render in checkout UI.
+- [ ] Pay Later message/button renders and completes where eligible in sandbox.
+- [x] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
+- [x] Web PayPal SDK provider scope renders loading state while fetching backend SDK config.
+- [x] Web PayPal SDK provider scope keeps currency, buyer country, Pay Later buyer country, SDK URL, and test buyer country metadata available for child payment surfaces.
+- [x] Installed `@paypal/react-paypal-js` v9.2.0 / SDK v6 types compile with `CreateInstanceOptions.testBuyerCountry`.
+- [x] Checkout Order Summary renders the scoped PayPal standalone action when PayPal is selected and passes the active Delivery/Pickup draft context to create-order request selection.
+- [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config and create-order request selection.
+- [x] Checkout selected-card row renders a scoped `card-fields` provider, hosted card fields, local save checkbox, and card pay button inside the payment step.
+- [x] Card fields create-order request builders select Delivery/BOPIS endpoints and send `method=card` plus `vault_requested`.
+- [x] Checkout payment wall hides wallet rows marked ineligible and withholds the selected wallet Order Summary/mobile sticky action.
+- [x] Checkout Order Summary requests method-scoped SDK provider surfaces for selected Apple Pay, Google Pay, and Venmo methods.
+- [x] Wallet create-order request builders select Delivery/BOPIS endpoints and send `method=apple_pay`, `method=google_pay`, or `method=venmo`.
+- [x] Google Pay checkout surface remains runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
+- [x] Checkout selected payment context exposes save-for-future eligibility only for eligible PayPal/card selections.
+- [x] PayPal wallet create-order request builder sends `vault_requested` only when the eligible buyer opts into save-for-future.
+- [x] PayPal save checkbox renders under the PayPal button only when the selected checkout context is save-eligible.
+- [x] Card save checkbox renders inside the card fields box only when the selected checkout context is save-eligible.
+- [x] Web API client uses `VITE_API_BASE_URL` for browser API calls, Vite loads the demo-root `.env`, and Express allows the configured app origin plus local loopback alias so checkout can fetch PayPal SDK config from the API server.
+- [x] Browser QA verifies checkout loads PayPal SDK v6 assets and renders the official "Pay with PayPal" button after local API/CORS fixes.
+- [x] PDP/cart/minicart official PayPal and Pay Later express controls render via SDK v6 and call `/api/paypal/orders/express-delivery` with the active cart binding.
+- [x] Initial checkout load does not render an official PayPal/Pay Later/card/wallet action until the Payment section is active and the matching radio method is selected.
+- [x] Delivery shipping address submit shows pending state, saves through the backend, collapses the section, and exposes Edit without leaving another section expanded.
+- [x] Delivery billing address submit shows pending state, saves through the backend, collapses the section, exposes Edit, and advances to Shipping options.
+- [x] Delivery shipping options start unsaved, update selected state, save through the backend, and update Order Summary shipping and total when changed.
+- [x] Checkout draft updates create a server UUID draft before PATCH and never send fixture draft IDs to Supabase-backed endpoints.
+- [x] Checkout draft submit API failures keep the current section expanded, announce a retryable inline error, and preserve downstream sections.
+- [x] Express API route dependency failures return the standard JSON error envelope instead of an HTML 500 page.
+- [ ] PayPal button click creates a PayPal order through the backend; if backend/Supabase/PayPal fails, the merchant UI shows a buyer-safe error and debug ID instead of silently closing the popup.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.
@@ -183,9 +237,44 @@
 
 ## Visual QA
 
+- [x] App shell includes focus-visible styling, reusable live-region/error primitives, and reduced-motion CSS guards.
+- [x] Category page renders V1 filters without a keyword search surface.
+- [x] Category page exposes an "All options" category switcher, applied filter count, and reset action.
+- [x] Category pickup filter shows a disabled location hint when no buyer location is available.
+- [x] Category Pay Later promo uses amount-free copy.
+- [x] PDP route renders released product gallery, details, current/regular price, amount-aware Pay Later message, delivery express actions, and reviews.
+- [x] PDP route keeps unreleased products viewable while disabling checkout actions, hiding Pay Later amount message, and hiding reviews.
+- [x] PDP has no pickup hint.
+- [x] Minicart renders item summary, amount-aware Pay Later message, view-cart/checkout actions, PayPal/Pay Later delivery express controls, and pickup hint text.
+- [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, PayPal/Pay Later delivery express controls, and pickup hint text.
+- [x] Cart Pay Later amount message recalculates from merchandise quantity totals and excludes shipping.
+- [x] Cart/minicart pickup hints stay as text only with no pickup button.
+- [x] Checkout route renders Delivery/Pickup tabs with separately preserved step state shells.
+- [x] Checkout step states render idle, saving, saved, editing, recalculating totals, blocked/error, and locked labels.
+- [x] Checkout order summary switches context between Delivery and Pickup drafts.
+- [x] Pickup checkout summary shows ready and unavailable item split with unavailable items staying in the original cart.
+- [x] Checkout fulfillment mode lock displays the payment-session lock reason and disables inactive tab switching.
+- [x] Checkout mobile sticky selected-payment action shell is present without replacing card payment fields.
+- [x] Delivery checkout accordion renders shipping address fields, same-as-shipping billing checkbox, cheapest-default shipping options, and payment method choices.
+- [x] Pickup checkout accordion renders ZIP/default-location controls, store selection cards, billing address fields, store-specific pickup date choices, and payment method choices.
+- [x] Pickup store cards show available and unavailable item counts before store submit, including a partial-inventory callout.
+- [x] Checkout validation summary renders as an assertive live region.
+- [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
+- [x] Checkout validation marks the first invalid step as a keyboard focus target.
+- [x] Checkout Order Summary and Pay Later row reserve stable layout space for async PayPal button/message surfaces in component tests.
+- [x] Delivery checkout step submits call checkout draft APIs for shipping address, billing address, and shipping option, then reconcile returned promo/tax/shipping totals into Order Summary.
+- [x] Pickup checkout step submits call checkout draft APIs for location, store, billing address, and pickup date, then reconcile returned promo/tax/inventory totals into Order Summary.
+- [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
+- [x] Buyer can move from full cart checkout through Pickup store selection, billing, pickup date, and payment selection.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
+- [ ] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.
+- [ ] POP MART profile no longer reads as a generic white/red ecommerce shell across homepage, category, PDP, cart, minicart, and checkout screenshots.
+- [ ] Homepage hero, hot sales, category cards, release calendar, and promo cards communicate blind-box drop, collectible shelf, and limited-release energy without childish clutter.
+- [ ] Product/category cards use tactile rounded surfaces, soft hover/focus feedback, and sticker-like text badges without relying on color alone.
+- [ ] Checkout, cart, and minicart use playful accents sparingly while keeping PayPal official buttons/messages stable, readable, and visually undistorted.
+- [ ] Pickup store cards read as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory note.
 - [ ] Meaningful product, category, and banner images have descriptive alt text.
-- [ ] PayPal buttons and Pay Later messages render without major layout shift.
+- [ ] PayPal buttons and Pay Later messages render without major layout shift in responsive browser screenshots.
 - [ ] Sticky header and sticky payment bar do not obscure content.
 - [ ] Text fits inside buttons, cards, accordions, and payment rows.

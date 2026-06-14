@@ -266,10 +266,10 @@ Verification:
 - [x] Build React app shell and routing.
 - [x] Add POP MART-style design tokens and responsive layout primitives.
 - [x] Add generic MochiToy visual tokens separately so POP MART mode does not inherit the generic blue/amber/cream direction.
-- [ ] Add accessibility primitives for focus-visible states, alert regions, form errors, and reduced-motion support.
+- [x] Add accessibility primitives for focus-visible states, alert regions, form errors, and reduced-motion support.
 - [x] Add profile-aware asset resolver.
-- [ ] Add market-aware config provider that remounts only the PayPal payment subtree when `provider_key` changes.
-- [ ] Add API client and state providers.
+- [x] Add market-aware config provider that remounts only the PayPal payment subtree when `provider_key` changes.
+- [x] Add API client and state providers.
 - [x] Add auth modal shell.
 - [x] Add minicart shell.
 
@@ -282,11 +282,11 @@ Verification:
 
 ## Milestone 9: Storefront And Catalog UI
 
-- [ ] Build homepage hero, hot sales, categories, release calendar, Pay Later promo, promo cards, popular series, and footer.
-- [ ] Build release calendar legend and color-independent release state labels.
-- [ ] Build category filters.
-- [ ] Build PDP gallery, product status, product details, price display, Pay Later message placement, add-to-cart, express buttons, and reviews.
-- [ ] Block unreleased product checkout actions and hide reviews.
+- [x] Build homepage hero, hot sales, categories, release calendar, Pay Later promo, promo cards, popular series, and footer.
+- [x] Build release calendar legend and color-independent release state labels.
+- [x] Build category filters.
+- [x] Build PDP gallery, product status, product details, price display, Pay Later message placement, add-to-cart, express buttons, and reviews.
+- [x] Block unreleased product checkout actions and hide reviews.
 
 Verification:
 
@@ -298,9 +298,9 @@ Verification:
 
 ## Milestone 10: Cart And Minicart UI
 
-- [ ] Build minicart with item summary, Pay Later amount message, checkout/view-cart actions, PayPal/Pay Later delivery express, and pickup hint text.
-- [ ] Build full cart with quantity editing, Pay Later amount message, checkout action, PayPal/Pay Later delivery express, and pickup hint text.
-- [ ] Keep pickup hints as text only, no pickup button.
+- [x] Build minicart with item summary, Pay Later amount message, checkout/view-cart actions, PayPal/Pay Later delivery express, and pickup hint text.
+- [x] Build full cart with quantity editing, Pay Later amount message, checkout action, PayPal/Pay Later delivery express, and pickup hint text.
+- [x] Keep pickup hints as text only, no pickup button.
 
 Verification:
 
@@ -310,14 +310,14 @@ Verification:
 
 ## Milestone 11: Checkout UI
 
-- [ ] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
-- [ ] Build Delivery accordion: shipping address, billing address, shipping option, payment.
-- [ ] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
-- [ ] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
-- [ ] Build focus movement and announced errors for checkout form validation.
-- [ ] Build partial pickup store card counts before store submit.
-- [ ] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
-- [ ] Build mobile sticky payment action for selected non-card methods.
+- [x] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
+- [x] Build Delivery accordion: shipping address, billing address, shipping option, payment.
+- [x] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
+- [x] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
+- [x] Build focus movement and announced errors for checkout form validation.
+- [x] Build partial pickup store card counts before store submit.
+- [x] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
+- [x] Build mobile sticky payment action for selected non-card methods.
 
 Verification:
 
@@ -327,18 +327,59 @@ Verification:
 - Sticky payment bar does not cover checkout content.
 - Card payment stays inside the expanded card fields box on mobile and desktop.
 
+## Milestone 11.5: Buyer Flow Interaction Recovery
+
+Purpose: close the gap between visual shells and working buyer actions before continuing deeper PayPal confirm/capture work.
+
+- [x] Re-audit checked Milestone 9-12 UI items and label any remaining visual-shell-only behavior before changing payment semantics.
+- [x] Wire PDP add-to-cart into cart state.
+- [x] Ensure PDP delivery express actions either start the intended express flow or are explicitly disabled/deferred with buyer-safe copy.
+- [x] Wire cart and minicart buyer actions: open/close minicart, server-backed quantity updates, checkout navigation, Pay Later amount refresh, and delivery-only express payment entry.
+  - [x] Wire app-owned minicart open/close, View cart, Checkout, full-cart checkout navigation, Pay Later amount refresh, and delivery-only express UI entry.
+  - [x] Wire server-backed cart quantity PATCH plus cart refresh triggers before checkout and express payment start.
+  - [x] Map backend cart update/refresh responses back into buyer `CartData` so server-side price and blocker changes visibly reconcile.
+- [x] Replace checkout read-only shells with an interactive Delivery/Pickup state machine for editing, validation, submit, saved/collapsed, recalculating, locked, and error states.
+- [x] Enforce a single-expanded-section accordion per fulfillment tab: first actionable step expanded initially, submitted steps collapsed to summaries, edit reopens one step and collapses the others.
+- [x] Wire checkout submit transitions through saving, recalculating totals, saved/collapsed, and next-section editing states for Delivery and Pickup step saves.
+- [x] Wire Delivery checkout steps for shipping address, same-as-shipping billing, alternate billing, shipping option selection, and payment-method selection.
+- [x] Wire Delivery checkout promo/tax/shipping recalculation hooks.
+- [x] Wire Pickup guest flow: ZIP/postcode submit, ranked store-list modal, selected-store summary, billing, pickup date, and payment-method selection.
+- [x] Wire Pickup logged-in flow: nearest/default-address store preselected, Change store modal, selected-store summary, billing, pickup date, and payment-method selection.
+- [x] Wire Pickup partial inventory behavior so selecting a partial store updates Order Summary payable/unavailable lines while preserving original cart intent.
+- [x] Wire Pickup promo/tax/inventory recalculation hooks after store, billing, or pickup date changes.
+- [x] Drive PayPal, Pay Later, and card surfaces from the selected checkout payment method instead of static fixture state.
+- [x] Drive Apple Pay, Google Pay, and Venmo surfaces from selected checkout payment method with runtime eligibility checks.
+- [x] Add buyer-journey tests proving the Delivery and Pickup UI paths can advance from cart/PDP into checkout payment selection.
+- [x] Keep PayPal synchronized shipping callback totals, final express review snapshot, capture, and amount consistency guard deferred to Milestone 13.
+- [x] Add a milestone-close gate so visible actions are wired, disabled with reason, or explicitly deferred before any UI milestone is marked done.
+
+Verification:
+
+- PDP add-to-cart changes the cart and refreshes amount-aware Pay Later messaging.
+- Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
+- Cart and minicart close/view-cart/checkout actions route through App state and close the minicart instead of silently falling back to document navigation.
+- PDP/cart/minicart delivery express controls mount official PayPal/Pay Later SDK surfaces; route to Review and Confirm happens after PayPal approval, while confirm-triggered capture remains Milestone 13.
+- Delivery checkout starts with only Shipping address expanded; submitting or editing a section leaves only one section expanded.
+- Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
+- Guest Pickup opens a store-list modal after ZIP/postcode submit and can advance from selected store to pickup date and selected payment method.
+- Logged-in Pickup starts with a preselected nearest/default-address store, can change store from a modal, and can advance to pickup date and selected payment method.
+- Partial Pickup store selection updates the Pickup Order Summary and excludes unavailable items from the payable pickup amount while preserving original cart intent.
+- Payment method radio changes render the matching PayPal/Pay Later/card surface and hide unrelated selected-action surfaces.
+- Wallet radio surfaces switch from buyer interaction, render only eligible rows, and keep Apple Pay/Google Pay/Venmo runtime eligibility evidence visible.
+- No visible checkout/cart/PDP action is a silent placeholder. If live QA finds a shell action, reopen the related milestone item instead of treating the route transition as complete behavior.
+
 ## Milestone 12: Payment UI Integration
 
-- [ ] Integrate PayPal SDK v6 provider/loading.
-- [ ] Pass currency, locale, buyer country, Pay Later buyer country, and sandbox test buyer country from backend config into the SDK v6 integration.
-- [ ] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
-- [ ] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
-- [ ] Render PayPal standalone button when PayPal radio is selected.
-- [ ] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
-- [ ] Render card fields expanded in the payment step with save checkbox inside card box.
-- [ ] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
-- [ ] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
-- [ ] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
+- [x] Integrate PayPal SDK v6 provider/loading.
+- [x] Pass currency, locale, buyer country, Pay Later buyer country, and sandbox test buyer country from backend config into the SDK v6 integration.
+- [x] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
+- [x] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
+- [x] Render PayPal standalone button when PayPal radio is selected.
+- [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
+- [x] Render card fields expanded in the payment step with save checkbox inside card box.
+- [x] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
+- [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
+- [x] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
 
 Verification:
 
@@ -348,12 +389,21 @@ Verification:
 - Pay Later renders where eligible.
 - Card fields render and submit.
 - Apple Pay/Google Pay/Venmo eligibility behavior is visible in debug/Admin.
+- PDP/cart/minicart express surfaces render official PayPal/Pay Later SDK controls and call `/api/paypal/orders/express-delivery` with the active cart binding before routing to Review and Confirm.
 
 ## Milestone 13: Express Review And Confirm
 
-- [ ] Build express Review and Confirm route/page.
-- [ ] Show synchronized PayPal shipping callback totals.
-- [ ] Show final item, shipping, promo, tax, and total snapshot.
+- [x] Build express Review and Confirm route/page.
+- [x] Show synchronized PayPal shipping callback totals.
+- [x] Show final item, shipping, promo, tax, and total snapshot.
+- [x] Recover PDP/cart/minicart official PayPal and Pay Later express SDK surfaces before considering express checkout complete.
+- [x] Recover checkout payment placement: no official PayPal/Pay Later/card/wallet action renders until the payment section is active and the matching radio method is selected.
+- [x] Keep `UX_STATE_CONTRACT.md` and `.superpowers/brainstorm/57024-1779720088/content/checkout-recovery-state-contract.html` aligned with the Milestone 13 recovery implementation.
+- [x] Recover Delivery accordion submit/collapse/edit behavior with live-data timing: shipping address collapses after save, billing address exposes an Edit action after save, and only one section is expanded at a time.
+- [x] Recover Delivery shipping option state: it is not marked saved before buyer confirmation, changing the selected option updates Order Summary shipping/total lines, and edit/re-submit behavior is verified.
+- [x] Resolve or explicitly gate Supabase-backed checkout draft submits so shipping/billing/shipping-option failures stay visible and retryable when the database is unreachable.
+- [ ] Resolve or explicitly gate Supabase-backed checkout/cart calls so PayPal create-order does not hang silently when the database is unreachable.
+- [ ] Verify PayPal button click through sandbox popup/create-order path; failures must stay visible in the merchant UI with debug evidence instead of closing the popup without explanation.
 - [ ] Capture only when buyer confirms.
 - [ ] Block capture if amount consistency guard fails.
 
@@ -402,12 +452,19 @@ Verification:
 
 - [ ] Run unit/API/UI test suite.
 - [ ] Run manual PayPal sandbox checklist.
+- [ ] Add POP MART playful collectible visual refresh tokens: coral CTA, candy pink, lemon yellow, mint green, sky blue, warm white, deep ink, and separate generic profile tokens.
+- [ ] Refresh storefront typography toward rounder retail character, preferring Rubik headings and Nunito Sans body/UI where web font loading is acceptable.
+- [ ] Refresh homepage visual language: blind-box/drop hero, hot-sales stickers, capsule/toy-shelf category cards, drop-calendar treatment, and collectible-event promo cards.
+- [ ] Refresh category and PDP product surfaces: tactile product cards, sticker-like status labels, clear current/regular price, release state, and pickup availability without table-like clutter.
+- [ ] Refresh cart, minicart, and checkout accents so the brand feels playful while PayPal official surfaces remain stable, readable, and visually undistorted.
+- [ ] Refresh Pickup store cards as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory notes.
 - [ ] Run responsive visual QA at 375px, 768px, 1024px, and 1440px.
 - [ ] Verify sticky header and sticky bottom payment bar do not cover content.
 - [ ] Verify checkout forms announce errors and move focus predictably.
 - [ ] Verify release calendar, promo, inventory, and lifecycle states do not rely on color alone.
 - [ ] Verify PayPal buttons/messages render without major layout shift.
-- [ ] Verify POP MART mode does not inherit generic profile colors or visual treatment.
+- [ ] Verify POP MART mode is playful premium collectible retail, not a generic white/red ecommerce shell and not the generic profile's blue/amber/cream treatment.
+- [ ] Verify visual accents stay controlled: no childish clutter, no heavy glassmorphism, no decorative orbs, no page-wide rainbow effect, and product imagery remains the hero.
 - [ ] Verify POP MART asset quality and replace weak images.
 - [ ] Verify generic MochiToy profile assets are public-safe.
 - [ ] Update runbook with exact commands.

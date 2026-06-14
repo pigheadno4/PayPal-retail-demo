@@ -15,7 +15,8 @@ When the user starts a new demo:
 9. For customer-facing or sales-facing demos, run a UI/UX review before implementation and fold the results into `DESIGN.md` and `tracking/test-cases.md`.
 10. If the user explicitly asks for subagents, dispatch focused planning/review subagents and merge their findings into one `IMPLEMENTATION_PLAN.md`.
 11. Create tracking files before implementation (see `demos/AGENTS.md` for the canonical list).
-12. Add TDD and verification strategy before coding.
+12. Add TDD and verification strategy before coding. For each milestone, define what proves shell rendering, user interaction, backend/database state, and manual sandbox or PSP behavior when applicable. For multi-step UI or payment flows, define a state contract or mockup before implementation and keep it aligned with tests/tracking.
 13. Implement task by task.
 14. Update tracking files after each task.
-15. At milestones, promote reusable lessons into `learnings/` and update `learnings/INDEX.md`.
+15. Before closing a milestone, confirm every visible user action is wired, disabled with a reason, or explicitly deferred; rendered UI alone is shell progress, not completed behavior. PSP or wallet milestones also need browser evidence that the official hydrated SDK/provider surface appears in every promised placement.
+16. At milestones, promote reusable lessons into `learnings/` and update `learnings/INDEX.md`.

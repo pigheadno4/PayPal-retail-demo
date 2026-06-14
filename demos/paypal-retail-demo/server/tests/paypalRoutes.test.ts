@@ -16,6 +16,7 @@ import type {
   PayPalWebhookProcessingInput,
   PayPalWebhookProcessingRepository,
   PayPalWebhookProcessingResult,
+  PayPalExpressReviewSnapshot,
   PreparedPayPalCapture,
   RecordPayPalCaptureResultInput,
   PayPalCreateOrderOperationContext,
@@ -400,6 +401,9 @@ describe("PayPal routes", () => {
         callbackContextId: "order_express",
         paypalOrderId: "PAYPAL_ORDER_EXPRESS",
         shippingAddress: {
+          fullName: null,
+          addressLine1: null,
+          addressLine2: null,
           countryCode: "US",
           adminArea1: "CA",
           adminArea2: "San Francisco",
@@ -439,6 +443,31 @@ describe("PayPal routes", () => {
       details: [{ issue: "ADDRESS_ERROR" }],
     });
     expect(orderRepository.shippingCallbackCalls).toEqual([]);
+  });
+
+  it("returns an express Review and Confirm snapshot from synchronized order totals", async () => {
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/paypal/orders/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: expressReviewSnapshot(),
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(orderRepository.reviewSnapshotCalls).toEqual([
+      {
+        paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+        paymentSessionId: null,
+      },
+    ]);
   });
 
   it("captures PayPal orders only after the repository amount guard allows capture", async () => {
@@ -795,6 +824,10 @@ interface FakeOrderRepository extends PayPalOrderPreparationRepository {
   }[];
   readonly recordCalls: RecordPayPalCreateOrderResultInput[];
   readonly shippingCallbackCalls: HandlePayPalShippingCallbackInput[];
+  readonly reviewSnapshotCalls: {
+    readonly paypalOrderId: string | null;
+    readonly paymentSessionId: string | null;
+  }[];
   readonly prepareCaptureCalls: { readonly paypalOrderId: string }[];
   readonly recordCaptureCalls: RecordPayPalCaptureResultInput[];
 }
@@ -865,6 +898,7 @@ function createOrderRepository(): FakeOrderRepository {
   const prepareCalls: FakeOrderRepository["prepareCalls"] = [];
   const recordCalls: RecordPayPalCreateOrderResultInput[] = [];
   const shippingCallbackCalls: HandlePayPalShippingCallbackInput[] = [];
+  const reviewSnapshotCalls: FakeOrderRepository["reviewSnapshotCalls"] = [];
   const prepareCaptureCalls: { readonly paypalOrderId: string }[] = [];
   const recordCaptureCalls: RecordPayPalCaptureResultInput[] = [];
 
@@ -872,6 +906,7 @@ function createOrderRepository(): FakeOrderRepository {
     prepareCalls,
     recordCalls,
     shippingCallbackCalls,
+    reviewSnapshotCalls,
     prepareCaptureCalls,
     recordCaptureCalls,
     async prepareCreateOrder(context, input) {
@@ -894,12 +929,63 @@ function createOrderRepository(): FakeOrderRepository {
         response: paypalShippingCallbackSuccess(),
       };
     },
+    async getExpressReviewSnapshot(input) {
+      reviewSnapshotCalls.push(input);
+      return expressReviewSnapshot();
+    },
     async prepareCapture(input) {
       prepareCaptureCalls.push(input);
       return preparedCapture(input.paypalOrderId);
     },
     async recordCaptureResult(input) {
       recordCaptureCalls.push(input);
+    },
+  };
+}
+
+function expressReviewSnapshot(): PayPalExpressReviewSnapshot {
+  return {
+    source_label: "Delivery express",
+    order_number: "DO-20260601-000002",
+    payment_session_id: "payment_session_express",
+    paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+    payment_method_label: "PayPal",
+    status_label: "Payment session synchronized",
+    shipping_address: {
+      name: "PayPal buyer",
+      address_line1: "100 Market St",
+      address_line2: "San Francisco, CA 94105",
+      country_code: "US",
+    },
+    shipping_option: {
+      label: "Ground",
+      detail: "Arrives in 3-5 business days",
+      amount_minor: 595,
+      currency_code: "USD",
+    },
+    items: [
+      {
+        id: "order_item_labubu",
+        name: "Labubu Macaron Vinyl Face",
+        detail: "POP-LABUBU-009 - Qty 1",
+        amount_minor: 2999,
+        currency_code: "USD",
+      },
+    ],
+    totals: {
+      merchandise_subtotal_minor: 2999,
+      shipping_minor: 595,
+      promo_discount_minor: 0,
+      tax_minor: 262,
+      total_minor: 3856,
+      currency_code: "USD",
+    },
+    amount_guard: {
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 0,
+      mismatches: [],
     },
   };
 }

@@ -85,6 +85,10 @@ export function startServer(env: RawServerEnv = process.env) {
     clientSecret: config.paypalClientSecret,
   });
   const app = createApp({
+    allowedCorsOrigins: [
+      config.appBaseUrl,
+      ...(config.publicHttpsOrigin ? [config.publicHttpsOrigin] : []),
+    ],
     catalogRepository,
     activeStorefrontContextStore,
     admin: {

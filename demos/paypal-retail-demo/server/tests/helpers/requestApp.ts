@@ -5,6 +5,7 @@ import type { Express } from "express";
 
 export interface AppResponse {
   readonly status: number;
+  readonly headers: Record<string, number | string | string[] | undefined>;
   readonly json: unknown;
 }
 
@@ -64,6 +65,7 @@ export async function requestApp(
 
   return {
     status: response.statusCode,
+    headers: response.getHeaders(),
     json: JSON.parse(body),
   };
 }

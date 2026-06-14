@@ -121,6 +121,9 @@ export interface RecordPayPalCaptureResultInput {
 }
 
 export interface PayPalShippingCallbackAddress {
+  readonly fullName?: string | null;
+  readonly addressLine1?: string | null;
+  readonly addressLine2?: string | null;
   readonly countryCode: string;
   readonly adminArea1: string | null;
   readonly adminArea2: string | null;
@@ -192,6 +195,48 @@ export type PayPalShippingCallbackResult =
       readonly response: PayPalShippingCallbackDeclineResponse;
     };
 
+export interface GetPayPalExpressReviewSnapshotInput {
+  readonly paypalOrderId: string | null;
+  readonly paymentSessionId: string | null;
+}
+
+export interface PayPalExpressReviewSnapshot {
+  readonly source_label: string;
+  readonly order_number: string;
+  readonly payment_session_id: string;
+  readonly paypal_order_id: string;
+  readonly payment_method_label: string;
+  readonly status_label: string;
+  readonly shipping_address: {
+    readonly name: string;
+    readonly address_line1: string;
+    readonly address_line2: string;
+    readonly country_code: string;
+  };
+  readonly shipping_option: {
+    readonly label: string;
+    readonly detail: string;
+    readonly amount_minor: number;
+    readonly currency_code: PayPalCurrencyCode;
+  };
+  readonly items: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly detail: string;
+    readonly amount_minor: number;
+    readonly currency_code: PayPalCurrencyCode;
+  }[];
+  readonly totals: {
+    readonly merchandise_subtotal_minor: number;
+    readonly shipping_minor: number;
+    readonly promo_discount_minor: number;
+    readonly tax_minor: number;
+    readonly total_minor: number;
+    readonly currency_code: PayPalCurrencyCode;
+  };
+  readonly amount_guard: PayPalCaptureAmountGuardResult;
+}
+
 export interface PayPalOrderPreparationRepository {
   readonly prepareCreateOrder: (
     context: PayPalCreateOrderOperationContext,
@@ -204,6 +249,9 @@ export interface PayPalOrderPreparationRepository {
   readonly handleExpressShippingCallback: (
     input: HandlePayPalShippingCallbackInput,
   ) => Promise<PayPalShippingCallbackResult>;
+  readonly getExpressReviewSnapshot: (
+    input: GetPayPalExpressReviewSnapshotInput,
+  ) => Promise<PayPalExpressReviewSnapshot | null>;
   readonly prepareCapture: (input: {
     readonly paypalOrderId: string;
   }) => Promise<PreparedPayPalCapture>;
@@ -401,6 +449,13 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
     "/paypal/orders/:paypalOrderId/capture",
     asyncRoute(async (request, response) => {
       await handleCaptureOrderRoute(request, response, input);
+    }),
+  );
+
+  router.get(
+    "/paypal/orders/express-review",
+    asyncRoute(async (request, response) => {
+      await handleExpressReviewSnapshotRoute(request, response, input);
     }),
   );
 
@@ -652,6 +707,50 @@ async function handleCaptureOrderRoute(
   });
 }
 
+async function handleExpressReviewSnapshotRoute(
+  request: Request,
+  response: Parameters<typeof sendApiSuccess>[0],
+  input: CreatePayPalRouterInput,
+): Promise<void> {
+  const orderRepository = input.orderRepository;
+
+  if (!orderRepository) {
+    sendApiError(response, 503, {
+      code: "PAYPAL_EXPRESS_REVIEW_UNAVAILABLE",
+      message: "PayPal express review loading is not configured.",
+    });
+    return;
+  }
+
+  const paypalOrderId = normalizeBodyString(request.query.paypal_order_id);
+  const paymentSessionId = normalizeBodyString(
+    request.query.payment_session_id,
+  );
+
+  if (!paypalOrderId && !paymentSessionId) {
+    sendApiError(response, 400, {
+      code: "INVALID_PAYPAL_EXPRESS_REVIEW_REQUEST",
+      message: "A PayPal order ID or payment session ID is required.",
+    });
+    return;
+  }
+
+  const snapshot = await orderRepository.getExpressReviewSnapshot({
+    paypalOrderId: paypalOrderId ?? null,
+    paymentSessionId: paymentSessionId ?? null,
+  });
+
+  if (!snapshot) {
+    sendApiError(response, 404, {
+      code: "PAYPAL_EXPRESS_REVIEW_NOT_FOUND",
+      message: "The synchronized PayPal express review snapshot was not found.",
+    });
+    return;
+  }
+
+  sendApiSuccess(response, snapshot);
+}
+
 function parseCreateOrderInput(
   request: Request,
   kind: PayPalOrderKind,
@@ -721,6 +820,11 @@ function parsePayPalShippingCallbackAddress(
   }
 
   return {
+    fullName: normalizeBodyString(getObjectProperty(value, "name")) ?? null,
+    addressLine1:
+      normalizeBodyString(getObjectProperty(value, "address_line_1")) ?? null,
+    addressLine2:
+      normalizeBodyString(getObjectProperty(value, "address_line_2")) ?? null,
     countryCode,
     adminArea1: normalizeBodyString(getObjectProperty(value, "admin_area_1")),
     adminArea2: normalizeBodyString(getObjectProperty(value, "admin_area_2")),

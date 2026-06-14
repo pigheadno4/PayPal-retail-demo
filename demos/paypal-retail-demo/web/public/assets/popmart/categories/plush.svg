@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" role="img" aria-label="Plush category">
+  <rect width="320" height="320" rx="28" fill="#f5f7ff"/>
+  <circle cx="160" cy="158" r="78" fill="#ccd9ff"/>
+  <circle cx="102" cy="112" r="36" fill="#ccd9ff"/>
+  <circle cx="218" cy="112" r="36" fill="#ccd9ff"/>
+  <circle cx="136" cy="148" r="9" fill="#151515"/>
+  <circle cx="184" cy="148" r="9" fill="#151515"/>
+  <path d="M140 188c14 12 26 12 40 0" fill="none" stroke="#151515" stroke-width="8" stroke-linecap="round"/>
+</svg>

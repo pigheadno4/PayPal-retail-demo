@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" role="img" aria-label="Labubu character blind box hero">
+  <rect width="1200" height="750" fill="#f7f3ee"/>
+  <rect x="52" y="54" width="1096" height="642" rx="34" fill="#ffffff" stroke="#e8ded4" stroke-width="4"/>
+  <circle cx="880" cy="318" r="178" fill="#ef1f2d" opacity="0.92"/>
+  <circle cx="742" cy="268" r="92" fill="#ffd8df"/>
+  <circle cx="1018" cy="270" r="92" fill="#ffd8df"/>
+  <circle cx="880" cy="350" r="150" fill="#f6c5cb"/>
+  <circle cx="824" cy="322" r="18" fill="#161616"/>
+  <circle cx="936" cy="322" r="18" fill="#161616"/>
+  <path d="M824 404c44 38 84 38 128 0" fill="none" stroke="#161616" stroke-width="16" stroke-linecap="round"/>
+  <path d="M706 490h348" stroke="#161616" stroke-width="18" stroke-linecap="round"/>
+  <text x="116" y="226" fill="#151515" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="900">THE MONSTERS</text>
+  <text x="118" y="310" fill="#ef1f2d" font-family="Inter, Arial, sans-serif" font-size="110" font-weight="900">Labubu</text>
+  <text x="124" y="382" fill="#5f5b56" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">New arrivals, delivery, pickup</text>
+  <text x="124" y="436" fill="#5f5b56" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">and flexible PayPal checkout.</text>
+</svg>

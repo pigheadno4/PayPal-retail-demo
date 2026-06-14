@@ -72,8 +72,7 @@ export function applyRuntimeConfig(
   const profileOrMarketChanged =
     previousConfig?.profile.slug !== config.profile.slug ||
     previousConfig?.market.code !== config.market.code;
-  const shouldRefresh =
-    !previousConfig || providerKeyChanged || profileOrMarketChanged;
+  const shouldRefresh = !previousConfig || profileOrMarketChanged;
 
   return {
     state: {

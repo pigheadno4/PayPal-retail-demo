@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" role="img" aria-label="Blind box category">
+  <rect width="320" height="320" rx="28" fill="#fff4f2"/>
+  <rect x="78" y="96" width="164" height="148" rx="18" fill="#ef1f2d"/>
+  <path d="M78 128h164" stroke="#ffffff" stroke-width="12"/>
+  <text x="112" y="193" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="62" font-weight="900">?</text>
+</svg>

@@ -61,4 +61,59 @@
 - [x] Add promo auto-apply/re-evaluation into pending-order resume totals.
 - [x] Add PayPal webhook verification and processing.
 - [x] Add saved payment active/pending/delete flows.
-- [ ] Finish Milestone 8 web app shell/config foundation.
+- [x] Finish Milestone 8 web app shell/config foundation.
+- [x] Start Milestone 9 storefront and catalog UI with homepage sections.
+- [x] Continue Milestone 9 with category filters.
+- [x] Continue Milestone 9 with PDP gallery/status/actions/reviews.
+- [x] Continue Milestone 10 with minicart item summary, Pay Later amount message, delivery express buttons, and pickup hint text.
+- [x] Continue Milestone 10 with full cart route, item quantity controls, Pay Later amount message, delivery express buttons, and pickup hint text.
+- [x] Continue Milestone 11 with checkout Delivery/Pickup tabs and step state shell.
+- [x] Continue Milestone 11 with detailed Delivery and Pickup accordion content/forms.
+- [x] Continue Milestone 11 with partial pickup store card counts before store submit.
+- [x] Continue Milestone 11 with checkout form validation, focus movement, and announced errors.
+- [x] Start Milestone 12 with PayPal SDK v6 provider/loading and backend SDK config wiring.
+- [x] Continue Milestone 12 with selected PayPal standalone button rendering under Order Summary.
+- [x] Continue Milestone 12 with Pay Later radio-row message and selected Pay Later button/message under Order Summary.
+- [x] Continue Milestone 12 with expanded card fields and save checkbox inside the card payment box.
+- [x] Continue Milestone 12 with Apple Pay, Google Pay, and Venmo eligible button surfaces.
+- [x] Continue Milestone 12 with reserved layout-space polish and authenticated save-for-future gating.
+- [x] Start Milestone 13 with the express Review and Confirm route/page.
+- [x] Add Milestone 11.5 Buyer Flow Interaction Recovery after the done-milestone gap audit.
+- [x] Start Milestone 11.5 with failing buyer-flow tests for PDP/cart/minicart shared cart actions.
+- [x] Add failing buyer-flow tests for Delivery shipping-address section progression.
+- [x] Continue Milestone 11.5 with PDP add-to-cart and cart/minicart shared state wiring.
+- [x] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
+- [x] Continue Milestone 11.5 with editable Delivery shipping address expand/shrink behavior.
+- [x] Continue Milestone 11.5 with Delivery billing-address and shipping-option expand/shrink progression.
+- [x] Continue Milestone 11.5 with payment-method-driven PayPal, Pay Later, and card surface switching.
+- [x] Continue Milestone 11.5 with single-expanded-section checkout accordion behavior.
+- [x] Continue Milestone 11.5 with Pickup guest ZIP/postcode-to-store-list modal behavior.
+- [x] Continue Milestone 11.5 with Pickup logged-in preselected-store and Change store modal behavior.
+- [x] Continue Milestone 11.5 with Pickup partial-inventory Order Summary updates.
+- [x] Continue Milestone 11.5 with Pickup billing-address, pickup-date, and payment-selection progression.
+- [x] Continue Milestone 11.5 with logged-in Pickup direct continuation from the preselected store.
+- [x] Continue Milestone 11.5 with checkout section saving/recalculating/saved submit transitions.
+- [x] Continue Milestone 11.5 with delivery-only express entry behavior from PDP/cart/minicart.
+- [x] Continue Milestone 11.5 with minicart close, View cart, Checkout, and full-cart checkout App-state navigation.
+- [x] Continue Milestone 11.5 with server-backed cart quantity update and checkout/express cart refresh triggers.
+- [x] Continue Milestone 11.5 with backend cart update/refresh response mapping back into buyer `CartData`.
+- [x] Continue Milestone 11.5 with interactive Delivery and Pickup checkout state machines.
+- [x] Continue Milestone 11.5 with Delivery checkout draft API recalculation hooks for shipping address, billing address, shipping option, promo/tax/shipping totals, and Order Summary reconciliation.
+- [x] Continue Milestone 11.5 with Pickup checkout draft API recalculation hooks for location, store, billing, pickup date, promo/tax/inventory totals, and Order Summary reconciliation.
+- [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
+- [x] Continue Milestone 11.5 with cross-entry buyer journey tests from PDP/minicart and cart into checkout payment selection.
+- [x] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
+- [x] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
+- [x] Recover PDP/cart/minicart official PayPal and Pay Later express SDK surfaces so they call `/api/paypal/orders/express-delivery` instead of acting as local route buttons.
+- [x] Recover checkout payment placement so official payment buttons render only inside the active Payment section/selected Order Summary action, not at initial checkout load.
+- [x] Recover Delivery shipping and billing accordion save/collapse/edit behavior with visible loading/error states for slow API calls.
+- [x] Recover Delivery shipping-option saved state and Order Summary recalculation when the selected option changes.
+- [x] Add a UX state contract/mockup for the checkout recovery so implementation, QA, and tracking use the same source of truth.
+- [x] Add API error envelope coverage and checkout submit failure handling so section save failures stay visible and retryable.
+- [ ] Resolve or gate Supabase-backed checkout/cart failures before PayPal create-order is considered demo-ready.
+- [ ] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
+- [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
+- [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
+- [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
+- [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
+- [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.
