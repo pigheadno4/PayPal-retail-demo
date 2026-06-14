@@ -97,7 +97,8 @@ Backend APIs:
 
 - Create a delivery PayPal order/session.
 - Use PayPal shipping/order update callbacks for delivery address, shipping option, promo, tax, and amount updates.
-- Return buyer to merchant Review and Confirm page at `/checkout/express-review`.
+- Return buyer to merchant Review and Confirm page at `/checkout/express-review?paypal_order_id={paypalOrderId}`.
+- Load Review and Confirm from `GET /api/paypal/orders/express-review` so the buyer sees the latest synchronized PayPal shipping-update totals, item rows, selected shipping option, promo, tax, and amount guard.
 - Capture only after buyer confirms on merchant page.
 - Guard capture using the locked merchant/provider amount snapshot; store the sanitized PayPal capture response for Admin/debug review.
 

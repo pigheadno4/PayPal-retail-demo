@@ -23,6 +23,7 @@ import {
   type PayPalOrderStoreInventoryRow,
   type PayPalOrderStoreRow,
   type PayPalOrderTaxRateRow,
+  type PayPalOrderTotalSnapshotRow,
 } from "../src/repositories/paypalOrderRepository.js";
 import type { PayPalCreateOrderOperationContext } from "../src/routes/paypal.js";
 
@@ -495,15 +496,97 @@ describe("Supabase-backed PayPal order repository", () => {
           kind: "express_delivery",
           paypal_order_id: "PAYPAL_ORDER_EXPRESS",
           selected_shipping_option_id: "ship_express_ca",
-          shipping_address: {
+          shipping_address: expect.objectContaining({
             country_code: "US",
             admin_area_1: "CA",
             admin_area_2: "San Francisco",
             postal_code: "94105",
-          },
+          }),
         },
       }),
     );
+  });
+
+  it("builds an express review snapshot from the latest PayPal shipping update totals", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const repository = createRepository(dataSource);
+
+    await repository.handleExpressShippingCallback({
+      callbackContextId: "order_express",
+      paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+      shippingAddress: {
+        fullName: "Taylor Chen",
+        addressLine1: "100 Market St",
+        addressLine2: "Unit 8",
+        countryCode: "US",
+        adminArea1: "CA",
+        adminArea2: "San Francisco",
+        postalCode: "94105",
+      },
+      selectedShippingOptionId: "ship_ground_ca",
+      rawCallbackRequest: {
+        id: "PAYPAL_ORDER_EXPRESS",
+        shipping_address: {
+          name: "Taylor Chen",
+          address_line_1: "100 Market St",
+          address_line_2: "Unit 8",
+          country_code: "US",
+          admin_area_1: "CA",
+          admin_area_2: "San Francisco",
+          postal_code: "94105",
+        },
+      },
+    });
+
+    const reviewSnapshot = await repository.getExpressReviewSnapshot({
+      paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+      paymentSessionId: null,
+    });
+
+    expect(reviewSnapshot).toEqual({
+      source_label: "Delivery express",
+      order_number: "DO-20260601-000002",
+      payment_session_id: "payment_session_express_existing",
+      paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+      payment_method_label: "PayPal",
+      status_label: "Payment session synchronized",
+      shipping_address: {
+        name: "Taylor Chen",
+        address_line1: "100 Market St",
+        address_line2: "Unit 8, San Francisco, CA 94105",
+        country_code: "US",
+      },
+      shipping_option: {
+        label: "Ground",
+        detail: "Arrives in 3-5 business days",
+        amount_minor: 595,
+        currency_code: "USD",
+      },
+      items: [
+        {
+          id: "order_item_new_1",
+          name: "Labubu Macaron Vinyl Face",
+          detail: "POP-LABUBU-009 - Qty 1",
+          amount_minor: 3261,
+          currency_code: "USD",
+        },
+      ],
+      totals: {
+        merchandise_subtotal_minor: 2999,
+        shipping_minor: 595,
+        promo_discount_minor: 0,
+        tax_minor: 262,
+        total_minor: 3856,
+        currency_code: "USD",
+      },
+      amount_guard: {
+        action: "allow_capture",
+        status: "matched",
+        can_capture: true,
+        tolerance_minor: 0,
+        mismatches: [],
+      },
+    });
   });
 
   it("auto-applies promos during express shipping callback recalculation", async () => {
@@ -1222,7 +1305,7 @@ interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
   readonly storeInventory: PayPalOrderStoreInventoryRow[];
   readonly orders: PayPalOrderRow[];
   readonly orderItems: unknown[];
-  readonly totalSnapshots: unknown[];
+  readonly totalSnapshots: PayPalOrderTotalSnapshotRow[];
   readonly lifecycleEvents: FakeOrderLifecycleEventRow[];
   readonly promoRules: PayPalOrderPromoRuleRow[];
   readonly promoRuleRegions: PayPalOrderPromoRuleRegionRow[];
@@ -1625,7 +1708,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     },
   ];
   const orderAddresses: unknown[] = [];
-  const totalSnapshots: unknown[] = [];
+  const totalSnapshots: PayPalOrderTotalSnapshotRow[] = [];
   const paypalSnapshots: unknown[] = [];
   const lifecycleEvents: FakeOrderLifecycleEventRow[] = [];
   const checkoutDraftStatusUpdates: FakePayPalOrderDataSource["checkoutDraftStatusUpdates"] =
@@ -1881,6 +1964,9 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     },
     async createTotalSnapshot(snapshot) {
       totalSnapshots.push(snapshot);
+    },
+    async listTotalSnapshots(orderId: string) {
+      return totalSnapshots.filter((snapshot) => snapshot.order_id === orderId);
     },
     async createPayPalOrderSnapshot(snapshot) {
       paypalSnapshots.push(snapshot);

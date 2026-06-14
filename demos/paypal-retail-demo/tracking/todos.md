@@ -103,7 +103,9 @@
 - [x] Continue Milestone 11.5 with wallet surface switching and runtime eligibility checks.
 - [x] Continue Milestone 11.5 with cross-entry buyer journey tests from PDP/minicart and cart into checkout payment selection.
 - [x] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
-- [ ] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
+- [x] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
+- [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
+- [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
 - [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.

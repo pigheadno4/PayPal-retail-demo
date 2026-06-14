@@ -556,7 +556,7 @@ Rules:
 - include `payment_source.paypal.experience_context.order_update_callback_config`
 - default callback subscription is `["SHIPPING_ADDRESS"]`; add `SHIPPING_OPTIONS` only when the selected shipping option must trigger a fresh amount/promo recalculation
 - callback URL points to `POST /api/paypal/orders/:callbackContextId/shipping-callback` with enough internal cart/session context for server-side recalculation. Because PayPal order ID is not known until Create Order returns, the initial callback context can be the merchant order/payment-session identifier; the callback handler should also read the PayPal order ID from PayPal's callback payload when present.
-- return buyer to merchant Review and Confirm at `/checkout/express-review` after PayPal approval
+- return buyer to merchant Review and Confirm at `/checkout/express-review?paypal_order_id={paypalOrderId}` after PayPal approval
 
 ### `POST /api/paypal/orders/bopis`
 
@@ -660,6 +660,27 @@ Decline response:
 - supported issues include address/country/state/zip errors and unavailable shipping methods
 
 Response must keep PayPal amount breakdown consistent. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
+
+### `GET /api/paypal/orders/express-review`
+
+Loads the buyer-facing Review and Confirm snapshot after PayPal approves a PDP/cart/minicart delivery express order.
+
+Query:
+
+- `paypal_order_id` or `payment_session_id` is required.
+- `market` is passed by the frontend for the active storefront context.
+
+Response uses the standard app envelope and returns:
+
+- merchant order number and PayPal order ID
+- payment session ID and payment method label
+- delivery address captured from the latest PayPal shipping callback snapshot
+- selected shipping option label, estimate, and amount
+- item rows with product names, SKU/quantity detail, and line totals
+- merchandise subtotal, shipping, promo discount, tax, and total from the latest `paypal_shipping_update` total snapshot
+- amount guard result comparing the merchant synchronized total with the provider/payment-session total
+
+If no synchronized `paypal_shipping_update` snapshot exists yet, the endpoint returns `PAYPAL_EXPRESS_REVIEW_NOT_FOUND` instead of showing placeholder totals.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
 

@@ -336,7 +336,7 @@ Vaulting:
 
 Applies only to PayPal/Pay Later express started outside full checkout from PDP/cart/minicart.
 
-Route: `/checkout/express-review`.
+Route: `/checkout/express-review?paypal_order_id={paypalOrderId}`.
 
 Flow:
 
@@ -344,7 +344,7 @@ Flow:
 2. Backend creates delivery PayPal order.
 3. PayPal shipping/order update flow settles address, shipping, promo, tax, and amount.
 4. Buyer returns to merchant Review and Confirm.
-5. Page shows final synchronized snapshot.
+5. Page loads `GET /api/paypal/orders/express-review` and shows final synchronized item, shipping, promo, tax, total, and amount-guard snapshot.
 6. Buyer confirms.
 7. Backend verifies the locked amount snapshot and captures.
 8. Successful capture updates the order/payment-session state, writes Admin/debug snapshots, decrements inventory, and clears only paid cart items.

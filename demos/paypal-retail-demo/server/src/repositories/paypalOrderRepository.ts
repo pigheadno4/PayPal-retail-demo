@@ -48,8 +48,10 @@ import {
   type TaxRateRow,
 } from "../../../shared/src/tax.js";
 import type {
+  GetPayPalExpressReviewSnapshotInput,
   HandlePayPalShippingCallbackInput,
   PayPalCreateOrderOperationContext,
+  PayPalExpressReviewSnapshot,
   PayPalShippingCallbackDeclineIssue,
   PayPalShippingCallbackResult,
   PayPalOrderPreparationRepository,
@@ -422,6 +424,7 @@ export interface PayPalOrderTotalSnapshotRow {
   readonly total_minor: number;
   readonly promo_evaluation_id: string | null;
   readonly calculation_context_json: CatalogJson;
+  readonly created_at: string;
 }
 
 export interface PayPalOrderLifecycleEventRow {
@@ -549,6 +552,9 @@ export interface PayPalOrderDataSource {
     paymentSessionId: string,
     patch: Partial<PayPalOrderPaymentSessionRow>,
   ) => Promise<PayPalOrderPaymentSessionRow>;
+  readonly listTotalSnapshots: (
+    orderId: string,
+  ) => Promise<readonly PayPalOrderTotalSnapshotRow[]>;
   readonly createSavedPaymentMethod: (
     savedPaymentMethod: PayPalOrderSavedPaymentMethodRow,
   ) => Promise<PayPalOrderSavedPaymentMethodRow>;
@@ -812,6 +818,9 @@ export function createSupabasePayPalOrderRepository(
     async handleExpressShippingCallback(callbackInput) {
       return handleExpressShippingCallback(dependencies, callbackInput);
     },
+    async getExpressReviewSnapshot(snapshotInput) {
+      return getPayPalExpressReviewSnapshot(dependencies, snapshotInput);
+    },
     async prepareCapture(captureInput) {
       return preparePayPalCapture(dependencies, captureInput.paypalOrderId);
     },
@@ -881,6 +890,111 @@ async function preparePayPalCapture(
     paypalRequestId: input.createPayPalRequestId(),
     merchantSnapshot,
     amountGuard,
+  };
+}
+
+async function getPayPalExpressReviewSnapshot(
+  input: PayPalOrderRepositoryDependencies,
+  snapshotInput: GetPayPalExpressReviewSnapshotInput,
+): Promise<PayPalExpressReviewSnapshot | null> {
+  const paymentSession = snapshotInput.paypalOrderId
+    ? await input.dataSource.getPaymentSessionByPayPalOrderId(
+        snapshotInput.paypalOrderId,
+      )
+    : snapshotInput.paymentSessionId
+      ? await input.dataSource.getPaymentSessionById(
+          snapshotInput.paymentSessionId,
+        )
+      : null;
+
+  if (!paymentSession?.paypal_order_id) {
+    return null;
+  }
+
+  const order = await input.dataSource.getOrderById(paymentSession.order_id);
+  if (
+    !order ||
+    order.fulfillment_mode !== "delivery" ||
+    order.status !== "pending"
+  ) {
+    return null;
+  }
+
+  const synchronizedSnapshot = (
+    await input.dataSource.listTotalSnapshots(order.id)
+  )
+    .filter(
+      (snapshot) =>
+        snapshot.payment_session_id === paymentSession.id &&
+        snapshot.calculation_stage === "paypal_shipping_update",
+    )
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+
+  if (!synchronizedSnapshot) {
+    return null;
+  }
+
+  const [orderItems, shippingOptions] = await Promise.all([
+    input.dataSource.listOrderItems(order.id),
+    input.dataSource.listShippingOptions(order.market_id),
+  ]);
+  const selectedShippingOptionId = readStringContextValue(
+    synchronizedSnapshot.calculation_context_json,
+    "selected_shipping_option_id",
+  );
+  const selectedShippingOption =
+    shippingOptions.find((option) => option.id === selectedShippingOptionId) ??
+    null;
+  const merchantSnapshot = snapshotCaptureAmountSnapshot(synchronizedSnapshot);
+  const providerSnapshot = {
+    ...merchantSnapshot,
+    totalMinor:
+      paymentSession.provider_total_minor ??
+      paymentSession.merchant_total_minor,
+  };
+  const amountGuard = guardPayPalCaptureAmountConsistency({
+    merchantSnapshot,
+    providerSnapshot,
+  });
+
+  return {
+    source_label: "Delivery express",
+    order_number: order.order_number,
+    payment_session_id: paymentSession.id,
+    paypal_order_id: paymentSession.paypal_order_id,
+    payment_method_label: paymentMethodLabel(paymentSession.method),
+    status_label:
+      amountGuard.action === "allow_capture"
+        ? "Payment session synchronized"
+        : "Payment session needs review",
+    shipping_address: mapExpressReviewAddress(
+      synchronizedSnapshot.calculation_context_json,
+    ),
+    shipping_option: {
+      label: selectedShippingOption?.display_name ?? "Selected shipping",
+      detail: selectedShippingOption
+        ? `Arrives in ${selectedShippingOption.estimated_days_min}-${selectedShippingOption.estimated_days_max} business days`
+        : "Shipping option selected in PayPal",
+      amount_minor: synchronizedSnapshot.shipping_minor,
+      currency_code: toPayPalCurrencyCode(synchronizedSnapshot.currency_code),
+    },
+    items: orderItems.map((item) => ({
+      id: item.id,
+      name: item.product_name_snapshot,
+      detail: `${item.product_sku_snapshot} - Qty ${item.quantity}`,
+      amount_minor: item.line_total_minor,
+      currency_code: toPayPalCurrencyCode(order.currency_code),
+    })),
+    totals: {
+      merchandise_subtotal_minor:
+        synchronizedSnapshot.merchandise_subtotal_minor,
+      shipping_minor: synchronizedSnapshot.shipping_minor,
+      promo_discount_minor: synchronizedSnapshot.promo_discount_minor,
+      tax_minor: synchronizedSnapshot.tax_minor,
+      total_minor: synchronizedSnapshot.total_minor,
+      currency_code: toPayPalCurrencyCode(synchronizedSnapshot.currency_code),
+    },
+    amount_guard: amountGuard,
   };
 }
 
@@ -963,6 +1077,7 @@ async function recordPayPalCaptureResult(
       paypal_capture_status: captureInput.paypalCaptureStatus,
       amount_guard: mapCaptureAmountGuardJson(captureInput.amountGuard),
     },
+    created_at: resolveNow(input.now),
   });
   await input.dataSource.createOrderLifecycleEvent({
     id: input.createOrderLifecycleEventId(),
@@ -1356,12 +1471,16 @@ async function handleExpressShippingCallback(
         paypal_order_id: paypalOrderId,
         selected_shipping_option_id: selectedShippingOption.id,
         shipping_address: {
+          name: callbackInput.shippingAddress.fullName ?? null,
+          address_line_1: callbackInput.shippingAddress.addressLine1 ?? null,
+          address_line_2: callbackInput.shippingAddress.addressLine2 ?? null,
           country_code: callbackInput.shippingAddress.countryCode,
           admin_area_1: callbackInput.shippingAddress.adminArea1,
           admin_area_2: callbackInput.shippingAddress.adminArea2,
           postal_code: callbackInput.shippingAddress.postalCode,
         },
       },
+      created_at: resolveNow(input.now),
     }),
   ]);
 
@@ -2363,6 +2482,96 @@ function merchantCaptureSnapshot(
   };
 }
 
+function snapshotCaptureAmountSnapshot(
+  snapshot: PayPalOrderTotalSnapshotRow,
+): PayPalCaptureAmountSnapshot {
+  return {
+    currencyCode: toPayPalCurrencyCode(snapshot.currency_code),
+    itemTotalMinor: snapshot.merchandise_subtotal_minor,
+    shippingMinor: snapshot.shipping_minor,
+    taxMinor: snapshot.tax_minor,
+    discountMinor: snapshot.promo_discount_minor,
+    totalMinor: snapshot.total_minor,
+  };
+}
+
+function mapExpressReviewAddress(context: CatalogJson): {
+  readonly name: string;
+  readonly address_line1: string;
+  readonly address_line2: string;
+  readonly country_code: string;
+} {
+  const shippingAddress = readContextObject(context, "shipping_address");
+  const addressLine2Parts = [
+    readStringContextValue(shippingAddress, "address_line_2"),
+    readStringContextValue(shippingAddress, "admin_area_2"),
+    joinCompact([
+      readStringContextValue(shippingAddress, "admin_area_1"),
+      readStringContextValue(shippingAddress, "postal_code"),
+    ]),
+  ].filter(Boolean);
+
+  return {
+    name: readStringContextValue(shippingAddress, "name") ?? "PayPal buyer",
+    address_line1:
+      readStringContextValue(shippingAddress, "address_line_1") ??
+      "Address supplied by PayPal",
+    address_line2: addressLine2Parts.join(", "),
+    country_code:
+      readStringContextValue(shippingAddress, "country_code") ?? "US",
+  };
+}
+
+function paymentMethodLabel(method: PayPalPaymentMethod): string {
+  switch (method) {
+    case "paylater":
+      return "Pay Later";
+    case "card":
+      return "Credit or debit card";
+    case "apple_pay":
+      return "Apple Pay";
+    case "google_pay":
+      return "Google Pay";
+    case "venmo":
+      return "Venmo";
+    case "paypal":
+      return "PayPal";
+  }
+}
+
+type CatalogJsonObject = { readonly [key: string]: CatalogJson };
+
+function readContextObject(
+  value: CatalogJson,
+  key: string,
+): CatalogJsonObject | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const child = (value as CatalogJsonObject)[key];
+  return child && typeof child === "object" && !Array.isArray(child)
+    ? (child as CatalogJsonObject)
+    : null;
+}
+
+function readStringContextValue(
+  value: CatalogJson,
+  key: string,
+): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const child = (value as CatalogJsonObject)[key];
+  return typeof child === "string" && child.trim() ? child : null;
+}
+
+function joinCompact(values: readonly (string | null)[]): string | null {
+  const compact = values.filter((value): value is string => Boolean(value));
+  return compact.length > 0 ? compact.join(" ") : null;
+}
+
 function mapCaptureAmountGuardJson(
   guard: PayPalCaptureAmountGuardResult,
 ): CatalogJson {
@@ -2552,6 +2761,7 @@ async function persistPreparedOrderDraft(
         kind: draft.kind,
         payment_method: draft.method,
       },
+      created_at: resolveNow(input.now),
     }),
     draft.checkoutDraft
       ? input.dataSource.updateCheckoutDraftStatus({
@@ -3156,6 +3366,26 @@ const orderItemColumns = [
   "line_total_minor",
 ].join(", ");
 
+const totalSnapshotColumns = [
+  "id",
+  "checkout_draft_id",
+  "order_id",
+  "payment_session_id",
+  "fulfillment_mode",
+  "calculation_stage",
+  "currency_code",
+  "merchandise_subtotal_minor",
+  "product_discount_minor",
+  "promo_discount_minor",
+  "taxable_subtotal_minor",
+  "tax_minor",
+  "shipping_minor",
+  "total_minor",
+  "promo_evaluation_id",
+  "calculation_context_json",
+  "created_at",
+].join(", ");
+
 const promoEvaluationColumns = [
   "id",
   "profile_id",
@@ -3643,6 +3873,16 @@ export function createSupabasePayPalOrderDataSource(
           .select(paymentSessionColumns)
           .single(),
         `Update payment session ${paymentSessionId}`,
+      );
+    },
+    async listTotalSnapshots(orderId) {
+      return queryMany<PayPalOrderTotalSnapshotRow>(
+        supabase
+          .from("total_snapshots")
+          .select(totalSnapshotColumns)
+          .eq("order_id", orderId)
+          .order("created_at", { ascending: false }),
+        `List total snapshots for order ${orderId}`,
       );
     },
     async createSavedPaymentMethod(savedPaymentMethod) {

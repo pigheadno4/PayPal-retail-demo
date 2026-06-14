@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { ApiClient, ApiQueryParams } from "../api/client.js";
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
@@ -45,6 +45,10 @@ import {
   ExpressReviewPage,
   type ExpressReviewPageData,
 } from "../features/checkout/ExpressReviewPage.js";
+import {
+  mapExpressReviewDataFromApiResponse,
+  type ExpressReviewApiResponse,
+} from "../features/checkout/expressReviewApi.js";
 import { CardFieldsCheckoutAction } from "../features/payments/CardFieldsCheckoutAction.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
 import {
@@ -104,7 +108,8 @@ export function App({
   initialCheckout,
   initialExpressReview,
 }: AppProps = {}) {
-  const route = resolveAppRoute(initialPathname ?? browserPathname());
+  const initialLocation = initialPathname ?? browserPathname();
+  const route = resolveAppRoute(initialLocation);
   const shellState = createInitialStorefrontState();
   const config = initialConfig ?? defaultRuntimeConfig();
 
@@ -116,6 +121,7 @@ export function App({
     <AppProviders initialConfig={config} {...(apiClient ? { apiClient } : {})}>
       <BuyerShell
         route={route}
+        initialLocation={initialLocation}
         config={config}
         homePageData={initialHomePage ?? defaultHomePageData}
         categoryPageData={initialCategoryPage ?? defaultCategoryPageData}
@@ -132,6 +138,7 @@ export function App({
 
 function BuyerShell({
   route,
+  initialLocation,
   config,
   homePageData,
   categoryPageData,
@@ -143,6 +150,7 @@ function BuyerShell({
   minicartState,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
+  readonly initialLocation: string;
   readonly config: StorefrontRuntimeConfig;
   readonly homePageData: HomePageData;
   readonly categoryPageData: CategoryPageData;
@@ -160,6 +168,7 @@ function BuyerShell({
   const apiClient = useApiClient();
   const assets = resolveProfileAssets(config.profile);
   const [currentRoute, setCurrentRoute] = useState(route);
+  const [currentLocation, setCurrentLocation] = useState(initialLocation);
   const [currentCart, setCurrentCart] = useState(cartData);
   const [currentExpressReviewData, setCurrentExpressReviewData] =
     useState(expressReviewData);
@@ -167,6 +176,53 @@ function BuyerShell({
     useState(minicartState);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
+
+  useEffect(() => {
+    if (currentRoute.page !== "express_review") {
+      return;
+    }
+
+    const lookup = parseExpressReviewLookup(currentLocation);
+    if (!lookup) {
+      return;
+    }
+
+    let active = true;
+    void apiClient
+      .get<ExpressReviewApiResponse>("/api/paypal/orders/express-review", {
+        market: config.market.code,
+        ...lookup,
+      })
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setCurrentExpressReviewData(
+          mapExpressReviewDataFromApiResponse(response, config.market.locale),
+        );
+        setShellStatus("Loaded synchronized express review snapshot.");
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        console.error("[paypal-retail-demo] Express review load failed", {
+          error,
+          lookup,
+        });
+        setShellStatus("Express review snapshot could not be loaded.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    apiClient,
+    config.market.code,
+    config.market.locale,
+    currentLocation,
+    currentRoute.page,
+  ]);
 
   function openMinicart() {
     setCurrentMinicartState("open");
@@ -266,6 +322,7 @@ function BuyerShell({
     }
 
     setCurrentRoute(nextRoute);
+    setCurrentLocation(pathname);
     setCurrentMinicartState("closed");
     setShellStatus(statusMessage);
     pushBuyerHistory(pathname);
@@ -302,6 +359,7 @@ function BuyerShell({
       scope: "buyer",
       page: "express_review",
     });
+    setCurrentLocation("/checkout/express-review");
     setShellStatus(`Started ${paymentMethodLabel} delivery express.`);
   }
 
@@ -703,6 +761,32 @@ function slugifyCheckoutValue(value: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+function parseExpressReviewLookup(location: string): {
+  readonly paypal_order_id?: string;
+  readonly payment_session_id?: string;
+} | null {
+  const queryStart = location.indexOf("?");
+  if (queryStart < 0) {
+    return null;
+  }
+
+  const params = new URLSearchParams(location.slice(queryStart));
+  const paypalOrderId = params.get("paypal_order_id")?.trim();
+  const paymentSessionId = params.get("payment_session_id")?.trim();
+
+  if (paypalOrderId) {
+    return {
+      paypal_order_id: paypalOrderId,
+    };
+  }
+
+  return paymentSessionId
+    ? {
+        payment_session_id: paymentSessionId,
+      }
+    : null;
+}
+
 function renderCheckoutPaymentAction({
   config,
   context,
@@ -875,7 +959,9 @@ function AdminShell({
 }
 
 function browserPathname(): string {
-  return globalThis.location?.pathname ?? "/";
+  const pathname = globalThis.location?.pathname ?? "/";
+  const search = globalThis.location?.search ?? "";
+  return `${pathname}${search}`;
 }
 
 function pushBuyerHistory(pathname: string) {

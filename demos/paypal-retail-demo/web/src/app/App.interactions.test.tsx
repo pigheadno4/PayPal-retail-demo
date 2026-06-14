@@ -373,6 +373,37 @@ describe("App buyer interactions", () => {
     }
   });
 
+  it("loads synchronized express review totals from the PayPal session snapshot", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponse: expressReviewApiResponse(),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("DO-20260601-000002")).toBeTruthy();
+    });
+
+    expect(apiClient.calls).toContainEqual({
+      method: "get",
+      path: "/api/paypal/orders/express-review",
+      query: {
+        market: "US",
+        paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+      },
+    });
+    expect(screen.getByText("Ground")).toBeTruthy();
+    expect(screen.getByText("Taylor Chen")).toBeTruthy();
+    expect(screen.getByText("$38.56")).toBeTruthy();
+    expect(screen.getByText("Amount verified")).toBeTruthy();
+  });
+
   it("switches eligible checkout wallet radios into the selected order summary action", async () => {
     const user = userEvent.setup();
 
@@ -973,6 +1004,53 @@ function checkoutDraftApiResponse({
         recommended_codes: [promoLabel],
         selected_codes: [promoLabel],
       },
+    },
+  };
+}
+
+function expressReviewApiResponse() {
+  return {
+    source_label: "Delivery express",
+    order_number: "DO-20260601-000002",
+    payment_session_id: "payment_session_express_existing",
+    paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+    payment_method_label: "PayPal",
+    status_label: "Payment session synchronized",
+    shipping_address: {
+      name: "Taylor Chen",
+      address_line1: "100 Market St",
+      address_line2: "Unit 8, San Francisco, CA 94105",
+      country_code: "US",
+    },
+    shipping_option: {
+      label: "Ground",
+      detail: "Arrives in 3-5 business days",
+      amount_minor: 595,
+      currency_code: "USD",
+    },
+    items: [
+      {
+        id: "order_item_new_1",
+        name: "Labubu Macaron Vinyl Face",
+        detail: "POP-LABUBU-009 · Qty 1",
+        amount_minor: 3261,
+        currency_code: "USD",
+      },
+    ],
+    totals: {
+      merchandise_subtotal_minor: 2999,
+      shipping_minor: 595,
+      promo_discount_minor: 0,
+      tax_minor: 262,
+      total_minor: 3856,
+      currency_code: "USD",
+    },
+    amount_guard: {
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 0,
+      mismatches: [],
     },
   };
 }

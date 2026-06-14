@@ -393,8 +393,8 @@ Verification:
 ## Milestone 13: Express Review And Confirm
 
 - [x] Build express Review and Confirm route/page.
-- [ ] Show synchronized PayPal shipping callback totals.
-- [ ] Show final item, shipping, promo, tax, and total snapshot.
+- [x] Show synchronized PayPal shipping callback totals.
+- [x] Show final item, shipping, promo, tax, and total snapshot.
 - [ ] Capture only when buyer confirms.
 - [ ] Block capture if amount consistency guard fails.
 

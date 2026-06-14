@@ -167,7 +167,9 @@
 - [x] M11.5 wallet radio selection renders only eligible Apple Pay, Google Pay, and Venmo surfaces.
 - [x] M11.5 no visible PDP/cart/minicart/checkout action is a silent placeholder.
 - [x] `/checkout/express-review` renders the express Review and Confirm snapshot route while `/checkout` remains the full checkout flow.
-- [ ] M13 PDP/cart/minicart express returns to Review and Confirm after PayPal approval with synchronized session totals.
+- [x] M13 PDP/cart/minicart express returns to Review and Confirm after PayPal approval with synchronized session totals.
+- [ ] M13 Review and Confirm calls capture only after buyer clicks Confirm and pay.
+- [ ] M13 Review and Confirm blocks buyer capture when the amount consistency guard fails.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.

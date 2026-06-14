@@ -83,7 +83,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Delivery express Create Order should use `shipping_preference: "GET_FROM_FILE"` so wallet address changes can trigger shipping callbacks.
 - Subscribe to `SHIPPING_ADDRESS` first. Add `SHIPPING_OPTIONS` only if implementation needs recalculation when the buyer changes the selected option inside PayPal.
 - Callback responses must keep PayPal amount breakdown internally consistent: selected shipping cost, item total, tax total, currency, and purchase unit total must all match the merchant snapshot.
-- After PayPal approval, show merchant Review and Confirm at `/checkout/express-review` for express only, then capture after final amount consistency verification.
+- After PayPal approval, show merchant Review and Confirm at `/checkout/express-review?paypal_order_id={paypalOrderId}` for express only. The page loads `GET /api/paypal/orders/express-review` from the latest synchronized PayPal shipping-update snapshot, then captures only after final buyer confirmation and amount consistency verification.
 - Backend capture uses the locked merchant/provider amount snapshot before calling PayPal; the sanitized Orders capture response is stored for Admin/debug review.
 - Successful capture is the durable finalization point: order status becomes paid, payment session becomes captured, inventory decrements, lifecycle/total snapshots are written, and only paid order items are removed from the active cart.
 
@@ -482,7 +482,7 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 - PayPal JS SDK v6 integration.
 - Delivery order create/update/capture.
 - PDP/cart/minicart express.
-- Review and Confirm.
+- Review and Confirm backed by synchronized PayPal shipping-update snapshots.
 - Amount consistency verification.
 
 ### M8: BOPIS Payment
