@@ -30,6 +30,7 @@ The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start ther
 - Verify the promised user journey with interaction tests or a manual verification note; render/snapshot tests only prove the shell exists.
 - For PSP or wallet UI, verify the hydrated official SDK/provider surface in a browser for each promised placement; branded local buttons or static text are shell progress only.
 - For API-backed UI, verify loading, success, and failure states against the backend contract before marking the interaction complete.
+- Broad task labels such as "checkout UI", "cart sync", or "payment integration" do not satisfy user-visible promises unless those promises are decomposed into explicit tasks, tests, and evidence.
 - Before moving phases, reconcile `IMPLEMENTATION_TASKS.md` or the active implementation plan with `tracking/test-cases.md`, `tracking/todos.md`, and `tracking/progress.md`.
 - If only the visual shell is complete, record it as shell progress and keep the behavior item open.
 

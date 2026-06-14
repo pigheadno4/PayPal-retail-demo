@@ -12,6 +12,16 @@
 - UI tests: {{UI_TEST_STRATEGY}}
 - Manual sandbox verification: {{MANUAL_VERIFICATION_STRATEGY}}
 
+## Requirement Traceability Matrix
+
+Complex demos must complete this before implementation starts.
+
+| Promise | Source Doc Section | Implementation Task | Test Case | Evidence Type |
+| --- | --- | --- | --- | --- |
+| Primary buyer-visible promise | `DEMO.md` or `DESIGN.md` section | Milestone/task checkbox | `tracking/test-cases.md` row | Shell, interaction, backend, PSP/browser, or failure evidence |
+
+Broad task labels such as "checkout UI", "cart sync", or "payment integration" are not enough. Split them into independently verifiable promises or list explicit sub-checks.
+
 ## Platform Plan
 - Web: {{WEB_PLAN}}
 - Backend: {{BACKEND_PLAN}}
@@ -30,6 +40,8 @@
 ## Milestone Close Gate
 - Do not mark rendered UI as completed behavior unless the related user action is verified.
 - For each milestone, define which checks prove shell rendering, user interaction, backend/database state, and manual sandbox behavior.
+- Evidence ladder: each milestone must name the applicable proof for shell rendering, user interaction, backend/database state, PSP/browser SDK evidence, and failure-state evidence.
+- If a promised behavior lacks an evidence rung, keep that task open or mark it explicitly deferred.
 - For PSP/wallet UI, include browser evidence for official hydrated SDK/provider surfaces in each promised placement.
 - For API-backed UI, include loading, success, and failure-state verification against the backend contract.
 - For multi-step UI, keep a state contract or mockup aligned with implementation and test cases.
