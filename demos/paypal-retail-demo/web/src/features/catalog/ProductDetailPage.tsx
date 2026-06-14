@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 
@@ -49,12 +49,17 @@ export interface ProductDetailPageProps {
     method: DeliveryExpressPaymentMethod,
     product: ProductDetailPageData,
   ) => void;
+  readonly renderDeliveryExpressAction?: (
+    method: DeliveryExpressPaymentMethod,
+    product: ProductDetailPageData,
+  ) => ReactNode;
 }
 
 export function ProductDetailPage({
   data,
   onAddToCart,
   onDeliveryExpressStart,
+  renderDeliveryExpressAction,
 }: ProductDetailPageProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = data.gallery[activeImageIndex] ?? data.gallery[0];
@@ -147,24 +152,33 @@ export function ProductDetailPage({
             Add to cart
           </button>
           <div className="product-express-actions">
-            <button
-              className="product-express-actions__paypal"
-              data-fulfillment-mode="delivery"
-              type="button"
-              disabled={!data.purchasable}
-              onClick={() => startDeliveryExpress("paypal")}
-            >
-              PayPal
-            </button>
-            <button
-              className="product-express-actions__paylater"
-              data-fulfillment-mode="delivery"
-              type="button"
-              disabled={!data.purchasable}
-              onClick={() => startDeliveryExpress("paylater")}
-            >
-              Pay Later
-            </button>
+            {data.purchasable && renderDeliveryExpressAction ? (
+              <>
+                {renderDeliveryExpressAction("paypal", data)}
+                {renderDeliveryExpressAction("paylater", data)}
+              </>
+            ) : (
+              <>
+                <button
+                  className="product-express-actions__paypal"
+                  data-fulfillment-mode="delivery"
+                  type="button"
+                  disabled={!data.purchasable}
+                  onClick={() => startDeliveryExpress("paypal")}
+                >
+                  PayPal
+                </button>
+                <button
+                  className="product-express-actions__paylater"
+                  data-fulfillment-mode="delivery"
+                  type="button"
+                  disabled={!data.purchasable}
+                  onClick={() => startDeliveryExpress("paylater")}
+                >
+                  Pay Later
+                </button>
+              </>
+            )}
           </div>
         </section>
       </section>

@@ -79,6 +79,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 ### Delivery Express Evidence
 
 - PDP/cart/minicart PayPal and Pay Later express are delivery-only.
+- PDP/cart/minicart express SDK buttons must call create-order with the active `cart_public_id`/cart binding, not a checkout draft ID or local route transition.
 - Use server-side shipping callbacks for express delivery because they support PayPal and Venmo and are better aligned with future mobile clients.
 - Delivery express Create Order should use `shipping_preference: "GET_FROM_FILE"` so wallet address changes can trigger shipping callbacks.
 - Subscribe to `SHIPPING_ADDRESS` first. Add `SHIPPING_OPTIONS` only if implementation needs recalculation when the buyer changes the selected option inside PayPal.

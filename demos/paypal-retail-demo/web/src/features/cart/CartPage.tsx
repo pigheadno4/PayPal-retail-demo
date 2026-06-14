@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 import {
@@ -20,6 +20,9 @@ export interface CartPageProps {
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
   ) => void | Promise<void>;
+  readonly renderDeliveryExpressAction?: (
+    method: DeliveryExpressPaymentMethod,
+  ) => ReactNode;
   readonly onQuantityChange?: (
     slug: string,
     nextQuantity: number,
@@ -32,6 +35,7 @@ export function CartPage({
   onCheckoutNavigate,
   onDeliveryExpressStart,
   onQuantityChange,
+  renderDeliveryExpressAction,
 }: CartPageProps) {
   const [quantityOverrides, setQuantityOverrides] =
     useState<CartQuantityOverrides>({});
@@ -148,7 +152,14 @@ export function CartPage({
         >
           Go to checkout
         </a>
-        <DeliveryExpressActions onExpressStart={onDeliveryExpressStart} />
+        <DeliveryExpressActions
+          {...(onDeliveryExpressStart
+            ? { onExpressStart: onDeliveryExpressStart }
+            : {})}
+          {...(renderDeliveryExpressAction
+            ? { renderAction: renderDeliveryExpressAction }
+            : {})}
+        />
         <p className="cart-pickup-hint">{data.pickupHint}</p>
       </aside>
     </div>
@@ -169,27 +180,38 @@ export interface DeliveryExpressActionsProps {
   readonly onExpressStart?:
     | ((method: DeliveryExpressPaymentMethod) => void)
     | undefined;
+  readonly renderAction?: (method: DeliveryExpressPaymentMethod) => ReactNode;
 }
 
 export function DeliveryExpressActions({
   onExpressStart,
+  renderAction,
 }: DeliveryExpressActionsProps) {
   return (
     <div className="cart-express-actions" aria-label="Delivery express payment">
-      <button
-        type="button"
-        data-fulfillment-mode="delivery"
-        onClick={() => onExpressStart?.("paypal")}
-      >
-        PayPal
-      </button>
-      <button
-        type="button"
-        data-fulfillment-mode="delivery"
-        onClick={() => onExpressStart?.("paylater")}
-      >
-        Pay Later
-      </button>
+      {renderAction ? (
+        <>
+          {renderAction("paypal")}
+          {renderAction("paylater")}
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            data-fulfillment-mode="delivery"
+            onClick={() => onExpressStart?.("paypal")}
+          >
+            PayPal
+          </button>
+          <button
+            type="button"
+            data-fulfillment-mode="delivery"
+            onClick={() => onExpressStart?.("paylater")}
+          >
+            Pay Later
+          </button>
+        </>
+      )}
     </div>
   );
 }

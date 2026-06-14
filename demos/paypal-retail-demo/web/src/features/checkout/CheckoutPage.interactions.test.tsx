@@ -173,6 +173,34 @@ describe("CheckoutPage interactions", () => {
     }
   });
 
+  it("keeps a submitted section expanded with an announced error when draft save fails", async () => {
+    const user = userEvent.setup();
+
+    render(
+      createElement(CheckoutPage, {
+        onDraftUpdate: async () => {
+          throw new Error("checkout draft unavailable");
+        },
+      } as Record<string, unknown>),
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitForStepState(shippingStep, "blocked");
+    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByRole("alert").textContent).toContain(
+      "We could not save Shipping address. Please try again.",
+    );
+    expect(getStep("Billing address").getAttribute("data-step-state")).toBe(
+      "idle",
+    );
+  });
+
   it("keeps only one delivery checkout section expanded at a time", async () => {
     const user = userEvent.setup();
 

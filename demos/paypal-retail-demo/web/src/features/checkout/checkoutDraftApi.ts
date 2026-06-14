@@ -70,6 +70,7 @@ export interface CheckoutPickupDateDto {
 export interface CheckoutSummaryDto {
   readonly merchandise_subtotal_minor: number;
   readonly discount_minor: number;
+  readonly shipping_minor?: number;
   readonly total_minor: number;
   readonly currency_code: string;
 }
@@ -149,6 +150,9 @@ function reconcileSummary(
     ...currentSummary,
     subtotalLabel: formatMinor(summary.merchandise_subtotal_minor, summary),
     promoLabel: formatPromoLabel(summary, promo),
+    ...(typeof summary.shipping_minor === "number"
+      ? { shippingLabel: formatMinor(summary.shipping_minor, summary) }
+      : {}),
     totalLabel: formatMinor(summary.total_minor, summary),
   };
 }

@@ -547,9 +547,19 @@ Rules:
 
 Creates PayPal order from PDP/cart/minicart delivery express.
 
+Request:
+
+```json
+{
+  "cart_id": "cart_public_guest",
+  "method": "paypal"
+}
+```
+
 Rules:
 
 - fulfillment mode is locked to `delivery`
+- frontend uses the active cart public binding as `cart_id`; express entry points do not send checkout draft IDs
 - create pending order when session starts
 - use server-side shipping callback config
 - use `shipping_preference: "GET_FROM_FILE"`

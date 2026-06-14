@@ -12,6 +12,7 @@ import {
   type ApiQueryParams,
 } from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
+import { useOptionalApiClient } from "../../state/appProviders.js";
 
 export type PayPalSdkFlow = "standard" | "vaulting";
 export type PayPalPaymentMethod =
@@ -85,9 +86,10 @@ export function PayPalSdkProviderScope({
   apiClient,
   children,
 }: PayPalSdkProviderScopeProps) {
+  const contextApiClient = useOptionalApiClient();
   const resolvedApiClient = useMemo(
-    () => apiClient ?? createApiClient(),
-    [apiClient],
+    () => apiClient ?? contextApiClient ?? createApiClient(),
+    [apiClient, contextApiClient],
   );
   const requestQuery = useMemo(
     () => buildPayPalSdkConfigQuery(configRequest),

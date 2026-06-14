@@ -1,0 +1,110 @@
+# PayPal Retail Demo UX State Contract
+
+This contract defines the Milestone 13 recovery behavior for checkout and official payment surfaces. It turns the live QA gaps into a single reference for implementation, tests, and demo review.
+
+## Source Inputs
+
+- User review on June 14, 2026: initial checkout must not show PayPal buttons before the Payment step, shipping/billing must shrink after save, shipping option totals must update immediately, and PayPal errors must stay visible.
+- `DESIGN.md`: Delivery/Pickup accordion flow, radio-first payment wall, official PayPal button/message placement, and POP MART playful retail visual direction.
+- `ui-ux-pro-max` review: active section indication, visible loading/error recovery, field-local errors with `role="alert"`, controlled React form state, and stable button/message space.
+
+## Payment Surface Gate
+
+Official PayPal, Pay Later, wallet, and card surfaces must mount only when all conditions are true:
+
+1. The active fulfillment tab is visible.
+2. The active tab's payment section is the only expanded section.
+3. The selected payment radio is eligible.
+4. The selected payment method has the matching official surface.
+5. The active checkout draft/cart binding is server-ready for that surface.
+
+If any condition is false, Order Summary keeps reserved empty space but renders no official payment action and no sticky mobile payment bar.
+
+## Checkout Draft And Cart Binding
+
+Fixture IDs such as `draft_delivery_123` and `draft_pickup_123` are allowed only in unit fixtures and mockups. Live App flow must use one of these modes:
+
+- Server-backed mode: fetch or create an active checkout draft before section submit or create-order, then use the returned UUID.
+- Explicit mock mode: block real PayPal create-order and show buyer-safe copy that the demo is running without server checkout data.
+
+The app must not send fixture IDs to Supabase-backed endpoints. PayPal create-order buttons must be disabled or withheld until the binding is server-ready.
+
+## Delivery Accordion
+
+Initial Delivery state:
+
+- Shipping address: expanded and editing.
+- Billing address: collapsed and idle.
+- Shipping options: collapsed and idle.
+- Payment method: collapsed and idle.
+- Order Summary: visible, recalculating promo allowed, no payment action.
+
+Submit behavior:
+
+- Submit shipping address -> show saving/recalculating -> collapse shipping summary -> expand billing.
+- Submit billing -> show saving/recalculating -> collapse billing summary with Edit action -> expand shipping options.
+- Submit shipping option -> update Order Summary shipping/total lines -> collapse shipping options -> expand payment.
+- Edit on any saved section expands only that section and collapses all others. Downstream totals can show recalculating or stale-state copy.
+
+## Pickup Accordion
+
+Guest Pickup:
+
+- Start with Pickup location expanded.
+- Buyer enters ZIP/postcode and submits.
+- Store picker modal opens with ranked stores, inventory counts, address, phone, distance, and full/partial status.
+- Confirming a store collapses location/store summary and opens billing.
+
+Logged-in Pickup:
+
+- Start with nearest/default-address store preselected.
+- Buyer can click Change store to open the same store picker modal.
+- Continue with selected store opens billing.
+
+Partial inventory:
+
+- Order Summary separates ready-for-pickup and not-available items.
+- Unavailable pickup items are excluded from the BOPIS payment amount and remain in the original cart.
+
+## Loading And Error States
+
+- Section submit buttons stay visible while saving.
+- API errors keep the current section expanded and show a clear inline `role="alert"` message with retry copy.
+- App API errors must use JSON envelopes for API routes; HTML Express 500 pages are not acceptable for buyer flows.
+- PayPal create-order errors must leave merchant-side feedback visible after popup close/failure and log sanitized debug context.
+
+## POP MART Visual Direction
+
+Checkout should be calmer than the homepage but still feel like collectible retail:
+
+- Use coral, candy pink, lemon, mint, and sky-blue accents sparingly for step badges, status chips, pickup store cards, and summaries.
+- Keep official PayPal surfaces visually undistorted, with reserved space and stable layout.
+- Avoid a plain SaaS checkout feel, but do not make payment rows noisy.
+
+## Acceptance Tests
+
+- Initial `/checkout` has no official PayPal/Pay Later/wallet/card action mounted.
+- Payment action appears only after the buyer reaches the expanded payment section and selects a matching radio method.
+- Shipping option is not `saved` before buyer confirmation.
+- Changing shipping option updates Order Summary shipping and total.
+- Invalid or missing server checkout binding blocks create-order with visible copy instead of sending fixture IDs.
+- API failures leave the edited section expanded and announced.
+- PDP/cart/minicart official express surfaces call `/api/paypal/orders/express-delivery` only with active server cart binding.
+
+## Current Implementation Status
+
+Completed in the Milestone 13 checkout-recovery slice:
+
+- Initial checkout payment-action gating.
+- Delivery/Pickup first-actionable-step initialization.
+- Delivery section save/collapse/edit progression through payment selection.
+- Server checkout draft UUID creation before live section PATCH requests.
+- Order Summary shipping-line reconciliation from checkout draft responses.
+- Retryable inline section errors when checkout draft updates fail.
+- Standard JSON API error envelope for route dependency failures.
+
+Still open for the next Milestone 13 slices:
+
+- Official PDP/cart/minicart express SDK controls.
+- Merchant-visible PayPal create-order failure/debug feedback after popup close or backend failure.
+- Confirm-triggered capture and buyer-facing amount-guard blocking on Review and Confirm.

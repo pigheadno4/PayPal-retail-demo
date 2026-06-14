@@ -358,7 +358,7 @@ Verification:
 - PDP add-to-cart changes the cart and refreshes amount-aware Pay Later messaging.
 - Cart and minicart quantity changes persist through the app cart state and refresh Pay Later amounts.
 - Cart and minicart close/view-cart/checkout actions route through App state and close the minicart instead of silently falling back to document navigation.
-- PDP/cart/minicart delivery express buttons start a delivery-only express UI session and route to Review and Confirm with the selected method/entry context; synchronized PayPal session return and capture remain Milestone 13.
+- PDP/cart/minicart delivery express controls mount official PayPal/Pay Later SDK surfaces; route to Review and Confirm happens after PayPal approval, while confirm-triggered capture remains Milestone 13.
 - Delivery checkout starts with only Shipping address expanded; submitting or editing a section leaves only one section expanded.
 - Buyer can complete all Delivery checkout sections from editable fields to selected payment method.
 - Guest Pickup opens a store-list modal after ZIP/postcode submit and can advance from selected store to pickup date and selected payment method.
@@ -366,7 +366,7 @@ Verification:
 - Partial Pickup store selection updates the Pickup Order Summary and excludes unavailable items from the payable pickup amount while preserving original cart intent.
 - Payment method radio changes render the matching PayPal/Pay Later/card surface and hide unrelated selected-action surfaces.
 - Wallet radio surfaces switch from buyer interaction, render only eligible rows, and keep Apple Pay/Google Pay/Venmo runtime eligibility evidence visible.
-- No visible checkout/cart/PDP action is a silent placeholder.
+- No visible checkout/cart/PDP action is a silent placeholder. If live QA finds a shell action, reopen the related milestone item instead of treating the route transition as complete behavior.
 
 ## Milestone 12: Payment UI Integration
 
@@ -389,12 +389,21 @@ Verification:
 - Pay Later renders where eligible.
 - Card fields render and submit.
 - Apple Pay/Google Pay/Venmo eligibility behavior is visible in debug/Admin.
+- PDP/cart/minicart express surfaces render official PayPal/Pay Later SDK controls and call `/api/paypal/orders/express-delivery` with the active cart binding before routing to Review and Confirm.
 
 ## Milestone 13: Express Review And Confirm
 
 - [x] Build express Review and Confirm route/page.
 - [x] Show synchronized PayPal shipping callback totals.
 - [x] Show final item, shipping, promo, tax, and total snapshot.
+- [x] Recover PDP/cart/minicart official PayPal and Pay Later express SDK surfaces before considering express checkout complete.
+- [x] Recover checkout payment placement: no official PayPal/Pay Later/card/wallet action renders until the payment section is active and the matching radio method is selected.
+- [x] Keep `UX_STATE_CONTRACT.md` and `.superpowers/brainstorm/57024-1779720088/content/checkout-recovery-state-contract.html` aligned with the Milestone 13 recovery implementation.
+- [x] Recover Delivery accordion submit/collapse/edit behavior with live-data timing: shipping address collapses after save, billing address exposes an Edit action after save, and only one section is expanded at a time.
+- [x] Recover Delivery shipping option state: it is not marked saved before buyer confirmation, changing the selected option updates Order Summary shipping/total lines, and edit/re-submit behavior is verified.
+- [x] Resolve or explicitly gate Supabase-backed checkout draft submits so shipping/billing/shipping-option failures stay visible and retryable when the database is unreachable.
+- [ ] Resolve or explicitly gate Supabase-backed checkout/cart calls so PayPal create-order does not hang silently when the database is unreachable.
+- [ ] Verify PayPal button click through sandbox popup/create-order path; failures must stay visible in the merchant UI with debug evidence instead of closing the popup without explanation.
 - [ ] Capture only when buyer confirms.
 - [ ] Block capture if amount consistency guard fails.
 

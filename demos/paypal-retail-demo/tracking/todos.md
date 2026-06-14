@@ -104,6 +104,14 @@
 - [x] Continue Milestone 11.5 with cross-entry buyer journey tests from PDP/minicart and cart into checkout payment selection.
 - [x] Close Milestone 11.5 only after every visible buyer action is wired, disabled with reason, or explicitly deferred in tracking.
 - [x] Continue Milestone 13 with synchronized PayPal shipping callback totals on Review and Confirm.
+- [x] Recover PDP/cart/minicart official PayPal and Pay Later express SDK surfaces so they call `/api/paypal/orders/express-delivery` instead of acting as local route buttons.
+- [x] Recover checkout payment placement so official payment buttons render only inside the active Payment section/selected Order Summary action, not at initial checkout load.
+- [x] Recover Delivery shipping and billing accordion save/collapse/edit behavior with visible loading/error states for slow API calls.
+- [x] Recover Delivery shipping-option saved state and Order Summary recalculation when the selected option changes.
+- [x] Add a UX state contract/mockup for the checkout recovery so implementation, QA, and tracking use the same source of truth.
+- [x] Add API error envelope coverage and checkout submit failure handling so section save failures stay visible and retryable.
+- [ ] Resolve or gate Supabase-backed checkout/cart failures before PayPal create-order is considered demo-ready.
+- [ ] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
 - [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
 - [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.

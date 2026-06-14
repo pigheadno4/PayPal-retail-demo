@@ -8,14 +8,18 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ApiClient, ApiQueryParams } from "../api/client.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
 
+const deliveryDraftUuid = "11111111-1111-4111-8111-111111111111";
+const pickupDraftUuid = "22222222-2222-4222-8222-222222222222";
+
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup();
 });
 
@@ -77,7 +81,7 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
-  it("syncs cart quantity and refreshes before checkout or express starts", async () => {
+  it("syncs cart quantity, refreshes before checkout, and mounts express SDK scopes", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient();
 
@@ -127,24 +131,27 @@ describe("App buyer interactions", () => {
       />,
     );
 
-    const orderSummary = screen.getByRole("complementary", {
-      name: "Order summary",
-    });
-    await user.click(
-      within(orderSummary).getByRole("button", {
-        name: "PayPal",
-      }),
-    );
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Review and Confirm" }),
-      ).toBeTruthy();
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/paypal/sdk-config",
+        query: {
+          market: "US",
+          page_type: "checkout",
+          flow: "standard",
+          method: "paypal",
+        },
+      });
     });
     expect(apiClient.calls).toContainEqual({
-      method: "post",
-      path: "/api/cart/refresh",
-      body: { trigger: "express_payment_start" },
-      query: { market: "US" },
+      method: "get",
+      path: "/api/paypal/sdk-config",
+      query: {
+        market: "US",
+        page_type: "checkout",
+        flow: "standard",
+        method: "paylater",
+      },
     });
   });
 
@@ -286,7 +293,7 @@ describe("App buyer interactions", () => {
     expect(getShellStatusText()).toContain("Opened checkout.");
   });
 
-  it("starts delivery express from PDP, cart, and minicart actions into Review and Confirm", async () => {
+  it("renders official delivery express SDK scopes from PDP, cart, and minicart placements", async () => {
     const user = userEvent.setup();
 
     const expressEntries = [
@@ -297,15 +304,8 @@ describe("App buyer interactions", () => {
         },
         trigger: async () => {
           const purchaseActions = screen.getByLabelText("Purchase actions");
-
-          await user.click(
-            within(purchaseActions).getByRole("button", {
-              name: "PayPal",
-            }),
-          );
+          expectExpressScopes(purchaseActions);
         },
-        expectedSource: "Delivery express from product detail",
-        expectedMethod: "PayPal",
       },
       {
         initialPathname: "/cart",
@@ -314,14 +314,8 @@ describe("App buyer interactions", () => {
             name: "Order summary",
           });
 
-          await user.click(
-            within(orderSummary).getByRole("button", {
-              name: "Pay Later",
-            }),
-          );
+          expectExpressScopes(orderSummary);
         },
-        expectedSource: "Delivery express from cart",
-        expectedMethod: "Pay Later",
       },
       {
         initialPathname: "/",
@@ -331,14 +325,8 @@ describe("App buyer interactions", () => {
           );
           const minicart = screen.getByLabelText("Minicart");
 
-          await user.click(
-            within(minicart).getByRole("button", {
-              name: "PayPal",
-            }),
-          );
+          expectExpressScopes(minicart);
         },
-        expectedSource: "Delivery express from minicart",
-        expectedMethod: "PayPal",
       },
     ];
 
@@ -355,19 +343,6 @@ describe("App buyer interactions", () => {
       );
 
       await entry.trigger();
-
-      expect(
-        screen.getByRole("heading", {
-          name: "Review and Confirm",
-        }),
-      ).toBeTruthy();
-      expect(screen.getByText(entry.expectedSource)).toBeTruthy();
-      expect(
-        screen.getByLabelText(`Payment method ${entry.expectedMethod}`),
-      ).toBeTruthy();
-      expect(getShellStatusText()).toContain(
-        `Started ${entry.expectedMethod} delivery express.`,
-      );
 
       rendered.unmount();
     }
@@ -406,13 +381,22 @@ describe("App buyer interactions", () => {
 
   it("switches eligible checkout wallet radios into the selected order summary action", async () => {
     const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+      patchResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+    });
 
-    render(
-      <App
-        apiClient={createRecordingApiClient()}
-        initialPathname="/checkout"
-      />,
-    );
+    render(<App apiClient={apiClient} initialPathname="/checkout" />);
 
     await advanceDeliveryCheckoutToPayment(user);
 
@@ -444,8 +428,15 @@ describe("App buyer interactions", () => {
   it("updates checkout totals from delivery draft API recalculation", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
       patchResponse: checkoutDraftApiResponse({
         fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
         promoLabel: "SAVE10",
         totalMinor: 3125,
       }),
@@ -472,10 +463,18 @@ describe("App buyer interactions", () => {
     );
 
     await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        body: {
+          fulfillment_mode: "delivery",
+        },
+        method: "post",
+        path: "/api/checkout/drafts",
+        query: { market: "US" },
+      });
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
           method: "patch",
-          path: "/api/checkout/drafts/draft_delivery_123/shipping-address",
+          path: `/api/checkout/drafts/${deliveryDraftUuid}/shipping-address`,
         }),
       );
     });
@@ -516,7 +515,7 @@ describe("App buyer interactions", () => {
           save_to_address_book: true,
         },
         method: "patch",
-        path: "/api/checkout/drafts/draft_delivery_123/billing-address",
+        path: `/api/checkout/drafts/${deliveryDraftUuid}/billing-address`,
       }),
     );
 
@@ -534,17 +533,67 @@ describe("App buyer interactions", () => {
             shipping_option_id: "ship_standard",
           },
           method: "patch",
-          path: "/api/checkout/drafts/draft_delivery_123/shipping-option",
+          path: `/api/checkout/drafts/${deliveryDraftUuid}/shipping-option`,
         }),
       );
     });
+    expect(within(orderSummary).getByText("Shipping")).toBeTruthy();
+    expect(within(orderSummary).getByText("$5.00")).toBeTruthy();
+  });
+
+  it("keeps checkout section open when the App checkout draft API call fails", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const apiClient = createRecordingApiClient({
+      patchError: new Error("checkout API unavailable"),
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitForStepState(shippingStep, "blocked");
+    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByRole("alert").textContent).toContain(
+      "We could not save Shipping address. Please try again.",
+    );
+    expect(getShellStatusText()).toContain(
+      "Checkout update failed. Please try again.",
+    );
+    consoleError.mockRestore();
   });
 
   it("updates checkout totals from pickup draft API recalculation", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "pickup",
+        id: pickupDraftUuid,
+        promoLabel: "PICKUP5",
+        totalMinor: 1349,
+      }),
       patchResponse: checkoutDraftApiResponse({
         fulfillmentMode: "pickup",
+        id: pickupDraftUuid,
         promoLabel: "PICKUP5",
         totalMinor: 1349,
       }),
@@ -583,7 +632,7 @@ describe("App buyer interactions", () => {
             state: null,
           },
           method: "patch",
-          path: "/api/checkout/drafts/draft_pickup_123/pickup-location",
+          path: `/api/checkout/drafts/${pickupDraftUuid}/pickup-location`,
         }),
       );
     });
@@ -609,7 +658,7 @@ describe("App buyer interactions", () => {
             store_id: "store_popmart_covent_garden",
           },
           method: "patch",
-          path: "/api/checkout/drafts/draft_pickup_123/pickup-store",
+          path: `/api/checkout/drafts/${pickupDraftUuid}/pickup-store`,
         }),
       );
     });
@@ -631,7 +680,7 @@ describe("App buyer interactions", () => {
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
         method: "patch",
-        path: "/api/checkout/drafts/draft_pickup_123/billing-address",
+        path: `/api/checkout/drafts/${pickupDraftUuid}/billing-address`,
       }),
     );
 
@@ -649,7 +698,7 @@ describe("App buyer interactions", () => {
             pickup_date: "2026-06-12",
           },
           method: "patch",
-          path: "/api/checkout/drafts/draft_pickup_123/pickup-date",
+          path: `/api/checkout/drafts/${pickupDraftUuid}/pickup-date`,
         }),
       );
     });
@@ -661,8 +710,15 @@ describe("App buyer interactions", () => {
     render(
       <App
         apiClient={createRecordingApiClient({
+          postResponse: checkoutDraftApiResponse({
+            fulfillmentMode: "delivery",
+            id: deliveryDraftUuid,
+            promoLabel: "SAVE10",
+            totalMinor: 3125,
+          }),
           patchResponse: checkoutDraftApiResponse({
             fulfillmentMode: "delivery",
+            id: deliveryDraftUuid,
             promoLabel: "SAVE10",
             totalMinor: 3125,
           }),
@@ -709,8 +765,15 @@ describe("App buyer interactions", () => {
     render(
       <App
         apiClient={createRecordingApiClient({
+          postResponse: checkoutDraftApiResponse({
+            fulfillmentMode: "pickup",
+            id: pickupDraftUuid,
+            promoLabel: "PICKUP5",
+            totalMinor: 1349,
+          }),
           patchResponse: checkoutDraftApiResponse({
             fulfillmentMode: "pickup",
+            id: pickupDraftUuid,
             promoLabel: "PICKUP5",
             totalMinor: 1349,
           }),
@@ -831,8 +894,18 @@ function getShellStatusText(): string {
   return document.querySelector("#shell-status")?.textContent ?? "";
 }
 
+function expectExpressScopes(container: HTMLElement) {
+  const methods = Array.from(
+    container.querySelectorAll(".paypal-provider-scope"),
+  ).map((scope) => scope.getAttribute("data-paypal-sdk-method"));
+
+  expect(methods).toContain("paypal");
+  expect(methods).toContain("paylater");
+}
+
 function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
   return {
+    cartPublicId: "cart_public_existing",
     title: "Shopping cart",
     checkoutHref: "/checkout",
     cartHref: "/cart",
@@ -867,7 +940,9 @@ interface RecordingApiCall {
 
 interface RecordingApiClientInput {
   readonly getResponse?: unknown;
+  readonly patchError?: Error;
   readonly patchResponse?: unknown;
+  readonly postError?: Error;
   readonly postResponse?: unknown;
 }
 
@@ -882,6 +957,9 @@ function createRecordingApiClient(
     calls,
     async get<TData = unknown>(path: string, query?: ApiQueryParams) {
       calls.push({ method: "get", path, query });
+      if (path === "/api/paypal/sdk-config") {
+        return sdkConfigApiResponse(query) as TData;
+      }
       return (input.getResponse ?? {}) as TData;
     },
     async patch<TData = unknown>(
@@ -890,6 +968,9 @@ function createRecordingApiClient(
       query?: ApiQueryParams,
     ) {
       calls.push({ method: "patch", path, body, query });
+      if (input.patchError) {
+        throw input.patchError;
+      }
       return (input.patchResponse ?? {}) as TData;
     },
     async post<TData = unknown>(
@@ -898,9 +979,56 @@ function createRecordingApiClient(
       query?: ApiQueryParams,
     ) {
       calls.push({ method: "post", path, body, query });
+      if (input.postError) {
+        throw input.postError;
+      }
       return (input.postResponse ?? {}) as TData;
     },
   };
+}
+
+function sdkConfigApiResponse(query?: ApiQueryParams) {
+  const method = String(query?.method ?? "paypal");
+  const components = sdkComponentsForMethod(method);
+
+  return {
+    client_id: "PAYPAL_PUBLIC_CLIENT_ID",
+    environment: "sandbox",
+    sdk_url: "https://www.sandbox.paypal.com/web-sdk/v6/core",
+    currency_code: "USD",
+    locale: "en-US",
+    buyer_country: "US",
+    paylater_buyer_country: "US",
+    sandbox_test_buyer_country: "US",
+    components,
+    page_type: "checkout",
+    provider_key: `paypal:sandbox:PAYPAL_PUBLIC_CLIENT_ID:US:USD:en-US:US:US:US:1:${components.join(",")}`,
+    needs_client_token: false,
+  };
+}
+
+function sdkComponentsForMethod(method: string): readonly string[] {
+  if (method === "paylater") {
+    return ["paypal-payments", "paypal-messages"];
+  }
+
+  if (method === "card") {
+    return ["card-fields"];
+  }
+
+  if (method === "apple_pay") {
+    return ["applepay"];
+  }
+
+  if (method === "google_pay") {
+    return ["googlepay"];
+  }
+
+  if (method === "venmo") {
+    return ["venmo"];
+  }
+
+  return ["paypal-payments"];
 }
 
 function cartApiResponse({
@@ -945,19 +1073,22 @@ function cartApiResponse({
 
 function checkoutDraftApiResponse({
   fulfillmentMode,
+  id,
   promoLabel,
   totalMinor,
 }: {
   readonly fulfillmentMode: "delivery" | "pickup";
+  readonly id?: string;
   readonly promoLabel: string;
   readonly totalMinor: number;
 }) {
   return {
     draft: {
       id:
-        fulfillmentMode === "delivery"
+        id ??
+        (fulfillmentMode === "delivery"
           ? "draft_delivery_123"
-          : "draft_pickup_123",
+          : "draft_pickup_123"),
       cart_id: "cart_guest_us",
       fulfillment_mode: fulfillmentMode,
       status: "draft",
@@ -995,7 +1126,7 @@ function checkoutDraftApiResponse({
         merchandise_subtotal_minor: 2598,
         discount_minor: 400,
         tax_minor: 227,
-        shipping_minor: 700,
+        shipping_minor: 500,
         total_minor: totalMinor,
         currency_code: "USD",
       },

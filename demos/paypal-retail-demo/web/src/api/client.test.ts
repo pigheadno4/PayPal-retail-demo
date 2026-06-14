@@ -1,8 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiClientError, createApiClient } from "./client.js";
 
 describe("web API client", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the Vite API base URL for default browser clients", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:3000");
+    const calls: string[] = [];
+    const client = createApiClient({
+      fetch: async (url) => {
+        calls.push(String(url));
+        return responseJson({
+          ok: true,
+          data: { status: "ok" },
+          debug_id: "dbg_env_base",
+        });
+      },
+    });
+
+    const result = await client.get("/api/paypal/sdk-config", {
+      flow: "standard",
+      market: "US",
+      method: "paypal",
+      page_type: "checkout",
+    });
+
+    expect(result).toEqual({ status: "ok" });
+    expect(calls).toEqual([
+      "http://localhost:3000/api/paypal/sdk-config?flow=standard&market=US&method=paypal&page_type=checkout",
+    ]);
+  });
+
   it("builds app API URLs with normalized query params", async () => {
     const calls: string[] = [];
     const client = createApiClient({

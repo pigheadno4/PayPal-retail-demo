@@ -91,7 +91,7 @@ Verification:
 
 Entry point: PayPal or Pay Later button on PDP, cart, or minicart.
 
-Frontend payment layer: official PayPal or Pay Later express button.
+Frontend payment layer: official PayPal or Pay Later express button. The button create-order callback uses the active cart public binding and delivery-only method context; local button clicks must not jump directly to Review and Confirm.
 
 Backend APIs:
 

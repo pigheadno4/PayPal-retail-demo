@@ -147,7 +147,7 @@
 - [ ] Partial pickup store cards show available and unavailable counts before store submit.
 - [x] M11.5 PDP add-to-cart mutates app cart state and refreshes minicart/cart totals.
 - [x] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
-- [x] M11.5 PDP/cart/minicart delivery express UI entry moves the buyer to Review and Confirm with delivery-only source/method context.
+- [x] M11.5 PDP/cart/minicart delivery express UI entry is wired beyond a silent placeholder; M13 replaces the local route jump with official SDK approval return.
 - [x] M11.5 full-cart quantity changes update shared minicart quantity and amount-aware Pay Later messaging.
 - [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 cart quantity changes call the backend cart item update API, and checkout/express entry refreshes the cart before buyer navigation advances.
@@ -200,6 +200,17 @@
 - [x] PayPal wallet create-order request builder sends `vault_requested` only when the eligible buyer opts into save-for-future.
 - [x] PayPal save checkbox renders under the PayPal button only when the selected checkout context is save-eligible.
 - [x] Card save checkbox renders inside the card fields box only when the selected checkout context is save-eligible.
+- [x] Web API client uses `VITE_API_BASE_URL` for browser API calls, Vite loads the demo-root `.env`, and Express allows the configured app origin plus local loopback alias so checkout can fetch PayPal SDK config from the API server.
+- [x] Browser QA verifies checkout loads PayPal SDK v6 assets and renders the official "Pay with PayPal" button after local API/CORS fixes.
+- [x] PDP/cart/minicart official PayPal and Pay Later express controls render via SDK v6 and call `/api/paypal/orders/express-delivery` with the active cart binding.
+- [x] Initial checkout load does not render an official PayPal/Pay Later/card/wallet action until the Payment section is active and the matching radio method is selected.
+- [x] Delivery shipping address submit shows pending state, saves through the backend, collapses the section, and exposes Edit without leaving another section expanded.
+- [x] Delivery billing address submit shows pending state, saves through the backend, collapses the section, exposes Edit, and advances to Shipping options.
+- [x] Delivery shipping options start unsaved, update selected state, save through the backend, and update Order Summary shipping and total when changed.
+- [x] Checkout draft updates create a server UUID draft before PATCH and never send fixture draft IDs to Supabase-backed endpoints.
+- [x] Checkout draft submit API failures keep the current section expanded, announce a retryable inline error, and preserve downstream sections.
+- [x] Express API route dependency failures return the standard JSON error envelope instead of an HTML 500 page.
+- [ ] PayPal button click creates a PayPal order through the backend; if backend/Supabase/PayPal fails, the merchant UI shows a buyer-safe error and debug ID instead of silently closing the popup.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.
 - [ ] Apple Pay renders and captures where eligible.

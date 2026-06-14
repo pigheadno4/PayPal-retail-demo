@@ -1,6 +1,6 @@
 import type { StorefrontShellPanels } from "../../state/storefrontState.js";
 import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
-import { type MouseEvent } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
@@ -18,6 +18,9 @@ export interface MinicartShellProps {
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
   ) => void | Promise<void>;
+  readonly renderDeliveryExpressAction?: (
+    method: DeliveryExpressPaymentMethod,
+  ) => ReactNode;
 }
 
 export function MinicartShell({
@@ -27,6 +30,7 @@ export function MinicartShell({
   onCheckoutNavigate,
   onClose,
   onDeliveryExpressStart,
+  renderDeliveryExpressAction,
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
   const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
@@ -91,7 +95,16 @@ export function MinicartShell({
             Checkout
           </a>
         </div>
-        <DeliveryExpressActions onExpressStart={onDeliveryExpressStart} />
+        {state === "open" ? (
+          <DeliveryExpressActions
+            {...(onDeliveryExpressStart
+              ? { onExpressStart: onDeliveryExpressStart }
+              : {})}
+            {...(renderDeliveryExpressAction
+              ? { renderAction: renderDeliveryExpressAction }
+              : {})}
+          />
+        ) : null}
         <p className="cart-pickup-hint">{cart.pickupHint}</p>
       </div>
     </aside>

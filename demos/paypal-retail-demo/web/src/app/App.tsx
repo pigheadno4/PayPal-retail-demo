@@ -50,6 +50,10 @@ import {
   type ExpressReviewApiResponse,
 } from "../features/checkout/expressReviewApi.js";
 import { CardFieldsCheckoutAction } from "../features/payments/CardFieldsCheckoutAction.js";
+import {
+  DeliveryExpressAction,
+  type DeliveryExpressApprovedContext,
+} from "../features/payments/DeliveryExpressAction.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
 import {
   PayLaterAmountMessage,
@@ -59,7 +63,8 @@ import { PayPalStandaloneAction } from "../features/payments/PayPalStandaloneAct
 import {
   formatDeliveryExpressMethod,
   formatDeliveryExpressSource,
-  type DeliveryExpressStartContext,
+  type DeliveryExpressPaymentMethod,
+  type DeliveryExpressSource,
 } from "../features/payments/deliveryExpress.js";
 import {
   WalletCheckoutAction,
@@ -286,23 +291,34 @@ function BuyerShell({
     request: CheckoutDraftUpdateRequest,
     currentData: CheckoutPageData,
   ): Promise<CheckoutPageData> {
-    if (!request.draftId) {
-      return currentData;
-    }
-
     try {
-      const response = await sendCheckoutDraftUpdate(
+      const { draftId, nextData } = await ensureCheckoutDraft({
         apiClient,
         config,
-        request,
-      );
-      return reconcileCheckoutDataFromDraftResponse(currentData, response);
+        currentData,
+        fulfillmentMode: request.fulfillmentMode,
+        requestedDraftId: request.draftId,
+      });
+
+      if (!draftId) {
+        setShellStatus(
+          "Checkout draft could not be started. Please try again.",
+        );
+        throw new Error("Checkout draft could not be started.");
+      }
+
+      const response = await sendCheckoutDraftUpdate(apiClient, config, {
+        ...request,
+        draftId,
+      });
+      return reconcileCheckoutDataFromDraftResponse(nextData, response);
     } catch (error) {
       console.error("[paypal-retail-demo] Checkout draft update failed", {
         error,
         request,
       });
-      return currentData;
+      setShellStatus("Checkout update failed. Please try again.");
+      throw error;
     }
   }
 
@@ -343,24 +359,26 @@ function BuyerShell({
     syncCartQuantity(cartItemId, nextQuantity);
   }
 
-  async function handleDeliveryExpressStart(
-    context: DeliveryExpressStartContext,
+  async function handleDeliveryExpressApproved(
+    context: DeliveryExpressApprovedContext,
   ) {
     const paymentMethodLabel = formatDeliveryExpressMethod(context.method);
+    const reviewPath = buildExpressReviewPath(context);
 
-    await refreshCartBefore("express_payment_start");
     setCurrentExpressReviewData((data) => ({
       ...data,
       sourceLabel: formatDeliveryExpressSource(context.source),
       paymentMethodLabel,
+      paypalOrderId: context.paypalOrderId,
     }));
     setCurrentMinicartState("closed");
     setCurrentRoute({
       scope: "buyer",
       page: "express_review",
     });
-    setCurrentLocation("/checkout/express-review");
-    setShellStatus(`Started ${paymentMethodLabel} delivery express.`);
+    setCurrentLocation(reviewPath);
+    pushBuyerHistory(reviewPath);
+    setShellStatus(`${paymentMethodLabel} delivery express approved.`);
   }
 
   return (
@@ -406,7 +424,17 @@ function BuyerShell({
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
           onCheckoutDraftUpdate={updateCheckoutDraft}
-          onDeliveryExpressStart={handleDeliveryExpressStart}
+          renderDeliveryExpressAction={(method, source) =>
+            renderDeliveryExpressAction({
+              cart: currentCart,
+              config,
+              method,
+              onApproved: handleDeliveryExpressApproved,
+              onBeforeCreateOrder: () =>
+                refreshCartBefore("express_payment_start"),
+              source,
+            })
+          }
           onNavigate={navigateBuyer}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
@@ -449,9 +477,14 @@ function BuyerShell({
           })
         }
         onClose={closeMinicart}
-        onDeliveryExpressStart={(method) =>
-          handleDeliveryExpressStart({
+        renderDeliveryExpressAction={(method) =>
+          renderDeliveryExpressAction({
+            cart: currentCart,
+            config,
             method,
+            onApproved: handleDeliveryExpressApproved,
+            onBeforeCreateOrder: () =>
+              refreshCartBefore("express_payment_start"),
             source: "minicart",
           })
         }
@@ -471,10 +504,10 @@ function RouteStage({
   onAddProductToCart,
   onCartQuantityChange,
   onCheckoutDraftUpdate,
-  onDeliveryExpressStart,
   onNavigate,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
+  renderDeliveryExpressAction,
   renderPayLaterRowMessage,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
@@ -494,9 +527,6 @@ function RouteStage({
     request: CheckoutDraftUpdateRequest,
     currentData: CheckoutPageData,
   ) => Promise<CheckoutPageData>;
-  readonly onDeliveryExpressStart: (
-    context: DeliveryExpressStartContext,
-  ) => void | Promise<void>;
   readonly onNavigate: (
     navigation: BuyerNavigationContext,
   ) => void | Promise<void>;
@@ -505,6 +535,10 @@ function RouteStage({
   ) => ReactNode;
   readonly renderCheckoutPaymentAction: (
     context: CheckoutPaymentActionContext,
+  ) => ReactNode;
+  readonly renderDeliveryExpressAction: (
+    method: DeliveryExpressPaymentMethod,
+    source: DeliveryExpressSource,
   ) => ReactNode;
   readonly renderPayLaterRowMessage: (
     context: CheckoutPaymentActionContext,
@@ -537,11 +571,8 @@ function RouteStage({
             refreshTrigger: "checkout_start",
           })
         }
-        onDeliveryExpressStart={(method) =>
-          onDeliveryExpressStart({
-            method,
-            source: "cart",
-          })
+        renderDeliveryExpressAction={(method) =>
+          renderDeliveryExpressAction(method, "cart")
         }
         onQuantityChange={onCartQuantityChange}
       />
@@ -564,11 +595,8 @@ function RouteStage({
       <ProductDetailPage
         data={productPage}
         onAddToCart={onAddProductToCart}
-        onDeliveryExpressStart={(method) =>
-          onDeliveryExpressStart({
-            method,
-            source: "product_detail",
-          })
+        renderDeliveryExpressAction={(method) =>
+          renderDeliveryExpressAction(method, "product_detail")
         }
       />
     ) : (
@@ -681,6 +709,65 @@ async function sendCheckoutDraftUpdate(
   }
 }
 
+async function ensureCheckoutDraft({
+  apiClient,
+  config,
+  currentData,
+  fulfillmentMode,
+  requestedDraftId,
+}: {
+  readonly apiClient: ApiClient;
+  readonly config: StorefrontRuntimeConfig;
+  readonly currentData: CheckoutPageData;
+  readonly fulfillmentMode: CheckoutDraftUpdateRequest["fulfillmentMode"];
+  readonly requestedDraftId: string | null;
+}): Promise<{
+  readonly draftId: string | null;
+  readonly nextData: CheckoutPageData;
+}> {
+  if (isServerCheckoutDraftId(requestedDraftId)) {
+    return {
+      draftId: requestedDraftId,
+      nextData: currentData,
+    };
+  }
+
+  const response = await apiClient.post<CheckoutDraftApiResponse>(
+    "/api/checkout/drafts",
+    {
+      fulfillment_mode: fulfillmentMode,
+    },
+    {
+      market: config.market.code,
+    },
+  );
+  const nextData = reconcileCheckoutDataFromDraftResponse(
+    currentData,
+    response,
+  );
+  const draftId =
+    fulfillmentMode === "delivery"
+      ? nextData.delivery.checkoutDraftId
+      : nextData.pickup.checkoutDraftId;
+  const serverDraftId = isServerCheckoutDraftId(draftId) ? draftId : null;
+
+  return {
+    draftId: serverDraftId,
+    nextData,
+  };
+}
+
+function isServerCheckoutDraftId(
+  draftId: string | null | undefined,
+): draftId is string {
+  return (
+    typeof draftId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      draftId,
+    )
+  );
+}
+
 function buildBillingAddressBody(
   fields: readonly CheckoutSubmittedField[],
   config: StorefrontRuntimeConfig,
@@ -785,6 +872,71 @@ function parseExpressReviewLookup(location: string): {
         payment_session_id: paymentSessionId,
       }
     : null;
+}
+
+function buildExpressReviewPath(
+  context: DeliveryExpressApprovedContext,
+): string {
+  const params = new URLSearchParams({
+    paypal_order_id: context.paypalOrderId,
+  });
+
+  if (context.paymentSessionId) {
+    params.set("payment_session_id", context.paymentSessionId);
+  }
+
+  return `/checkout/express-review?${params.toString()}`;
+}
+
+function renderDeliveryExpressAction({
+  cart,
+  config,
+  method,
+  onApproved,
+  onBeforeCreateOrder,
+  source,
+}: {
+  readonly cart: CartData;
+  readonly config: StorefrontRuntimeConfig;
+  readonly method: DeliveryExpressPaymentMethod;
+  readonly onApproved: (
+    context: DeliveryExpressApprovedContext,
+  ) => void | Promise<void>;
+  readonly onBeforeCreateOrder: () => void | Promise<void>;
+  readonly source: DeliveryExpressSource;
+}) {
+  if (!cart.cartPublicId) {
+    return (
+      <StatusRegion
+        id={`delivery-express-${source}-${method}-missing-cart`}
+        tone="assertive"
+      >
+        Cart is refreshing before delivery express checkout.
+      </StatusRegion>
+    );
+  }
+
+  return (
+    <PayPalSdkProviderScope
+      key={`${config.paypal.providerKey}:express:${source}:${method}:${cart.cartPublicId}`}
+      providerKey={config.paypal.providerKey}
+      configRequest={{
+        market: config.market.code,
+        pageType: "checkout",
+        flow: "standard",
+        method,
+      }}
+    >
+      <DeliveryExpressAction
+        cartPublicId={cart.cartPublicId}
+        market={config.market.code}
+        method={method}
+        onApproved={onApproved}
+        onBeforeCreateOrder={onBeforeCreateOrder}
+        source={source}
+      />
+    </PayPalSdkProviderScope>
+  );
 }
 
 function renderCheckoutPaymentAction({

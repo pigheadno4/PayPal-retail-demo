@@ -67,7 +67,7 @@ export interface ApiClient {
 
 export function createApiClient(input: ApiClientInput = {}): ApiClient {
   const fetchClient = input.fetch ?? globalThis.fetch;
-  const baseUrl = input.baseUrl ?? globalThis.location?.origin ?? "/";
+  const baseUrl = input.baseUrl ?? resolveDefaultApiBaseUrl();
 
   return {
     async get<TData = unknown>(path: string, query?: ApiQueryParams) {
@@ -137,6 +137,14 @@ function buildApiUrl(
     }
   }
   return url.toString();
+}
+
+function resolveDefaultApiBaseUrl(): string {
+  return (
+    import.meta.env.VITE_API_BASE_URL ??
+    globalThis.location?.origin ??
+    "http://localhost:3000"
+  );
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

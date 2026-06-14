@@ -26,12 +26,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Store selection");
     expect(html).toContain("Pickup date");
     expect(html).toContain("Idle");
-    expect(html).toContain("Saving");
-    expect(html).toContain("Saved");
     expect(html).toContain("Editing");
-    expect(html).toContain("Recalculating totals");
-    expect(html).toContain("Blocked");
-    expect(html).toContain("Locked");
   });
 
   it("updates order summary context for the active fulfillment mode", () => {
@@ -159,10 +154,33 @@ describe("CheckoutPage", () => {
     );
   });
 
+  it("reserves Order Summary payment space without mounting the official action before the payment step is active", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData()}
+        renderPaymentAction={(context) => (
+          <div
+            data-payment-action-placement="order-summary"
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Payment action
+          </div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('data-payment-action-reserved-space="true"');
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
+    expect(html).not.toContain('class="checkout-sticky-action"');
+  });
+
   it("renders the selected payment action inside Order Summary with active draft context", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
-        data={checkoutData({ activeMode: "pickup" })}
+        data={checkoutData({
+          activeMode: "pickup",
+          activePickupStepId: "pickup-payment-method",
+        })}
         renderPaymentAction={(context) => (
           <div
             data-payment-action-placement="order-summary"
@@ -253,6 +271,7 @@ describe("CheckoutPage", () => {
     const paypalHtml = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
+          activeDeliveryStepId: "payment-method",
           saveForFutureEligible: true,
           selectedPaymentMethod: "paypal",
         })}
@@ -266,6 +285,7 @@ describe("CheckoutPage", () => {
     const payLaterHtml = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
+          activeDeliveryStepId: "payment-method",
           saveForFutureEligible: true,
           selectedPaymentMethod: "paylater",
         })}
@@ -293,6 +313,7 @@ describe("CheckoutPage", () => {
     const walletHtml = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
+          activeDeliveryStepId: "payment-method",
           saveForFutureEligible: true,
           selectedPaymentMethod: "venmo",
         })}
@@ -414,25 +435,25 @@ function checkoutData(
     {
       id: "shipping-address",
       title: "Shipping address",
-      state: "idle",
+      state: "editing",
       body: "Use saved shipping address or enter a new delivery address.",
     },
     {
       id: "billing-address",
       title: "Billing address",
-      state: "saving",
+      state: "idle",
       body: "Same as shipping is checked by default.",
     },
     {
       id: "shipping-options",
       title: "Shipping options",
-      state: "saved",
+      state: "idle",
       body: "Cheapest eligible option is selected by default.",
     },
     {
       id: "payment-method",
       title: "Payment method",
-      state: "editing",
+      state: "idle",
       body: "Radio-first payment method wall renders here.",
       ...(overrides.paymentChoices
         ? { choices: overrides.paymentChoices }
@@ -443,19 +464,19 @@ function checkoutData(
     {
       id: "pickup-location",
       title: "Pickup location",
-      state: "recalculating",
+      state: "editing",
       body: "Use ZIP or default address to rank nearby stores.",
     },
     {
       id: "store-selection",
       title: "Store selection",
-      state: "blocked",
+      state: "idle",
       body: "Store card shows available and unavailable item counts.",
     },
     {
       id: "pickup-billing-address",
       title: "Billing address",
-      state: "locked",
+      state: "idle",
       body: "Billing address is locked after payment session starts.",
     },
     {

@@ -35,6 +35,7 @@ describe("cartModel", () => {
 
     const reconciled = reconcileCartDataFromApiResponse(cart, {
       cart: {
+        cart_public_id: "cart_public_guest",
         currency_code: "USD",
         items: [
           {
@@ -59,6 +60,7 @@ describe("cartModel", () => {
       ],
     });
 
+    expect(reconciled.cartPublicId).toBe("cart_public_guest");
     expect(reconciled.items).toEqual([
       {
         id: "cart_item_1",

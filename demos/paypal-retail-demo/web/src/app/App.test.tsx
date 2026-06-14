@@ -116,6 +116,9 @@ describe("App shell", () => {
     expect(html).toContain(
       "Flexible payment options may be available for $13.99",
     );
+    expect(html).toContain('class="paypal-provider-scope"');
+    expect(html).toContain('data-paypal-sdk-method="paypal"');
+    expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).toContain("Collector reviews");
     expect(html).not.toContain("Pickup");
   });
@@ -151,6 +154,9 @@ describe("App shell", () => {
     expect(html).toContain(
       "Prefer pickup? Choose store pickup during checkout.",
     );
+    expect(html).toContain('class="paypal-provider-scope"');
+    expect(html).toContain('data-paypal-sdk-method="paypal"');
+    expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).not.toContain('href="/admin"');
   });
 
@@ -165,9 +171,9 @@ describe("App shell", () => {
     expect(html).toContain("Shipping address");
     expect(html).toContain("Pickup location");
     expect(html).toContain("Delivery order");
-    expect(html).toContain('class="paypal-provider-scope"');
-    expect(html).toContain('data-paypal-sdk-page-type="checkout"');
-    expect(html).toContain('data-paypal-sdk-status="loading"');
+    expect(html).toContain('data-payment-action-reserved-space="true"');
+    expect(html).not.toContain('class="paypal-provider-scope"');
+    expect(html).not.toContain('data-paypal-sdk-page-type="checkout"');
     expect(html).not.toContain('href="/admin"');
     expect(html).not.toContain("Review and Confirm");
   });
@@ -196,7 +202,10 @@ describe("App shell", () => {
     const html = renderToStaticMarkup(
       <App
         initialPathname="/checkout"
-        initialCheckout={checkoutData({ selectedPaymentMethod: "paylater" })}
+        initialCheckout={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "paylater",
+        })}
       />,
     );
 
@@ -237,7 +246,10 @@ describe("App shell", () => {
       const html = renderToStaticMarkup(
         <App
           initialPathname="/checkout"
-          initialCheckout={checkoutData({ selectedPaymentMethod })}
+          initialCheckout={checkoutData({
+            activeDeliveryStepId: "payment-method",
+            selectedPaymentMethod,
+          })}
         />,
       );
 
@@ -386,6 +398,7 @@ function productPages(): Readonly<Record<string, ProductDetailPageData>> {
 
 function cartData(): CartData {
   return {
+    cartPublicId: "cart_public_guest",
     title: "Shopping cart",
     checkoutHref: "/checkout",
     cartHref: "/cart",

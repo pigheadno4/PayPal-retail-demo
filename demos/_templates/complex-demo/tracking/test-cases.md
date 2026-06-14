@@ -5,6 +5,9 @@
 - [ ] Primary payment scenario can be verified.
 - [ ] Every visible user action is wired, disabled with a reason, or explicitly deferred in tracking.
 - [ ] Rendered UI is paired with interaction or manual verification for the promised user journey.
+- [ ] PSP or wallet UI uses the official hydrated SDK/provider surface in every promised placement.
+- [ ] API-backed UI covers loading, success, and failure states against the backend contract.
+- [ ] Multi-step UI has a state contract or mockup aligned with implementation and tracking.
 - [ ] Customer-facing text avoids unsupported PSP claims.
 - [ ] Payment flow state is observable in the backend or database when applicable.
 - [ ] Platform parity is verified or documented when web, iOS, and Android differ.

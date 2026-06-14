@@ -340,8 +340,8 @@ Route: `/checkout/express-review?paypal_order_id={paypalOrderId}`.
 
 Flow:
 
-1. Buyer clicks PayPal/Pay Later express.
-2. Backend creates delivery PayPal order.
+1. Buyer clicks the official PayPal/Pay Later express button.
+2. The SDK create-order callback sends the active cart public binding and backend creates a delivery PayPal order.
 3. PayPal shipping/order update flow settles address, shipping, promo, tax, and amount.
 4. Buyer returns to merchant Review and Confirm.
 5. Page loads `GET /api/paypal/orders/express-review` and shows final synchronized item, shipping, promo, tax, total, and amount-guard snapshot.

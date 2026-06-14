@@ -72,6 +72,7 @@ export interface CheckoutOrderSummary {
   readonly contextLabel: string;
   readonly subtotalLabel: string;
   readonly promoLabel: string;
+  readonly shippingLabel?: string;
   readonly totalLabel: string;
   readonly selectedPaymentLabel: string;
   readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
@@ -222,6 +223,9 @@ export function CheckoutPage({
         }
       : {},
   );
+  const [submitErrorMessages, setSubmitErrorMessages] = useState<
+    Readonly<Record<string, string>>
+  >({});
   const [choiceSelections, setChoiceSelections] = useState<
     Readonly<Record<string, string>>
   >({});
@@ -280,6 +284,10 @@ export function CheckoutPage({
     activeDraft,
     activeSelectedPaymentMethod,
   );
+  const activePaymentStepExpanded = isPaymentStepExpanded(
+    activeMode,
+    expandedStepIds,
+  );
   const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
@@ -291,15 +299,19 @@ export function CheckoutPage({
     totalLabel: activeSummary.totalLabel,
   };
   const paymentAction =
+    !activePaymentStepExpanded ||
     activePaymentContext.selectedPaymentMethod === "card" ||
     !activePaymentContext.selectedPaymentEligible
       ? null
       : renderPaymentAction?.(activePaymentContext);
   const cardPaymentBox =
+    activePaymentStepExpanded &&
     activePaymentContext.selectedPaymentMethod === "card"
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
-  const payLaterRowMessage = renderPayLaterRowMessage?.(activePaymentContext);
+  const payLaterRowMessage = activePaymentStepExpanded
+    ? renderPayLaterRowMessage?.(activePaymentContext)
+    : null;
   const pickupStoreCards = getPickupStoreCards(pageData.pickup);
   const selectedPickupStore = getPickupStoreByName(
     pickupStoreCards,
@@ -351,6 +363,7 @@ export function CheckoutPage({
       saveStepAndEditNext(
         "delivery",
         step.id,
+        step.title,
         "billing-address",
         buildDraftUpdateRequest(
           "delivery_shipping_address",
@@ -366,6 +379,7 @@ export function CheckoutPage({
       saveStepAndEditNext(
         "delivery",
         step.id,
+        step.title,
         "shipping-options",
         buildDraftUpdateRequest(
           "delivery_billing_address",
@@ -381,6 +395,7 @@ export function CheckoutPage({
       saveStepAndEditNext(
         "delivery",
         step.id,
+        step.title,
         "payment-method",
         buildDraftUpdateRequest(
           "delivery_shipping_option",
@@ -414,6 +429,7 @@ export function CheckoutPage({
       saveStepAndEditNext(
         "pickup",
         step.id,
+        step.title,
         "pickup-date",
         buildDraftUpdateRequest(
           "pickup_billing_address",
@@ -429,6 +445,7 @@ export function CheckoutPage({
       saveStepAndEditNext(
         "pickup",
         step.id,
+        step.title,
         "pickup-payment-method",
         buildDraftUpdateRequest(
           "pickup_date",
@@ -451,9 +468,14 @@ export function CheckoutPage({
   function saveStepAndEditNext(
     mode: CheckoutFulfillmentMode,
     stepId: string,
+    stepTitle: string,
     nextStepId: string,
     updateRequest?: CheckoutDraftUpdateRequest,
   ) {
+    setSubmitErrorMessages((currentMessages) => {
+      const { [stepId]: _removedMessage, ...nextMessages } = currentMessages;
+      return nextMessages;
+    });
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [stepId]: "saving",
@@ -478,25 +500,46 @@ export function CheckoutPage({
     }, checkoutSubmitTransitionDelayMs);
     const savedTimerId = setTimeout(() => {
       void (async () => {
-        if (updateRequest && onDraftUpdate) {
-          await applyDraftUpdate(updateRequest);
+        try {
+          if (updateRequest && onDraftUpdate) {
+            await applyDraftUpdate(updateRequest);
+          }
+
+          setStepStateOverrides((currentStates) => ({
+            ...currentStates,
+            [nextStepId]: "editing",
+            [stepId]: "saved",
+          }));
+          setExpandedStepIds((currentStepIds) => ({
+            ...currentStepIds,
+            [mode]: nextStepId,
+          }));
+          setCollapsedStepIds((currentStepIds) => {
+            const nextStepIds = new Set(currentStepIds);
+            nextStepIds.add(stepId);
+
+            return nextStepIds;
+          });
+        } catch {
+          setStepStateOverrides((currentStates) => ({
+            ...currentStates,
+            [stepId]: "blocked",
+          }));
+          setExpandedStepIds((currentStepIds) => ({
+            ...currentStepIds,
+            [mode]: stepId,
+          }));
+          setCollapsedStepIds((currentStepIds) => {
+            const nextStepIds = new Set(currentStepIds);
+            nextStepIds.delete(stepId);
+
+            return nextStepIds;
+          });
+          setSubmitErrorMessages((currentMessages) => ({
+            ...currentMessages,
+            [stepId]: `We could not save ${stepTitle}. Please try again.`,
+          }));
         }
-
-        setStepStateOverrides((currentStates) => ({
-          ...currentStates,
-          [nextStepId]: "editing",
-          [stepId]: "saved",
-        }));
-        setExpandedStepIds((currentStepIds) => ({
-          ...currentStepIds,
-          [mode]: nextStepId,
-        }));
-        setCollapsedStepIds((currentStepIds) => {
-          const nextStepIds = new Set(currentStepIds);
-          nextStepIds.add(stepId);
-
-          return nextStepIds;
-        });
       })();
     }, checkoutSubmitTransitionDelayMs * 2);
 
@@ -664,6 +707,7 @@ export function CheckoutPage({
             validation={pageData.validation}
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
+            submitErrorMessages={submitErrorMessages}
             stepStateOverrides={stepStateOverrides}
             expandedStepId={expandedStepIds.delivery}
             collapsedStepIds={collapsedStepIds}
@@ -686,6 +730,7 @@ export function CheckoutPage({
             validation={pageData.validation}
             focusTargetRef={focusTargetRef}
             fieldValues={fieldValues}
+            submitErrorMessages={submitErrorMessages}
             stepStateOverrides={stepStateOverrides}
             expandedStepId={expandedStepIds.pickup}
             collapsedStepIds={collapsedStepIds}
@@ -724,7 +769,8 @@ export function CheckoutPage({
         />
       ) : null}
 
-      {activePaymentContext.selectedPaymentMethod === "card" ||
+      {!activePaymentStepExpanded ||
+      activePaymentContext.selectedPaymentMethod === "card" ||
       !activePaymentContext.selectedPaymentEligible ? null : (
         <div
           className="checkout-sticky-action"
@@ -746,6 +792,7 @@ function CheckoutModePanel({
   validation,
   focusTargetRef,
   fieldValues,
+  submitErrorMessages,
   stepStateOverrides,
   expandedStepId,
   collapsedStepIds,
@@ -765,6 +812,7 @@ function CheckoutModePanel({
   readonly validation: CheckoutValidationState | undefined;
   readonly focusTargetRef: RefObject<HTMLElement | null>;
   readonly fieldValues: Readonly<Record<string, CheckoutFieldValue>>;
+  readonly submitErrorMessages: Readonly<Record<string, string>>;
   readonly stepStateOverrides: Readonly<Record<string, CheckoutStepState>>;
   readonly expandedStepId: string | null;
   readonly collapsedStepIds: ReadonlySet<string>;
@@ -825,8 +873,13 @@ function CheckoutModePanel({
             validation,
             step.id,
           );
+          const submitErrorMessage = submitErrorMessages[step.id];
+          const submitErrorId = submitErrorMessage
+            ? `${step.id}-submit-error`
+            : undefined;
           const describedById = mergeDescribedByIds(
             ...validationMessages.map((message) => message.id),
+            submitErrorId,
           );
           const isFocusTarget = validation?.focusStepId === step.id;
 
@@ -850,6 +903,8 @@ function CheckoutModePanel({
                   step={stepWithDetails}
                   payLaterRowMessage={payLaterRowMessage}
                   cardPaymentBox={cardPaymentBox}
+                  submitErrorMessage={submitErrorMessage}
+                  submitErrorId={submitErrorId}
                   validationMessages={validationMessages}
                   onFieldChange={onFieldChange}
                   onChoiceChange={onChoiceChange}
@@ -1060,6 +1115,15 @@ function isPaymentStepId(stepId: string): boolean {
   return stepId === "payment-method" || stepId === "pickup-payment-method";
 }
 
+function isPaymentStepExpanded(
+  activeMode: CheckoutFulfillmentMode,
+  expandedStepIds: Readonly<Record<CheckoutFulfillmentMode, string | null>>,
+): boolean {
+  return activeMode === "delivery"
+    ? expandedStepIds.delivery === "payment-method"
+    : expandedStepIds.pickup === "pickup-payment-method";
+}
+
 function getValidationMessagesForStep(
   validation: CheckoutValidationState | undefined,
   stepId: string,
@@ -1241,6 +1305,8 @@ function CheckoutStepDetails({
   step,
   payLaterRowMessage,
   cardPaymentBox,
+  submitErrorMessage,
+  submitErrorId,
   validationMessages,
   onFieldChange,
   onChoiceChange,
@@ -1249,6 +1315,8 @@ function CheckoutStepDetails({
   readonly step: CheckoutStep;
   readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
+  readonly submitErrorMessage?: string | undefined;
+  readonly submitErrorId?: string | undefined;
   readonly validationMessages: readonly CheckoutValidationMessage[];
   readonly onFieldChange: (
     stepId: string,
@@ -1267,6 +1335,7 @@ function CheckoutStepDetails({
     step.choices?.length ||
     step.storeCards?.length ||
     step.primaryActionLabel ||
+    submitErrorMessage ||
     validationMessages.length;
 
   if (!hasDetails) {
@@ -1334,6 +1403,10 @@ function CheckoutStepDetails({
               </FieldError>
             ))}
         </div>
+      ) : null}
+
+      {submitErrorMessage && submitErrorId ? (
+        <FieldError id={submitErrorId}>{submitErrorMessage}</FieldError>
       ) : null}
 
       {step.choices?.length ? (
@@ -1453,6 +1526,12 @@ function CheckoutSummary({
           <dt>Promo</dt>
           <dd>{summary.promoLabel}</dd>
         </div>
+        {summary.shippingLabel ? (
+          <div>
+            <dt>Shipping</dt>
+            <dd>{summary.shippingLabel}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Total</dt>
           <dd>{summary.totalLabel}</dd>
@@ -1858,25 +1937,25 @@ export const defaultCheckoutPageData: CheckoutPageData = {
       {
         id: "shipping-address",
         title: "Shipping address",
-        state: "idle",
+        state: "editing",
         body: "Use saved shipping address or enter a new delivery address.",
       },
       {
         id: "billing-address",
         title: "Billing address",
-        state: "saving",
+        state: "idle",
         body: "Same as shipping is checked by default.",
       },
       {
         id: "shipping-options",
         title: "Shipping options",
-        state: "saved",
+        state: "idle",
         body: "Cheapest eligible option is selected by default.",
       },
       {
         id: "payment-method",
         title: "Payment method",
-        state: "editing",
+        state: "idle",
         body: "Radio-first payment method wall renders here.",
       },
     ],
@@ -1900,19 +1979,19 @@ export const defaultCheckoutPageData: CheckoutPageData = {
       {
         id: "pickup-location",
         title: "Pickup location",
-        state: "recalculating",
+        state: "editing",
         body: "Use ZIP or default address to rank nearby stores.",
       },
       {
         id: "store-selection",
         title: "Store selection",
-        state: "blocked",
+        state: "idle",
         body: "Store card shows available and unavailable item counts.",
       },
       {
         id: "pickup-billing-address",
         title: "Billing address",
-        state: "locked",
+        state: "idle",
         body: "Billing address is locked after payment session starts.",
       },
       {

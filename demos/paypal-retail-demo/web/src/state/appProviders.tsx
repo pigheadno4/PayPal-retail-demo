@@ -68,6 +68,10 @@ export function useApiClient(): ApiClient {
   return apiClient;
 }
 
+export function useOptionalApiClient(): ApiClient | null {
+  return useContext(ApiClientContext);
+}
+
 export function useStorefrontRuntime(): StorefrontRuntimeValue {
   const runtime = useContext(StorefrontRuntimeContext);
 

@@ -2,6 +2,7 @@ import express from "express";
 
 import {
   createDebugId,
+  getResponseDebugId,
   sendApiError,
   sendApiSuccess,
 } from "./http/responses.js";
@@ -43,6 +44,7 @@ import type { PayPalEnvironment } from "../../shared/src/market.js";
 import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 export interface CreateAppInput {
+  readonly allowedCorsOrigins?: readonly string[];
   readonly catalogRepository?: CatalogRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   readonly admin?: {
@@ -86,8 +88,12 @@ export interface CreateAppInput {
 
 export function createApp(input: CreateAppInput = {}) {
   const app = express();
+  const allowedCorsOrigins = expandAllowedCorsOrigins(
+    input.allowedCorsOrigins ?? [],
+  );
 
   app.disable("x-powered-by");
+  app.use(createCorsMiddleware(allowedCorsOrigins));
   app.use(express.json({ limit: "1mb" }));
   app.use((_request, response, next) => {
     response.locals.debugId = createDebugId();
@@ -235,6 +241,124 @@ export function createApp(input: CreateAppInput = {}) {
       },
     });
   });
+  app.use("/api", createApiErrorMiddleware());
 
   return app;
+}
+
+function createApiErrorMiddleware(): express.ErrorRequestHandler {
+  return (error, request, response, next) => {
+    if (response.headersSent) {
+      next(error);
+      return;
+    }
+
+    const debugId = getResponseDebugId(response);
+    console.error("[paypal-retail-demo] API request failed", {
+      debugId,
+      errorName: error instanceof Error ? error.name : typeof error,
+      method: request.method,
+      path: request.originalUrl,
+    });
+
+    sendApiError(response, 500, {
+      code: "INTERNAL_SERVER_ERROR",
+      message: "The API request could not be completed.",
+    });
+  };
+}
+
+function createCorsMiddleware(
+  allowedOrigins: ReadonlySet<string>,
+): express.RequestHandler {
+  return (request, response, next) => {
+    const origin = normalizeOriginHeader(request.headers.origin);
+
+    if (origin && allowedOrigins.has(origin)) {
+      response.setHeader("access-control-allow-origin", origin);
+      response.setHeader(
+        "vary",
+        appendHeaderValue(response.getHeader("vary"), "Origin"),
+      );
+      response.setHeader(
+        "access-control-allow-headers",
+        "authorization, content-type, x-admin-session, x-cart-id, x-cart-secret",
+      );
+      response.setHeader(
+        "access-control-allow-methods",
+        "GET, POST, PATCH, DELETE, OPTIONS",
+      );
+    }
+
+    if (request.method === "OPTIONS") {
+      response.status(204).end();
+      return;
+    }
+
+    next();
+  };
+}
+
+function expandAllowedCorsOrigins(
+  origins: readonly string[],
+): ReadonlySet<string> {
+  const expandedOrigins = new Set<string>();
+
+  for (const origin of origins) {
+    const normalizedOrigin = normalizeConfiguredOrigin(origin);
+    if (!normalizedOrigin) {
+      continue;
+    }
+
+    expandedOrigins.add(normalizedOrigin);
+    const aliasOrigin = buildLoopbackOriginAlias(normalizedOrigin);
+    if (aliasOrigin) {
+      expandedOrigins.add(aliasOrigin);
+    }
+  }
+
+  return expandedOrigins;
+}
+
+function normalizeConfiguredOrigin(origin: string): string | null {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeOriginHeader(origin: unknown): string | null {
+  return typeof origin === "string" && origin.trim() ? origin.trim() : null;
+}
+
+function buildLoopbackOriginAlias(origin: string): string | null {
+  const url = new URL(origin);
+  if (url.hostname === "localhost") {
+    url.hostname = "127.0.0.1";
+    return url.origin;
+  }
+  if (url.hostname === "127.0.0.1") {
+    url.hostname = "localhost";
+    return url.origin;
+  }
+
+  return null;
+}
+
+function appendHeaderValue(
+  currentValue: number | string | string[] | undefined,
+  nextValue: string,
+): string {
+  const values = Array.isArray(currentValue)
+    ? currentValue.map(String)
+    : currentValue
+      ? String(currentValue)
+          .split(",")
+          .map((value) => value.trim())
+      : [];
+
+  return values.includes(nextValue)
+    ? values.join(", ")
+    : [...values, nextValue].join(", ");
 }
