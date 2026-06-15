@@ -140,6 +140,220 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
+  it("signs in an existing account, merges the guest cart, and preserves cart context", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      signInSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      postResponseByPath: {
+        "/api/account/auth/lookup": {
+          email: "alice.la@example.test",
+          status: "existing",
+        },
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 3,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "alice.la@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+    const passwordDialog = await screen.findByRole("dialog", {
+      name: "Enter password",
+    });
+    await user.type(
+      within(passwordDialog).getByLabelText("Password"),
+      "secret",
+    );
+    await user.click(
+      within(passwordDialog).getByRole("button", { name: "Sign in" }),
+    );
+
+    await waitFor(() => {
+      expect(authClient.signInCalls).toEqual([
+        {
+          email: "alice.la@example.test",
+          password: "secret",
+        },
+      ]);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/cart/merge",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+              "x-cart-id": "cart_public_existing",
+              "x-cart-secret": "cart_secret_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Account" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("Cart (3)");
+    expect(getShellStatusText()).toContain("Signed in and merged cart.");
+  });
+
+  it("registers a new account and merges the guest cart into the new buyer session", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      signUpSession: {
+        accessToken: "access_token_new",
+        email: "new.collector@example.test",
+        userId: "user_new",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      postResponseByPath: {
+        "/api/account/auth/lookup": {
+          email: "new.collector@example.test",
+          status: "new",
+        },
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_new_user",
+          quantity: 2,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "new.collector@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+    const registerDialog = await screen.findByRole("dialog", {
+      name: "Create account",
+    });
+    await user.type(
+      within(registerDialog).getByLabelText("Password"),
+      "secret",
+    );
+    await user.click(
+      within(registerDialog).getByRole("button", { name: "Create account" }),
+    );
+
+    await waitFor(() => {
+      expect(authClient.signUpCalls).toEqual([
+        {
+          email: "new.collector@example.test",
+          password: "secret",
+        },
+      ]);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/cart/merge",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_new",
+              "x-cart-id": "cart_public_existing",
+              "x-cart-secret": "cart_secret_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Account" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("Cart (2)");
+  });
+
+  it("restores an existing auth session and loads the signed-in cart without guest headers", async () => {
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_restored",
+        email: "returning@example.test",
+        userId: "user_returning",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_returning",
+          quantity: 4,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(authClient.getSessionCalls).toEqual(["getSession"]);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/cart/merge",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_restored",
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.getByRole("button", { name: "Account" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("Cart (4)");
+  });
+
   it("adds a PDP item to the shared cart state and opens the minicart", async () => {
     const user = userEvent.setup();
 
@@ -1580,6 +1794,64 @@ interface RecordingApiClientInput {
   readonly postResponse?: unknown;
 }
 
+interface RecordingAuthSession {
+  readonly accessToken: string;
+  readonly email: string;
+  readonly userId: string;
+}
+
+interface RecordingAuthCall {
+  readonly email: string;
+  readonly password: string;
+}
+
+interface RecordingAuthClientInput {
+  readonly existingSession?: RecordingAuthSession | null;
+  readonly signInSession?: RecordingAuthSession;
+  readonly signUpSession?: RecordingAuthSession;
+}
+
+function createRecordingAuthClient(input: RecordingAuthClientInput = {}): {
+  readonly getSessionCalls: string[];
+  readonly signInCalls: RecordingAuthCall[];
+  readonly signUpCalls: RecordingAuthCall[];
+  readonly getSession: () => Promise<RecordingAuthSession | null>;
+  readonly signInWithPassword: (
+    call: RecordingAuthCall,
+  ) => Promise<RecordingAuthSession>;
+  readonly signUpWithPassword: (
+    call: RecordingAuthCall,
+  ) => Promise<RecordingAuthSession>;
+} {
+  const getSessionCalls: string[] = [];
+  const signInCalls: RecordingAuthCall[] = [];
+  const signUpCalls: RecordingAuthCall[] = [];
+
+  return {
+    getSessionCalls,
+    signInCalls,
+    signUpCalls,
+    async getSession() {
+      getSessionCalls.push("getSession");
+      return input.existingSession ?? null;
+    },
+    async signInWithPassword(call) {
+      signInCalls.push(call);
+      if (!input.signInSession) {
+        throw new Error("sign-in failed");
+      }
+      return input.signInSession;
+    },
+    async signUpWithPassword(call) {
+      signUpCalls.push(call);
+      if (!input.signUpSession) {
+        throw new Error("sign-up failed");
+      }
+      return input.signUpSession;
+    },
+  };
+}
+
 function createRecordingApiClient(
   input: RecordingApiClientInput = {},
 ): ApiClient & {
@@ -1675,6 +1947,7 @@ function sdkComponentsForMethod(method: string): readonly string[] {
 }
 
 function cartApiResponse({
+  buyerKind = "guest",
   cartClientSecret,
   cartItemId = "cart_item_labubu",
   cartPublicId = "cart_public_existing",
@@ -1684,7 +1957,8 @@ function cartApiResponse({
   slug = "labubu-have-a-seat",
   unitPriceMinor,
 }: {
-  readonly cartClientSecret?: string;
+  readonly buyerKind?: "authenticated" | "guest";
+  readonly cartClientSecret?: string | null;
   readonly cartItemId?: string;
   readonly cartPublicId?: string;
   readonly name?: string;
@@ -1699,7 +1973,7 @@ function cartApiResponse({
       cart_public_id: cartPublicId,
       profile_id: "profile_popmart",
       market_id: "market_us",
-      buyer_kind: "guest",
+      buyer_kind: buyerKind,
       status: "active",
       currency_code: "USD",
       items: [

@@ -441,7 +441,8 @@ Verification:
 ## Milestone 14: Account, Guest, Reviews
 
 - [x] Implement email-first login/register modal branching with server email lookup.
-- [ ] Wire Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
+- [x] Wire Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
+- [ ] Pass authenticated buyer request context into checkout and delivery-express PayPal create-order surfaces after login, so logged-in payment attempts use bearer auth instead of guest cart secrets.
 - [ ] Implement account settings profile info.
 - [ ] Implement address book with default delete constraints.
 - [ ] Implement saved payment list/delete.

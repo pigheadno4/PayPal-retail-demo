@@ -51,6 +51,7 @@ export interface CartApiResponseAdjustment {
 export interface CartApiResponse {
   readonly cart?: {
     readonly cart_public_id?: string;
+    readonly buyer_kind?: "authenticated" | "guest";
     readonly binding?: {
       readonly cart_public_id?: string;
       readonly cart_client_secret?: string;
@@ -132,11 +133,25 @@ export function reconcileCartDataFromApiResponse(
     nonEmptyString(response.cart?.binding?.cart_public_id) ??
     nonEmptyString(response.cart?.cart_public_id) ??
     cart.cartPublicId;
-  const cartClientSecret =
-    nonEmptyString(response.cart?.binding?.cart_client_secret) ??
-    cart.cartClientSecret;
+  const isAuthenticatedCart = response.cart?.buyer_kind === "authenticated";
+  const cartClientSecret = isAuthenticatedCart
+    ? undefined
+    : (nonEmptyString(response.cart?.binding?.cart_client_secret) ??
+      cart.cartClientSecret);
+  const baseCart: CartData = isAuthenticatedCart
+    ? {
+        ...(cart.cartPublicId ? { cartPublicId: cart.cartPublicId } : {}),
+        title: cart.title,
+        checkoutHref: cart.checkoutHref,
+        cartHref: cart.cartHref,
+        currencyCode: cart.currencyCode,
+        locale: cart.locale,
+        pickupHint: cart.pickupHint,
+        items: cart.items,
+      }
+    : cart;
   const nextCart = {
-    ...cart,
+    ...baseCart,
     ...(cartPublicId ? { cartPublicId } : {}),
     ...(cartClientSecret ? { cartClientSecret } : {}),
     currencyCode,

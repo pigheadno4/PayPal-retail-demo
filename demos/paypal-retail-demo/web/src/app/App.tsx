@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type {
   ApiClient,
@@ -6,6 +6,11 @@ import type {
   ApiRequestOptions,
 } from "../api/client.js";
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
+import {
+  createSupabaseBrowserAuthClient,
+  type BuyerAuthClient,
+  type BuyerAuthSession,
+} from "../features/account/authClient.js";
 import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
 import {
@@ -88,6 +93,7 @@ import { resolveProfileAssets } from "./profileAssets.js";
 
 export interface AppProps {
   readonly apiClient?: ApiClient | undefined;
+  readonly authClient?: BuyerAuthClient | undefined;
   readonly initialPathname?: string;
   readonly initialConfig?: StorefrontRuntimeConfig;
   readonly initialHomePage?: HomePageData;
@@ -126,6 +132,7 @@ interface AuthEmailLookupApiResponse {
 
 export function App({
   apiClient,
+  authClient,
   initialPathname,
   initialConfig,
   initialHomePage,
@@ -139,6 +146,10 @@ export function App({
   const route = resolveAppRoute(initialLocation);
   const shellState = createInitialStorefrontState();
   const config = initialConfig ?? defaultRuntimeConfig();
+  const resolvedAuthClient = useMemo(
+    () => authClient ?? createSupabaseBrowserAuthClient(),
+    [authClient],
+  );
 
   if (route.scope === "admin") {
     return <AdminShell route={route} />;
@@ -156,6 +167,7 @@ export function App({
         cartData={initialCart ?? defaultCartData}
         checkoutData={initialCheckout ?? defaultCheckoutPageData}
         expressReviewData={initialExpressReview ?? defaultExpressReviewPageData}
+        authClient={resolvedAuthClient}
         authModalState={shellState.panels.authModal}
         minicartState={shellState.panels.minicart}
       />
@@ -173,6 +185,7 @@ function BuyerShell({
   cartData,
   checkoutData,
   expressReviewData,
+  authClient,
   authModalState,
   minicartState,
 }: {
@@ -185,6 +198,7 @@ function BuyerShell({
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
   readonly expressReviewData: ExpressReviewPageData;
+  readonly authClient: BuyerAuthClient;
   readonly authModalState: ReturnType<
     typeof createInitialStorefrontState
   >["panels"]["authModal"];
@@ -206,21 +220,74 @@ function BuyerShell({
   const [currentAuthModalState, setCurrentAuthModalState] =
     useState(authModalState);
   const [authModalStatus, setAuthModalStatus] = useState<string | undefined>();
+  const [currentAuthSession, setCurrentAuthSession] = useState<
+    BuyerAuthSession | null | undefined
+  >(undefined);
+  const didRunInitialCartRestore = useRef(false);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
 
   useEffect(() => {
-    const storedBinding = readStoredCartBinding(config);
     let active = true;
 
-    void apiClient
-      .get<CartApiResponse>(
-        "/api/cart",
-        {
-          market: config.market.code,
-        },
-        storedBinding ? buildCartRequestOptions(storedBinding) : undefined,
-      )
+    void authClient
+      .getSession()
+      .then((session) => {
+        if (!active) {
+          return;
+        }
+
+        setCurrentAuthSession(session);
+        if (session) {
+          setShellStatus("Restored signed-in session.");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+
+        console.error("[paypal-retail-demo] Auth session restore failed", {
+          error,
+        });
+        setCurrentAuthSession(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authClient]);
+
+  useEffect(() => {
+    if (currentAuthSession === undefined || didRunInitialCartRestore.current) {
+      return;
+    }
+
+    didRunInitialCartRestore.current = true;
+    const storedBinding = readStoredCartBinding(config);
+    let active = true;
+    const requestOptions = buildCartRequestOptions(
+      storedBinding ?? {},
+      currentAuthSession,
+    );
+    const cartRequest = currentAuthSession
+      ? apiClient.post<CartApiResponse>(
+          "/api/cart/merge",
+          {},
+          {
+            market: config.market.code,
+          },
+          requestOptions,
+        )
+      : apiClient.get<CartApiResponse>(
+          "/api/cart",
+          {
+            market: config.market.code,
+          },
+          requestOptions,
+        );
+
+    void cartRequest
       .then(async (response) => {
         if (!active) {
           return;
@@ -234,9 +301,10 @@ function BuyerShell({
           response,
           starterCart,
         );
-        persistCartBinding(config, reconciledCart);
+        syncStoredCartBinding(config, reconciledCart);
 
         if (
+          !currentAuthSession &&
           !storedBinding &&
           shouldSeedStarterCart(cartData, response, reconciledCart)
         ) {
@@ -252,14 +320,18 @@ function BuyerShell({
           }
 
           setCurrentCart(seededCart);
-          persistCartBinding(config, seededCart);
+          syncStoredCartBinding(config, seededCart);
           setShellStatus("Prepared guest cart.");
           return;
         }
 
         setCurrentCart(reconciledCart);
         setShellStatus(
-          storedBinding ? "Restored saved cart." : "Prepared guest cart.",
+          currentAuthSession
+            ? "Restored signed-in cart."
+            : storedBinding
+              ? "Restored saved cart."
+              : "Prepared guest cart.",
         );
       })
       .catch((error: unknown) => {
@@ -274,7 +346,7 @@ function BuyerShell({
     return () => {
       active = false;
     };
-  }, [apiClient, cartData, config]);
+  }, [apiClient, cartData, config, currentAuthSession]);
 
   useEffect(() => {
     if (currentRoute.page !== "express_review") {
@@ -380,14 +452,42 @@ function BuyerShell({
     );
   }
 
-  async function handleAuthPasswordSubmit() {
-    setAuthModalStatus("Demo sign-in submit is ready for Supabase Auth.");
-    setShellStatus("Demo sign-in submitted.");
+  async function handleAuthPasswordSubmit(input: {
+    readonly email: string;
+    readonly password: string;
+  }) {
+    setAuthModalStatus("Signing in...");
+    setShellStatus("Signing in.");
+    const session = await authClient.signInWithPassword(input);
+    await completeAuthSession(session);
   }
 
-  async function handleAuthRegisterSubmit() {
-    setAuthModalStatus("Demo registration submit is ready for Supabase Auth.");
-    setShellStatus("Demo registration submitted.");
+  async function handleAuthRegisterSubmit(input: {
+    readonly email: string;
+    readonly password: string;
+  }) {
+    setAuthModalStatus("Creating account...");
+    setShellStatus("Creating account.");
+    const session = await authClient.signUpWithPassword(input);
+    await completeAuthSession(session);
+  }
+
+  async function completeAuthSession(session: BuyerAuthSession) {
+    didRunInitialCartRestore.current = true;
+    setCurrentAuthSession(session);
+    setAuthModalStatus("Merging cart...");
+
+    const response = await apiClient.post<CartApiResponse>(
+      "/api/cart/merge",
+      {},
+      cartQuery(),
+      buildCartRequestOptions(currentCart, session),
+    );
+    reconcileServerCart(response);
+    clearStoredCartBinding(config);
+    setCurrentAuthModalState("closed");
+    setAuthModalStatus(undefined);
+    setShellStatus("Signed in and merged cart.");
   }
 
   function cartQuery(): ApiQueryParams {
@@ -404,7 +504,7 @@ function BuyerShell({
           trigger,
         },
         cartQuery(),
-        buildCartRequestOptions(currentCart),
+        buildCartRequestOptions(currentCart, currentAuthSession),
       );
       reconcileServerCart(response);
     } catch (error) {
@@ -423,7 +523,7 @@ function BuyerShell({
           quantity: nextQuantity,
         },
         cartQuery(),
-        buildCartRequestOptions(currentCart),
+        buildCartRequestOptions(currentCart, currentAuthSession),
       )
       .then((response) => {
         reconcileServerCart(response);
@@ -444,7 +544,7 @@ function BuyerShell({
         response,
         applyStarterCartProductIds(cartData),
       );
-      persistCartBinding(config, nextCart);
+      syncStoredCartBinding(config, nextCart);
       return nextCart;
     });
   }
@@ -454,7 +554,7 @@ function BuyerShell({
     currentData: CheckoutPageData,
   ): Promise<CheckoutPageData> {
     try {
-      if (!hasServerReadyCartBinding(currentCart)) {
+      if (!hasCartApiAccess(currentCart, currentAuthSession)) {
         setShellStatus("Cart is still syncing. Please try checkout again.");
         throw new CartBindingIncompleteError();
       }
@@ -466,6 +566,7 @@ function BuyerShell({
         fulfillmentMode: request.fulfillmentMode,
         requestedDraftId: request.draftId,
         cart: currentCart,
+        authSession: currentAuthSession,
       });
 
       if (!draftId) {
@@ -483,6 +584,7 @@ function BuyerShell({
           draftId,
         },
         currentCart,
+        currentAuthSession,
       );
       return reconcileCheckoutDataFromDraftResponse(nextData, response);
     } catch (error) {
@@ -645,8 +747,11 @@ function BuyerShell({
           <a href="/checkout">Checkout</a>
         </nav>
         <div className="site-header__actions">
-          <button type="button" onClick={openAuthModal}>
-            Sign in
+          <button
+            type="button"
+            {...(currentAuthSession ? {} : { onClick: openAuthModal })}
+          >
+            {currentAuthSession ? "Account" : "Sign in"}
           </button>
           <button
             type="button"
@@ -906,16 +1011,25 @@ function resolveApiClientDebugId(error: unknown): string | undefined {
 
 function buildCartRequestOptions(
   cart: CartBinding,
+  authSession?: BuyerAuthSession | null,
 ): ApiRequestOptions | undefined {
-  if (!hasServerReadyCartBinding(cart)) {
+  const headers: Record<string, string> = {};
+
+  if (authSession?.accessToken) {
+    headers.authorization = `Bearer ${authSession.accessToken}`;
+  }
+
+  if (hasServerReadyCartBinding(cart)) {
+    headers["x-cart-id"] = cart.cartPublicId;
+    headers["x-cart-secret"] = cart.cartClientSecret;
+  }
+
+  if (Object.keys(headers).length === 0) {
     return undefined;
   }
 
   return {
-    headers: {
-      "x-cart-id": cart.cartPublicId,
-      "x-cart-secret": cart.cartClientSecret,
-    },
+    headers,
   };
 }
 
@@ -1052,6 +1166,13 @@ function hasServerReadyCartBinding(
   return Boolean(cart.cartPublicId?.trim() && cart.cartClientSecret?.trim());
 }
 
+function hasCartApiAccess(
+  cart: CartBinding,
+  authSession: BuyerAuthSession | null | undefined,
+): boolean {
+  return Boolean(authSession?.accessToken || hasServerReadyCartBinding(cart));
+}
+
 class CartBindingIncompleteError extends Error {
   constructor() {
     super("Cart binding is incomplete.");
@@ -1096,8 +1217,12 @@ function readStoredCartBinding(
   }
 }
 
-function persistCartBinding(config: StorefrontRuntimeConfig, cart: CartData) {
+function syncStoredCartBinding(
+  config: StorefrontRuntimeConfig,
+  cart: CartData,
+) {
   if (!cart.cartPublicId || !cart.cartClientSecret) {
+    clearStoredCartBinding(config);
     return;
   }
 
@@ -1114,6 +1239,19 @@ function persistCartBinding(config: StorefrontRuntimeConfig, cart: CartData) {
         cart_client_secret: cart.cartClientSecret,
       }),
     );
+  } catch {
+    // Storage can be unavailable in private or SSR-like contexts.
+  }
+}
+
+function clearStoredCartBinding(config: StorefrontRuntimeConfig) {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(cartBindingStorageKey(config));
   } catch {
     // Storage can be unavailable in private or SSR-like contexts.
   }
@@ -1136,6 +1274,7 @@ async function sendCheckoutDraftUpdate(
   config: StorefrontRuntimeConfig,
   request: CheckoutDraftUpdateRequest,
   cart: CartData,
+  authSession: BuyerAuthSession | null | undefined,
 ): Promise<CheckoutDraftApiResponse> {
   const draftPath = `/api/checkout/drafts/${encodeURIComponent(
     request.draftId ?? "",
@@ -1143,7 +1282,7 @@ async function sendCheckoutDraftUpdate(
   const query = {
     market: config.market.code,
   };
-  const requestOptions = buildCartRequestOptions(cart);
+  const requestOptions = buildCartRequestOptions(cart, authSession);
 
   switch (request.type) {
     case "delivery_shipping_address":
@@ -1235,6 +1374,7 @@ async function sendCheckoutDraftUpdate(
 }
 
 async function ensureCheckoutDraft({
+  authSession,
   apiClient,
   cart,
   config,
@@ -1243,6 +1383,7 @@ async function ensureCheckoutDraft({
   requestedDraftId,
 }: {
   readonly apiClient: ApiClient;
+  readonly authSession: BuyerAuthSession | null | undefined;
   readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly currentData: CheckoutPageData;
@@ -1267,7 +1408,7 @@ async function ensureCheckoutDraft({
     {
       market: config.market.code,
     },
-    buildCartRequestOptions(cart),
+    buildCartRequestOptions(cart, authSession),
   );
   const nextData = reconcileCheckoutDataFromDraftResponse(
     currentData,

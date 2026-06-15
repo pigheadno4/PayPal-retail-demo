@@ -87,6 +87,28 @@ describe("cartModel", () => {
     ]);
     expect(buildCartPayLaterMessage(reconciled)).toContain("$32.97");
   });
+
+  it("drops guest cart secrets when the backend returns an authenticated cart", () => {
+    const cart = {
+      ...cartData(),
+      cartPublicId: "cart_public_guest",
+      cartClientSecret: "cart_secret_guest",
+    };
+
+    const reconciled = reconcileCartDataFromApiResponse(cart, {
+      cart: {
+        cart_public_id: "cart_public_user",
+        buyer_kind: "authenticated",
+        currency_code: "USD",
+        binding: null,
+        items: [],
+      },
+      adjustments: [],
+    });
+
+    expect(reconciled.cartPublicId).toBe("cart_public_user");
+    expect(reconciled.cartClientSecret).toBeUndefined();
+  });
 });
 
 function cartData(): CartData {

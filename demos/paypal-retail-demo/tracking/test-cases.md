@@ -185,8 +185,10 @@
 - [x] M13 Review and Confirm blocks buyer capture when the amount consistency guard fails.
 - [x] M14 Sign in opens the email-first auth modal, normalizes email lookup, and branches existing accounts to password entry.
 - [x] M14 email-first auth modal branches unknown emails to password-only account registration.
-- [ ] M14 password sign-in creates a Supabase Auth session, persists buyer identity, and merges the active guest cart.
-- [ ] M14 password-only registration creates a Supabase Auth user/session and preserves checkout/cart context.
+- [x] M14 password sign-in creates a Supabase Auth session, persists buyer identity, and merges the active guest cart.
+- [x] M14 password-only registration creates a Supabase Auth user/session and preserves checkout/cart context.
+- [x] M14 restored Supabase Auth session loads the signed-in cart without sending guest cart headers.
+- [ ] M14 logged-in checkout and delivery-express PayPal create-order calls include authenticated buyer context instead of relying on guest cart secrets.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
