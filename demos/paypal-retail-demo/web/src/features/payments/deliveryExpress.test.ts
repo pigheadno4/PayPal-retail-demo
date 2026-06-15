@@ -6,6 +6,7 @@ describe("deliveryExpress", () => {
   it("builds the PayPal express delivery create-order request from the active cart binding", () => {
     expect(
       buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret: "cart_secret_guest",
         cartPublicId: "cart_public_guest",
         market: "US",
         method: "paypal",
@@ -18,6 +19,12 @@ describe("deliveryExpress", () => {
       },
       query: {
         market: "US",
+      },
+      options: {
+        headers: {
+          "x-cart-id": "cart_public_guest",
+          "x-cart-secret": "cart_secret_guest",
+        },
       },
     });
   });
@@ -25,6 +32,7 @@ describe("deliveryExpress", () => {
   it("builds the Pay Later express delivery create-order request from the active cart binding", () => {
     expect(
       buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret: "cart_secret_guest",
         cartPublicId: "cart_public_guest",
         market: "US",
         method: "paylater",
@@ -37,6 +45,12 @@ describe("deliveryExpress", () => {
       },
       query: {
         market: "US",
+      },
+      options: {
+        headers: {
+          "x-cart-id": "cart_public_guest",
+          "x-cart-secret": "cart_secret_guest",
+        },
       },
     });
   });
@@ -65,5 +79,16 @@ describe("deliveryExpress", () => {
         },
       },
     });
+  });
+
+  it("blocks express create-order requests without a paired guest cart secret", () => {
+    expect(() =>
+      buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret: "",
+        cartPublicId: "cart_public_guest",
+        market: "US",
+        method: "paypal",
+      }),
+    ).toThrow("Delivery express checkout needs a synced cart.");
   });
 });

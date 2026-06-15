@@ -28,7 +28,7 @@ export interface DeliveryExpressApprovedContext {
 }
 
 export interface DeliveryExpressActionProps {
-  readonly cartClientSecret?: string;
+  readonly cartClientSecret: string;
   readonly cartPublicId: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
@@ -54,7 +54,7 @@ export function DeliveryExpressAction({
   const createOrder = useCallback(async () => {
     await onBeforeCreateOrder?.();
     const request = buildDeliveryExpressCreateOrderRequest({
-      ...(cartClientSecret ? { cartClientSecret } : {}),
+      cartClientSecret,
       cartPublicId,
       market,
       method,

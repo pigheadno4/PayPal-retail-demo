@@ -107,6 +107,7 @@ describe("App shell", () => {
     const html = renderToStaticMarkup(
       <App
         initialPathname="/products/labubu-have-a-seat"
+        initialCart={cartData()}
         initialProductPages={productPages()}
       />,
     );
@@ -399,6 +400,7 @@ function productPages(): Readonly<Record<string, ProductDetailPageData>> {
 function cartData(): CartData {
   return {
     cartPublicId: "cart_public_guest",
+    cartClientSecret: "cart_secret_guest",
     title: "Shopping cart",
     checkoutHref: "/checkout",
     cartHref: "/cart",

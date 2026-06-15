@@ -57,6 +57,7 @@ function renderExpressAction(method: "paypal" | "paylater"): string {
         initialSdkConfig={config}
       >
         <DeliveryExpressAction
+          cartClientSecret="cart_secret_guest"
           cartPublicId="cart_public_guest"
           market="US"
           method={method}

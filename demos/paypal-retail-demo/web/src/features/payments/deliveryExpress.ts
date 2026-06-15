@@ -28,30 +28,33 @@ export function buildDeliveryExpressCreateOrderRequest({
   market,
   method,
 }: {
-  readonly cartClientSecret?: string;
+  readonly cartClientSecret: string;
   readonly cartPublicId: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
 }): DeliveryExpressCreateOrderRequest {
-  const options = cartClientSecret
-    ? {
-        headers: {
-          "x-cart-id": cartPublicId,
-          "x-cart-secret": cartClientSecret,
-        },
-      }
-    : undefined;
+  const normalizedCartPublicId = cartPublicId.trim();
+  const normalizedCartClientSecret = cartClientSecret.trim();
+
+  if (!normalizedCartPublicId || !normalizedCartClientSecret) {
+    throw new Error("Delivery express checkout needs a synced cart.");
+  }
 
   return {
     path: "/api/paypal/orders/express-delivery",
     body: {
-      cart_id: cartPublicId,
+      cart_id: normalizedCartPublicId,
       method,
     },
     query: {
       market,
     },
-    ...(options ? { options } : {}),
+    options: {
+      headers: {
+        "x-cart-id": normalizedCartPublicId,
+        "x-cart-secret": normalizedCartClientSecret,
+      },
+    },
   };
 }
 

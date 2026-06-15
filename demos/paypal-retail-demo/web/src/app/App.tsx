@@ -349,6 +349,11 @@ function BuyerShell({
     currentData: CheckoutPageData,
   ): Promise<CheckoutPageData> {
     try {
+      if (!hasServerReadyCartBinding(currentCart)) {
+        setShellStatus("Cart is still syncing. Please try checkout again.");
+        throw new CartBindingIncompleteError();
+      }
+
       const { draftId, nextData } = await ensureCheckoutDraft({
         apiClient,
         config,
@@ -380,7 +385,9 @@ function BuyerShell({
         error,
         request,
       });
-      setShellStatus("Checkout update failed. Please try again.");
+      if (!(error instanceof CartBindingIncompleteError)) {
+        setShellStatus("Checkout update failed. Please try again.");
+      }
       throw error;
     }
   }
@@ -684,7 +691,7 @@ type CartBinding = Pick<CartData, "cartClientSecret" | "cartPublicId">;
 function buildCartRequestOptions(
   cart: CartBinding,
 ): ApiRequestOptions | undefined {
-  if (!cart.cartPublicId || !cart.cartClientSecret) {
+  if (!hasServerReadyCartBinding(cart)) {
     return undefined;
   }
 
@@ -694,6 +701,19 @@ function buildCartRequestOptions(
       "x-cart-secret": cart.cartClientSecret,
     },
   };
+}
+
+function hasServerReadyCartBinding(
+  cart: CartBinding,
+): cart is Required<CartBinding> {
+  return Boolean(cart.cartPublicId?.trim() && cart.cartClientSecret?.trim());
+}
+
+class CartBindingIncompleteError extends Error {
+  constructor() {
+    super("Cart binding is incomplete.");
+    this.name = "CartBindingIncompleteError";
+  }
 }
 
 function readStoredCartBinding(
@@ -1070,7 +1090,7 @@ function renderDeliveryExpressAction({
   readonly onBeforeCreateOrder: () => void | Promise<void>;
   readonly source: DeliveryExpressSource;
 }) {
-  if (!cart.cartPublicId) {
+  if (!hasServerReadyCartBinding(cart)) {
     return (
       <StatusRegion
         id={`delivery-express-${source}-${method}-missing-cart`}
@@ -1093,9 +1113,7 @@ function renderDeliveryExpressAction({
       }}
     >
       <DeliveryExpressAction
-        {...(cart.cartClientSecret
-          ? { cartClientSecret: cart.cartClientSecret }
-          : {})}
+        cartClientSecret={cart.cartClientSecret}
         cartPublicId={cart.cartPublicId}
         market={config.market.code}
         method={method}

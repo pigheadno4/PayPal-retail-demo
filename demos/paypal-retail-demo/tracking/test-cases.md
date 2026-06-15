@@ -155,7 +155,7 @@
 - [x] M13.1 browser refresh restores active cart binding and server cart data instead of resetting to fixture/default cart.
 - [x] M13.1 browser stores and reloads only opaque cart binding data: `cart_public_id` plus `cart_client_secret`.
 - [x] M13.1 guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
-- [ ] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
+- [x] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
 - [x] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
 - [x] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
 - [ ] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.

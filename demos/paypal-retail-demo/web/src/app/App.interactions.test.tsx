@@ -111,12 +111,14 @@ describe("App buyer interactions", () => {
       }),
     );
     await waitFor(() => {
-      expect(apiClient.calls).toContainEqual({
-        method: "patch",
-        path: "/api/cart/items/cart_item_labubu",
-        body: { quantity: 2 },
-        query: { market: "US" },
-      });
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: "/api/cart/items/cart_item_labubu",
+          body: { quantity: 2 },
+          query: { market: "US" },
+        }),
+      );
     });
 
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
@@ -125,12 +127,14 @@ describe("App buyer interactions", () => {
         screen.getByRole("heading", { name: "Delivery or Pickup" }),
       ).toBeTruthy();
     });
-    expect(apiClient.calls).toContainEqual({
-      method: "post",
-      path: "/api/cart/refresh",
-      body: { trigger: "checkout_start" },
-      query: { market: "US" },
-    });
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/cart/refresh",
+        body: { trigger: "checkout_start" },
+        query: { market: "US" },
+      }),
+    );
 
     cleanup();
     apiClient.calls.length = 0;
@@ -274,6 +278,52 @@ describe("App buyer interactions", () => {
         "Flexible payment options may be available for $27.98 at checkout.",
       ),
     ).toBeTruthy();
+  });
+
+  it("blocks checkout draft creation when the guest cart binding is incomplete", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({
+          cartClientSecret: null,
+          quantity: 1,
+        })}
+      />,
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getShellStatusText()).toContain(
+        "Cart is still syncing. Please try checkout again.",
+      );
+    });
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/checkout/drafts",
+      }),
+    );
+    consoleError.mockRestore();
   });
 
   it("attaches guest cart headers to cart refresh and checkout draft updates", async () => {
@@ -641,7 +691,13 @@ describe("App buyer interactions", () => {
       }),
     });
 
-    render(<App apiClient={apiClient} initialPathname="/checkout" />);
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
 
     await advanceDeliveryCheckoutToPayment(user);
 
@@ -708,14 +764,16 @@ describe("App buyer interactions", () => {
     );
 
     await waitFor(() => {
-      expect(apiClient.calls).toContainEqual({
-        body: {
-          fulfillment_mode: "delivery",
-        },
-        method: "post",
-        path: "/api/checkout/drafts",
-        query: { market: "US" },
-      });
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            fulfillment_mode: "delivery",
+          },
+          method: "post",
+          path: "/api/checkout/drafts",
+          query: { market: "US" },
+        }),
+      );
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
           method: "patch",
@@ -1174,10 +1232,10 @@ function expectExpressScopes(container: HTMLElement) {
 }
 
 function singleItemCart({
-  cartClientSecret,
+  cartClientSecret = "cart_secret_existing",
   quantity,
 }: {
-  readonly cartClientSecret?: string;
+  readonly cartClientSecret?: string | null;
   readonly quantity: number;
 }): CartData {
   return {
