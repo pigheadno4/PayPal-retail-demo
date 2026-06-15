@@ -117,7 +117,7 @@
 - [x] Keep cart count and minicart contents stable when navigating to `/checkout`.
 - [x] Add minicart quantity controls using the same server-backed update/reconcile path as full cart, or explicitly defer with buyer-facing copy.
 - [x] Gate checkout and express create-order on server-ready cart/draft bindings and block fixture/missing IDs.
-- [ ] Wire Pay Later SDK v6 eligibility/detail gating before official Pay Later buttons render.
+- [x] Wire Pay Later SDK v6 eligibility/detail gating before official Pay Later buttons render.
 - [ ] Recover Pickup guest initial state so it starts with ZIP/postcode only, no default-address checkbox, no preselected store, and no store summary before modal confirmation.
 - [ ] Recover Pickup logged-in initial state so only authenticated/default-address buyers see a preselected nearest/default-address store and Change store action.
 - [ ] Clean active-market fixtures so US Pickup never starts with GB postcode/store defaults and GB Pickup never starts with US ZIP/store defaults.

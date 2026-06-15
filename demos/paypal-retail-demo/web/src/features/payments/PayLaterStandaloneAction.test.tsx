@@ -10,8 +10,8 @@ import {
 import {
   PayLaterStandaloneAction,
   buildPayLaterCreateOrderRequest,
-  normalizePayLaterMessageAmount,
 } from "./PayLaterStandaloneAction.js";
+import { normalizePayLaterMessageAmount } from "./payLaterRuntime.js";
 
 describe("PayLaterStandaloneAction", () => {
   it("normalizes display totals into Pay Later message amounts", () => {
@@ -57,7 +57,7 @@ describe("PayLaterStandaloneAction", () => {
     });
   });
 
-  it("renders a scoped official Pay Later action and amount-aware message", () => {
+  it("renders a scoped Pay Later action and waits for eligible details before the official button", () => {
     const apiClient = createApiClient({
       baseUrl: "https://demo.example.test",
       fetch: async () =>
@@ -102,7 +102,8 @@ describe("PayLaterStandaloneAction", () => {
     expect(html).toContain('data-paylater-message-amount="25.98"');
     expect(html).toContain('buyer-country="US"');
     expect(html).toContain('currency-code="USD"');
-    expect(html).toContain("Pay Later payment button ready.");
+    expect(html).toContain("Pay Later eligibility pending.");
+    expect(html).not.toContain("Pay Later payment button ready.");
   });
 });
 

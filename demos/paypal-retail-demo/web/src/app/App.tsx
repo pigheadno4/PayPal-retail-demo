@@ -494,7 +494,7 @@ function BuyerShell({
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
           onCheckoutDraftUpdate={updateCheckoutDraft}
-          renderDeliveryExpressAction={(method, source) =>
+          renderDeliveryExpressAction={(method, source, totalLabel) =>
             renderDeliveryExpressAction({
               cart: currentCart,
               config,
@@ -503,6 +503,7 @@ function BuyerShell({
               onBeforeCreateOrder: () =>
                 refreshCartBefore("express_payment_start"),
               source,
+              totalLabel,
             })
           }
           onNavigate={navigateBuyer}
@@ -548,7 +549,7 @@ function BuyerShell({
         }
         onClose={closeMinicart}
         onQuantityChange={handleCartQuantityChange}
-        renderDeliveryExpressAction={(method) =>
+        renderDeliveryExpressAction={(method, totalLabel) =>
           renderDeliveryExpressAction({
             cart: currentCart,
             config,
@@ -557,6 +558,7 @@ function BuyerShell({
             onBeforeCreateOrder: () =>
               refreshCartBefore("express_payment_start"),
             source: "minicart",
+            totalLabel,
           })
         }
       />
@@ -610,6 +612,7 @@ function RouteStage({
   readonly renderDeliveryExpressAction: (
     method: DeliveryExpressPaymentMethod,
     source: DeliveryExpressSource,
+    totalLabel: string,
   ) => ReactNode;
   readonly renderPayLaterRowMessage: (
     context: CheckoutPaymentActionContext,
@@ -642,8 +645,8 @@ function RouteStage({
             refreshTrigger: "checkout_start",
           })
         }
-        renderDeliveryExpressAction={(method) =>
-          renderDeliveryExpressAction(method, "cart")
+        renderDeliveryExpressAction={(method, totalLabel) =>
+          renderDeliveryExpressAction(method, "cart", totalLabel)
         }
         onQuantityChange={onCartQuantityChange}
       />
@@ -666,8 +669,12 @@ function RouteStage({
       <ProductDetailPage
         data={productPage}
         onAddToCart={onAddProductToCart}
-        renderDeliveryExpressAction={(method) =>
-          renderDeliveryExpressAction(method, "product_detail")
+        renderDeliveryExpressAction={(method, product) =>
+          renderDeliveryExpressAction(
+            method,
+            "product_detail",
+            product.currentPriceLabel,
+          )
         }
       />
     ) : (
@@ -1080,6 +1087,7 @@ function renderDeliveryExpressAction({
   onApproved,
   onBeforeCreateOrder,
   source,
+  totalLabel,
 }: {
   readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
@@ -1089,6 +1097,7 @@ function renderDeliveryExpressAction({
   ) => void | Promise<void>;
   readonly onBeforeCreateOrder: () => void | Promise<void>;
   readonly source: DeliveryExpressSource;
+  readonly totalLabel: string;
 }) {
   if (!hasServerReadyCartBinding(cart)) {
     return (
@@ -1115,11 +1124,13 @@ function renderDeliveryExpressAction({
       <DeliveryExpressAction
         cartClientSecret={cart.cartClientSecret}
         cartPublicId={cart.cartPublicId}
+        currencyCode={config.market.currencyCode}
         market={config.market.code}
         method={method}
         onApproved={onApproved}
         onBeforeCreateOrder={onBeforeCreateOrder}
         source={source}
+        totalLabel={totalLabel}
       />
     </PayPalSdkProviderScope>
   );

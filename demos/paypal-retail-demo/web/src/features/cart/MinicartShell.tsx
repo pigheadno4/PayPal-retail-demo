@@ -4,7 +4,9 @@ import { type MouseEvent, type ReactNode } from "react";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
+  calculateCartMerchandiseTotalCents,
   defaultCartData,
+  formatCartAmount,
   resolveCartItemQuantity,
   resolveCartItemServerId,
   type CartData,
@@ -28,6 +30,7 @@ export interface MinicartShellProps {
   ) => void;
   readonly renderDeliveryExpressAction?: (
     method: DeliveryExpressPaymentMethod,
+    totalLabel: string,
   ) => ReactNode;
 }
 
@@ -43,6 +46,10 @@ export function MinicartShell({
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
   const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
+  const subtotalLabel = formatCartAmount(
+    calculateCartMerchandiseTotalCents(cart),
+    cart,
+  );
 
   function updateQuantity(item: CartItem, nextQuantity: number) {
     onQuantityChange?.(item.slug, nextQuantity, resolveCartItemServerId(item));
@@ -143,6 +150,7 @@ export function MinicartShell({
         </div>
         {state === "open" ? (
           <DeliveryExpressActions
+            totalLabel={subtotalLabel}
             {...(onDeliveryExpressStart
               ? { onExpressStart: onDeliveryExpressStart }
               : {})}

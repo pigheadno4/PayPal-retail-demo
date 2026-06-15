@@ -19,6 +19,7 @@ import {
   type DeliveryExpressSource,
 } from "./deliveryExpress.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
+import { usePayLaterButtonEligibility } from "./payLaterRuntime.js";
 
 export interface DeliveryExpressApprovedContext {
   readonly method: DeliveryExpressPaymentMethod;
@@ -30,9 +31,11 @@ export interface DeliveryExpressApprovedContext {
 export interface DeliveryExpressActionProps {
   readonly cartClientSecret: string;
   readonly cartPublicId: string;
+  readonly currencyCode: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
   readonly source: DeliveryExpressSource;
+  readonly totalLabel: string;
   readonly onBeforeCreateOrder?: () => void | Promise<void>;
   readonly onApproved?: (
     context: DeliveryExpressApprovedContext,
@@ -42,9 +45,11 @@ export interface DeliveryExpressActionProps {
 export function DeliveryExpressAction({
   cartClientSecret,
   cartPublicId,
+  currencyCode,
   market,
   method,
   source,
+  totalLabel,
   onBeforeCreateOrder,
   onApproved,
 }: DeliveryExpressActionProps) {
@@ -117,31 +122,77 @@ export function DeliveryExpressAction({
       data-delivery-express-source={source}
       data-delivery-express-source-label={formatDeliveryExpressSource(source)}
     >
-      <StatusRegion
-        id={`delivery-express-${source}-${method}-status`}
-        className="sr-only"
-      >
-        {methodLabel} delivery express button ready.
-      </StatusRegion>
       {method === "paylater" ? (
-        <PayLaterOneTimePaymentButton
+        <DeliveryExpressPayLaterButton
           createOrder={createOrder}
+          currencyCode={currencyCode}
+          methodLabel={methodLabel}
           onApprove={handleApprove}
-          onCancel={handleCancel}
-          onError={handleError}
-          presentationMode="auto"
+          source={source}
+          totalLabel={totalLabel}
         />
       ) : (
-        <PayPalOneTimePaymentButton
+        <>
+          <StatusRegion
+            id={`delivery-express-${source}-${method}-status`}
+            className="sr-only"
+          >
+            {methodLabel} delivery express button ready.
+          </StatusRegion>
+          <PayPalOneTimePaymentButton
+            createOrder={createOrder}
+            onApprove={handleApprove}
+            onCancel={handleCancel}
+            onError={handleError}
+            presentationMode="auto"
+            type="pay"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function DeliveryExpressPayLaterButton({
+  createOrder,
+  currencyCode,
+  methodLabel,
+  onApprove,
+  source,
+  totalLabel,
+}: {
+  readonly createOrder: () => Promise<{ readonly orderId: string }>;
+  readonly currencyCode: string;
+  readonly methodLabel: string;
+  readonly onApprove: (data: OnApproveDataOneTimePayments) => Promise<void>;
+  readonly source: DeliveryExpressSource;
+  readonly totalLabel: string;
+}) {
+  const eligibility = usePayLaterButtonEligibility({
+    currencyCode,
+    totalLabel,
+  });
+
+  return (
+    <>
+      <StatusRegion
+        id={`delivery-express-${source}-paylater-status`}
+        className="sr-only"
+      >
+        {eligibility.status === "eligible"
+          ? `${methodLabel} delivery express button ready.`
+          : eligibility.statusLabel}
+      </StatusRegion>
+      {eligibility.status === "eligible" ? (
+        <PayLaterOneTimePaymentButton
           createOrder={createOrder}
-          onApprove={handleApprove}
+          onApprove={onApprove}
           onCancel={handleCancel}
           onError={handleError}
           presentationMode="auto"
-          type="pay"
         />
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }
 

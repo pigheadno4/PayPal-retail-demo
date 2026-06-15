@@ -158,6 +158,7 @@
 - [x] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
 - [x] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
 - [x] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
+- [x] M13.1 Pay Later official buttons wait for SDK v6 amount/currency eligibility and `getDetails("paylater")` before rendering on checkout and delivery express surfaces.
 - [ ] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
 - [ ] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
 - [ ] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
@@ -223,7 +224,7 @@
 - [ ] Checkout/express create-order is blocked with buyer-safe copy when server cart/draft binding is missing or not server-ready.
 - [ ] Guest checkout/express create-order does not call backend PayPal endpoints unless paired cart headers are present.
 - [ ] PayPal button click creates a PayPal order through the backend; if backend/Supabase/PayPal fails, the merchant UI shows a buyer-safe error and debug ID instead of silently closing the popup.
-- [ ] Pay Later SDK v6 calls eligibility with current amount/currency before rendering official Pay Later button.
+- [x] Pay Later SDK v6 calls eligibility with current amount/currency before rendering official Pay Later button.
 - [ ] Pay Later button stays hidden or buyer-safely unavailable while eligibility is loading, errors, or returns ineligible.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
 - [ ] Card fields render and capture.

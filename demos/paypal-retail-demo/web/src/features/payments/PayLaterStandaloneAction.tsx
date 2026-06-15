@@ -14,6 +14,10 @@ import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
+import {
+  normalizePayLaterMessageAmount,
+  usePayLaterButtonEligibility,
+} from "./payLaterRuntime.js";
 
 export interface PayLaterStandaloneActionProps {
   readonly buyerCountry: string;
@@ -49,6 +53,10 @@ export function PayLaterStandaloneAction({
   totalLabel,
 }: PayLaterStandaloneActionProps) {
   const apiClient = useApiClient();
+  const eligibility = usePayLaterButtonEligibility({
+    currencyCode,
+    totalLabel,
+  });
   const createOrder = useCallback(async () => {
     const request = buildPayLaterCreateOrderRequest({
       checkoutDraftId,
@@ -100,15 +108,17 @@ export function PayLaterStandaloneAction({
         id={`paylater-${fulfillmentMode}-button-status`}
         className="sr-only"
       >
-        Pay Later payment button ready.
+        {eligibility.statusLabel}
       </StatusRegion>
-      <PayLaterOneTimePaymentButton
-        createOrder={createOrder}
-        onApprove={handleApprove}
-        onCancel={handleCancel}
-        onError={handleError}
-        presentationMode="auto"
-      />
+      {eligibility.status === "eligible" ? (
+        <PayLaterOneTimePaymentButton
+          createOrder={createOrder}
+          onApprove={handleApprove}
+          onCancel={handleCancel}
+          onError={handleError}
+          presentationMode="auto"
+        />
+      ) : null}
     </div>
   );
 }
@@ -182,14 +192,6 @@ export function buildPayLaterCreateOrderRequest({
       market,
     },
   };
-}
-
-export function normalizePayLaterMessageAmount(amountLabel: string): string {
-  const digitsAndSeparator = amountLabel.replace(/[^0-9.]/g, "");
-  const [whole = "0", rawFraction = ""] = digitsAndSeparator.split(".");
-  const fraction = rawFraction.padEnd(2, "0").slice(0, 2);
-
-  return `${whole || "0"}.${fraction}`;
 }
 
 function handleCancel(data: OnCancelDataOneTimePayments) {

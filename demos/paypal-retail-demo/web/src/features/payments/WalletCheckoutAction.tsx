@@ -22,7 +22,7 @@ import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
-import { normalizePayLaterMessageAmount } from "./PayLaterStandaloneAction.js";
+import { normalizePayLaterMessageAmount } from "./payLaterRuntime.js";
 
 export type WalletPaymentMethod = "apple_pay" | "google_pay" | "venmo";
 

@@ -415,7 +415,7 @@ Purpose: stabilize the cart/draft/payment readiness layer before confirm-trigger
 - [ ] Recover Pickup initial state separation: guest flow starts with ZIP/postcode only and no preselected store/default-address summary; logged-in flow may preselect nearest/default-address store.
 - [ ] Prevent market fixture leakage in Pickup; US market must not show GB postcode defaults such as `W1F 7JL` unless the active market is GB.
 - [ ] Add merchant-visible create-order failure handling for Supabase/PayPal failures with buyer-safe copy, debug ID, and retry affordance after popup close/failure.
-- [ ] Gate Pay Later SDK v6 buttons with `useEligibleMethods`/`findEligibleMethods`, amount/currency payload, and `getDetails("paylater")` before rendering official Pay Later buttons.
+- [x] Gate Pay Later SDK v6 buttons with `useEligibleMethods`/`findEligibleMethods`, amount/currency payload, and `getDetails("paylater")` before rendering official Pay Later buttons.
 - [ ] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pickup guest/logged-in initial states, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
 
 ### Milestone 13 Capture Completion

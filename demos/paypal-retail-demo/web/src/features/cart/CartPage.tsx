@@ -22,6 +22,7 @@ export interface CartPageProps {
   ) => void | Promise<void>;
   readonly renderDeliveryExpressAction?: (
     method: DeliveryExpressPaymentMethod,
+    totalLabel: string,
   ) => ReactNode;
   readonly onQuantityChange?: (
     slug: string,
@@ -153,6 +154,7 @@ export function CartPage({
           Go to checkout
         </a>
         <DeliveryExpressActions
+          totalLabel={subtotalLabel}
           {...(onDeliveryExpressStart
             ? { onExpressStart: onDeliveryExpressStart }
             : {})}
@@ -180,19 +182,24 @@ export interface DeliveryExpressActionsProps {
   readonly onExpressStart?:
     | ((method: DeliveryExpressPaymentMethod) => void)
     | undefined;
-  readonly renderAction?: (method: DeliveryExpressPaymentMethod) => ReactNode;
+  readonly renderAction?: (
+    method: DeliveryExpressPaymentMethod,
+    totalLabel: string,
+  ) => ReactNode;
+  readonly totalLabel?: string;
 }
 
 export function DeliveryExpressActions({
   onExpressStart,
   renderAction,
+  totalLabel,
 }: DeliveryExpressActionsProps) {
   return (
     <div className="cart-express-actions" aria-label="Delivery express payment">
       {renderAction ? (
         <>
-          {renderAction("paypal")}
-          {renderAction("paylater")}
+          {renderAction("paypal", totalLabel ?? "")}
+          {renderAction("paylater", totalLabel ?? "")}
         </>
       ) : (
         <>
