@@ -172,3 +172,4 @@
 ## 2026-06-15
 
 - Continued M13.1 with TDD for the mini-cart quantity gap: added failing `MinicartShell` and App interaction tests for mini-cart plus/minus controls, then wired mini-cart quantity edits through the same App-owned server-backed cart update/reconcile path as the full cart. The mini-cart now PATCHes `/api/cart/items/:id` with paired guest cart headers when available, reconciles server-returned quantity/price, and refreshes item count plus amount-aware Pay Later copy.
+- Added checkout-route cart continuity regression coverage for M13.1: cart-to-checkout navigation now proves `POST /api/cart/refresh` carries the paired guest cart headers, the header cart count stays bound after `/checkout` renders, and the mini-cart still shows the active cart items and amount-aware Pay Later copy. This behavior was already satisfied by the cart-binding/header recovery slice and is now explicitly tracked.

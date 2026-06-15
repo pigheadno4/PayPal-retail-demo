@@ -409,7 +409,7 @@ Purpose: stabilize the cart/draft/payment readiness layer before confirm-trigger
 
 - [x] Restore browser cart binding on app load/refresh from persisted `cart_public_id` plus `cart_client_secret`, then server cart read/refresh; never reset a non-empty active cart to fixture defaults.
 - [x] Attach `x-cart-id` and `x-cart-secret` headers to guest cart, checkout draft, and PayPal express create-order API calls whenever an active guest cart binding exists.
-- [ ] Keep cart and minicart state bound on `/checkout`, including cart count and minicart contents.
+- [x] Keep cart and minicart state bound on `/checkout`, including cart count and minicart contents.
 - [x] Add minicart quantity controls that use the same server-backed cart update/reconcile path as the full cart, or explicitly disable/defer with buyer-facing copy before closing this slice.
 - [ ] Gate checkout and express PayPal create-order on server-ready cart/draft bindings; do not call PayPal with fixture draft IDs, missing cart IDs, or stale cart data.
 - [ ] Recover Pickup initial state separation: guest flow starts with ZIP/postcode only and no preselected store/default-address summary; logged-in flow may preselect nearest/default-address store.

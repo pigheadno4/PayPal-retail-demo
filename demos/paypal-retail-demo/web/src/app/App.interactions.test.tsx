@@ -222,6 +222,60 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
   });
 
+  it("keeps active cart count and minicart contents when navigating to checkout", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 2,
+        unitPriceMinor: 1399,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 2,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Delivery or Pickup" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("2");
+    });
+    expect(apiClient.calls).toContainEqual({
+      method: "post",
+      path: "/api/cart/refresh",
+      body: { trigger: "checkout_start" },
+      query: { market: "US" },
+      options: {
+        headers: {
+          "x-cart-id": "cart_public_existing",
+          "x-cart-secret": "cart_secret_existing",
+        },
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
+    expect(
+      within(minicart).getByText(
+        "Flexible payment options may be available for $27.98 at checkout.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("attaches guest cart headers to cart refresh and checkout draft updates", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
