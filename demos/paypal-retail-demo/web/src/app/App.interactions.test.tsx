@@ -776,6 +776,97 @@ describe("App buyer interactions", () => {
     expect(screen.getByText("Amount verified")).toBeTruthy();
   });
 
+  it("captures the express review order only after the buyer confirms", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponse: expressReviewApiResponse(),
+      postResponse: captureApiResponse(),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("DO-20260601-000002")).toBeTruthy();
+    });
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/paypal/orders/PAYPAL_ORDER_EXPRESS/capture",
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Confirm and pay" }));
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {},
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_EXPRESS/capture",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+    });
+    expect(screen.getAllByText("Payment captured")).toHaveLength(2);
+    expect(screen.getByText("PAYPAL_CAPTURE_EXPRESS")).toBeTruthy();
+    expect(getShellStatusText()).toContain(
+      "Payment captured for order DO-20260601-000002.",
+    );
+  });
+
+  it("does not capture from express review when the amount guard blocks payment", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponse: expressReviewApiResponse({
+        amountGuard: {
+          action: "block_capture",
+          canCapture: false,
+          mismatches: [
+            {
+              reason: "final_total_mismatch",
+            },
+          ],
+          status: "mismatch",
+          toleranceMinor: 0,
+        },
+      }),
+      postResponse: captureApiResponse(),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Amount mismatch detected")).toBeTruthy();
+    });
+
+    const confirmButton = screen.getByRole("button", {
+      name: "Confirm and pay",
+    });
+    expect((confirmButton as HTMLButtonElement).disabled).toBe(true);
+    await user.click(confirmButton);
+
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/paypal/orders/PAYPAL_ORDER_EXPRESS/capture",
+      }),
+    );
+  });
+
   it("switches eligible checkout wallet radios into the selected order summary action", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1631,7 +1722,23 @@ function checkoutDraftApiResponse({
   };
 }
 
-function expressReviewApiResponse() {
+function expressReviewApiResponse({
+  amountGuard = {
+    action: "allow_capture",
+    canCapture: true,
+    mismatches: [],
+    status: "matched",
+    toleranceMinor: 0,
+  },
+}: {
+  readonly amountGuard?: {
+    readonly action: "allow_capture" | "block_capture";
+    readonly canCapture: boolean;
+    readonly mismatches: readonly unknown[];
+    readonly status: "matched" | "mismatch";
+    readonly toleranceMinor: number;
+  };
+} = {}) {
   return {
     source_label: "Delivery express",
     order_number: "DO-20260601-000002",
@@ -1668,6 +1775,25 @@ function expressReviewApiResponse() {
       total_minor: 3856,
       currency_code: "USD",
     },
+    amount_guard: {
+      action: amountGuard.action,
+      status: amountGuard.status,
+      can_capture: amountGuard.canCapture,
+      tolerance_minor: amountGuard.toleranceMinor,
+      mismatches: amountGuard.mismatches,
+    },
+  };
+}
+
+function captureApiResponse() {
+  return {
+    order_number: "DO-20260601-000002",
+    payment_session_id: "payment_session_express_existing",
+    paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+    paypal_capture_id: "PAYPAL_CAPTURE_EXPRESS",
+    paypal_order_status: "COMPLETED",
+    paypal_capture_status: "COMPLETED",
+    paypal_request_id: "request-capture-express",
     amount_guard: {
       action: "allow_capture",
       status: "matched",

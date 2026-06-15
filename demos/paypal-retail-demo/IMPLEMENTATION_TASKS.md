@@ -421,8 +421,8 @@ Purpose: stabilize the cart/draft/payment readiness layer before confirm-trigger
 
 ### Milestone 13 Capture Completion
 
-- [ ] Capture only when buyer confirms.
-- [ ] Block capture if amount consistency guard fails.
+- [x] Capture only when buyer confirms.
+- [x] Block capture if amount consistency guard fails.
 
 Verification:
 
@@ -433,6 +433,7 @@ Verification:
 - Checkout route does not reset cart count or minicart contents.
 - Minicart quantity edits reconcile with the same server-backed cart path as full cart edits.
 - Guest cart-backed API calls include both `x-cart-id` and `x-cart-secret`; missing bindings block checkout/create-order with buyer-safe copy.
+- Review and Confirm posts capture only from the buyer Confirm and pay action, shows captured/error status, and never posts capture when the amount guard blocks payment.
 - Pickup guest flow does not preselect a store or default address before ZIP/postcode submit, and market-specific defaults match the active market.
 - Pay Later official button is absent while eligibility is loading/ineligible and appears only when eligible details are available.
 - PayPal create-order failures leave visible merchant-side error/debug evidence.

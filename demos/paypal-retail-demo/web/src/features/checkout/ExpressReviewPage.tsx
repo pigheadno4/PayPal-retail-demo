@@ -43,14 +43,28 @@ export interface ExpressReviewPageData {
   readonly amountGuard: ExpressReviewAmountGuard;
 }
 
+export interface ExpressReviewCaptureState {
+  readonly status: "idle" | "capturing" | "captured" | "error";
+  readonly message?: string;
+  readonly captureId?: string;
+  readonly debugId?: string;
+}
+
 export interface ExpressReviewPageProps {
+  readonly captureState?: ExpressReviewCaptureState;
   readonly data?: ExpressReviewPageData;
+  readonly onConfirmCapture?: () => void;
 }
 
 export function ExpressReviewPage({
+  captureState = { status: "idle" },
   data = defaultExpressReviewPageData,
+  onConfirmCapture,
 }: ExpressReviewPageProps) {
   const captureBlocked = data.amountGuard.status === "blocked";
+  const captureBusy = captureState.status === "capturing";
+  const captureComplete = captureState.status === "captured";
+  const captureDisabled = captureBlocked || captureBusy || captureComplete;
 
   return (
     <div className="express-review-page">
@@ -144,11 +158,28 @@ export function ExpressReviewPage({
           </dl>
           <button
             className="button button--primary"
-            disabled={captureBlocked}
+            disabled={captureDisabled}
+            onClick={onConfirmCapture}
             type="button"
           >
-            Confirm and pay
+            {captureBusy ? "Capturing payment..." : "Confirm and pay"}
           </button>
+          {captureState.message ? (
+            <section
+              aria-label="Payment capture status"
+              className="express-review-capture-status"
+              data-capture-status={captureState.status}
+              role={captureState.status === "error" ? "alert" : "status"}
+            >
+              <strong>{captureState.message}</strong>
+              {captureState.captureId ? (
+                <span>{captureState.captureId}</span>
+              ) : null}
+              {captureState.debugId ? (
+                <small>Debug reference: {captureState.debugId}</small>
+              ) : null}
+            </section>
+          ) : null}
         </aside>
       </div>
     </div>

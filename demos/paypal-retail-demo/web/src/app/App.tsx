@@ -48,6 +48,7 @@ import {
 import {
   defaultExpressReviewPageData,
   ExpressReviewPage,
+  type ExpressReviewCaptureState,
   type ExpressReviewPageData,
 } from "../features/checkout/ExpressReviewPage.js";
 import {
@@ -106,6 +107,17 @@ interface BuyerNavigationContext {
 }
 
 type CartRefreshTrigger = "checkout_start" | "express_payment_start";
+
+interface CaptureOrderApiResponse {
+  readonly order_number: string;
+  readonly payment_session_id: string;
+  readonly paypal_order_id: string;
+  readonly paypal_capture_id: string;
+  readonly paypal_order_status: string;
+  readonly paypal_capture_status: string;
+  readonly paypal_request_id: string;
+  readonly amount_guard: unknown;
+}
 
 export function App({
   apiClient,
@@ -182,6 +194,8 @@ function BuyerShell({
   const [currentCart, setCurrentCart] = useState(cartData);
   const [currentExpressReviewData, setCurrentExpressReviewData] =
     useState(expressReviewData);
+  const [currentExpressCaptureState, setCurrentExpressCaptureState] =
+    useState<ExpressReviewCaptureState>({ status: "idle" });
   const [currentMinicartState, setCurrentMinicartState] =
     useState(minicartState);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
@@ -277,6 +291,7 @@ function BuyerShell({
         setCurrentExpressReviewData(
           mapExpressReviewDataFromApiResponse(response, config.market.locale),
         );
+        setCurrentExpressCaptureState({ status: "idle" });
         setShellStatus("Loaded synchronized express review snapshot.");
       })
       .catch((error: unknown) => {
@@ -466,6 +481,7 @@ function BuyerShell({
       paymentMethodLabel,
       paypalOrderId: context.paypalOrderId,
     }));
+    setCurrentExpressCaptureState({ status: "idle" });
     setCurrentMinicartState("closed");
     setCurrentRoute({
       scope: "buyer",
@@ -474,6 +490,73 @@ function BuyerShell({
     setCurrentLocation(reviewPath);
     pushBuyerHistory(reviewPath);
     setShellStatus(`${paymentMethodLabel} delivery express approved.`);
+  }
+
+  async function handleExpressReviewCapture() {
+    const paypalOrderId = currentExpressReviewData.paypalOrderId.trim();
+
+    if (currentExpressReviewData.amountGuard.status === "blocked") {
+      setCurrentExpressCaptureState({
+        status: "error",
+        message:
+          "Payment cannot be captured until the synchronized amounts match.",
+      });
+      setShellStatus("Payment capture blocked by amount guard.");
+      return;
+    }
+
+    if (!paypalOrderId) {
+      setCurrentExpressCaptureState({
+        status: "error",
+        message:
+          "Payment cannot be captured because the PayPal order is missing.",
+      });
+      setShellStatus("Payment capture missing PayPal order ID.");
+      return;
+    }
+
+    setCurrentExpressCaptureState({
+      status: "capturing",
+      message: "Capturing payment...",
+    });
+    setShellStatus("Capturing PayPal payment.");
+
+    try {
+      const response = await apiClient.post<CaptureOrderApiResponse>(
+        `/api/paypal/orders/${encodeURIComponent(paypalOrderId)}/capture`,
+        {},
+        {
+          market: config.market.code,
+        },
+      );
+
+      setCurrentExpressCaptureState({
+        status: "captured",
+        message: "Payment captured",
+        captureId: response.paypal_capture_id,
+      });
+      setCurrentExpressReviewData((data) => ({
+        ...data,
+        merchantOrderNumber: response.order_number,
+        paypalOrderId: response.paypal_order_id,
+        statusLabel: "Payment captured",
+      }));
+      setShellStatus(`Payment captured for order ${response.order_number}.`);
+    } catch (error) {
+      const debugId = resolveApiClientDebugId(error);
+
+      console.error("[paypal-retail-demo] Express review capture failed", {
+        error,
+        paypalOrderId,
+      });
+      setCurrentExpressCaptureState({
+        status: "error",
+        message:
+          "Payment capture failed. Please retry or choose another method.",
+        ...(debugId ? { debugId } : {}),
+      });
+      setShellStatus("Payment capture failed. Please retry.");
+    }
   }
 
   return (
@@ -516,9 +599,11 @@ function BuyerShell({
           cartData={currentCart}
           checkoutData={checkoutData}
           expressReviewData={currentExpressReviewData}
+          expressCaptureState={currentExpressCaptureState}
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
           onCheckoutDraftUpdate={updateCheckoutDraft}
+          onExpressReviewCapture={handleExpressReviewCapture}
           renderDeliveryExpressAction={(method, source, totalLabel) =>
             renderDeliveryExpressAction({
               cart: currentCart,
@@ -599,9 +684,11 @@ function RouteStage({
   cartData,
   checkoutData,
   expressReviewData,
+  expressCaptureState,
   onAddProductToCart,
   onCartQuantityChange,
   onCheckoutDraftUpdate,
+  onExpressReviewCapture,
   onNavigate,
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
@@ -615,6 +702,7 @@ function RouteStage({
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
   readonly expressReviewData: ExpressReviewPageData;
+  readonly expressCaptureState: ExpressReviewCaptureState;
   readonly onAddProductToCart: (product: ProductDetailPageData) => void;
   readonly onCartQuantityChange: (
     slug: string,
@@ -625,6 +713,7 @@ function RouteStage({
     request: CheckoutDraftUpdateRequest,
     currentData: CheckoutPageData,
   ) => Promise<CheckoutPageData>;
+  readonly onExpressReviewCapture: () => void;
   readonly onNavigate: (
     navigation: BuyerNavigationContext,
   ) => void | Promise<void>;
@@ -656,7 +745,13 @@ function RouteStage({
   }
 
   if (route.page === "express_review") {
-    return <ExpressReviewPage data={expressReviewData} />;
+    return (
+      <ExpressReviewPage
+        captureState={expressCaptureState}
+        data={expressReviewData}
+        onConfirmCapture={onExpressReviewCapture}
+      />
+    );
   }
 
   if (route.page === "cart") {
@@ -724,6 +819,15 @@ const starterCartProductIdsBySlug: Readonly<Record<string, string>> = {
   "labubu-have-a-seat": "2399a35e-ea68-566d-a6cf-f6ad63425e05",
   "hirono-little-mischief": "579f3095-579d-5c95-9260-9ecdb5306b9c",
 };
+
+function resolveApiClientDebugId(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("debugId" in error)) {
+    return undefined;
+  }
+
+  const debugId = (error as { readonly debugId?: unknown }).debugId;
+  return typeof debugId === "string" && debugId.trim() ? debugId : undefined;
+}
 
 function buildCartRequestOptions(
   cart: CartBinding,

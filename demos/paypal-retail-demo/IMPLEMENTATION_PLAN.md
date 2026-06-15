@@ -85,6 +85,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Subscribe to `SHIPPING_ADDRESS` first. Add `SHIPPING_OPTIONS` only if implementation needs recalculation when the buyer changes the selected option inside PayPal.
 - Callback responses must keep PayPal amount breakdown internally consistent: selected shipping cost, item total, tax total, currency, and purchase unit total must all match the merchant snapshot.
 - After PayPal approval, show merchant Review and Confirm at `/checkout/express-review?paypal_order_id={paypalOrderId}` for express only. The page loads `GET /api/paypal/orders/express-review` from the latest synchronized PayPal shipping-update snapshot, then captures only after final buyer confirmation and amount consistency verification.
+- M13 Capture Completion is wired in the buyer app: Review and Confirm posts `/api/paypal/orders/:paypalOrderId/capture` only after Confirm and pay, shows captured/error status with the capture ID or debug reference, and keeps the buyer confirm action disabled when the amount guard is blocked.
 - Backend capture uses the locked merchant/provider amount snapshot before calling PayPal; the sanitized Orders capture response is stored for Admin/debug review.
 - Successful capture is the durable finalization point: order status becomes paid, payment session becomes captured, inventory decrements, lifecycle/total snapshots are written, and only paid order items are removed from the active cart.
 
