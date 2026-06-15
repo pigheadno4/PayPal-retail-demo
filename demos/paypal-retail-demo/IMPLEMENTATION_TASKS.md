@@ -408,6 +408,7 @@ Verification:
 Purpose: stabilize the cart/draft/payment readiness layer before confirm-triggered capture.
 
 - [x] Restore browser cart binding on app load/refresh from persisted `cart_public_id` plus `cart_client_secret`, then server cart read/refresh; never reset a non-empty active cart to fixture defaults.
+- [x] Bootstrap a fresh browser with no persisted cart binding by creating/reading a server guest cart, persisting the opaque binding, seeding starter cart items through `/api/cart/items`, and using returned server cart item IDs for later quantity edits.
 - [x] Attach `x-cart-id` and `x-cart-secret` headers to guest cart, checkout draft, and PayPal express create-order API calls whenever an active guest cart binding exists.
 - [x] Keep cart and minicart state bound on `/checkout`, including cart count and minicart contents.
 - [x] Add minicart quantity controls that use the same server-backed cart update/reconcile path as the full cart, or explicitly disable/defer with buyer-facing copy before closing this slice.
@@ -416,7 +417,7 @@ Purpose: stabilize the cart/draft/payment readiness layer before confirm-trigger
 - [x] Prevent market fixture leakage in Pickup; US market must not show GB postcode defaults such as `W1F 7JL` unless the active market is GB.
 - [x] Add merchant-visible create-order failure handling for Supabase/PayPal failures with buyer-safe copy, debug ID, and retry affordance after popup close/failure.
 - [x] Gate Pay Later SDK v6 buttons with `useEligibleMethods`/`findEligibleMethods`, amount/currency payload, and `getDetails("paylater")` before rendering official Pay Later buttons.
-- [ ] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pickup guest/logged-in initial states, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
+- [x] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pickup guest/logged-in initial states, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
 
 ### Milestone 13 Capture Completion
 
@@ -428,6 +429,7 @@ Verification:
 - PDP/cart/minicart express returns to merchant Review and Confirm.
 - Full checkout does not add a separate Review and Confirm page.
 - Browser refresh preserves the active cart binding and reloads server cart data.
+- Fresh-browser starter carts are bridged into real Supabase cart rows before quantity edits; this is a tactical bridge until the buyer UI loads catalog products directly from the server.
 - Checkout route does not reset cart count or minicart contents.
 - Minicart quantity edits reconcile with the same server-backed cart path as full cart edits.
 - Guest cart-backed API calls include both `x-cart-id` and `x-cart-secret`; missing bindings block checkout/create-order with buyer-safe copy.

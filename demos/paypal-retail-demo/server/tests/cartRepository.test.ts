@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createSupabaseCartRepository,
+  mapCartItemWriteToSupabaseInsert,
   type CartDataSource,
   type CartItemRow,
   type CartMarketRow,
@@ -11,6 +12,24 @@ import {
 } from "../src/repositories/cartRepository.js";
 
 describe("Supabase-backed cart repository", () => {
+  it("omits stale cart item IDs from Supabase replace inserts", () => {
+    expect(
+      mapCartItemWriteToSupabaseInsert("cart_guest", {
+        id: "item_labubu",
+        product_id: "product_labubu",
+        quantity: 2,
+        unit_price_minor_snapshot: 1399,
+        updated_at: "2026-06-01T10:00:00.000Z",
+      }),
+    ).toEqual({
+      cart_id: "cart_guest",
+      product_id: "product_labubu",
+      quantity: 2,
+      unit_price_minor_snapshot: 1399,
+      updated_at: "2026-06-01T10:00:00.000Z",
+    });
+  });
+
   it("creates an empty guest cart with an opaque browser binding", async () => {
     const dataSource = createCartDataSource();
     const repository = createRepository(dataSource);

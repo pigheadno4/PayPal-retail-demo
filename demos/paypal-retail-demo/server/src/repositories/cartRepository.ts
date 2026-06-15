@@ -109,6 +109,19 @@ export interface CartDataSource {
   readonly markCartMerged: (cartId: string) => Promise<void>;
 }
 
+export function mapCartItemWriteToSupabaseInsert(
+  cartId: string,
+  item: CartItemWriteInput,
+) {
+  return {
+    cart_id: cartId,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    unit_price_minor_snapshot: item.unit_price_minor_snapshot,
+    updated_at: item.updated_at,
+  };
+}
+
 export interface CreateSupabaseCartRepositoryInput {
   readonly dataSource: CartDataSource;
   readonly now?: RepositoryNow;
@@ -1089,14 +1102,7 @@ export function createSupabaseCartDataSource(
         supabase
           .from("cart_items")
           .insert(
-            items.map((item) => ({
-              ...(item.id ? { id: item.id } : {}),
-              cart_id: cartId,
-              product_id: item.product_id,
-              quantity: item.quantity,
-              unit_price_minor_snapshot: item.unit_price_minor_snapshot,
-              updated_at: item.updated_at,
-            })),
+            items.map((item) => mapCartItemWriteToSupabaseInsert(cartId, item)),
           )
           .select(cartItemColumns),
         `Replace cart items ${cartId}`,

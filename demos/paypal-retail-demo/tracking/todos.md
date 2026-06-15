@@ -113,6 +113,7 @@
 - [x] Start Milestone 13.1 cart, checkout draft, and Pay Later recovery before confirm/capture work resumes.
 - [x] Restore active browser cart binding from local cart ID/secret plus server cart read/refresh after browser reload.
 - [x] Persist only opaque cart binding data in the browser: `cart_public_id` plus `cart_client_secret`, not full fixture cart contents as source of truth.
+- [x] Bootstrap fresh browsers with no persisted cart binding by creating/reading a server guest cart, saving the opaque binding, and seeding starter items into real cart rows before buyer quantity edits.
 - [x] Attach paired `x-cart-id` and `x-cart-secret` headers on guest cart, checkout draft, and PayPal express API calls.
 - [x] Keep cart count and minicart contents stable when navigating to `/checkout`.
 - [x] Add minicart quantity controls using the same server-backed update/reconcile path as full cart, or explicitly defer with buyer-facing copy.

@@ -154,6 +154,8 @@
 - [x] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side quantity, price, and checkout-blocker reconciliation is visible.
 - [x] M13.1 browser refresh restores active cart binding and server cart data instead of resetting to fixture/default cart.
 - [x] M13.1 browser stores and reloads only opaque cart binding data: `cart_public_id` plus `cart_client_secret`.
+- [x] M13.1 fresh browser load creates/reads a server guest cart, stores the opaque binding, seeds starter items through `/api/cart/items`, and uses returned server item IDs/headers for quantity PATCH calls.
+- [x] M13.1 server cart reconciliation preserves curated storefront labels/routes/images for tactical POP MART starter items after quantity PATCH, refresh, and checkout route transitions.
 - [x] M13.1 guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
 - [x] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
 - [x] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
@@ -214,7 +216,7 @@
 - [x] Web API client uses `VITE_API_BASE_URL` for browser API calls, Vite loads the demo-root `.env`, and Express allows the configured app origin plus local loopback alias so checkout can fetch PayPal SDK config from the API server.
 - [x] Browser QA verifies checkout loads PayPal SDK v6 assets and renders the official "Pay with PayPal" button after local API/CORS fixes.
 - [x] PDP/cart/minicart official PayPal express controls render via SDK v6 and call `/api/paypal/orders/express-delivery` with the active cart binding.
-- [ ] PDP/cart/minicart official Pay Later express controls visibly render after SDK v6 eligibility/details and call `/api/paypal/orders/express-delivery` with the active cart binding.
+- [x] PDP/cart/minicart official Pay Later express controls visibly render after SDK v6 eligibility/details and call `/api/paypal/orders/express-delivery` with the active cart binding.
 - [x] Initial checkout load does not render an official PayPal/Pay Later/card/wallet action until the Payment section is active and the matching radio method is selected.
 - [x] Delivery shipping address submit shows pending state, saves through the backend, collapses the section, and exposes Edit without leaving another section expanded.
 - [x] Delivery billing address submit shows pending state, saves through the backend, collapses the section, exposes Edit, and advances to Shipping options.

@@ -450,6 +450,108 @@ describe("App buyer interactions", () => {
     });
   });
 
+  it("acquires and persists a guest cart binding on fresh browser load before quantity edits", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponse: emptyCartApiResponse({
+        cartClientSecret: "cart_secret_fresh",
+        cartPublicId: "cart_public_fresh",
+      }),
+      patchResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_fresh",
+        cartItemId: "cart_item_server_labubu",
+        cartPublicId: "cart_public_fresh",
+        name: "Molly Blind Boxes 2",
+        productId: "2399a35e-ea68-566d-a6cf-f6ad63425e05",
+        quantity: 2,
+        slug: "blind-boxes-2",
+        unitPriceMinor: 1299,
+      }),
+      postResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_fresh",
+        cartItemId: "cart_item_server_labubu",
+        cartPublicId: "cart_public_fresh",
+        name: "Molly Blind Boxes 2",
+        productId: "2399a35e-ea68-566d-a6cf-f6ad63425e05",
+        quantity: 1,
+        slug: "blind-boxes-2",
+        unitPriceMinor: 1299,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/cart",
+        query: { market: "US" },
+        options: undefined,
+      });
+    });
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            product_id: "2399a35e-ea68-566d-a6cf-f6ad63425e05",
+            quantity: 1,
+          },
+          method: "post",
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_fresh",
+              "x-cart-secret": "cart_secret_fresh",
+            },
+          },
+          path: "/api/cart/items",
+        }),
+      );
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: "/api/cart/items/cart_item_server_labubu",
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_fresh",
+              "x-cart-secret": "cart_secret_fresh",
+            },
+          },
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Increase Labubu Have a Seat quantity",
+        }),
+      ).toBeTruthy();
+    });
+    expect(screen.queryByText("Molly Blind Boxes 2")).toBeNull();
+    expect(
+      window.localStorage.getItem("paypal-retail-demo:cart-binding:popmart:US"),
+    ).toBe(
+      JSON.stringify({
+        cart_public_id: "cart_public_fresh",
+        cart_client_secret: "cart_secret_fresh",
+      }),
+    );
+  });
+
   it("reconciles server cart responses back into cart and minicart UI", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1375,13 +1477,21 @@ function sdkComponentsForMethod(method: string): readonly string[] {
 
 function cartApiResponse({
   cartClientSecret,
+  cartItemId = "cart_item_labubu",
   cartPublicId = "cart_public_existing",
+  name = "Labubu Have a Seat",
+  productId = "product_labubu",
   quantity,
+  slug = "labubu-have-a-seat",
   unitPriceMinor,
 }: {
   readonly cartClientSecret?: string;
+  readonly cartItemId?: string;
   readonly cartPublicId?: string;
+  readonly name?: string;
+  readonly productId?: string;
   readonly quantity: number;
+  readonly slug?: string;
   readonly unitPriceMinor: number;
 }) {
   return {
@@ -1395,10 +1505,10 @@ function cartApiResponse({
       currency_code: "USD",
       items: [
         {
-          id: "cart_item_labubu",
-          product_id: "product_labubu",
-          slug: "labubu-have-a-seat",
-          name: "Labubu Have a Seat",
+          id: cartItemId,
+          product_id: productId,
+          slug,
+          name,
           image_path: "/assets/popmart/products/labubu-have-a-seat-1.svg",
           quantity,
           unit_price_minor: unitPriceMinor,
@@ -1417,6 +1527,37 @@ function cartApiResponse({
             cart_client_secret: cartClientSecret,
           }
         : null,
+    },
+    adjustments: [],
+  };
+}
+
+function emptyCartApiResponse({
+  cartClientSecret,
+  cartPublicId,
+}: {
+  readonly cartClientSecret: string;
+  readonly cartPublicId: string;
+}) {
+  return {
+    cart: {
+      id: "cart_guest_us",
+      cart_public_id: cartPublicId,
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      buyer_kind: "guest",
+      status: "active",
+      currency_code: "USD",
+      items: [],
+      totals: {
+        item_count: 0,
+        subtotal_minor: 0,
+        currency_code: "USD",
+      },
+      binding: {
+        cart_public_id: cartPublicId,
+        cart_client_secret: cartClientSecret,
+      },
     },
     adjustments: [],
   };

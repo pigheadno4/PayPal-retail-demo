@@ -16,6 +16,7 @@ import {
   setCartItemQuantity,
   type CartApiResponse,
   type CartData,
+  type CartItem,
 } from "../features/cart/cartModel.js";
 import {
   CategoryPage,
@@ -188,36 +189,56 @@ function BuyerShell({
 
   useEffect(() => {
     const storedBinding = readStoredCartBinding(config);
-
-    if (!storedBinding) {
-      return;
-    }
-
     let active = true;
+
     void apiClient
       .get<CartApiResponse>(
         "/api/cart",
         {
           market: config.market.code,
         },
-        buildCartRequestOptions(storedBinding),
+        storedBinding ? buildCartRequestOptions(storedBinding) : undefined,
       )
-      .then((response) => {
+      .then(async (response) => {
         if (!active) {
           return;
         }
-        setCurrentCart((cart) => {
-          const nextCart = reconcileCartDataFromApiResponse(
-            {
-              ...cart,
-              ...storedBinding,
-            },
-            response,
-          );
-          persistCartBinding(config, nextCart);
-          return nextCart;
-        });
-        setShellStatus("Restored saved cart.");
+        const starterCart = applyStarterCartProductIds(cartData);
+        const reconciledCart = reconcileCartDataForStorefront(
+          {
+            ...starterCart,
+            ...(storedBinding ?? {}),
+          },
+          response,
+          starterCart,
+        );
+        persistCartBinding(config, reconciledCart);
+
+        if (
+          !storedBinding &&
+          shouldSeedStarterCart(cartData, response, reconciledCart)
+        ) {
+          const seededCart = await seedStarterCart({
+            apiClient,
+            config,
+            serverCart: reconciledCart,
+            starterCart,
+          });
+
+          if (!active) {
+            return;
+          }
+
+          setCurrentCart(seededCart);
+          persistCartBinding(config, seededCart);
+          setShellStatus("Prepared guest cart.");
+          return;
+        }
+
+        setCurrentCart(reconciledCart);
+        setShellStatus(
+          storedBinding ? "Restored saved cart." : "Prepared guest cart.",
+        );
       })
       .catch((error: unknown) => {
         if (!active) {
@@ -231,7 +252,7 @@ function BuyerShell({
     return () => {
       active = false;
     };
-  }, [apiClient, config]);
+  }, [apiClient, cartData, config]);
 
   useEffect(() => {
     if (currentRoute.page !== "express_review") {
@@ -338,7 +359,11 @@ function BuyerShell({
 
   function reconcileServerCart(response: CartApiResponse) {
     setCurrentCart((cart) => {
-      const nextCart = reconcileCartDataFromApiResponse(cart, response);
+      const nextCart = reconcileCartDataForStorefront(
+        cart,
+        response,
+        applyStarterCartProductIds(cartData),
+      );
       persistCartBinding(config, nextCart);
       return nextCart;
     });
@@ -695,6 +720,11 @@ function RouteStage({
 
 type CartBinding = Pick<CartData, "cartClientSecret" | "cartPublicId">;
 
+const starterCartProductIdsBySlug: Readonly<Record<string, string>> = {
+  "labubu-have-a-seat": "2399a35e-ea68-566d-a6cf-f6ad63425e05",
+  "hirono-little-mischief": "579f3095-579d-5c95-9260-9ecdb5306b9c",
+};
+
 function buildCartRequestOptions(
   cart: CartBinding,
 ): ApiRequestOptions | undefined {
@@ -708,6 +738,133 @@ function buildCartRequestOptions(
       "x-cart-secret": cart.cartClientSecret,
     },
   };
+}
+
+function shouldSeedStarterCart(
+  starterCart: CartData,
+  response: CartApiResponse,
+  serverCart: CartData,
+): boolean {
+  return (
+    starterCart.items.length > 0 &&
+    serverCart.items.length === 0 &&
+    Array.isArray(response.cart?.items) &&
+    response.cart.items.length === 0 &&
+    hasServerReadyCartBinding(serverCart)
+  );
+}
+
+async function seedStarterCart({
+  apiClient,
+  config,
+  serverCart,
+  starterCart,
+}: {
+  readonly apiClient: ApiClient;
+  readonly config: StorefrontRuntimeConfig;
+  readonly serverCart: CartData;
+  readonly starterCart: CartData;
+}): Promise<CartData> {
+  let nextCart = serverCart;
+
+  for (const item of starterCart.items) {
+    const productId = resolveStarterCartProductId(item);
+
+    if (!productId || item.quantity <= 0) {
+      continue;
+    }
+
+    const response = await apiClient.post<CartApiResponse>(
+      "/api/cart/items",
+      {
+        product_id: productId,
+        quantity: item.quantity,
+      },
+      {
+        market: config.market.code,
+      },
+      buildCartRequestOptions(nextCart),
+    );
+    nextCart = reconcileCartDataForStorefront(
+      mergeStarterCartMetadata(nextCart, starterCart),
+      response,
+      starterCart,
+    );
+  }
+
+  return nextCart;
+}
+
+function reconcileCartDataForStorefront(
+  cart: CartData,
+  response: CartApiResponse,
+  starterCart: CartData,
+): CartData {
+  return applyStarterCartDisplayMetadata(
+    reconcileCartDataFromApiResponse(cart, response),
+    starterCart,
+  );
+}
+
+function applyStarterCartProductIds(cart: CartData): CartData {
+  return {
+    ...cart,
+    items: cart.items.map((item) => {
+      const productId = starterCartProductIdsBySlug[item.slug];
+
+      return productId ? { ...item, productId } : item;
+    }),
+  };
+}
+
+function mergeStarterCartMetadata(
+  cart: CartData,
+  starterCart: CartData,
+): CartData {
+  return {
+    ...cart,
+    items: [...cart.items, ...starterCart.items],
+  };
+}
+
+function applyStarterCartDisplayMetadata(
+  cart: CartData,
+  starterCart: CartData,
+): CartData {
+  const starterItemsByProductId = new Map(
+    starterCart.items
+      .filter((item) => item.productId)
+      .map((item) => [item.productId as string, item]),
+  );
+
+  return {
+    ...cart,
+    items: cart.items.map((item) => {
+      const starterItem = item.productId
+        ? starterItemsByProductId.get(item.productId)
+        : undefined;
+
+      if (!starterItem) {
+        return item;
+      }
+
+      return {
+        ...item,
+        categoryName: starterItem.categoryName,
+        href: starterItem.href,
+        imageAlt: starterItem.imageAlt,
+        imagePath: starterItem.imagePath,
+        maxQuantity: Math.max(starterItem.maxQuantity, item.quantity),
+        name: starterItem.name,
+        regularPriceLabel: starterItem.regularPriceLabel,
+        slug: starterItem.slug,
+      };
+    }),
+  };
+}
+
+function resolveStarterCartProductId(item: CartItem): string | undefined {
+  return starterCartProductIdsBySlug[item.slug] ?? item.productId;
 }
 
 function hasServerReadyCartBinding(
