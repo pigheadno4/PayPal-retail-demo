@@ -14,6 +14,52 @@ import type {
 import { requestApp } from "./helpers/requestApp.js";
 
 describe("Account routes", () => {
+  it("looks up an existing account email for the email-first auth modal", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(app, "POST", "/api/account/auth/lookup", {
+      json: {
+        email: " Alice.LA@Example.Test ",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        email: "alice.la@example.test",
+        status: "existing",
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.lookupCalls).toEqual(["alice.la@example.test"]);
+  });
+
+  it("returns a new-account branch for unknown account email lookup", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(app, "POST", "/api/account/auth/lookup", {
+      json: {
+        email: "new.collector@example.test",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        email: "new.collector@example.test",
+        status: "new",
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.lookupCalls).toEqual([
+      "new.collector@example.test",
+    ]);
+  });
+
   it("lists saved payments for the authenticated buyer", async () => {
     const accountRepository = createAccountRepository();
     const app = createAccountApp(accountRepository);
@@ -108,6 +154,7 @@ describe("Account routes", () => {
 });
 
 interface FakeAccountRepository extends AccountRepository {
+  readonly lookupCalls: string[];
   readonly listCalls: string[];
   readonly prepareDeleteCalls: {
     readonly authUserId: string;
@@ -124,19 +171,35 @@ function createAccountRepository(
     readonly refreshedSavedPayments?: readonly AccountSavedPaymentMethod[];
   } = {},
 ): FakeAccountRepository {
+  const lookupCalls: string[] = [];
   const listCalls: string[] = [];
   const prepareDeleteCalls: FakeAccountRepository["prepareDeleteCalls"] = [];
   const completeDeleteCalls: FakeAccountRepository["completeDeleteCalls"] = [];
 
   return {
+    lookupCalls,
     listCalls,
     prepareDeleteCalls,
     completeDeleteCalls,
+    async lookupAuthEmail(email) {
+      lookupCalls.push(email);
+      return email === "alice.la@example.test"
+        ? {
+            email: "alice.la@example.test",
+            status: "existing",
+          }
+        : {
+            email,
+            status: "new",
+          };
+    },
     async listSavedPayments(authUserId) {
       listCalls.push(authUserId);
       return [activeSavedPayment()];
     },
-    async prepareSavedPaymentDelete(input): Promise<PreparedSavedPaymentDelete | null> {
+    async prepareSavedPaymentDelete(
+      input,
+    ): Promise<PreparedSavedPaymentDelete | null> {
       prepareDeleteCalls.push(input);
       return input.savedPaymentId === "saved_payment_123"
         ? {

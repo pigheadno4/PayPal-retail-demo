@@ -440,7 +440,8 @@ Verification:
 
 ## Milestone 14: Account, Guest, Reviews
 
-- [ ] Implement email-first login/register modal.
+- [x] Implement email-first login/register modal branching with server email lookup.
+- [ ] Wire Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
 - [ ] Implement account settings profile info.
 - [ ] Implement address book with default delete constraints.
 - [ ] Implement saved payment list/delete.

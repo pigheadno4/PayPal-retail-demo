@@ -1,4 +1,5 @@
 import type {
+  AccountAuthEmailLookupResult,
   AccountRepository,
   AccountSavedPaymentMethod,
   PreparedSavedPaymentDelete,
@@ -23,7 +24,14 @@ export interface AccountSavedPaymentMethodRow {
   readonly updated_at: string;
 }
 
+export interface AccountUserProfileRow {
+  readonly email: string;
+}
+
 export interface AccountDataSource {
+  readonly findUserProfileByEmail: (
+    email: string,
+  ) => Promise<AccountUserProfileRow | null>;
   readonly listSavedPaymentMethods: (
     authUserId: string,
   ) => Promise<readonly AccountSavedPaymentMethodRow[]>;
@@ -46,6 +54,16 @@ export function createSupabaseAccountRepository(
   input: CreateSupabaseAccountRepositoryInput,
 ): AccountRepository {
   return {
+    async lookupAuthEmail(email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const profile =
+        await input.dataSource.findUserProfileByEmail(normalizedEmail);
+
+      return {
+        email: profile ? profile.email.trim().toLowerCase() : normalizedEmail,
+        status: profile ? "existing" : "new",
+      } satisfies AccountAuthEmailLookupResult;
+    },
     async listSavedPayments(authUserId) {
       const rows = await input.dataSource.listSavedPaymentMethods(authUserId);
       return rows.map(mapSavedPaymentMethod);
@@ -149,10 +167,22 @@ const savedPaymentMethodColumns = [
   "updated_at",
 ].join(", ");
 
+const userProfileColumns = ["email"].join(", ");
+
 export function createSupabaseAccountDataSource(
   supabase: SupabaseAccountClient,
 ): AccountDataSource {
   return {
+    async findUserProfileByEmail(email) {
+      return queryOne<AccountUserProfileRow>(
+        supabase
+          .from("user_profiles")
+          .select(userProfileColumns)
+          .eq("email", email)
+          .maybeSingle(),
+        `Find user profile ${email}`,
+      );
+    },
     async listSavedPaymentMethods(authUserId) {
       return queryMany<AccountSavedPaymentMethodRow>(
         supabase

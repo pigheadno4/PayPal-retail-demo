@@ -15,12 +15,22 @@ export interface AccountSavedPaymentMethod {
   readonly label: string | null;
 }
 
+export type AccountAuthEmailLookupStatus = "existing" | "new";
+
+export interface AccountAuthEmailLookupResult {
+  readonly email: string;
+  readonly status: AccountAuthEmailLookupStatus;
+}
+
 export interface PreparedSavedPaymentDelete {
   readonly savedPaymentId: string;
   readonly vaultId: string | null;
 }
 
 export interface AccountRepository {
+  readonly lookupAuthEmail: (
+    email: string,
+  ) => Promise<AccountAuthEmailLookupResult>;
   readonly listSavedPayments: (
     authUserId: string,
   ) => Promise<readonly AccountSavedPaymentMethod[]>;
@@ -41,6 +51,26 @@ export interface CreateAccountRouterInput {
 
 export function createAccountRouter(input: CreateAccountRouterInput): Router {
   const router = Router();
+
+  router.post(
+    "/account/auth/lookup",
+    asyncRoute(async (request, response) => {
+      const email = normalizeAuthEmail(
+        typeof request.body?.email === "string" ? request.body.email : "",
+      );
+
+      if (!email) {
+        sendApiError(response, 400, {
+          code: "INVALID_AUTH_LOOKUP_REQUEST",
+          message: "A valid email is required.",
+        });
+        return;
+      }
+
+      const lookupResult = await input.accountRepository.lookupAuthEmail(email);
+      sendApiSuccess(response, lookupResult);
+    }),
+  );
 
   router.get(
     "/account/saved-payments",
@@ -134,6 +164,23 @@ function firstRouteParamValue(request: Request, key: string): string | null {
 
   const trimmedValue = firstValue.trim();
   return trimmedValue ? trimmedValue : null;
+}
+
+function normalizeAuthEmail(value: string): string | null {
+  const email = value.trim().toLowerCase();
+  const atIndex = email.indexOf("@");
+  const dotIndex = email.lastIndexOf(".");
+
+  if (
+    atIndex <= 0 ||
+    atIndex !== email.lastIndexOf("@") ||
+    dotIndex <= atIndex + 1 ||
+    dotIndex >= email.length - 1
+  ) {
+    return null;
+  }
+
+  return email;
 }
 
 function asyncRoute(handler: RequestHandler): RequestHandler {

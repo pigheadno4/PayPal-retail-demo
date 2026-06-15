@@ -125,6 +125,8 @@
 - [x] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
 - [x] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
 - [x] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
+- [x] Start Milestone 14 with email-first auth modal lookup and existing/new account branching.
+- [ ] Continue Milestone 14 with Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
 - [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.

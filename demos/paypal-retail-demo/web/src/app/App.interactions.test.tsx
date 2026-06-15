@@ -36,6 +36,110 @@ afterEach(() => {
 });
 
 describe("App buyer interactions", () => {
+  it("opens email-first auth and branches existing accounts to password entry", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponseByPath: {
+        "/api/account/auth/lookup": {
+          email: "alice.la@example.test",
+          status: "existing",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "alice.la@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            email: "alice.la@example.test",
+          },
+          method: "post",
+          path: "/api/account/auth/lookup",
+        }),
+      );
+    });
+    const passwordDialog = screen.getByRole("dialog", {
+      name: "Enter password",
+    });
+    expect(
+      within(passwordDialog).getByDisplayValue("alice.la@example.test"),
+    ).toBeTruthy();
+    expect(within(passwordDialog).getByLabelText("Password")).toBeTruthy();
+    expect(
+      within(passwordDialog).getByRole("button", { name: "Sign in" }),
+    ).toBeTruthy();
+  });
+
+  it("branches unknown auth emails to registration", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponseByPath: {
+        "/api/account/auth/lookup": {
+          email: "new.collector@example.test",
+          status: "new",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "new.collector@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            email: "new.collector@example.test",
+          },
+          method: "post",
+          path: "/api/account/auth/lookup",
+        }),
+      );
+    });
+    const registerDialog = screen.getByRole("dialog", {
+      name: "Create account",
+    });
+    expect(
+      within(registerDialog).getByDisplayValue("new.collector@example.test"),
+    ).toBeTruthy();
+    expect(within(registerDialog).getByLabelText("Password")).toBeTruthy();
+    expect(
+      within(registerDialog).getByRole("button", { name: "Create account" }),
+    ).toBeTruthy();
+  });
+
   it("adds a PDP item to the shared cart state and opens the minicart", async () => {
     const user = userEvent.setup();
 
@@ -1472,6 +1576,7 @@ interface RecordingApiClientInput {
   readonly patchError?: Error;
   readonly patchResponse?: unknown;
   readonly postError?: Error;
+  readonly postResponseByPath?: Readonly<Record<string, unknown>>;
   readonly postResponse?: unknown;
 }
 
@@ -1516,6 +1621,9 @@ function createRecordingApiClient(
       calls.push({ method: "post", path, body, query, options });
       if (input.postError) {
         throw input.postError;
+      }
+      if (input.postResponseByPath && path in input.postResponseByPath) {
+        return input.postResponseByPath[path] as TData;
       }
       return (input.postResponse ?? {}) as TData;
     },

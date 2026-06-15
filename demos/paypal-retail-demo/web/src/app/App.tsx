@@ -119,6 +119,11 @@ interface CaptureOrderApiResponse {
   readonly amount_guard: unknown;
 }
 
+interface AuthEmailLookupApiResponse {
+  readonly email: string;
+  readonly status: "existing" | "new";
+}
+
 export function App({
   apiClient,
   initialPathname,
@@ -198,6 +203,9 @@ function BuyerShell({
     useState<ExpressReviewCaptureState>({ status: "idle" });
   const [currentMinicartState, setCurrentMinicartState] =
     useState(minicartState);
+  const [currentAuthModalState, setCurrentAuthModalState] =
+    useState(authModalState);
+  const [authModalStatus, setAuthModalStatus] = useState<string | undefined>();
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
 
@@ -323,6 +331,63 @@ function BuyerShell({
   function closeMinicart() {
     setCurrentMinicartState("closed");
     setShellStatus("Minicart closed.");
+  }
+
+  function openAuthModal() {
+    setCurrentAuthModalState("email");
+    setAuthModalStatus("Enter your email to continue.");
+    setShellStatus("Opened sign-in dialog.");
+  }
+
+  function closeAuthModal() {
+    setCurrentAuthModalState("closed");
+    setAuthModalStatus(undefined);
+    setShellStatus("Closed sign-in dialog.");
+  }
+
+  function changeAuthEmail() {
+    setCurrentAuthModalState("email");
+    setAuthModalStatus("Enter your email to continue.");
+    setShellStatus("Ready to check another email.");
+  }
+
+  async function handleAuthEmailSubmit(email: string) {
+    setAuthModalStatus("Checking account...");
+    setShellStatus("Checking account email.");
+
+    const response = await apiClient.post<AuthEmailLookupApiResponse>(
+      "/api/account/auth/lookup",
+      {
+        email,
+      },
+      {
+        market: config.market.code,
+      },
+    );
+
+    setCurrentAuthModalState(
+      response.status === "existing" ? "password" : "register",
+    );
+    setAuthModalStatus(
+      response.status === "existing"
+        ? "Enter your password to sign in."
+        : "Create a password to register.",
+    );
+    setShellStatus(
+      response.status === "existing"
+        ? "Existing account found."
+        : "Ready to create account.",
+    );
+  }
+
+  async function handleAuthPasswordSubmit() {
+    setAuthModalStatus("Demo sign-in submit is ready for Supabase Auth.");
+    setShellStatus("Demo sign-in submitted.");
+  }
+
+  async function handleAuthRegisterSubmit() {
+    setAuthModalStatus("Demo registration submit is ready for Supabase Auth.");
+    setShellStatus("Demo registration submitted.");
   }
 
   function cartQuery(): ApiQueryParams {
@@ -580,7 +645,9 @@ function BuyerShell({
           <a href="/checkout">Checkout</a>
         </nav>
         <div className="site-header__actions">
-          <button type="button">Sign in</button>
+          <button type="button" onClick={openAuthModal}>
+            Sign in
+          </button>
           <button
             type="button"
             aria-label="Open minicart"
@@ -640,7 +707,15 @@ function BuyerShell({
       <StatusRegion id="shell-status" className="sr-only">
         {shellStatus}
       </StatusRegion>
-      <AuthModalShell state={authModalState} />
+      <AuthModalShell
+        state={currentAuthModalState}
+        statusMessage={authModalStatus}
+        onChangeEmail={changeAuthEmail}
+        onClose={closeAuthModal}
+        onEmailSubmit={handleAuthEmailSubmit}
+        onPasswordSubmit={handleAuthPasswordSubmit}
+        onRegisterSubmit={handleAuthRegisterSubmit}
+      />
       <MinicartShell
         state={currentMinicartState}
         cart={currentCart}

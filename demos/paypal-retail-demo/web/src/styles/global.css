@@ -201,6 +201,15 @@ a {
   color: var(--shell-accent);
 }
 
+.link-button {
+  background: transparent;
+  border: 0;
+  color: var(--shell-accent);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0;
+}
+
 .homepage-hero__image {
   aspect-ratio: 16 / 10;
   background: #f0eeea;
@@ -2027,6 +2036,26 @@ p {
   padding: 24px;
 }
 
+.auth-modal__header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.auth-modal__status,
+.auth-modal__error {
+  margin-top: 10px;
+}
+
+.auth-modal__status {
+  color: var(--shell-muted);
+}
+
+.auth-modal__error {
+  color: var(--shell-accent);
+}
+
 .auth-modal__form {
   display: grid;
   gap: 14px;
@@ -2043,6 +2072,13 @@ p {
   border-radius: 6px;
   min-height: 40px;
   padding: 0 10px;
+}
+
+.auth-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
 }
 
 .minicart-shell {
