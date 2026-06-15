@@ -159,9 +159,9 @@
 - [x] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
 - [x] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
 - [x] M13.1 Pay Later official buttons wait for SDK v6 amount/currency eligibility and `getDetails("paylater")` before rendering on checkout and delivery express surfaces.
-- [ ] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
-- [ ] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
-- [ ] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
+- [x] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
+- [x] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
+- [x] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.

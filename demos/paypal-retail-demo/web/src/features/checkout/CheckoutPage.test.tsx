@@ -42,11 +42,29 @@ describe("CheckoutPage", () => {
     expect(deliveryHtml).not.toContain("Ready for pickup");
 
     expect(pickupHtml).toContain("Pickup order");
-    expect(pickupHtml).toContain("Ready for pickup");
-    expect(pickupHtml).toContain("Not available at this store");
-    expect(pickupHtml).toContain(
+    expect(pickupHtml).toContain("Choose a pickup store");
+    expect(pickupHtml).not.toContain("Ready for pickup");
+    expect(pickupHtml).not.toContain("Not available at this store");
+    expect(pickupHtml).not.toContain(
       "Unavailable items stay in the original cart.",
     );
+  });
+
+  it("keeps logged-in Pickup summary preselected when the page data requests it", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeMode: "pickup",
+          pickupStoreMode: "preselected",
+        })}
+      />,
+    );
+
+    expect(html).toContain("Pickup order");
+    expect(html).toContain("POP MART Soho");
+    expect(html).toContain("Ready for pickup");
+    expect(html).toContain("Not available at this store");
+    expect(html).toContain("Unavailable items stay in the original cart.");
   });
 
   it("locks fulfillment mode after payment session starts", () => {
@@ -92,7 +110,8 @@ describe("CheckoutPage", () => {
     );
 
     expect(html).toContain("ZIP or postcode");
-    expect(html).toContain("Use default address");
+    expect(html).not.toContain("W1F 7JL");
+    expect(html).not.toContain("Use default address");
     expect(html).toContain("Store selection");
     expect(html).not.toContain("1.2 mi");
     expect(html).not.toContain("Available: 1 item");
@@ -412,6 +431,7 @@ function checkoutData(
       readonly activeDeliveryStepId: string;
       readonly activePickupStepId: string;
       readonly paymentChoices: readonly CheckoutChoice[];
+      readonly pickupStoreMode: "guest" | "preselected";
       readonly saveForFutureEligible: boolean;
       readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
     }
@@ -500,6 +520,9 @@ function checkoutData(
     activeMode: overrides.activeMode ?? "delivery",
     modeLocked: overrides.modeLocked ?? false,
     lockedReason: "Switching requires abandoning this payment attempt.",
+    ...(overrides.pickupStoreMode
+      ? { pickupStoreMode: overrides.pickupStoreMode }
+      : {}),
     delivery: {
       label: "Delivery",
       checkoutDraftId: "draft_delivery_123",
@@ -522,7 +545,10 @@ function checkoutData(
       checkoutDraftId: "draft_pickup_123",
       summary: {
         title: "Pickup order",
-        contextLabel: "POP MART Soho",
+        contextLabel:
+          overrides.pickupStoreMode === "preselected"
+            ? "POP MART Soho"
+            : "Choose a pickup store",
         subtotalLabel: "$12.99",
         promoLabel: "Pickup promo recalculating",
         totalLabel: "$12.99",
@@ -531,9 +557,14 @@ function checkoutData(
         ...(overrides.saveForFutureEligible === undefined
           ? {}
           : { saveForFutureEligible: overrides.saveForFutureEligible }),
-        readyItemsLabel: "Ready for pickup: 1 item",
-        unavailableItemsLabel: "Not available at this store: 1 item",
-        partialInventoryNote: "Unavailable items stay in the original cart.",
+        ...(overrides.pickupStoreMode === "preselected"
+          ? {
+              readyItemsLabel: "Ready for pickup: 1 item",
+              unavailableItemsLabel: "Not available at this store: 1 item",
+              partialInventoryNote:
+                "Unavailable items stay in the original cart.",
+            }
+          : {}),
       },
       steps: moveStepFirst(pickupSteps, overrides.activePickupStepId),
     },

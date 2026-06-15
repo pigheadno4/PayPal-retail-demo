@@ -410,6 +410,16 @@ describe("CheckoutPage interactions", () => {
     render(<CheckoutPage />);
 
     await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    const initialOrderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(
+      within(initialOrderSummary).getByText("Choose a pickup store"),
+    ).toBeTruthy();
+    expect(within(initialOrderSummary).queryByText("POP MART Soho")).toBeNull();
+    expect(
+      within(initialOrderSummary).queryByText("Ready for pickup: 1 item"),
+    ).toBeNull();
 
     const pickupLocationStep = getStep("Pickup location");
     const postcode = within(pickupLocationStep).getByLabelText(

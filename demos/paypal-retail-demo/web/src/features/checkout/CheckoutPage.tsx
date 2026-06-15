@@ -237,10 +237,18 @@ export function CheckoutPage({
   const [pickupStoreModalOpen, setPickupStoreModalOpen] = useState(false);
   const [selectedPickupStoreName, setSelectedPickupStoreName] = useState<
     string | null
-  >(() => getDefaultPickupStoreName(data.pickup));
+  >(() =>
+    pickupStartsWithPreselectedStore
+      ? getDefaultPickupStoreName(data.pickup)
+      : null,
+  );
   const [pendingPickupStoreName, setPendingPickupStoreName] = useState<
     string | null
-  >(() => getDefaultPickupStoreName(data.pickup));
+  >(() =>
+    pickupStartsWithPreselectedStore
+      ? getDefaultPickupStoreName(data.pickup)
+      : null,
+  );
   const [expandedStepIds, setExpandedStepIds] = useState<
     Readonly<Record<CheckoutFulfillmentMode, string | null>>
   >(() => ({
@@ -1679,12 +1687,11 @@ function getPickupStoreByName(
   stores: readonly CheckoutStoreCard[],
   storeName: string | null,
 ): CheckoutStoreCard | null {
-  return (
-    stores.find((store) => store.name === storeName) ??
-    stores.find((store) => store.selected === true) ??
-    stores[0] ??
-    null
-  );
+  if (!storeName) {
+    return null;
+  }
+
+  return stores.find((store) => store.name === storeName) ?? null;
 }
 
 function getDefaultPickupStoreName(
@@ -1813,12 +1820,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       {
         label: "ZIP or postcode",
         type: "text",
-        value: "W1F 7JL",
-      },
-      {
-        label: "Use default address",
-        type: "checkbox",
-        checked: true,
+        value: "",
       },
     ],
     primaryActionLabel: "Find pickup stores",
@@ -1965,15 +1967,12 @@ export const defaultCheckoutPageData: CheckoutPageData = {
     checkoutDraftId: "draft_pickup_123",
     summary: {
       title: "Pickup order",
-      contextLabel: "POP MART Soho",
+      contextLabel: "Choose a pickup store",
       subtotalLabel: "$12.99",
       promoLabel: "Pickup promo recalculating",
       totalLabel: "$12.99",
       selectedPaymentLabel: "PayPal selected",
       selectedPaymentMethod: "paypal",
-      readyItemsLabel: "Ready for pickup: 1 item",
-      unavailableItemsLabel: "Not available at this store: 1 item",
-      partialInventoryNote: "Unavailable items stay in the original cart.",
     },
     steps: [
       {
