@@ -121,7 +121,7 @@
 - [x] Recover Pickup guest initial state so it starts with ZIP/postcode only, no default-address checkbox, no preselected store, and no store summary before modal confirmation.
 - [x] Recover Pickup logged-in initial state so only authenticated/default-address buyers see a preselected nearest/default-address store and Change store action.
 - [x] Clean active-market fixtures so US Pickup never starts with GB postcode/store defaults and GB Pickup never starts with US ZIP/store defaults.
-- [ ] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
+- [x] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
 - [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
 - [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.

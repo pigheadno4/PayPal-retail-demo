@@ -162,6 +162,7 @@
 - [x] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
 - [x] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
 - [x] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
+- [x] M13.1 checkout PayPal, checkout Pay Later, and delivery express create-order failures keep buyer-safe error copy, merchant debug reference, and retry affordance visible after the SDK error path.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.

@@ -20,6 +20,10 @@ import {
 } from "./deliveryExpress.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
 import { usePayLaterButtonEligibility } from "./payLaterRuntime.js";
+import {
+  PaymentActionFailureNotice,
+  usePaymentActionFailure,
+} from "./paymentActionFailure.js";
 
 export interface DeliveryExpressApprovedContext {
   readonly method: DeliveryExpressPaymentMethod;
@@ -56,20 +60,43 @@ export function DeliveryExpressAction({
   const apiClient = useApiClient();
   const lastCreatedOrder = useRef<PayPalCreateOrderResponse | null>(null);
   const methodLabel = formatDeliveryExpressMethod(method);
+  const {
+    captureCreateOrderFailure,
+    captureSdkFailure,
+    clearFailure,
+    failure,
+  } = usePaymentActionFailure(`${methodLabel} delivery express`);
   const createOrder = useCallback(async () => {
-    await onBeforeCreateOrder?.();
-    const request = buildDeliveryExpressCreateOrderRequest({
-      cartClientSecret,
-      cartPublicId,
-      market,
-      method,
-    });
-    const order = await apiClient.post<PayPalCreateOrderResponse>(
-      request.path,
-      request.body,
-      request.query,
-      request.options,
-    );
+    clearFailure();
+    let order: PayPalCreateOrderResponse;
+
+    try {
+      await onBeforeCreateOrder?.();
+      const request = buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret,
+        cartPublicId,
+        market,
+        method,
+      });
+      order = await apiClient.post<PayPalCreateOrderResponse>(
+        request.path,
+        request.body,
+        request.query,
+        request.options,
+      );
+    } catch (error) {
+      const actionFailure = captureCreateOrderFailure(error);
+      console.error(
+        "[paypal-retail-demo] Delivery express create-order failed",
+        {
+          code: actionFailure.code,
+          debugId: actionFailure.debugId ?? null,
+          method,
+          source,
+        },
+      );
+      throw error;
+    }
 
     lastCreatedOrder.current = order;
     console.info("[paypal-retail-demo] Delivery express order created", {
@@ -85,8 +112,10 @@ export function DeliveryExpressAction({
     };
   }, [
     apiClient,
+    captureCreateOrderFailure,
     cartClientSecret,
     cartPublicId,
+    clearFailure,
     market,
     method,
     onBeforeCreateOrder,
@@ -125,6 +154,10 @@ export function DeliveryExpressAction({
       {method === "paylater" ? (
         <DeliveryExpressPayLaterButton
           createOrder={createOrder}
+          onError={(error) => {
+            captureSdkFailure(error);
+            handleError(error);
+          }}
           currencyCode={currencyCode}
           methodLabel={methodLabel}
           onApprove={handleApprove}
@@ -143,12 +176,16 @@ export function DeliveryExpressAction({
             createOrder={createOrder}
             onApprove={handleApprove}
             onCancel={handleCancel}
-            onError={handleError}
+            onError={(error) => {
+              captureSdkFailure(error);
+              handleError(error);
+            }}
             presentationMode="auto"
             type="pay"
           />
         </>
       )}
+      <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
     </div>
   );
 }
@@ -157,6 +194,7 @@ function DeliveryExpressPayLaterButton({
   createOrder,
   currencyCode,
   methodLabel,
+  onError,
   onApprove,
   source,
   totalLabel,
@@ -164,6 +202,7 @@ function DeliveryExpressPayLaterButton({
   readonly createOrder: () => Promise<{ readonly orderId: string }>;
   readonly currencyCode: string;
   readonly methodLabel: string;
+  readonly onError: (error: OnErrorData) => void;
   readonly onApprove: (data: OnApproveDataOneTimePayments) => Promise<void>;
   readonly source: DeliveryExpressSource;
   readonly totalLabel: string;
@@ -188,7 +227,7 @@ function DeliveryExpressPayLaterButton({
           createOrder={createOrder}
           onApprove={onApprove}
           onCancel={handleCancel}
-          onError={handleError}
+          onError={onError}
           presentationMode="auto"
         />
       ) : null}

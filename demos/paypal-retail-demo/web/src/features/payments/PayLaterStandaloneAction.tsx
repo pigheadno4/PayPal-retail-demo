@@ -18,6 +18,10 @@ import {
   normalizePayLaterMessageAmount,
   usePayLaterButtonEligibility,
 } from "./payLaterRuntime.js";
+import {
+  PaymentActionFailureNotice,
+  usePaymentActionFailure,
+} from "./paymentActionFailure.js";
 
 export interface PayLaterStandaloneActionProps {
   readonly buyerCountry: string;
@@ -57,17 +61,35 @@ export function PayLaterStandaloneAction({
     currencyCode,
     totalLabel,
   });
+  const {
+    captureCreateOrderFailure,
+    captureSdkFailure,
+    clearFailure,
+    failure,
+  } = usePaymentActionFailure("Pay Later");
   const createOrder = useCallback(async () => {
+    clearFailure();
     const request = buildPayLaterCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
       market,
     });
-    const order = await apiClient.post<PayPalCreateOrderResponse>(
-      request.path,
-      request.body,
-      request.query,
-    );
+    let order: PayPalCreateOrderResponse;
+
+    try {
+      order = await apiClient.post<PayPalCreateOrderResponse>(
+        request.path,
+        request.body,
+        request.query,
+      );
+    } catch (error) {
+      const actionFailure = captureCreateOrderFailure(error);
+      console.error("[paypal-retail-demo] Pay Later create-order failed", {
+        code: actionFailure.code,
+        debugId: actionFailure.debugId ?? null,
+      });
+      throw error;
+    }
 
     console.info("[paypal-retail-demo] Pay Later order created", {
       paypalOrderId: order.paypal_order_id,
@@ -78,7 +100,14 @@ export function PayLaterStandaloneAction({
     return {
       orderId: order.paypal_order_id,
     };
-  }, [apiClient, checkoutDraftId, fulfillmentMode, market]);
+  }, [
+    apiClient,
+    captureCreateOrderFailure,
+    checkoutDraftId,
+    clearFailure,
+    fulfillmentMode,
+    market,
+  ]);
 
   const handleApprove = useCallback(
     async (data: OnApproveDataOneTimePayments) => {
@@ -115,10 +144,14 @@ export function PayLaterStandaloneAction({
           createOrder={createOrder}
           onApprove={handleApprove}
           onCancel={handleCancel}
-          onError={handleError}
+          onError={(error) => {
+            captureSdkFailure(error);
+            handleError(error);
+          }}
           presentationMode="auto"
         />
       ) : null}
+      <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
     </div>
   );
 }

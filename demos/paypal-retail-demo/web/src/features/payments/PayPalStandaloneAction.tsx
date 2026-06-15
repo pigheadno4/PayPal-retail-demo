@@ -10,6 +10,10 @@ import { type ApiQueryParams } from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
+import {
+  PaymentActionFailureNotice,
+  usePaymentActionFailure,
+} from "./paymentActionFailure.js";
 
 export interface PayPalCreateOrderResponse {
   readonly paypal_order_id: string;
@@ -46,18 +50,36 @@ export function PayPalStandaloneAction({
   const apiClient = useApiClient();
   const [vaultRequested, setVaultRequested] = useState(false);
   const effectiveVaultRequested = canSavePaymentMethod && vaultRequested;
+  const {
+    captureCreateOrderFailure,
+    captureSdkFailure,
+    clearFailure,
+    failure,
+  } = usePaymentActionFailure("PayPal");
   const createOrder = useCallback(async () => {
+    clearFailure();
     const request = buildPayPalCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
       market,
       vaultRequested: effectiveVaultRequested,
     });
-    const order = await apiClient.post<PayPalCreateOrderResponse>(
-      request.path,
-      request.body,
-      request.query,
-    );
+    let order: PayPalCreateOrderResponse;
+
+    try {
+      order = await apiClient.post<PayPalCreateOrderResponse>(
+        request.path,
+        request.body,
+        request.query,
+      );
+    } catch (error) {
+      const actionFailure = captureCreateOrderFailure(error);
+      console.error("[paypal-retail-demo] PayPal create-order failed", {
+        code: actionFailure.code,
+        debugId: actionFailure.debugId ?? null,
+      });
+      throw error;
+    }
 
     console.info("[paypal-retail-demo] PayPal order created", {
       paypalOrderId: order.paypal_order_id,
@@ -71,7 +93,9 @@ export function PayPalStandaloneAction({
     };
   }, [
     apiClient,
+    captureCreateOrderFailure,
     checkoutDraftId,
+    clearFailure,
     effectiveVaultRequested,
     fulfillmentMode,
     market,
@@ -105,10 +129,14 @@ export function PayPalStandaloneAction({
         createOrder={createOrder}
         onApprove={handleApprove}
         onCancel={handleCancel}
-        onError={handleError}
+        onError={(error) => {
+          captureSdkFailure(error);
+          handleError(error);
+        }}
         presentationMode="auto"
         type="pay"
       />
+      <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
       {canSavePaymentMethod ? (
         <label className="paypal-standalone-action__save">
           <input

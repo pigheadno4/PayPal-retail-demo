@@ -1810,6 +1810,48 @@ a {
   width: 18px;
 }
 
+.payment-action-failure {
+  background: #fff4f1;
+  border: 1px solid #ffc4b8;
+  border-radius: 8px;
+  color: #6c1b12;
+  display: grid;
+  font-size: 0.84rem;
+  gap: 6px;
+  padding: 10px;
+}
+
+.payment-action-failure strong {
+  color: #191919;
+  font-weight: 900;
+}
+
+.payment-action-failure p {
+  margin: 0;
+}
+
+.payment-action-failure code {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #ffd8ce;
+  border-radius: 4px;
+  color: #6c1b12;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  padding: 1px 4px;
+}
+
+.payment-action-failure button {
+  background: transparent;
+  border: 1px solid #ee1d2f;
+  border-radius: 6px;
+  color: #ee1d2f;
+  cursor: pointer;
+  font-weight: 900;
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
 .card-fields-checkout-action__submit {
   background: #191919;
   border: 0;
