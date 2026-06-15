@@ -18,6 +18,7 @@ export interface CartItem {
 
 export interface CartData {
   readonly cartPublicId?: string;
+  readonly cartClientSecret?: string;
   readonly title: string;
   readonly checkoutHref: string;
   readonly cartHref: string;
@@ -50,6 +51,10 @@ export interface CartApiResponseAdjustment {
 export interface CartApiResponse {
   readonly cart?: {
     readonly cart_public_id?: string;
+    readonly binding?: {
+      readonly cart_public_id?: string;
+      readonly cart_client_secret?: string;
+    } | null;
     readonly currency_code?: string;
     readonly items?: readonly CartApiResponseItem[];
   };
@@ -124,10 +129,16 @@ export function reconcileCartDataFromApiResponse(
 
   const currencyCode = response.cart?.currency_code ?? cart.currencyCode;
   const cartPublicId =
-    nonEmptyString(response.cart?.cart_public_id) ?? cart.cartPublicId;
+    nonEmptyString(response.cart?.binding?.cart_public_id) ??
+    nonEmptyString(response.cart?.cart_public_id) ??
+    cart.cartPublicId;
+  const cartClientSecret =
+    nonEmptyString(response.cart?.binding?.cart_client_secret) ??
+    cart.cartClientSecret;
   const nextCart = {
     ...cart,
     ...(cartPublicId ? { cartPublicId } : {}),
+    ...(cartClientSecret ? { cartClientSecret } : {}),
     currencyCode,
   };
   const existingItems = indexExistingCartItems(cart.items);

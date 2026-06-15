@@ -28,6 +28,7 @@ export interface DeliveryExpressApprovedContext {
 }
 
 export interface DeliveryExpressActionProps {
+  readonly cartClientSecret?: string;
   readonly cartPublicId: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
@@ -39,6 +40,7 @@ export interface DeliveryExpressActionProps {
 }
 
 export function DeliveryExpressAction({
+  cartClientSecret,
   cartPublicId,
   market,
   method,
@@ -52,6 +54,7 @@ export function DeliveryExpressAction({
   const createOrder = useCallback(async () => {
     await onBeforeCreateOrder?.();
     const request = buildDeliveryExpressCreateOrderRequest({
+      ...(cartClientSecret ? { cartClientSecret } : {}),
       cartPublicId,
       market,
       method,
@@ -60,6 +63,7 @@ export function DeliveryExpressAction({
       request.path,
       request.body,
       request.query,
+      request.options,
     );
 
     lastCreatedOrder.current = order;
@@ -74,7 +78,15 @@ export function DeliveryExpressAction({
     return {
       orderId: order.paypal_order_id,
     };
-  }, [apiClient, cartPublicId, market, method, onBeforeCreateOrder, source]);
+  }, [
+    apiClient,
+    cartClientSecret,
+    cartPublicId,
+    market,
+    method,
+    onBeforeCreateOrder,
+    source,
+  ]);
 
   const handleApprove = useCallback(
     async (data: OnApproveDataOneTimePayments) => {

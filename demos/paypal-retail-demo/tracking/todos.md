@@ -110,10 +110,10 @@
 - [x] Recover Delivery shipping-option saved state and Order Summary recalculation when the selected option changes.
 - [x] Add a UX state contract/mockup for the checkout recovery so implementation, QA, and tracking use the same source of truth.
 - [x] Add API error envelope coverage and checkout submit failure handling so section save failures stay visible and retryable.
-- [ ] Start Milestone 13.1 cart, checkout draft, and Pay Later recovery before confirm/capture work resumes.
-- [ ] Restore active browser cart binding from local cart ID/secret plus server cart read/refresh after browser reload.
-- [ ] Persist only opaque cart binding data in the browser: `cart_public_id` plus `cart_client_secret`, not full fixture cart contents as source of truth.
-- [ ] Attach paired `x-cart-id` and `x-cart-secret` headers on guest cart, checkout draft, and PayPal express API calls.
+- [x] Start Milestone 13.1 cart, checkout draft, and Pay Later recovery before confirm/capture work resumes.
+- [x] Restore active browser cart binding from local cart ID/secret plus server cart read/refresh after browser reload.
+- [x] Persist only opaque cart binding data in the browser: `cart_public_id` plus `cart_client_secret`, not full fixture cart contents as source of truth.
+- [x] Attach paired `x-cart-id` and `x-cart-secret` headers on guest cart, checkout draft, and PayPal express API calls.
 - [ ] Keep cart count and minicart contents stable when navigating to `/checkout`.
 - [ ] Add minicart quantity controls using the same server-backed update/reconcile path as full cart, or explicitly defer with buyer-facing copy.
 - [ ] Gate checkout and express create-order on server-ready cart/draft bindings and block fixture/missing IDs.

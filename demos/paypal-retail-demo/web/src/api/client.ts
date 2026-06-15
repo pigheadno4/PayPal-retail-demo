@@ -26,6 +26,10 @@ export interface ApiClientInput {
   readonly fetch?: typeof fetch;
 }
 
+export interface ApiRequestOptions {
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
 export class ApiClientError extends Error {
   readonly code: string;
   readonly debugId: string;
@@ -52,16 +56,19 @@ export interface ApiClient {
   readonly get: <TData = unknown>(
     path: string,
     query?: ApiQueryParams,
+    options?: ApiRequestOptions,
   ) => Promise<TData>;
   readonly patch: <TData = unknown>(
     path: string,
     body?: unknown,
     query?: ApiQueryParams,
+    options?: ApiRequestOptions,
   ) => Promise<TData>;
   readonly post: <TData = unknown>(
     path: string,
     body?: unknown,
     query?: ApiQueryParams,
+    options?: ApiRequestOptions,
   ) => Promise<TData>;
 }
 
@@ -70,41 +77,81 @@ export function createApiClient(input: ApiClientInput = {}): ApiClient {
   const baseUrl = input.baseUrl ?? resolveDefaultApiBaseUrl();
 
   return {
-    async get<TData = unknown>(path: string, query?: ApiQueryParams) {
-      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
-        method: "GET",
-      });
+    async get<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      const response = await fetchClient(
+        buildApiUrl(baseUrl, path, query),
+        buildRequestInit("GET", options),
+      );
       return readApiEnvelope<TData>(response);
     },
     async patch<TData = unknown>(
       path: string,
       body?: unknown,
       query?: ApiQueryParams,
+      options?: ApiRequestOptions,
     ) {
-      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body ?? {}),
-      });
+      const response = await fetchClient(
+        buildApiUrl(baseUrl, path, query),
+        buildRequestInit("PATCH", options, {
+          body: JSON.stringify(body ?? {}),
+          defaultHeaders: {
+            "content-type": "application/json",
+          },
+        }),
+      );
       return readApiEnvelope<TData>(response);
     },
     async post<TData = unknown>(
       path: string,
       body?: unknown,
       query?: ApiQueryParams,
+      options?: ApiRequestOptions,
     ) {
-      const response = await fetchClient(buildApiUrl(baseUrl, path, query), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body ?? {}),
-      });
+      const response = await fetchClient(
+        buildApiUrl(baseUrl, path, query),
+        buildRequestInit("POST", options, {
+          body: JSON.stringify(body ?? {}),
+          defaultHeaders: {
+            "content-type": "application/json",
+          },
+        }),
+      );
       return readApiEnvelope<TData>(response);
     },
   };
+}
+
+function buildRequestInit(
+  method: string,
+  options: ApiRequestOptions | undefined,
+  input: {
+    readonly body?: string;
+    readonly defaultHeaders?: Readonly<Record<string, string>>;
+  } = {},
+): RequestInit {
+  const headers = buildRequestHeaders(options, input.defaultHeaders);
+
+  return {
+    method,
+    ...(headers ? { headers } : {}),
+    ...(input.body ? { body: input.body } : {}),
+  };
+}
+
+function buildRequestHeaders(
+  options: ApiRequestOptions | undefined,
+  defaults: Readonly<Record<string, string>> | undefined = undefined,
+): Record<string, string> | undefined {
+  const headers = {
+    ...(defaults ?? {}),
+    ...(options?.headers ?? {}),
+  };
+
+  return Object.keys(headers).length ? headers : undefined;
 }
 
 async function readApiEnvelope<TData>(response: Response): Promise<TData> {

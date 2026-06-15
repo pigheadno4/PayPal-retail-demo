@@ -40,4 +40,30 @@ describe("deliveryExpress", () => {
       },
     });
   });
+
+  it("adds paired guest cart headers when the active cart has a client secret", () => {
+    expect(
+      buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret: "cart_secret_guest",
+        cartPublicId: "cart_public_guest",
+        market: "US",
+        method: "paypal",
+      }),
+    ).toEqual({
+      path: "/api/paypal/orders/express-delivery",
+      body: {
+        cart_id: "cart_public_guest",
+        method: "paypal",
+      },
+      query: {
+        market: "US",
+      },
+      options: {
+        headers: {
+          "x-cart-id": "cart_public_guest",
+          "x-cart-secret": "cart_secret_guest",
+        },
+      },
+    });
+  });
 });

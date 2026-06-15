@@ -37,6 +37,10 @@ describe("cartModel", () => {
       cart: {
         cart_public_id: "cart_public_guest",
         currency_code: "USD",
+        binding: {
+          cart_public_id: "cart_public_guest",
+          cart_client_secret: "cart_secret_guest",
+        },
         items: [
           {
             id: "cart_item_1",
@@ -61,6 +65,7 @@ describe("cartModel", () => {
     });
 
     expect(reconciled.cartPublicId).toBe("cart_public_guest");
+    expect(reconciled.cartClientSecret).toBe("cart_secret_guest");
     expect(reconciled.items).toEqual([
       {
         id: "cart_item_1",

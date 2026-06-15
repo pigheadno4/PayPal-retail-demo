@@ -8,9 +8,13 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ApiClient, ApiQueryParams } from "../api/client.js";
+import type {
+  ApiClient,
+  ApiQueryParams,
+  ApiRequestOptions,
+} from "../api/client.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
@@ -18,8 +22,16 @@ import { App } from "./App.js";
 const deliveryDraftUuid = "11111111-1111-4111-8111-111111111111";
 const pickupDraftUuid = "22222222-2222-4222-8222-222222222222";
 
+beforeEach(() => {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: createMemoryStorage(),
+  });
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
+  window.localStorage.clear();
   cleanup();
 });
 
@@ -151,6 +163,130 @@ describe("App buyer interactions", () => {
         page_type: "checkout",
         flow: "standard",
         method: "paylater",
+      },
+    });
+  });
+
+  it("attaches guest cart headers to cart refresh and checkout draft updates", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+      patchResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "SAVE10",
+        totalMinor: 3125,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Delivery or Pickup" }),
+      ).toBeTruthy();
+    });
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/cart/refresh",
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_existing",
+              "x-cart-secret": "cart_secret_existing",
+            },
+          },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/checkout/drafts",
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_existing",
+              "x-cart-secret": "cart_secret_existing",
+            },
+          },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: `/api/checkout/drafts/${deliveryDraftUuid}/shipping-address`,
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_existing",
+              "x-cart-secret": "cart_secret_existing",
+            },
+          },
+        }),
+      );
+    });
+  });
+
+  it("restores the active server cart from persisted guest cart binding on app load", async () => {
+    window.localStorage.setItem(
+      "paypal-retail-demo:cart-binding:popmart:US",
+      JSON.stringify({
+        cart_public_id: "cart_public_restored",
+        cart_client_secret: "cart_secret_restored",
+      }),
+    );
+    const apiClient = createRecordingApiClient({
+      getResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_restored",
+        cartPublicId: "cart_public_restored",
+        quantity: 4,
+        unitPriceMinor: 888,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("4");
+    });
+    expect(apiClient.calls).toContainEqual({
+      method: "get",
+      path: "/api/cart",
+      query: { market: "US" },
+      options: {
+        headers: {
+          "x-cart-id": "cart_public_restored",
+          "x-cart-secret": "cart_secret_restored",
+        },
       },
     });
   });
@@ -894,6 +1030,31 @@ function getShellStatusText(): string {
   return document.querySelector("#shell-status")?.textContent ?? "";
 }
 
+function createMemoryStorage(): Storage {
+  const values = new Map<string, string>();
+
+  return {
+    get length() {
+      return values.size;
+    },
+    clear() {
+      values.clear();
+    },
+    getItem(key: string) {
+      return values.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(values.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value);
+    },
+  };
+}
+
 function expectExpressScopes(container: HTMLElement) {
   const methods = Array.from(
     container.querySelectorAll(".paypal-provider-scope"),
@@ -903,9 +1064,16 @@ function expectExpressScopes(container: HTMLElement) {
   expect(methods).toContain("paylater");
 }
 
-function singleItemCart({ quantity }: { readonly quantity: number }): CartData {
+function singleItemCart({
+  cartClientSecret,
+  quantity,
+}: {
+  readonly cartClientSecret?: string;
+  readonly quantity: number;
+}): CartData {
   return {
     cartPublicId: "cart_public_existing",
+    ...(cartClientSecret ? { cartClientSecret } : {}),
     title: "Shopping cart",
     checkoutHref: "/checkout",
     cartHref: "/cart",
@@ -936,6 +1104,7 @@ interface RecordingApiCall {
   readonly path: string;
   readonly body?: unknown;
   readonly query?: ApiQueryParams | undefined;
+  readonly options?: ApiRequestOptions | undefined;
 }
 
 interface RecordingApiClientInput {
@@ -955,8 +1124,12 @@ function createRecordingApiClient(
 
   return {
     calls,
-    async get<TData = unknown>(path: string, query?: ApiQueryParams) {
-      calls.push({ method: "get", path, query });
+    async get<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "get", path, query, options });
       if (path === "/api/paypal/sdk-config") {
         return sdkConfigApiResponse(query) as TData;
       }
@@ -966,8 +1139,9 @@ function createRecordingApiClient(
       path: string,
       body?: unknown,
       query?: ApiQueryParams,
+      options?: ApiRequestOptions,
     ) {
-      calls.push({ method: "patch", path, body, query });
+      calls.push({ method: "patch", path, body, query, options });
       if (input.patchError) {
         throw input.patchError;
       }
@@ -977,8 +1151,9 @@ function createRecordingApiClient(
       path: string,
       body?: unknown,
       query?: ApiQueryParams,
+      options?: ApiRequestOptions,
     ) {
-      calls.push({ method: "post", path, body, query });
+      calls.push({ method: "post", path, body, query, options });
       if (input.postError) {
         throw input.postError;
       }
@@ -1032,16 +1207,20 @@ function sdkComponentsForMethod(method: string): readonly string[] {
 }
 
 function cartApiResponse({
+  cartClientSecret,
+  cartPublicId = "cart_public_existing",
   quantity,
   unitPriceMinor,
 }: {
+  readonly cartClientSecret?: string;
+  readonly cartPublicId?: string;
   readonly quantity: number;
   readonly unitPriceMinor: number;
 }) {
   return {
     cart: {
       id: "cart_guest_us",
-      cart_public_id: "cart_public_existing",
+      cart_public_id: cartPublicId,
       profile_id: "profile_popmart",
       market_id: "market_us",
       buyer_kind: "guest",
@@ -1065,7 +1244,12 @@ function cartApiResponse({
         subtotal_minor: unitPriceMinor * quantity,
         currency_code: "USD",
       },
-      binding: null,
+      binding: cartClientSecret
+        ? {
+            cart_public_id: cartPublicId,
+            cart_client_secret: cartClientSecret,
+          }
+        : null,
     },
     adjustments: [],
   };

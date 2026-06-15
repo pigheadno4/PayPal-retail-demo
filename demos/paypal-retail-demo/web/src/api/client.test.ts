@@ -181,6 +181,61 @@ describe("web API client", () => {
       },
     ]);
   });
+
+  it("sends paired guest cart headers when request headers are provided", async () => {
+    const calls: Array<{
+      readonly url: string;
+      readonly init: RequestInit;
+    }> = [];
+    const client = createApiClient({
+      baseUrl: "https://demo.example.test/",
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {},
+        });
+        return responseJson({
+          ok: true,
+          data: { checkout_draft_id: "draft_uuid" },
+          debug_id: "dbg_cart_headers",
+        });
+      },
+    });
+
+    const result = await client.post(
+      "/api/checkout/drafts",
+      {
+        fulfillment_mode: "delivery",
+      },
+      {
+        market: "US",
+      },
+      {
+        headers: {
+          "x-cart-id": "cart_public_guest",
+          "x-cart-secret": "cart_secret_guest",
+        },
+      },
+    );
+
+    expect(result).toEqual({ checkout_draft_id: "draft_uuid" });
+    expect(calls).toEqual([
+      {
+        url: "https://demo.example.test/api/checkout/drafts?market=US",
+        init: {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-cart-id": "cart_public_guest",
+            "x-cart-secret": "cart_secret_guest",
+          },
+          body: JSON.stringify({
+            fulfillment_mode: "delivery",
+          }),
+        },
+      },
+    ]);
+  });
 });
 
 function responseJson(body: unknown, status = 200): Response {

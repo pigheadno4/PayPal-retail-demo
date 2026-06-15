@@ -1,4 +1,7 @@
-import { type ApiQueryParams } from "../../api/client.js";
+import {
+  type ApiQueryParams,
+  type ApiRequestOptions,
+} from "../../api/client.js";
 
 export type DeliveryExpressPaymentMethod = "paypal" | "paylater";
 
@@ -16,17 +19,29 @@ export interface DeliveryExpressCreateOrderRequest {
     readonly method: DeliveryExpressPaymentMethod;
   };
   readonly query: ApiQueryParams;
+  readonly options?: ApiRequestOptions;
 }
 
 export function buildDeliveryExpressCreateOrderRequest({
+  cartClientSecret,
   cartPublicId,
   market,
   method,
 }: {
+  readonly cartClientSecret?: string;
   readonly cartPublicId: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
 }): DeliveryExpressCreateOrderRequest {
+  const options = cartClientSecret
+    ? {
+        headers: {
+          "x-cart-id": cartPublicId,
+          "x-cart-secret": cartClientSecret,
+        },
+      }
+    : undefined;
+
   return {
     path: "/api/paypal/orders/express-delivery",
     body: {
@@ -36,6 +51,7 @@ export function buildDeliveryExpressCreateOrderRequest({
     query: {
       market,
     },
+    ...(options ? { options } : {}),
   };
 }
 

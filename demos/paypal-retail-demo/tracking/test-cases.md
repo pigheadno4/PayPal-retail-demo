@@ -152,9 +152,9 @@
 - [x] M11.5 cart and minicart open/close, checkout navigation, quantity updates, and amount-aware Pay Later refresh work from buyer interaction.
 - [x] M11.5 cart quantity changes call the backend cart item update API, and checkout/express entry refreshes the cart before buyer navigation advances.
 - [x] M11.5 logged-in/session cart update and refresh responses map back into buyer `CartData` so server-side quantity, price, and checkout-blocker reconciliation is visible.
-- [ ] M13.1 browser refresh restores active cart binding and server cart data instead of resetting to fixture/default cart.
-- [ ] M13.1 browser stores and reloads only opaque cart binding data: `cart_public_id` plus `cart_client_secret`.
-- [ ] M13.1 guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
+- [x] M13.1 browser refresh restores active cart binding and server cart data instead of resetting to fixture/default cart.
+- [x] M13.1 browser stores and reloads only opaque cart binding data: `cart_public_id` plus `cart_client_secret`.
+- [x] M13.1 guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
 - [ ] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
 - [ ] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
 - [ ] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.

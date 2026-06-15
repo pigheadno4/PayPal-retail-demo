@@ -1,6 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-import type { ApiClient, ApiQueryParams } from "../api/client.js";
+import type {
+  ApiClient,
+  ApiQueryParams,
+  ApiRequestOptions,
+} from "../api/client.js";
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import { CartPage } from "../features/cart/CartPage.js";
 import { MinicartShell } from "../features/cart/MinicartShell.js";
@@ -183,6 +187,53 @@ function BuyerShell({
   const cartItemCount = calculateCartItemCount(currentCart);
 
   useEffect(() => {
+    const storedBinding = readStoredCartBinding(config);
+
+    if (!storedBinding) {
+      return;
+    }
+
+    let active = true;
+    void apiClient
+      .get<CartApiResponse>(
+        "/api/cart",
+        {
+          market: config.market.code,
+        },
+        buildCartRequestOptions(storedBinding),
+      )
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setCurrentCart((cart) => {
+          const nextCart = reconcileCartDataFromApiResponse(
+            {
+              ...cart,
+              ...storedBinding,
+            },
+            response,
+          );
+          persistCartBinding(config, nextCart);
+          return nextCart;
+        });
+        setShellStatus("Restored saved cart.");
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        console.error("[paypal-retail-demo] Cart restore failed", {
+          error,
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [apiClient, config]);
+
+  useEffect(() => {
     if (currentRoute.page !== "express_review") {
       return;
     }
@@ -252,6 +303,7 @@ function BuyerShell({
           trigger,
         },
         cartQuery(),
+        buildCartRequestOptions(currentCart),
       );
       reconcileServerCart(response);
     } catch (error) {
@@ -270,6 +322,7 @@ function BuyerShell({
           quantity: nextQuantity,
         },
         cartQuery(),
+        buildCartRequestOptions(currentCart),
       )
       .then((response) => {
         reconcileServerCart(response);
@@ -284,7 +337,11 @@ function BuyerShell({
   }
 
   function reconcileServerCart(response: CartApiResponse) {
-    setCurrentCart((cart) => reconcileCartDataFromApiResponse(cart, response));
+    setCurrentCart((cart) => {
+      const nextCart = reconcileCartDataFromApiResponse(cart, response);
+      persistCartBinding(config, nextCart);
+      return nextCart;
+    });
   }
 
   async function updateCheckoutDraft(
@@ -298,6 +355,7 @@ function BuyerShell({
         currentData,
         fulfillmentMode: request.fulfillmentMode,
         requestedDraftId: request.draftId,
+        cart: currentCart,
       });
 
       if (!draftId) {
@@ -307,10 +365,15 @@ function BuyerShell({
         throw new Error("Checkout draft could not be started.");
       }
 
-      const response = await sendCheckoutDraftUpdate(apiClient, config, {
-        ...request,
-        draftId,
-      });
+      const response = await sendCheckoutDraftUpdate(
+        apiClient,
+        config,
+        {
+          ...request,
+          draftId,
+        },
+        currentCart,
+      );
       return reconcileCheckoutDataFromDraftResponse(nextData, response);
     } catch (error) {
       console.error("[paypal-retail-demo] Checkout draft update failed", {
@@ -615,10 +678,100 @@ function RouteStage({
   return <HomePage data={homePageData} />;
 }
 
+type CartBinding = Pick<CartData, "cartClientSecret" | "cartPublicId">;
+
+function buildCartRequestOptions(
+  cart: CartBinding,
+): ApiRequestOptions | undefined {
+  if (!cart.cartPublicId || !cart.cartClientSecret) {
+    return undefined;
+  }
+
+  return {
+    headers: {
+      "x-cart-id": cart.cartPublicId,
+      "x-cart-secret": cart.cartClientSecret,
+    },
+  };
+}
+
+function readStoredCartBinding(
+  config: StorefrontRuntimeConfig,
+): CartBinding | null {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    const raw = storage.getItem(cartBindingStorageKey(config));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as {
+      readonly cart_client_secret?: unknown;
+      readonly cart_public_id?: unknown;
+    };
+    const cartPublicId =
+      typeof parsed.cart_public_id === "string"
+        ? parsed.cart_public_id.trim()
+        : "";
+    const cartClientSecret =
+      typeof parsed.cart_client_secret === "string"
+        ? parsed.cart_client_secret.trim()
+        : "";
+
+    return cartPublicId && cartClientSecret
+      ? {
+          cartPublicId,
+          cartClientSecret,
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCartBinding(config: StorefrontRuntimeConfig, cart: CartData) {
+  if (!cart.cartPublicId || !cart.cartClientSecret) {
+    return;
+  }
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(
+      cartBindingStorageKey(config),
+      JSON.stringify({
+        cart_public_id: cart.cartPublicId,
+        cart_client_secret: cart.cartClientSecret,
+      }),
+    );
+  } catch {
+    // Storage can be unavailable in private or SSR-like contexts.
+  }
+}
+
+function cartBindingStorageKey(config: StorefrontRuntimeConfig): string {
+  return `paypal-retail-demo:cart-binding:${config.profile.slug}:${config.market.code}`;
+}
+
+function getBrowserStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function sendCheckoutDraftUpdate(
   apiClient: ApiClient,
   config: StorefrontRuntimeConfig,
   request: CheckoutDraftUpdateRequest,
+  cart: CartData,
 ): Promise<CheckoutDraftApiResponse> {
   const draftPath = `/api/checkout/drafts/${encodeURIComponent(
     request.draftId ?? "",
@@ -626,6 +779,7 @@ async function sendCheckoutDraftUpdate(
   const query = {
     market: config.market.code,
   };
+  const requestOptions = buildCartRequestOptions(cart);
 
   switch (request.type) {
     case "delivery_shipping_address":
@@ -639,12 +793,14 @@ async function sendCheckoutDraftUpdate(
           streetLabel: "Street address",
         }),
         query,
+        requestOptions,
       );
     case "delivery_billing_address":
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/billing-address`,
         buildBillingAddressBody(request.fields, config),
         query,
+        requestOptions,
       );
     case "delivery_shipping_option":
       return apiClient.patch<CheckoutDraftApiResponse>(
@@ -655,6 +811,7 @@ async function sendCheckoutDraftUpdate(
             slugifyCheckoutValue(request.selectedChoiceLabel ?? ""),
         },
         query,
+        requestOptions,
       );
     case "pickup_location":
       return apiClient.patch<CheckoutDraftApiResponse>(
@@ -669,6 +826,7 @@ async function sendCheckoutDraftUpdate(
           state: null,
         },
         query,
+        requestOptions,
       );
     case "pickup_store":
       return apiClient.patch<CheckoutDraftApiResponse>(
@@ -679,6 +837,7 @@ async function sendCheckoutDraftUpdate(
             slugifyCheckoutValue(request.selectedStoreName ?? ""),
         },
         query,
+        requestOptions,
       );
     case "pickup_billing_address":
       return apiClient.patch<CheckoutDraftApiResponse>(
@@ -695,6 +854,7 @@ async function sendCheckoutDraftUpdate(
           save_to_address_book: true,
         },
         query,
+        requestOptions,
       );
     case "pickup_date":
       return apiClient.patch<CheckoutDraftApiResponse>(
@@ -705,18 +865,21 @@ async function sendCheckoutDraftUpdate(
             slugifyCheckoutValue(request.selectedChoiceLabel ?? ""),
         },
         query,
+        requestOptions,
       );
   }
 }
 
 async function ensureCheckoutDraft({
   apiClient,
+  cart,
   config,
   currentData,
   fulfillmentMode,
   requestedDraftId,
 }: {
   readonly apiClient: ApiClient;
+  readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly currentData: CheckoutPageData;
   readonly fulfillmentMode: CheckoutDraftUpdateRequest["fulfillmentMode"];
@@ -740,6 +903,7 @@ async function ensureCheckoutDraft({
     {
       market: config.market.code,
     },
+    buildCartRequestOptions(cart),
   );
   const nextData = reconcileCheckoutDataFromDraftResponse(
     currentData,
@@ -928,6 +1092,9 @@ function renderDeliveryExpressAction({
       }}
     >
       <DeliveryExpressAction
+        {...(cart.cartClientSecret
+          ? { cartClientSecret: cart.cartClientSecret }
+          : {})}
         cartPublicId={cart.cartPublicId}
         market={config.market.code}
         method={method}
