@@ -407,13 +407,16 @@ Verification:
 
 Purpose: stabilize the cart/draft/payment readiness layer before confirm-triggered capture.
 
-- [ ] Restore browser cart binding on app load/refresh from local cart ID/secret plus server cart read/refresh; never reset a non-empty active cart to fixture defaults.
+- [ ] Restore browser cart binding on app load/refresh from persisted `cart_public_id` plus `cart_client_secret`, then server cart read/refresh; never reset a non-empty active cart to fixture defaults.
+- [ ] Attach `x-cart-id` and `x-cart-secret` headers to guest cart, checkout draft, and PayPal express create-order API calls whenever an active guest cart binding exists.
 - [ ] Keep cart and minicart state bound on `/checkout`, including cart count and minicart contents.
 - [ ] Add minicart quantity controls that use the same server-backed cart update/reconcile path as the full cart, or explicitly disable/defer with buyer-facing copy before closing this slice.
 - [ ] Gate checkout and express PayPal create-order on server-ready cart/draft bindings; do not call PayPal with fixture draft IDs, missing cart IDs, or stale cart data.
+- [ ] Recover Pickup initial state separation: guest flow starts with ZIP/postcode only and no preselected store/default-address summary; logged-in flow may preselect nearest/default-address store.
+- [ ] Prevent market fixture leakage in Pickup; US market must not show GB postcode defaults such as `W1F 7JL` unless the active market is GB.
 - [ ] Add merchant-visible create-order failure handling for Supabase/PayPal failures with buyer-safe copy, debug ID, and retry affordance after popup close/failure.
 - [ ] Gate Pay Later SDK v6 buttons with `useEligibleMethods`/`findEligibleMethods`, amount/currency payload, and `getDetails("paylater")` before rendering official Pay Later buttons.
-- [ ] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
+- [ ] Verify browser refresh, minicart quantity edit, checkout route cart continuity, Pickup guest/logged-in initial states, Pay Later eligibility rendering, and PayPal create-order failure paths before capture work resumes.
 
 ### Milestone 13 Capture Completion
 
@@ -427,6 +430,8 @@ Verification:
 - Browser refresh preserves the active cart binding and reloads server cart data.
 - Checkout route does not reset cart count or minicart contents.
 - Minicart quantity edits reconcile with the same server-backed cart path as full cart edits.
+- Guest cart-backed API calls include both `x-cart-id` and `x-cart-secret`; missing bindings block checkout/create-order with buyer-safe copy.
+- Pickup guest flow does not preselect a store or default address before ZIP/postcode submit, and market-specific defaults match the active market.
 - Pay Later official button is absent while eligibility is loading/ineligible and appears only when eligible details are available.
 - PayPal create-order failures leave visible merchant-side error/debug evidence.
 

@@ -112,10 +112,15 @@
 - [x] Add API error envelope coverage and checkout submit failure handling so section save failures stay visible and retryable.
 - [ ] Start Milestone 13.1 cart, checkout draft, and Pay Later recovery before confirm/capture work resumes.
 - [ ] Restore active browser cart binding from local cart ID/secret plus server cart read/refresh after browser reload.
+- [ ] Persist only opaque cart binding data in the browser: `cart_public_id` plus `cart_client_secret`, not full fixture cart contents as source of truth.
+- [ ] Attach paired `x-cart-id` and `x-cart-secret` headers on guest cart, checkout draft, and PayPal express API calls.
 - [ ] Keep cart count and minicart contents stable when navigating to `/checkout`.
 - [ ] Add minicart quantity controls using the same server-backed update/reconcile path as full cart, or explicitly defer with buyer-facing copy.
 - [ ] Gate checkout and express create-order on server-ready cart/draft bindings and block fixture/missing IDs.
 - [ ] Wire Pay Later SDK v6 eligibility/detail gating before official Pay Later buttons render.
+- [ ] Recover Pickup guest initial state so it starts with ZIP/postcode only, no default-address checkbox, no preselected store, and no store summary before modal confirmation.
+- [ ] Recover Pickup logged-in initial state so only authenticated/default-address buyers see a preselected nearest/default-address store and Change store action.
+- [ ] Clean active-market fixtures so US Pickup never starts with GB postcode/store defaults and GB Pickup never starts with US ZIP/store defaults.
 - [ ] Verify PayPal popup/create-order failure path and keep merchant-side error/debug feedback visible.
 - [ ] Continue Milestone 13 with confirm-triggered capture from Review and Confirm.
 - [ ] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.

@@ -20,6 +20,7 @@ Reusable implementation lessons from this demo should be added here during miles
 - Multi-step UI should have a state contract or mockup that stays aligned with implementation, tests, and tracking.
 - PSP or wallet UI close evidence must include browser verification of the hydrated official SDK/provider surface in every promised placement; local branded buttons and static labels are shell progress only.
 - API-backed UI close evidence should include loading, success, and failure-state coverage against the backend contract, because route transitions alone do not prove recalculation or payment readiness.
+- API-bound buyer UI must prove browser credential propagation end to end. For guest cart flows, repository tests and middleware tests are not enough unless browser QA or interaction tests show the raw cart client secret is persisted, paired `x-cart-id`/`x-cart-secret` headers are attached, and missing bindings are blocked with buyer-safe copy.
 
 ## PayPal Express Delivery Shipping Callbacks
 

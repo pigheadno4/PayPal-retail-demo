@@ -5,6 +5,7 @@ This contract defines the Milestone 13 recovery behavior for checkout and offici
 ## Source Inputs
 
 - User review on June 14, 2026: initial checkout must not show PayPal buttons before the Payment step, shipping/billing must shrink after save, shipping option totals must update immediately, and PayPal errors must stay visible.
+- Live browser audit on June 14, 2026: the fixture cart exposed a public cart ID but no client secret, API calls did not attach `x-cart-id`/`x-cart-secret`, checkout draft creation failed, cart state reset across navigation/refresh, Pay Later readiness did not produce a visible button, and Pickup leaked a GB postcode/default-store state into the US guest flow.
 - `DESIGN.md`: Delivery/Pickup accordion flow, radio-first payment wall, official PayPal button/message placement, and POP MART playful retail visual direction.
 - `ui-ux-pro-max` review: active section indication, visible loading/error recovery, field-local errors with `role="alert"`, controlled React form state, and stable button/message space.
 
@@ -32,6 +33,8 @@ The app must not send fixture IDs to Supabase-backed endpoints. PayPal create-or
 
 Browser cart state must persist as an opaque server cart binding only, such as cart public ID plus client secret. A browser refresh must reload the active server cart from that binding; it must not reset to fixture/default cart data while a valid cart binding exists.
 
+Guest cart-backed API calls must attach the paired `x-cart-id` and `x-cart-secret` headers. A public cart ID without the client secret is not server-ready and must block checkout draft creation, cart mutation, and PayPal express create-order with buyer-safe copy.
+
 Navigating to `/checkout` must not clear the header cart count or minicart contents. Checkout can refresh/reconcile the cart before creating a draft, but the buyer-facing shell must stay bound to the same active cart.
 
 ## Delivery Accordion
@@ -56,9 +59,11 @@ Submit behavior:
 Guest Pickup:
 
 - Start with Pickup location expanded.
+- Do not preselect a store, default-address checkbox, or Order Summary store before ZIP/postcode submit and modal confirmation.
 - Buyer enters ZIP/postcode and submits.
 - Store picker modal opens with ranked stores, inventory counts, address, phone, distance, and full/partial status.
 - Confirming a store collapses location/store summary and opens billing.
+- ZIP/postcode defaults and ranked stores must match the active market.
 
 Logged-in Pickup:
 
@@ -97,8 +102,12 @@ Checkout should be calmer than the homepage but still feel like collectible reta
 - PDP/cart/minicart official express surfaces call `/api/paypal/orders/express-delivery` only with active server cart binding.
 - Browser refresh reloads active server cart data from the saved cart binding instead of restoring fixture/default items.
 - Navigating to `/checkout` preserves header cart count and minicart contents.
+- Guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
+- Missing or incomplete cart binding keeps buyer actions blocked with visible copy and does not send fixture/default IDs to backend endpoints.
 - Minicart quantity controls update through the same server-backed cart update/reconcile path as full-cart quantity controls.
 - Pay Later official buttons wait for SDK v6 eligibility/details for the current amount/currency before rendering.
+- Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store.
+- Pickup default ZIP/postcode/store fixtures match the active market.
 
 ## Current Implementation Status
 
@@ -115,8 +124,11 @@ Completed in the Milestone 13 checkout-recovery slice:
 
 Still open for the next Milestone 13 slices:
 
-- Browser cart binding restore and checkout-route cart continuity.
+- Browser cart binding restore, including persisted `cart_public_id` plus `cart_client_secret`.
+- Guest cart header propagation for cart, checkout draft, and PayPal express API calls.
+- Checkout-route cart continuity.
 - Minicart quantity editing through the server-backed cart path.
 - Pay Later SDK v6 eligibility/detail gating for official Pay Later buttons.
+- Pickup guest/logged-in initial-state separation and active-market fixture cleanup.
 - Merchant-visible PayPal create-order failure/debug feedback after popup close or backend failure.
 - Confirm-triggered capture and buyer-facing amount-guard blocking on Review and Confirm.

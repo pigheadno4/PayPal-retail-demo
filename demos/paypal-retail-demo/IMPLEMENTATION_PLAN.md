@@ -88,7 +88,7 @@ This section captures implementation evidence from `/Users/tengtao/Development/w
 - Backend capture uses the locked merchant/provider amount snapshot before calling PayPal; the sanitized Orders capture response is stored for Admin/debug review.
 - Successful capture is the durable finalization point: order status becomes paid, payment session becomes captured, inventory decrements, lifecycle/total snapshots are written, and only paid order items are removed from the active cart.
 
-Before capture work resumes, complete the M13.1 recovery bridge: active browser cart binding restore, checkout route cart continuity, minicart quantity controls, server-ready create-order gating, Pay Later eligibility/detail gating, and merchant-visible create-order failure feedback. This bridge turns the live QA gaps into explicit acceptance checks rather than treating them as generic M13 cleanup.
+Before capture work resumes, complete the M13.1 recovery bridge: active browser cart binding restore, guest cart `x-cart-id`/`x-cart-secret` API headers, checkout route cart continuity, minicart quantity controls, server-ready create-order gating, Pickup guest/logged-in initial-state separation, Pay Later eligibility/detail gating, and merchant-visible create-order failure feedback. This bridge turns the live QA gaps into explicit acceptance checks rather than treating them as generic M13 cleanup.
 
 ### BOPIS Evidence And Demo Decision
 

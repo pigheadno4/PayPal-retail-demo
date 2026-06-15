@@ -188,6 +188,7 @@ Cart:
 Minicart:
 
 - compact item summary
+- quantity controls for each editable line item
 - amount-aware Pay Later message
 - view cart / checkout
 - PayPal button
@@ -211,6 +212,8 @@ Accordion interaction contract:
 - Initial Delivery state expands Shipping address only; all later sections are collapsed previews.
 - Initial Pickup guest state expands Pickup location only; all later sections are collapsed previews.
 - Initial Pickup logged-in state shows the preselected store summary in Store selection and lets the buyer change it from a store picker modal.
+- Pickup guest state must not show a selected store, default-address checkbox, or store summary before the buyer submits ZIP/postcode and confirms a store from the modal.
+- Pickup seeded defaults must match the active market; US checkout must not show GB postcode/store defaults, and GB checkout must not show US ZIP/store defaults.
 - Submitting a section saves and collapses that section, then expands the next actionable section.
 - Editing a submitted section expands only that section, collapses the others, and marks downstream totals as needing recalculation where applicable.
 - Collapsed submitted sections show a compact buyer-readable summary plus an Edit action.
@@ -257,7 +260,7 @@ Guest flow:
 
 1. Pickup location expands with ZIP/postcode input.
 2. Buyer submits ZIP/postcode.
-3. Store picker modal opens with ranked pickup stores.
+3. Store picker modal opens with ranked pickup stores for the active market.
 4. Buyer selects a store in the modal.
 5. Store selection collapses to the selected store summary.
 6. Billing expands.
@@ -283,6 +286,7 @@ Store picker modal:
 
 - Opens from guest ZIP/postcode submit or logged-in Change store.
 - Uses an accessible dialog with labelled title, close action, keyboard access, and focus return to the triggering control.
+- Filters/ranks stores from the active market only.
 - Store cards show store name, address, phone, distance, available item count, unavailable item count, and full/partial inventory status.
 - Store cards are selectable controls, not static cards.
 - Confirming a selected store updates Pickup Order Summary before payment.
