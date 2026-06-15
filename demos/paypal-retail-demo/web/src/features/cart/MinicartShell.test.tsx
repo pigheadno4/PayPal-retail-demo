@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
+
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MinicartShell } from "./MinicartShell.js";
 import type { CartData } from "./cartModel.js";
@@ -25,6 +29,31 @@ describe("MinicartShell", () => {
       "Prefer pickup? Choose store pickup during checkout.",
     );
     expect(html).not.toContain("Choose pickup store");
+  });
+
+  it("sends minicart quantity changes through the shared quantity callback", async () => {
+    const user = userEvent.setup();
+    const onQuantityChange = vi.fn();
+
+    render(
+      <MinicartShell
+        state="open"
+        cart={cartData()}
+        onQuantityChange={onQuantityChange}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+
+    expect(onQuantityChange).toHaveBeenCalledWith(
+      "labubu-have-a-seat",
+      2,
+      "labubu-have-a-seat",
+    );
   });
 });
 

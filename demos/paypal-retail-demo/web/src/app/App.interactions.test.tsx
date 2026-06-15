@@ -167,6 +167,61 @@ describe("App buyer interactions", () => {
     });
   });
 
+  it("syncs minicart quantity changes through the same server-backed cart path", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 4,
+        unitPriceMinor: 1399,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "patch",
+        path: "/api/cart/items/cart_item_labubu",
+        body: { quantity: 2 },
+        query: { market: "US" },
+        options: {
+          headers: {
+            "x-cart-id": "cart_public_existing",
+            "x-cart-secret": "cart_secret_existing",
+          },
+        },
+      });
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("4");
+    });
+    expect(within(minicart).getByText("Qty 4 · $13.99")).toBeTruthy();
+    expect(
+      within(minicart).getByText(
+        "Flexible payment options may be available for $55.96 at checkout.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("attaches guest cart headers to cart refresh and checkout draft updates", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({

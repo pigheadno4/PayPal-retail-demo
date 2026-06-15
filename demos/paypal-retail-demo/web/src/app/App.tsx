@@ -540,6 +540,7 @@ function BuyerShell({
           })
         }
         onClose={closeMinicart}
+        onQuantityChange={handleCartQuantityChange}
         renderDeliveryExpressAction={(method) =>
           renderDeliveryExpressAction({
             cart: currentCart,

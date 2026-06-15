@@ -5,7 +5,10 @@ import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
   defaultCartData,
+  resolveCartItemQuantity,
+  resolveCartItemServerId,
   type CartData,
+  type CartItem,
 } from "./cartModel.js";
 import { DeliveryExpressActions } from "./CartPage.js";
 
@@ -18,6 +21,11 @@ export interface MinicartShellProps {
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
   ) => void | Promise<void>;
+  readonly onQuantityChange?: (
+    slug: string,
+    nextQuantity: number,
+    cartItemId: string,
+  ) => void;
   readonly renderDeliveryExpressAction?: (
     method: DeliveryExpressPaymentMethod,
   ) => ReactNode;
@@ -30,10 +38,15 @@ export function MinicartShell({
   onCheckoutNavigate,
   onClose,
   onDeliveryExpressStart,
+  onQuantityChange,
   renderDeliveryExpressAction,
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
   const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
+
+  function updateQuantity(item: CartItem, nextQuantity: number) {
+    onQuantityChange?.(item.slug, nextQuantity, resolveCartItemServerId(item));
+  }
 
   return (
     <aside
@@ -53,22 +66,55 @@ export function MinicartShell({
       </header>
       <div className="minicart-shell__body">
         <ul className="minicart-items">
-          {cart.items.map((item) => (
-            <li className="minicart-item" key={item.slug}>
-              <a href={item.href}>
-                <img src={item.imagePath} alt={item.imageAlt} />
-              </a>
-              <span>
-                <a href={item.href}>{item.name}</a>
-                <small>
-                  Qty {item.quantity} · {item.currentPriceLabel}
-                </small>
-                {item.unavailableReason ? (
-                  <small>{item.unavailableReason}</small>
-                ) : null}
-              </span>
-            </li>
-          ))}
+          {cart.items.map((item) => {
+            const quantity = resolveCartItemQuantity(item);
+
+            return (
+              <li className="minicart-item" key={item.slug}>
+                <a href={item.href}>
+                  <img src={item.imagePath} alt={item.imageAlt} />
+                </a>
+                <div className="minicart-item__details">
+                  <a href={item.href}>{item.name}</a>
+                  <small>
+                    Qty {quantity} · {item.currentPriceLabel}
+                  </small>
+                  {item.unavailableReason ? (
+                    <small>{item.unavailableReason}</small>
+                  ) : null}
+                  <div className="cart-quantity minicart-item__quantity">
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${item.name} quantity`}
+                      disabled={!onQuantityChange || quantity <= 0}
+                      onClick={() => updateQuantity(item, quantity - 1)}
+                    >
+                      -
+                    </button>
+                    <input
+                      aria-label={`${item.name} quantity`}
+                      inputMode="numeric"
+                      min={0}
+                      max={item.maxQuantity}
+                      readOnly
+                      type="number"
+                      value={quantity}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Increase ${item.name} quantity`}
+                      disabled={
+                        !onQuantityChange || quantity >= item.maxQuantity
+                      }
+                      onClick={() => updateQuantity(item, quantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <section
           className="minicart-paylater"

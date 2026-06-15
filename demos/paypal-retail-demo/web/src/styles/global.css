@@ -2064,7 +2064,7 @@ p {
   width: 58px;
 }
 
-.minicart-item span {
+.minicart-item__details {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -2078,6 +2078,17 @@ p {
 
 .minicart-item small {
   color: var(--shell-muted);
+}
+
+.minicart-item__quantity {
+  grid-template-columns: 30px 42px 30px;
+  justify-content: start;
+  margin-top: 4px;
+}
+
+.minicart-item__quantity button,
+.minicart-item__quantity input {
+  height: 32px;
 }
 
 .minicart-actions {

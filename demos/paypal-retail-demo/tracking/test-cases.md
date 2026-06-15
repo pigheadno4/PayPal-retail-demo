@@ -157,7 +157,7 @@
 - [x] M13.1 guest cart-backed cart, checkout draft, and PayPal express API calls include paired `x-cart-id` and `x-cart-secret` headers.
 - [ ] M13.1 missing/incomplete cart binding blocks checkout draft creation and express create-order with buyer-safe copy instead of sending fixture/default IDs.
 - [ ] M13.1 checkout route preserves cart count and minicart contents from the active cart binding.
-- [ ] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
+- [x] M13.1 minicart quantity controls update through the server-backed cart update/reconcile path and refresh Pay Later amount messaging.
 - [ ] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
 - [ ] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
 - [ ] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
