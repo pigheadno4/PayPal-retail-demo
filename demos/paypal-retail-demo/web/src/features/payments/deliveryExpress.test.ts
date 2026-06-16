@@ -81,7 +81,18 @@ describe("deliveryExpress", () => {
     });
   });
 
-  it("blocks express create-order requests without a paired guest cart secret", () => {
+  it("blocks express create-order requests without a cart public ID", () => {
+    expect(() =>
+      buildDeliveryExpressCreateOrderRequest({
+        cartClientSecret: "cart_secret_guest",
+        cartPublicId: "",
+        market: "US",
+        method: "paypal",
+      }),
+    ).toThrow("Delivery express checkout needs a synced cart.");
+  });
+
+  it("blocks express create-order requests without guest or signed-in owner context", () => {
     expect(() =>
       buildDeliveryExpressCreateOrderRequest({
         cartClientSecret: "",
@@ -89,6 +100,6 @@ describe("deliveryExpress", () => {
         market: "US",
         method: "paypal",
       }),
-    ).toThrow("Delivery express checkout needs a synced cart.");
+    ).toThrow("Delivery express checkout needs a cart owner context.");
   });
 });

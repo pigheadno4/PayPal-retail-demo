@@ -96,10 +96,10 @@
 - [x] Confirm local Supabase project strategy: local CLI and remote project.
 - [x] Install or configure the selected Supabase access path before migrations are created.
 - [x] Confirm PayPal sandbox app credentials are available through local env only.
-- [ ] Review `PAYPAL_EVIDENCE.md` against final PayPal sandbox account capabilities.
+- [x] Record PayPal evidence map; final sandbox account capability review is deferred to the Milestone 16 manual sandbox checklist.
 - [x] Confirm Apple Pay/Google Pay local testing remains eligibility/debug/manual locally, with hosted preview or approved HTTPS tunnel for full wallet verification later.
 - [x] Confirm POP MART asset handoff path and filename convention.
-- [ ] Convert the env variable shape in `ENVIRONMENT.md` into `.env.example` during scaffold.
+- [x] Convert the env variable shape in `ENVIRONMENT.md` into `.env.example` during scaffold.
 - [x] Update `tracking/todos.md` with accepted Milestone 0 decision changes.
 
 Verification:
@@ -442,7 +442,11 @@ Verification:
 
 - [x] Implement email-first login/register modal branching with server email lookup.
 - [x] Wire Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
-- [ ] Pass authenticated buyer request context into checkout and delivery-express PayPal create-order surfaces after login, so logged-in payment attempts use bearer auth instead of guest cart secrets.
+- [x] Resolve live Supabase Auth sign-in/register blocker where the configured remote project returns a token-endpoint database schema error before the app can merge the signed-in cart.
+- [x] Fix live minicart viewport placement so the drawer opens inside the desktop viewport and Close/View cart/Checkout controls are clickable.
+- [x] Fix live Pickup market/store source so US ZIP searches cannot show GB/London stores, even after previous guest/logged-in fixture cleanup.
+- [x] Keep checkout Order Summary payment-neutral until the Payment method section is active and a radio method is selected.
+- [x] Pass authenticated buyer request context into checkout and delivery-express PayPal create-order surfaces after login, so logged-in payment attempts use bearer auth instead of guest cart secrets.
 - [ ] Implement account settings profile info.
 - [ ] Implement address book with default delete constraints.
 - [ ] Implement saved payment list/delete.
@@ -479,7 +483,7 @@ Verification:
 ## Milestone 16: QA, UX Review, And Demo Polish
 
 - [ ] Run unit/API/UI test suite.
-- [ ] Run manual PayPal sandbox checklist.
+- [ ] Run manual PayPal sandbox checklist, including final `PAYPAL_EVIDENCE.md` review against sandbox account capabilities.
 - [ ] Add POP MART playful collectible visual refresh tokens: coral CTA, candy pink, lemon yellow, mint green, sky blue, warm white, deep ink, and separate generic profile tokens.
 - [ ] Refresh storefront typography toward rounder retail character, preferring Rubik headings and Nunito Sans body/UI where web font loading is acceptable.
 - [ ] Refresh homepage visual language: blind-box/drop hero, hot-sales stickers, capsule/toy-shelf category cards, drop-calendar treatment, and collectible-event promo cards.

@@ -55,6 +55,15 @@ describe("MinicartShell", () => {
       "labubu-have-a-seat",
     );
   });
+
+  it("makes the offscreen closed minicart inert", () => {
+    const html = renderToStaticMarkup(
+      <MinicartShell state="closed" cart={cartData()} />,
+    );
+
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("inert");
+  });
 });
 
 function cartData(): CartData {

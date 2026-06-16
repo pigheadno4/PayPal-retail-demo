@@ -129,7 +129,12 @@ describe("CheckoutPage interactions", () => {
     vi.useFakeTimers();
 
     try {
-      render(<CheckoutPage />);
+      let resolveDraftUpdate!: (data: CheckoutPageData) => void;
+      const draftUpdatePromise = new Promise<CheckoutPageData>((resolve) => {
+        resolveDraftUpdate = resolve;
+      });
+
+      render(<CheckoutPage onDraftUpdate={() => draftUpdatePromise} />);
 
       const shippingStep = getStep("Shipping address");
       const billingStep = getStep("Billing address");
@@ -158,8 +163,9 @@ describe("CheckoutPage interactions", () => {
         within(shippingStep).getByText("Recalculating totals"),
       ).toBeTruthy();
 
-      act(() => {
-        vi.advanceTimersByTime(50);
+      await act(async () => {
+        resolveDraftUpdate(defaultCheckoutPageData);
+        await draftUpdatePromise;
       });
 
       expect(shippingStep.getAttribute("data-step-state")).toBe("saved");

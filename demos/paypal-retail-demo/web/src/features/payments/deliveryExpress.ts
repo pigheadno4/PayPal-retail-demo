@@ -27,18 +27,29 @@ export function buildDeliveryExpressCreateOrderRequest({
   cartPublicId,
   market,
   method,
+  requestOptions,
 }: {
-  readonly cartClientSecret: string;
+  readonly cartClientSecret?: string | null | undefined;
   readonly cartPublicId: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
+  readonly requestOptions?: ApiRequestOptions | undefined;
 }): DeliveryExpressCreateOrderRequest {
   const normalizedCartPublicId = cartPublicId.trim();
-  const normalizedCartClientSecret = cartClientSecret.trim();
+  const normalizedCartClientSecret = cartClientSecret?.trim() ?? "";
 
-  if (!normalizedCartPublicId || !normalizedCartClientSecret) {
+  if (!normalizedCartPublicId) {
     throw new Error("Delivery express checkout needs a synced cart.");
   }
+  if (!normalizedCartClientSecret && !hasAuthorizationHeader(requestOptions)) {
+    throw new Error("Delivery express checkout needs a cart owner context.");
+  }
+
+  const options = buildDeliveryExpressRequestOptions({
+    cartClientSecret: normalizedCartClientSecret,
+    cartPublicId: normalizedCartPublicId,
+    requestOptions,
+  });
 
   return {
     path: "/api/paypal/orders/express-delivery",
@@ -49,13 +60,39 @@ export function buildDeliveryExpressCreateOrderRequest({
     query: {
       market,
     },
-    options: {
-      headers: {
-        "x-cart-id": normalizedCartPublicId,
-        "x-cart-secret": normalizedCartClientSecret,
-      },
+    options,
+  };
+}
+
+function buildDeliveryExpressRequestOptions({
+  cartClientSecret,
+  cartPublicId,
+  requestOptions,
+}: {
+  readonly cartClientSecret: string;
+  readonly cartPublicId: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
+}): ApiRequestOptions {
+  return {
+    ...requestOptions,
+    headers: {
+      ...requestOptions?.headers,
+      ...(cartClientSecret
+        ? {
+            "x-cart-id": cartPublicId,
+            "x-cart-secret": cartClientSecret,
+          }
+        : {}),
     },
   };
+}
+
+function hasAuthorizationHeader(
+  requestOptions?: ApiRequestOptions | undefined,
+): boolean {
+  const authorization = requestOptions?.headers?.authorization;
+
+  return typeof authorization === "string" && authorization.trim().length > 0;
 }
 
 export function formatDeliveryExpressMethod(

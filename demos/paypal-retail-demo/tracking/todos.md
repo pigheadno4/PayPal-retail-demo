@@ -127,7 +127,11 @@
 - [x] Continue Milestone 13 with amount consistency guard enforcement on the buyer confirm action.
 - [x] Start Milestone 14 with email-first auth modal lookup and existing/new account branching.
 - [x] Continue Milestone 14 with Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
-- [ ] Continue Milestone 14 with authenticated buyer request context for checkout and delivery-express PayPal create-order surfaces after login.
+- [x] Resolve live Supabase Auth sign-in/register blocker where the configured remote project returns a token-endpoint database schema error before cart merge.
+- [x] Fix live minicart drawer viewport placement so the drawer opens onscreen and its controls are clickable in desktop browser QA.
+- [x] Fix live Pickup market/store leakage so US ZIP search cannot return GB/London stores.
+- [x] Keep checkout Order Summary payment-neutral until the Payment method section is active and a buyer has selected a method.
+- [x] Continue Milestone 14 with authenticated buyer request context for checkout and delivery-express PayPal create-order surfaces after login.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
 - [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.

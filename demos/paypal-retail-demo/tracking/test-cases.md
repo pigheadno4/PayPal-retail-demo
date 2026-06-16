@@ -164,6 +164,9 @@
 - [x] M13.1 Pickup guest flow starts with ZIP/postcode only, no selected store, no default-address checkbox, and no preselected Order Summary store before modal confirmation.
 - [x] M13.1 Pickup logged-in flow starts with nearest/default-address store preselected and Change store available.
 - [x] M13.1 Pickup ZIP/postcode and default store fixtures match the active market.
+- [x] Live browser regression: US Pickup ZIP search returns only US-market stores and never GB/London stores.
+- [x] Live browser regression: minicart drawer opens inside the desktop viewport and Close/View cart/Checkout controls are clickable.
+- [x] Live browser regression: checkout Order Summary stays payment-neutral until the Payment method section is active and a radio method is selected.
 - [x] M13.1 checkout PayPal, checkout Pay Later, and delivery express create-order failures keep buyer-safe error copy, merchant debug reference, and retry affordance visible after the SDK error path.
 - [x] M11.5 Delivery shipping address can expand for editing, submit, shrink to saved summary, reopen for editing, and move billing into editing state.
 - [x] M11.5 Delivery checkout advances through editable shipping address, billing address, shipping option, and payment selection for the happy path.
@@ -188,7 +191,13 @@
 - [x] M14 password sign-in creates a Supabase Auth session, persists buyer identity, and merges the active guest cart.
 - [x] M14 password-only registration creates a Supabase Auth user/session and preserves checkout/cart context.
 - [x] M14 restored Supabase Auth session loads the signed-in cart without sending guest cart headers.
-- [ ] M14 logged-in checkout and delivery-express PayPal create-order calls include authenticated buyer context instead of relying on guest cart secrets.
+- [x] Live browser regression: seeded existing-user sign-in completes against the configured Supabase project, or surfaces a specific actionable environment/configuration error instead of generic retry copy.
+- [ ] M14 auth password form exposes username/email semantics for browser password managers.
+- [x] M14 logged-in checkout and delivery-express PayPal create-order calls include authenticated buyer context instead of relying on guest cart secrets.
+- [x] M14 after-login PDP/cart/minicart delivery express surfaces keep official PayPal SDK scopes mounted for signed-in carts that no longer have guest cart secrets.
+- [x] M14 checkout PayPal and Pay Later create-order request builders preserve authenticated request options for bearer-context payment attempts.
+- [x] M14 Delivery checkout submits start the draft update immediately instead of waiting behind artificial UI timers.
+- [x] M14 Delivery shipping-option radio changes immediately reflect the selected shipping amount and total in Order Summary while backend recalculation remains the source of truth after submit.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
@@ -227,6 +236,9 @@
 - [x] Delivery shipping address submit shows pending state, saves through the backend, collapses the section, and exposes Edit without leaving another section expanded.
 - [x] Delivery billing address submit shows pending state, saves through the backend, collapses the section, exposes Edit, and advances to Shipping options.
 - [x] Delivery shipping options start unsaved, update selected state, save through the backend, and update Order Summary shipping and total when changed.
+- [x] Live signed-in Chrome pass: checkout/PDP/cart/minicart render official PayPal and Pay Later controls after SDK eligibility settles.
+- [x] Live signed-in Chrome pass: Delivery shipping/billing submit starts immediately, collapses saved sections, and preserves Edit affordances.
+- [x] Live signed-in Chrome pass: changing Delivery shipping option updates Order Summary shipping and total before submit.
 - [x] Checkout draft updates create a server UUID draft before PATCH and never send fixture draft IDs to Supabase-backed endpoints.
 - [x] Checkout draft submit API failures keep the current section expanded, announce a retryable inline error, and preserve downstream sections.
 - [x] Express API route dependency failures return the standard JSON error envelope instead of an HTML 500 page.

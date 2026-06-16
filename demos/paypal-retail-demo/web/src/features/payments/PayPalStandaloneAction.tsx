@@ -6,7 +6,10 @@ import type {
   OnErrorData,
 } from "@paypal/paypal-js/sdk-v6";
 
-import { type ApiQueryParams } from "../../api/client.js";
+import {
+  type ApiQueryParams,
+  type ApiRequestOptions,
+} from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
@@ -29,6 +32,7 @@ export interface PayPalStandaloneActionProps {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
 }
 
 export interface PayPalCreateOrderRequest {
@@ -39,6 +43,7 @@ export interface PayPalCreateOrderRequest {
     readonly vault_requested?: true;
   };
   readonly query: ApiQueryParams;
+  readonly options?: ApiRequestOptions | undefined;
 }
 
 export function PayPalStandaloneAction({
@@ -46,6 +51,7 @@ export function PayPalStandaloneAction({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
 }: PayPalStandaloneActionProps) {
   const apiClient = useApiClient();
   const [vaultRequested, setVaultRequested] = useState(false);
@@ -62,6 +68,7 @@ export function PayPalStandaloneAction({
       checkoutDraftId,
       fulfillmentMode,
       market,
+      requestOptions,
       vaultRequested: effectiveVaultRequested,
     });
     let order: PayPalCreateOrderResponse;
@@ -71,6 +78,7 @@ export function PayPalStandaloneAction({
         request.path,
         request.body,
         request.query,
+        request.options,
       );
     } catch (error) {
       const actionFailure = captureCreateOrderFailure(error);
@@ -99,6 +107,7 @@ export function PayPalStandaloneAction({
     effectiveVaultRequested,
     fulfillmentMode,
     market,
+    requestOptions,
   ]);
 
   const handleApprove = useCallback(
@@ -155,11 +164,13 @@ export function buildPayPalCreateOrderRequest({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
   vaultRequested,
 }: {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
   readonly vaultRequested?: boolean;
 }): PayPalCreateOrderRequest {
   return {
@@ -175,6 +186,7 @@ export function buildPayPalCreateOrderRequest({
     query: {
       market,
     },
+    ...(requestOptions ? { options: requestOptions } : {}),
   };
 }
 

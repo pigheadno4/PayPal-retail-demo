@@ -17,7 +17,10 @@ import type {
   OnErrorData,
 } from "@paypal/paypal-js/sdk-v6";
 
-import { type ApiQueryParams } from "../../api/client.js";
+import {
+  type ApiQueryParams,
+  type ApiRequestOptions,
+} from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
@@ -32,6 +35,7 @@ export interface WalletCheckoutActionProps {
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
   readonly method: WalletPaymentMethod;
+  readonly requestOptions?: ApiRequestOptions | undefined;
   readonly storeDisplayName: string;
   readonly totalLabel: string;
 }
@@ -43,6 +47,7 @@ export interface WalletCreateOrderRequest {
     readonly method: WalletPaymentMethod;
   };
   readonly query: ApiQueryParams;
+  readonly options?: ApiRequestOptions | undefined;
 }
 
 const requiredComponentByMethod = {
@@ -107,11 +112,13 @@ export function buildWalletCreateOrderRequest({
   fulfillmentMode,
   market,
   method,
+  requestOptions,
 }: {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
   readonly method: WalletPaymentMethod;
+  readonly requestOptions?: ApiRequestOptions | undefined;
 }): WalletCreateOrderRequest {
   return {
     path:
@@ -125,6 +132,7 @@ export function buildWalletCreateOrderRequest({
     query: {
       market,
     },
+    ...(requestOptions ? { options: requestOptions } : {}),
   };
 }
 
@@ -303,6 +311,7 @@ function useWalletCreateOrder({
   fulfillmentMode,
   market,
   method,
+  requestOptions,
 }: WalletCheckoutActionProps) {
   const apiClient = useApiClient();
 
@@ -312,11 +321,13 @@ function useWalletCreateOrder({
       fulfillmentMode,
       market,
       method,
+      requestOptions,
     });
     const order = await apiClient.post<PayPalCreateOrderResponse>(
       request.path,
       request.body,
       request.query,
+      request.options,
     );
 
     console.info("[paypal-retail-demo] Wallet order created", {
@@ -329,7 +340,14 @@ function useWalletCreateOrder({
     return {
       orderId: order.paypal_order_id,
     };
-  }, [apiClient, checkoutDraftId, fulfillmentMode, market, method]);
+  }, [
+    apiClient,
+    checkoutDraftId,
+    fulfillmentMode,
+    market,
+    method,
+    requestOptions,
+  ]);
 }
 
 function handleApplePayApprove(data: ConfirmOrderResponse) {

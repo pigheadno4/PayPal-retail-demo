@@ -5,6 +5,7 @@ import type {
   CheckoutOrderSummary,
   CheckoutPageData,
   CheckoutStep,
+  CheckoutStoreCard,
 } from "./CheckoutPage.js";
 
 export interface CheckoutDraftApiResponse {
@@ -50,6 +51,24 @@ export interface CheckoutPickupDraftDto {
   readonly inventory?: CheckoutPickupInventoryDto;
   readonly pickup_dates?: readonly CheckoutPickupDateDto[];
   readonly selected_pickup_date?: string | null;
+  readonly stores?: readonly CheckoutPickupStoreDto[];
+  readonly selected_store_id?: string | null;
+}
+
+export interface CheckoutPickupStoreDto {
+  readonly id: string;
+  readonly name: string;
+  readonly address_line1: string;
+  readonly address_line2?: string | null;
+  readonly city: string;
+  readonly state?: string | null;
+  readonly postal_code: string;
+  readonly country_code: string;
+  readonly phone?: string | null;
+  readonly distance_label?: string | null;
+  readonly available_items_count: number;
+  readonly unavailable_items_count: number;
+  readonly selected?: boolean;
 }
 
 export interface CheckoutPickupInventoryDto {
@@ -226,26 +245,39 @@ function reconcilePickupSteps(
   pickup: CheckoutPickupDraftDto | undefined,
 ): readonly CheckoutStep[] {
   const pickupDates = pickup?.pickup_dates;
+  const pickupStores = pickup?.stores;
 
-  if (!pickupDates?.length) {
+  if (!pickupDates?.length && !pickupStores?.length) {
     return steps;
   }
   const selectedPickupDate = pickup?.selected_pickup_date;
+  const selectedStoreId = pickup?.selected_store_id;
 
-  return steps.map((step) =>
-    step.id === "pickup-date"
-      ? {
-          ...step,
-          choices: pickupDates
-            .filter((date) => date.is_available)
-            .map((date) => ({
-              label: formatDateLabel(date.pickup_date),
-              value: date.pickup_date,
-              selected: date.pickup_date === selectedPickupDate,
-            })),
-        }
-      : step,
-  );
+  return steps.map((step) => {
+    if (step.id === "store-selection" && pickupStores?.length) {
+      return {
+        ...step,
+        storeCards: pickupStores.map((store) =>
+          mapPickupStoreCard(store, selectedStoreId),
+        ),
+      };
+    }
+
+    if (step.id === "pickup-date" && pickupDates?.length) {
+      return {
+        ...step,
+        choices: pickupDates
+          .filter((date) => date.is_available)
+          .map((date) => ({
+            label: formatDateLabel(date.pickup_date),
+            value: date.pickup_date,
+            selected: date.pickup_date === selectedPickupDate,
+          })),
+      };
+    }
+
+    return step;
+  });
 }
 
 function mapAddressFields(
@@ -300,6 +332,52 @@ function mapShippingChoice(
         description: `Arrives in ${option.estimated_days_min}-${option.estimated_days_max} business days`,
       }
     : choice;
+}
+
+function mapPickupStoreCard(
+  store: CheckoutPickupStoreDto,
+  selectedStoreId: string | null | undefined,
+): CheckoutStoreCard {
+  const unavailableItemsCount = store.unavailable_items_count;
+  const baseStoreCard: CheckoutStoreCard = {
+    id: store.id,
+    name: store.name,
+    address: formatPickupStoreAddress(store),
+    distanceLabel: store.distance_label ?? "Available nearby",
+    phoneLabel: store.phone ?? "Phone not listed",
+    availableItemsLabel: `Available: ${formatItemCount(
+      store.available_items_count,
+    )}`,
+    unavailableItemsLabel: `Unavailable: ${formatItemCount(
+      unavailableItemsCount,
+    )}`,
+    selected: store.selected === true || store.id === selectedStoreId,
+  };
+
+  return unavailableItemsCount > 0
+    ? {
+        ...baseStoreCard,
+        partialInventoryNote: "Unavailable items stay in the original cart.",
+        statusLabel: "Partial inventory",
+      }
+    : {
+        ...baseStoreCard,
+        statusLabel: "Full inventory",
+      };
+}
+
+function formatPickupStoreAddress(store: CheckoutPickupStoreDto): string {
+  const locality = [store.city, store.state, store.postal_code]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    store.address_line1,
+    store.address_line2,
+    locality,
+    store.country_code,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function formatPromoLabel(

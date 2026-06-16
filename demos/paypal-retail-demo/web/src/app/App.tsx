@@ -778,6 +778,7 @@ function BuyerShell({
           onExpressReviewCapture={handleExpressReviewCapture}
           renderDeliveryExpressAction={(method, source, totalLabel) =>
             renderDeliveryExpressAction({
+              authSession: currentAuthSession,
               cart: currentCart,
               config,
               method,
@@ -791,12 +792,16 @@ function BuyerShell({
           onNavigate={navigateBuyer}
           renderCardPaymentBox={(context) =>
             renderCardPaymentBox({
+              authSession: currentAuthSession,
+              cart: currentCart,
               config,
               context,
             })
           }
           renderCheckoutPaymentAction={(context) =>
             renderCheckoutPaymentAction({
+              authSession: currentAuthSession,
+              cart: currentCart,
               config,
               context,
             })
@@ -841,6 +846,7 @@ function BuyerShell({
         onQuantityChange={handleCartQuantityChange}
         renderDeliveryExpressAction={(method, totalLabel) =>
           renderDeliveryExpressAction({
+            authSession: currentAuthSession,
             cart: currentCart,
             config,
             method,
@@ -1558,6 +1564,7 @@ function buildExpressReviewPath(
 }
 
 function renderDeliveryExpressAction({
+  authSession,
   cart,
   config,
   method,
@@ -1566,6 +1573,7 @@ function renderDeliveryExpressAction({
   source,
   totalLabel,
 }: {
+  readonly authSession?: BuyerAuthSession | null | undefined;
   readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly method: DeliveryExpressPaymentMethod;
@@ -1576,7 +1584,9 @@ function renderDeliveryExpressAction({
   readonly source: DeliveryExpressSource;
   readonly totalLabel: string;
 }) {
-  if (!hasServerReadyCartBinding(cart)) {
+  const requestOptions = buildCartRequestOptions(cart, authSession);
+
+  if (!hasCartApiAccess(cart, authSession) || !cart.cartPublicId?.trim()) {
     return (
       <StatusRegion
         id={`delivery-express-${source}-${method}-missing-cart`}
@@ -1606,6 +1616,7 @@ function renderDeliveryExpressAction({
         method={method}
         onApproved={onApproved}
         onBeforeCreateOrder={onBeforeCreateOrder}
+        requestOptions={requestOptions}
         source={source}
         totalLabel={totalLabel}
       />
@@ -1614,9 +1625,13 @@ function renderDeliveryExpressAction({
 }
 
 function renderCheckoutPaymentAction({
+  authSession,
+  cart,
   config,
   context,
 }: {
+  readonly authSession?: BuyerAuthSession | null | undefined;
+  readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly context: CheckoutPaymentActionContext;
 }) {
@@ -1631,6 +1646,7 @@ function renderCheckoutPaymentAction({
   }
   const isPayLater = context.selectedPaymentMethod === "paylater";
   const isWallet = isWalletPaymentMethod(context.selectedPaymentMethod);
+  const requestOptions = buildCartRequestOptions(cart, authSession);
 
   return (
     <PayPalSdkProviderScope
@@ -1650,6 +1666,7 @@ function renderCheckoutPaymentAction({
           fulfillmentMode={context.fulfillmentMode}
           market={config.market.code}
           method={context.selectedPaymentMethod}
+          requestOptions={requestOptions}
           storeDisplayName={config.profile.displayName}
           totalLabel={context.totalLabel}
         />
@@ -1660,6 +1677,7 @@ function renderCheckoutPaymentAction({
           currencyCode={config.market.currencyCode}
           fulfillmentMode={context.fulfillmentMode}
           market={config.market.code}
+          requestOptions={requestOptions}
           totalLabel={context.totalLabel}
         />
       ) : (
@@ -1668,6 +1686,7 @@ function renderCheckoutPaymentAction({
           checkoutDraftId={context.checkoutDraftId}
           fulfillmentMode={context.fulfillmentMode}
           market={config.market.code}
+          requestOptions={requestOptions}
         />
       )}
     </PayPalSdkProviderScope>
@@ -1683,9 +1702,13 @@ function isWalletPaymentMethod(
 }
 
 function renderCardPaymentBox({
+  authSession,
+  cart,
   config,
   context,
 }: {
+  readonly authSession?: BuyerAuthSession | null | undefined;
+  readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly context: CheckoutPaymentActionContext;
 }) {
@@ -1709,6 +1732,7 @@ function renderCardPaymentBox({
         checkoutDraftId={context.checkoutDraftId}
         fulfillmentMode={context.fulfillmentMode}
         market={config.market.code}
+        requestOptions={buildCartRequestOptions(cart, authSession)}
       />
     </PayPalSdkProviderScope>
   );

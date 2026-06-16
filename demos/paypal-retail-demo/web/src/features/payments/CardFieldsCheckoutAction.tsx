@@ -7,7 +7,10 @@ import {
 } from "@paypal/react-paypal-js/sdk-v6";
 import { useCallback, useEffect, useState } from "react";
 
-import { type ApiQueryParams } from "../../api/client.js";
+import {
+  type ApiQueryParams,
+  type ApiRequestOptions,
+} from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
@@ -18,6 +21,7 @@ export interface CardFieldsCheckoutActionProps {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
 }
 
 export interface CardFieldsCreateOrderRequest {
@@ -28,6 +32,7 @@ export interface CardFieldsCreateOrderRequest {
     readonly vault_requested: boolean;
   };
   readonly query: ApiQueryParams;
+  readonly options?: ApiRequestOptions | undefined;
 }
 
 export function CardFieldsCheckoutAction({
@@ -35,6 +40,7 @@ export function CardFieldsCheckoutAction({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
 }: CardFieldsCheckoutActionProps) {
   return (
     <PayPalCardFieldsProvider>
@@ -43,6 +49,7 @@ export function CardFieldsCheckoutAction({
         checkoutDraftId={checkoutDraftId}
         fulfillmentMode={fulfillmentMode}
         market={market}
+        requestOptions={requestOptions}
       />
     </PayPalCardFieldsProvider>
   );
@@ -53,6 +60,7 @@ function CardFieldsCheckoutForm({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
 }: CardFieldsCheckoutActionProps) {
   const apiClient = useApiClient();
   const [vaultRequested, setVaultRequested] = useState(false);
@@ -68,12 +76,14 @@ function CardFieldsCheckoutForm({
       checkoutDraftId,
       fulfillmentMode,
       market,
+      requestOptions,
       vaultRequested: effectiveVaultRequested,
     });
     const order = await apiClient.post<PayPalCreateOrderResponse>(
       request.path,
       request.body,
       request.query,
+      request.options,
     );
 
     console.info("[paypal-retail-demo] Card order created", {
@@ -90,6 +100,7 @@ function CardFieldsCheckoutForm({
     effectiveVaultRequested,
     fulfillmentMode,
     market,
+    requestOptions,
   ]);
 
   const handleSubmit = useCallback(async () => {
@@ -191,11 +202,13 @@ export function buildCardFieldsCreateOrderRequest({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
   vaultRequested,
 }: {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
   readonly vaultRequested: boolean;
 }): CardFieldsCreateOrderRequest {
   return {
@@ -211,5 +224,6 @@ export function buildCardFieldsCreateOrderRequest({
     query: {
       market,
     },
+    ...(requestOptions ? { options: requestOptions } : {}),
   };
 }

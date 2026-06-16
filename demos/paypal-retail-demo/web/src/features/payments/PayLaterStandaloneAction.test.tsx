@@ -57,6 +57,41 @@ describe("PayLaterStandaloneAction", () => {
     });
   });
 
+  it("preserves authenticated request options for checkout create-order calls", () => {
+    const request = buildPayLaterCreateOrderRequest({
+      checkoutDraftId: "draft_delivery_123",
+      fulfillmentMode: "delivery",
+      market: "US",
+      requestOptions: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    } as Parameters<typeof buildPayLaterCreateOrderRequest>[0] & {
+      readonly requestOptions: {
+        readonly headers: {
+          readonly authorization: string;
+        };
+      };
+    });
+
+    expect(request).toEqual({
+      path: "/api/paypal/orders/delivery",
+      body: {
+        checkout_draft_id: "draft_delivery_123",
+        method: "paylater",
+      },
+      query: {
+        market: "US",
+      },
+      options: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    });
+  });
+
   it("renders a scoped Pay Later action and waits for eligible details before the official button", () => {
     const apiClient = createApiClient({
       baseUrl: "https://demo.example.test",

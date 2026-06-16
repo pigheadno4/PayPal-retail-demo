@@ -284,17 +284,30 @@ export function CheckoutPage({
     activeMode === "delivery"
       ? deliverySelectedPaymentMethod
       : pickupSelectedPaymentMethod;
-  const activeSummary = withSelectedPaymentSummary(
-    activeDraft.summary,
-    activeSelectedPaymentMethod,
-  );
-  const activeSelectedPaymentEligible = isSelectedPaymentMethodEligible(
-    activeDraft,
-    activeSelectedPaymentMethod,
-  );
   const activePaymentStepExpanded = isPaymentStepExpanded(
     activeMode,
     expandedStepIds,
+  );
+  const activeBaseSummary = activePaymentStepExpanded
+    ? withSelectedPaymentSummary(
+        activeDraft.summary,
+        activeSelectedPaymentMethod,
+      )
+    : withPendingPaymentSummary(activeDraft.summary);
+  const activeSummary =
+    activeMode === "delivery"
+      ? withSelectedDeliveryShippingSummary(
+          activeBaseSummary,
+          getSelectedDeliveryShippingChoice(
+            pageData.delivery,
+            choiceSelections,
+            activeBaseSummary,
+          ),
+        )
+      : activeBaseSummary;
+  const activeSelectedPaymentEligible = isSelectedPaymentMethodEligible(
+    activeDraft,
+    activeSelectedPaymentMethod,
   );
   const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
@@ -416,7 +429,8 @@ export function CheckoutPage({
     }
 
     if (step.id === "pickup-location") {
-      void applyDraftUpdate(
+      void savePickupLocationAndOpenStoreModal(
+        step,
         buildDraftUpdateRequest(
           "pickup_location",
           "pickup",
@@ -424,7 +438,6 @@ export function CheckoutPage({
           step,
         ),
       );
-      openPickupStoreModal();
       return;
     }
 
@@ -465,11 +478,87 @@ export function CheckoutPage({
     }
   }
 
-  async function applyDraftUpdate(request: CheckoutDraftUpdateRequest) {
+  async function applyDraftUpdate(
+    request: CheckoutDraftUpdateRequest,
+  ): Promise<CheckoutPageData | undefined> {
     const updatedData = await onDraftUpdate?.(request, currentData);
 
     if (updatedData) {
       setCurrentData(updatedData);
+      return updatedData;
+    }
+
+    return undefined;
+  }
+
+  async function savePickupLocationAndOpenStoreModal(
+    step: CheckoutStep,
+    updateRequest: CheckoutDraftUpdateRequest,
+  ) {
+    const stepId = step.id;
+    setSubmitErrorMessages((currentMessages) => {
+      const { [stepId]: _removedMessage, ...nextMessages } = currentMessages;
+      return nextMessages;
+    });
+    setStepStateOverrides((currentStates) => ({
+      ...currentStates,
+      [stepId]: "saving",
+    }));
+    setExpandedStepIds((currentStepIds) => ({
+      ...currentStepIds,
+      pickup: stepId,
+    }));
+    setCollapsedStepIds((currentStepIds) => {
+      const nextStepIds = new Set(currentStepIds);
+      nextStepIds.delete(stepId);
+      return nextStepIds;
+    });
+
+    const recalculatingTimerId = setTimeout(() => {
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        [stepId]: "recalculating",
+      }));
+    }, checkoutSubmitTransitionDelayMs);
+    submitTransitionTimersRef.current.push(recalculatingTimerId);
+
+    try {
+      const updatedData = await applyDraftUpdate(updateRequest);
+      clearTimeout(recalculatingTimerId);
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        [stepId]: "saved",
+        "store-selection": "editing",
+      }));
+      setExpandedStepIds((currentStepIds) => ({
+        ...currentStepIds,
+        pickup: "store-selection",
+      }));
+      setCollapsedStepIds((currentStepIds) => {
+        const nextStepIds = new Set(currentStepIds);
+        nextStepIds.add(stepId);
+        return nextStepIds;
+      });
+      openPickupStoreModal(updatedData?.pickup ?? pageData.pickup);
+    } catch {
+      clearTimeout(recalculatingTimerId);
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        [stepId]: "blocked",
+      }));
+      setExpandedStepIds((currentStepIds) => ({
+        ...currentStepIds,
+        pickup: stepId,
+      }));
+      setCollapsedStepIds((currentStepIds) => {
+        const nextStepIds = new Set(currentStepIds);
+        nextStepIds.delete(stepId);
+        return nextStepIds;
+      });
+      setSubmitErrorMessages((currentMessages) => ({
+        ...currentMessages,
+        [stepId]: `We could not save ${step.title}. Please try again.`,
+      }));
     }
   }
 
@@ -506,52 +595,52 @@ export function CheckoutPage({
         [stepId]: "recalculating",
       }));
     }, checkoutSubmitTransitionDelayMs);
-    const savedTimerId = setTimeout(() => {
-      void (async () => {
-        try {
-          if (updateRequest && onDraftUpdate) {
-            await applyDraftUpdate(updateRequest);
-          }
+    submitTransitionTimersRef.current.push(recalculatingTimerId);
 
-          setStepStateOverrides((currentStates) => ({
-            ...currentStates,
-            [nextStepId]: "editing",
-            [stepId]: "saved",
-          }));
-          setExpandedStepIds((currentStepIds) => ({
-            ...currentStepIds,
-            [mode]: nextStepId,
-          }));
-          setCollapsedStepIds((currentStepIds) => {
-            const nextStepIds = new Set(currentStepIds);
-            nextStepIds.add(stepId);
-
-            return nextStepIds;
-          });
-        } catch {
-          setStepStateOverrides((currentStates) => ({
-            ...currentStates,
-            [stepId]: "blocked",
-          }));
-          setExpandedStepIds((currentStepIds) => ({
-            ...currentStepIds,
-            [mode]: stepId,
-          }));
-          setCollapsedStepIds((currentStepIds) => {
-            const nextStepIds = new Set(currentStepIds);
-            nextStepIds.delete(stepId);
-
-            return nextStepIds;
-          });
-          setSubmitErrorMessages((currentMessages) => ({
-            ...currentMessages,
-            [stepId]: `We could not save ${stepTitle}. Please try again.`,
-          }));
+    void (async () => {
+      try {
+        if (updateRequest && onDraftUpdate) {
+          await applyDraftUpdate(updateRequest);
         }
-      })();
-    }, checkoutSubmitTransitionDelayMs * 2);
+        clearTimeout(recalculatingTimerId);
 
-    submitTransitionTimersRef.current.push(recalculatingTimerId, savedTimerId);
+        setStepStateOverrides((currentStates) => ({
+          ...currentStates,
+          [nextStepId]: "editing",
+          [stepId]: "saved",
+        }));
+        setExpandedStepIds((currentStepIds) => ({
+          ...currentStepIds,
+          [mode]: nextStepId,
+        }));
+        setCollapsedStepIds((currentStepIds) => {
+          const nextStepIds = new Set(currentStepIds);
+          nextStepIds.add(stepId);
+
+          return nextStepIds;
+        });
+      } catch {
+        clearTimeout(recalculatingTimerId);
+        setStepStateOverrides((currentStates) => ({
+          ...currentStates,
+          [stepId]: "blocked",
+        }));
+        setExpandedStepIds((currentStepIds) => ({
+          ...currentStepIds,
+          [mode]: stepId,
+        }));
+        setCollapsedStepIds((currentStepIds) => {
+          const nextStepIds = new Set(currentStepIds);
+          nextStepIds.delete(stepId);
+
+          return nextStepIds;
+        });
+        setSubmitErrorMessages((currentMessages) => ({
+          ...currentMessages,
+          [stepId]: `We could not save ${stepTitle}. Please try again.`,
+        }));
+      }
+    })();
   }
 
   function updateChoiceSelection(
@@ -594,7 +683,7 @@ export function CheckoutPage({
     });
   }
 
-  function openPickupStoreModal() {
+  function openPickupStoreModal(pickupDraft = pageData.pickup) {
     if (
       typeof document !== "undefined" &&
       document.activeElement instanceof HTMLElement
@@ -603,7 +692,7 @@ export function CheckoutPage({
     }
 
     setPendingPickupStoreName(
-      selectedPickupStoreName ?? getDefaultPickupStoreName(data.pickup),
+      selectedPickupStoreName ?? getDefaultPickupStoreName(pickupDraft),
     );
     setPickupStoreModalOpen(true);
   }
@@ -1080,6 +1169,117 @@ function withSelectedPaymentSummary(
     selectedPaymentLabel: `${paymentMethodLabels[selectedPaymentMethod]} selected`,
     selectedPaymentMethod,
   };
+}
+
+function withPendingPaymentSummary(
+  summary: CheckoutOrderSummary,
+): CheckoutOrderSummary {
+  const { selectedPaymentMethod: _selectedPaymentMethod, ...baseSummary } =
+    summary;
+
+  return {
+    ...baseSummary,
+    selectedPaymentLabel: "Choose payment method",
+  };
+}
+
+function getSelectedDeliveryShippingChoice(
+  draft: CheckoutFulfillmentDraft,
+  choiceSelections: Readonly<Record<string, string>>,
+  summary: CheckoutOrderSummary,
+): CheckoutChoice | null {
+  const shippingStep = draft.steps.find(
+    (step) => step.id === "shipping-options",
+  );
+  const choices =
+    shippingStep?.choices ??
+    defaultStepDetailsById["shipping-options"]?.choices;
+  const selectedLabel = choiceSelections["shipping-options"];
+
+  if (!selectedLabel && !summary.shippingLabel) {
+    return null;
+  }
+
+  return (
+    choices?.find((choice) =>
+      selectedLabel ? choice.label === selectedLabel : choice.selected === true,
+    ) ?? null
+  );
+}
+
+function withSelectedDeliveryShippingSummary(
+  summary: CheckoutOrderSummary,
+  selectedShippingChoice: CheckoutChoice | null,
+): CheckoutOrderSummary {
+  if (!selectedShippingChoice?.amountLabel) {
+    return summary;
+  }
+
+  const nextTotalLabel = addShippingDeltaToTotal({
+    currentShippingLabel: summary.shippingLabel,
+    nextShippingLabel: selectedShippingChoice.amountLabel,
+    totalLabel: summary.totalLabel,
+  });
+
+  return {
+    ...summary,
+    shippingLabel: selectedShippingChoice.amountLabel,
+    ...(nextTotalLabel ? { totalLabel: nextTotalLabel } : {}),
+  };
+}
+
+function addShippingDeltaToTotal({
+  currentShippingLabel,
+  nextShippingLabel,
+  totalLabel,
+}: {
+  readonly currentShippingLabel?: string | undefined;
+  readonly nextShippingLabel: string;
+  readonly totalLabel: string;
+}): string | null {
+  const currentShipping = currentShippingLabel
+    ? parseMoneyLabel(currentShippingLabel)
+    : null;
+  const nextShipping = parseMoneyLabel(nextShippingLabel);
+  const total = parseMoneyLabel(totalLabel);
+
+  if (!nextShipping || !total) {
+    return null;
+  }
+  if (currentShipping && currentShipping.prefix !== nextShipping.prefix) {
+    return null;
+  }
+  if (total.prefix !== nextShipping.prefix) {
+    return null;
+  }
+
+  const currentShippingMinor = currentShipping?.minor ?? 0;
+
+  return formatMoneyLabel(
+    total.prefix,
+    total.minor - currentShippingMinor + nextShipping.minor,
+  );
+}
+
+function parseMoneyLabel(
+  label: string,
+): { readonly prefix: string; readonly minor: number } | null {
+  const match = label.trim().match(/^([^0-9-]*)(-?\d+(?:\.\d{1,2})?)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, prefix = "", amount = "0"] = match;
+
+  return {
+    prefix,
+    minor: Math.round(Number(amount) * 100),
+  };
+}
+
+function formatMoneyLabel(prefix: string, minor: number): string {
+  return `${prefix}${(minor / 100).toFixed(2)}`;
 }
 
 function withSelectedPickupStoreSummary(

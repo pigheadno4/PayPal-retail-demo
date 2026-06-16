@@ -23,7 +23,7 @@ If a milestone becomes too large to execute safely from `IMPLEMENTATION_TASKS.md
 
 ## Current Phase
 
-Current phase: **Milestone 14 Account, Guest, Reviews is active on `main`. The merged baseline includes checkout payment-action gating, Delivery checkout live-data recovery, server checkout-draft UUID creation, retryable section errors, official PDP/cart/minicart express SDK surfaces, M13.1 cart/draft/Pay Later recovery, and express Review and Confirm capture. M14 now has email-first auth modal branching plus Supabase Auth submit wiring: Sign in opens the modal, normalized email lookup calls `POST /api/account/auth/lookup`, existing accounts sign in with password, unknown emails register with password, restored Supabase sessions load the signed-in cart, and sign-in/register merges the active guest cart into the authenticated cart. The next M14 slice should pass authenticated buyer request context into checkout and delivery-express PayPal create-order surfaces after login, then continue account settings, guest checkout inline registration, order history, and reviews. The starter-cart bootstrap remains a tactical bridge until the buyer UI loads products and carts directly from the server catalog. The playful POP MART visual refresh remains queued for Milestone 16. Broader responsive screenshot QA and live sandbox capture/wallet checks remain open. Local Supabase migration verification remains blocked until Docker is available**.
+Current phase: **Milestone 14 Account, Guest, Reviews is active on `main`. The merged baseline includes checkout payment-action gating, Delivery checkout live-data recovery, server checkout-draft UUID creation, retryable section errors, official PDP/cart/minicart express SDK surfaces, M13.1 cart/draft/Pay Later recovery, and express Review and Confirm capture. M14 now has email-first auth modal branching plus Supabase Auth submit wiring: Sign in opens the modal, normalized email lookup calls `POST /api/account/auth/lookup`, existing accounts sign in with password, unknown emails register with password, restored Supabase sessions load the signed-in cart, and sign-in/register merges the active guest cart into the authenticated cart. The June 15 live audit blockers are recovered: seeded Supabase Auth users can sign in against the configured remote project, the minicart opens inside the desktop viewport with quantity controls, US Pickup ZIP search returns US-market stores, and Order Summary remains payment-neutral until Payment is active. The logged-in payment-context follow-up is complete: checkout and delivery-express PayPal create-order surfaces preserve authenticated bearer context after login, checkout submit starts draft updates immediately, and shipping-option selection updates Order Summary before final backend reconciliation. The next M14 slice should continue account settings, guest checkout inline registration, order history, and reviews. The starter-cart bootstrap remains a tactical bridge until the buyer UI loads products and carts directly from the server catalog. The playful POP MART visual refresh remains queued for Milestone 16. Broader responsive screenshot QA and live sandbox capture/wallet checks remain open. Local Supabase migration verification remains blocked until Docker is available**.
 
 Milestone 0 decision gates confirmed on 2026-05-26:
 
@@ -33,11 +33,11 @@ Milestone 0 decision gates confirmed on 2026-05-26:
 - POP MART assets: local app assets under `web/public/assets/popmart/` with slug-based naming.
 - Apple Pay / Google Pay: local eligibility/debug/manual verification; full wallet verification later through hosted preview or approved HTTPS tunnel.
 
-Operational setup still required during Milestone 1 and before migrations:
+Operational setup status:
 
-- Create `.env.example` without secrets during scaffold.
-- Install or configure Supabase CLI before Milestone 2 migrations.
-- Verify final PayPal sandbox account capabilities before payment implementation.
+- `.env.example` exists and must remain free of secrets.
+- Supabase CLI/remote access is configured; local migration verification remains blocked until Docker/local Supabase is available.
+- Final PayPal sandbox account capability review is deferred to the Milestone 16 manual sandbox checklist.
 
 ## Source Documents
 

@@ -221,6 +221,16 @@ describe("App buyer interactions", () => {
       screen.getByRole("button", { name: "Open minicart" }).textContent,
     ).toContain("Cart (3)");
     expect(getShellStatusText()).toContain("Signed in and merged cart.");
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          "Cart is refreshing before delivery express checkout.",
+        ),
+      ).toBeNull();
+      expect(
+        screen.getByText("PayPal delivery express button ready."),
+      ).toBeTruthy();
+    });
   });
 
   it("registers a new account and merges the guest cart into the new buyer session", async () => {
@@ -1398,18 +1408,34 @@ describe("App buyer interactions", () => {
 
   it("updates checkout totals from pickup draft API recalculation", async () => {
     const user = userEvent.setup();
+    const pickupStores = [
+      {
+        id: "store_popmart_nyc",
+        name: "POP MART New York",
+        address_line1: "100 Broadway",
+        city: "New York",
+        state: "NY",
+        postal_code: "10012",
+        country_code: "US",
+        phone: "+1 212 555 0101",
+        available_items_count: 1,
+        unavailable_items_count: 0,
+      },
+    ];
     const apiClient = createRecordingApiClient({
       postResponse: checkoutDraftApiResponse({
         fulfillmentMode: "pickup",
         id: pickupDraftUuid,
         promoLabel: "PICKUP5",
         totalMinor: 1349,
+        pickupStores,
       }),
       patchResponse: checkoutDraftApiResponse({
         fulfillmentMode: "pickup",
         id: pickupDraftUuid,
         promoLabel: "PICKUP5",
         totalMinor: 1349,
+        pickupStores,
       }),
     });
 
@@ -1454,9 +1480,17 @@ describe("App buyer interactions", () => {
     const storeDialog = screen.getByRole("dialog", {
       name: "Choose pickup store",
     });
+    await waitForStepState(pickupLocationStep, "saved");
+    expect(getStep("Store selection").getAttribute("data-step-state")).toBe(
+      "editing",
+    );
+    expect(within(storeDialog).getByText("POP MART New York")).toBeTruthy();
+    expect(
+      within(storeDialog).queryByText("POP MART Covent Garden"),
+    ).toBeNull();
     await user.click(
       within(storeDialog).getByRole("radio", {
-        name: /POP MART Covent Garden/,
+        name: /POP MART New York/,
       }),
     );
     await user.click(
@@ -1469,7 +1503,7 @@ describe("App buyer interactions", () => {
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
           body: {
-            store_id: "store_popmart_covent_garden",
+            store_id: "store_popmart_nyc",
           },
           method: "patch",
           path: `/api/checkout/drafts/${pickupDraftUuid}/pickup-store`,
@@ -2039,11 +2073,24 @@ function emptyCartApiResponse({
 function checkoutDraftApiResponse({
   fulfillmentMode,
   id,
+  pickupStores = [],
   promoLabel,
   totalMinor,
 }: {
   readonly fulfillmentMode: "delivery" | "pickup";
   readonly id?: string;
+  readonly pickupStores?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly address_line1: string;
+    readonly city: string;
+    readonly state: string | null;
+    readonly postal_code: string;
+    readonly country_code: string;
+    readonly phone: string | null;
+    readonly available_items_count: number;
+    readonly unavailable_items_count: number;
+  }[];
   readonly promoLabel: string;
   readonly totalMinor: number;
 }) {
@@ -2077,6 +2124,7 @@ function checkoutDraftApiResponse({
       },
       pickup: {
         location: null,
+        stores: pickupStores,
         selected_store_id: null,
         pickup_dates: [],
         selected_pickup_date: null,

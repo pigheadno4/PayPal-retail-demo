@@ -61,6 +61,7 @@ export function MinicartShell({
       aria-label="Minicart"
       aria-hidden={state === "closed"}
       data-panel-state={state}
+      {...(state === "closed" ? { inert: true } : {})}
     >
       <header className="minicart-shell__header">
         <h2>Cart</h2>

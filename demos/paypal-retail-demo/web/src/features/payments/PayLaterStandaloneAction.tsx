@@ -9,7 +9,10 @@ import type {
   OnErrorData,
 } from "@paypal/paypal-js/sdk-v6";
 
-import { type ApiQueryParams } from "../../api/client.js";
+import {
+  type ApiQueryParams,
+  type ApiRequestOptions,
+} from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
@@ -29,6 +32,7 @@ export interface PayLaterStandaloneActionProps {
   readonly currencyCode: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
   readonly totalLabel: string;
 }
 
@@ -46,6 +50,7 @@ export interface PayLaterCreateOrderRequest {
     readonly method: "paylater";
   };
   readonly query: ApiQueryParams;
+  readonly options?: ApiRequestOptions | undefined;
 }
 
 export function PayLaterStandaloneAction({
@@ -54,6 +59,7 @@ export function PayLaterStandaloneAction({
   currencyCode,
   fulfillmentMode,
   market,
+  requestOptions,
   totalLabel,
 }: PayLaterStandaloneActionProps) {
   const apiClient = useApiClient();
@@ -73,6 +79,7 @@ export function PayLaterStandaloneAction({
       checkoutDraftId,
       fulfillmentMode,
       market,
+      requestOptions,
     });
     let order: PayPalCreateOrderResponse;
 
@@ -81,6 +88,7 @@ export function PayLaterStandaloneAction({
         request.path,
         request.body,
         request.query,
+        request.options,
       );
     } catch (error) {
       const actionFailure = captureCreateOrderFailure(error);
@@ -107,6 +115,7 @@ export function PayLaterStandaloneAction({
     clearFailure,
     fulfillmentMode,
     market,
+    requestOptions,
   ]);
 
   const handleApprove = useCallback(
@@ -207,10 +216,12 @@ export function buildPayLaterCreateOrderRequest({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  requestOptions,
 }: {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly requestOptions?: ApiRequestOptions | undefined;
 }): PayLaterCreateOrderRequest {
   return {
     path:
@@ -224,6 +235,7 @@ export function buildPayLaterCreateOrderRequest({
     query: {
       market,
     },
+    ...(requestOptions ? { options: requestOptions } : {}),
   };
 }
 

@@ -1,5 +1,15 @@
+// @vitest-environment jsdom
+
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CheckoutPage,
@@ -9,6 +19,11 @@ import {
   type CheckoutStep,
   type CheckoutValidationState,
 } from "./CheckoutPage.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  cleanup();
+});
 
 describe("CheckoutPage", () => {
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
@@ -189,6 +204,8 @@ describe("CheckoutPage", () => {
     );
 
     expect(html).toContain('data-payment-action-reserved-space="true"');
+    expect(html).toContain("Choose payment method");
+    expect(html).not.toContain("PayPal selected");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
   });
@@ -423,6 +440,56 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-payment-fulfillment-mode="delivery"');
     expect(html).toContain('data-payment-method="venmo"');
   });
+
+  it("starts draft updates immediately when a checkout step is submitted", async () => {
+    const user = userEvent.setup();
+    const onDraftUpdate = vi.fn(
+      () => new Promise<CheckoutPageData>(() => undefined),
+    );
+
+    render(
+      <CheckoutPage data={checkoutData()} onDraftUpdate={onDraftUpdate} />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit shipping address" }),
+    );
+
+    expect(onDraftUpdate).toHaveBeenCalledTimes(1);
+    expect(onDraftUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "delivery_shipping_address",
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it("reflects the selected shipping option in the order summary before submit", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "shipping-options",
+          deliveryShippingLabel: "$5.00",
+          deliveryTotalLabel: "$30.98",
+        })}
+      />,
+    );
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("$5.00")).toBeTruthy();
+    expect(within(orderSummary).getByText("$30.98")).toBeTruthy();
+
+    await user.click(screen.getByRole("radio", { name: /Express shipping/ }));
+
+    await waitFor(() => {
+      expect(within(orderSummary).getByText("$12.00")).toBeTruthy();
+      expect(within(orderSummary).getByText("$37.98")).toBeTruthy();
+    });
+  });
 });
 
 function checkoutData(
@@ -430,6 +497,8 @@ function checkoutData(
     Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation"> & {
       readonly activeDeliveryStepId: string;
       readonly activePickupStepId: string;
+      readonly deliveryShippingLabel: string;
+      readonly deliveryTotalLabel: string;
       readonly paymentChoices: readonly CheckoutChoice[];
       readonly pickupStoreMode: "guest" | "preselected";
       readonly saveForFutureEligible: boolean;
@@ -531,7 +600,10 @@ function checkoutData(
         contextLabel: "Ground delivery",
         subtotalLabel: "$25.98",
         promoLabel: "Auto promo calculating",
-        totalLabel: "$25.98",
+        ...(overrides.deliveryShippingLabel
+          ? { shippingLabel: overrides.deliveryShippingLabel }
+          : {}),
+        totalLabel: overrides.deliveryTotalLabel ?? "$25.98",
         selectedPaymentLabel,
         selectedPaymentMethod,
         ...(overrides.saveForFutureEligible === undefined

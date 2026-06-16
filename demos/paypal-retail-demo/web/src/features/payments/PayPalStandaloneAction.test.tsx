@@ -72,6 +72,41 @@ describe("PayPalStandaloneAction", () => {
     });
   });
 
+  it("preserves authenticated request options for checkout create-order calls", () => {
+    const request = buildPayPalCreateOrderRequest({
+      checkoutDraftId: "draft_delivery_123",
+      fulfillmentMode: "delivery",
+      market: "US",
+      requestOptions: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    } as Parameters<typeof buildPayPalCreateOrderRequest>[0] & {
+      readonly requestOptions: {
+        readonly headers: {
+          readonly authorization: string;
+        };
+      };
+    });
+
+    expect(request).toEqual({
+      path: "/api/paypal/orders/delivery",
+      body: {
+        checkout_draft_id: "draft_delivery_123",
+        method: "paypal",
+      },
+      query: {
+        market: "US",
+      },
+      options: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    });
+  });
+
   it("renders a scoped official PayPal standalone action surface", () => {
     const apiClient = createApiClient({
       baseUrl: "https://demo.example.test",

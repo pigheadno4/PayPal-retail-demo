@@ -9,6 +9,7 @@ import type {
   OnErrorData,
 } from "@paypal/paypal-js/sdk-v6";
 
+import { type ApiRequestOptions } from "../../api/client.js";
 import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import {
@@ -33,11 +34,12 @@ export interface DeliveryExpressApprovedContext {
 }
 
 export interface DeliveryExpressActionProps {
-  readonly cartClientSecret: string;
+  readonly cartClientSecret?: string | null | undefined;
   readonly cartPublicId: string;
   readonly currencyCode: string;
   readonly market: string;
   readonly method: DeliveryExpressPaymentMethod;
+  readonly requestOptions?: ApiRequestOptions | undefined;
   readonly source: DeliveryExpressSource;
   readonly totalLabel: string;
   readonly onBeforeCreateOrder?: () => void | Promise<void>;
@@ -52,6 +54,7 @@ export function DeliveryExpressAction({
   currencyCode,
   market,
   method,
+  requestOptions,
   source,
   totalLabel,
   onBeforeCreateOrder,
@@ -77,6 +80,7 @@ export function DeliveryExpressAction({
         cartPublicId,
         market,
         method,
+        requestOptions,
       });
       order = await apiClient.post<PayPalCreateOrderResponse>(
         request.path,
@@ -119,6 +123,7 @@ export function DeliveryExpressAction({
     market,
     method,
     onBeforeCreateOrder,
+    requestOptions,
     source,
   ]);
 

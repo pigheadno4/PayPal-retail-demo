@@ -240,6 +240,57 @@ describe("Supabase-backed checkout repository", () => {
     });
   });
 
+  it("returns market-scoped pickup stores after the guest submits a pickup location", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.stores.push({
+      id: "store_london",
+      market_id: "market_gb",
+      name: "POP MART London",
+      phone: "+44 20 5555 0101",
+      address_line1: "1 Oxford Street",
+      address_line2: null,
+      city: "London",
+      state: null,
+      postal_code: "W1F 7JL",
+      country_code: "GB",
+      is_active: true,
+    });
+    dataSource.drafts.push(existingDraft({ fulfillmentMode: "pickup" }));
+    const repository = createRepository(dataSource);
+
+    const response = await repository.updatePickupLocation(guestContext(), {
+      draftId: "draft_delivery",
+      location: {
+        countryCode: "US",
+        county: null,
+        postalCode: "10012",
+        state: "NY",
+      },
+    });
+
+    expect(response).toMatchObject({
+      draft: {
+        active_step: "store",
+        pickup: {
+          stores: [
+            expect.objectContaining({
+              id: "store_sf",
+              country_code: "US",
+              name: "POP MART San Francisco",
+            }),
+          ],
+        },
+      },
+    });
+    expect(
+      (
+        response.draft?.pickup as
+          | { readonly stores?: readonly { readonly id: string }[] }
+          | undefined
+      )?.stores?.map((store) => store.id),
+    ).not.toContain("store_london");
+  });
+
   it("rejects shipping options that are not eligible for the submitted address", async () => {
     const dataSource = createCheckoutDataSource();
     dataSource.drafts.push({
@@ -853,6 +904,14 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
 
   async listTaxRates(marketId: string): Promise<readonly CheckoutTaxRateRow[]> {
     return this.taxRates.filter((rate) => rate.market_id === marketId);
+  }
+
+  async listStoresByMarket(
+    marketId: string,
+  ): Promise<readonly CheckoutStoreRow[]> {
+    return this.stores.filter(
+      (store) => store.market_id === marketId && store.is_active,
+    );
   }
 
   async getStoreById(storeId: string): Promise<CheckoutStoreRow | null> {

@@ -8,8 +8,44 @@ import {
   type PayPalSdkConfigResponse,
 } from "./PayPalSdkProviderScope.js";
 import { DeliveryExpressAction } from "./DeliveryExpressAction.js";
+import { buildDeliveryExpressCreateOrderRequest } from "./deliveryExpress.js";
 
 describe("DeliveryExpressAction", () => {
+  it("builds authenticated express create-order requests without a guest cart secret", () => {
+    const request = buildDeliveryExpressCreateOrderRequest({
+      cartPublicId: "cart_public_user",
+      market: "US",
+      method: "paypal",
+      requestOptions: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    } as Parameters<typeof buildDeliveryExpressCreateOrderRequest>[0] & {
+      readonly requestOptions: {
+        readonly headers: {
+          readonly authorization: string;
+        };
+      };
+    });
+
+    expect(request).toEqual({
+      path: "/api/paypal/orders/express-delivery",
+      body: {
+        cart_id: "cart_public_user",
+        method: "paypal",
+      },
+      query: {
+        market: "US",
+      },
+      options: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    });
+  });
+
   it("renders a scoped official PayPal express action for the active cart binding", () => {
     const html = renderExpressAction("paypal");
 

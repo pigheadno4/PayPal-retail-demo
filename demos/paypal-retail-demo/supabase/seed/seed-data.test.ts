@@ -118,4 +118,25 @@ describe("retail demo seed data", () => {
     expect(authIdentitiesColumns).toContain('"identity_data"');
     expect(authIdentitiesColumns).not.toContain('"email"');
   });
+
+  it("seeds Supabase Auth password users with token string fields Auth can read", () => {
+    const dataset = buildSeedDataset();
+    const authUsers = dataset.tables.find(
+      (table) => table.name === "auth.users",
+    );
+
+    expect(authUsers?.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          confirmation_token: "",
+          recovery_token: "",
+          email_change: "",
+          email_change_token_new: "",
+        }),
+      ]),
+    );
+    const authUserCount = dataset.summary.authUsers;
+    expect(authUserCount).toBeDefined();
+    expect(authUsers?.rows).toHaveLength(authUserCount ?? 0);
+  });
 });

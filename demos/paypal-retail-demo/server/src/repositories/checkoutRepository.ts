@@ -288,6 +288,9 @@ export interface CheckoutDataSource {
   readonly listTaxRates: (
     marketId: string,
   ) => Promise<readonly CheckoutTaxRateRow[]>;
+  readonly listStoresByMarket: (
+    marketId: string,
+  ) => Promise<readonly CheckoutStoreRow[]>;
   readonly getStoreById: (storeId: string) => Promise<CheckoutStoreRow | null>;
   readonly listPickupDates: (
     storeId: string,
@@ -856,6 +859,15 @@ async function buildPickupDto(
 }> {
   const state = draft.pickup_state_json;
   const selectedStoreId = state.selected_store_id ?? null;
+  const cartLines = cartItems.map((item) => ({
+    productId: item.product_id,
+    quantity: item.quantity,
+    unitPriceMinor: item.unit_price_minor_snapshot,
+  }));
+  const stores =
+    state.location || selectedStoreId
+      ? await buildPickupStoreDtos(input, draft, cartLines, selectedStoreId)
+      : [];
   const pickupDates = selectedStoreId
     ? await input.dataSource.listPickupDates(selectedStoreId)
     : [];
@@ -864,11 +876,7 @@ async function buildPickupDto(
     : [];
   const split = selectedStoreId
     ? calculatePickupInventorySplit({
-        cartLines: cartItems.map((item) => ({
-          productId: item.product_id,
-          quantity: item.quantity,
-          unitPriceMinor: item.unit_price_minor_snapshot,
-        })),
+        cartLines,
         inventory: inventory.map((row) => ({
           storeId: row.store_id,
           productId: row.product_id,
@@ -880,7 +888,7 @@ async function buildPickupDto(
   return {
     dto: {
       location: state.location ?? null,
-      stores: [],
+      stores,
       selected_store_id: selectedStoreId,
       pickup_dates: pickupDates.map(mapPickupDateDto),
       selected_pickup_date: state.selected_pickup_date ?? null,
@@ -894,6 +902,57 @@ async function buildPickupDto(
     },
     split,
   };
+}
+
+async function buildPickupStoreDtos(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+  cartLines: readonly {
+    readonly productId: string;
+    readonly quantity: number;
+    readonly unitPriceMinor: number;
+  }[],
+  selectedStoreId: string | null,
+): Promise<readonly CatalogJson[]> {
+  const stores = await input.dataSource.listStoresByMarket(draft.market_id);
+
+  return Promise.all(
+    stores.map(async (store) => {
+      const inventory = await input.dataSource.listStoreInventory(store.id);
+      const split = calculatePickupInventorySplit({
+        cartLines,
+        inventory: inventory.map((row) => ({
+          storeId: row.store_id,
+          productId: row.product_id,
+          availableQuantity: row.available_quantity,
+        })),
+      });
+      const availableItemsCount = split.readyItems.reduce(
+        (sum, item) => sum + item.fulfillableQuantity,
+        0,
+      );
+      const unavailableItemsCount = split.unavailableItems.reduce(
+        (sum, item) => sum + item.unavailableQuantity,
+        0,
+      );
+
+      return {
+        id: store.id,
+        name: store.name,
+        address_line1: store.address_line1,
+        address_line2: store.address_line2,
+        city: store.city,
+        state: store.state,
+        postal_code: store.postal_code,
+        country_code: store.country_code,
+        phone: store.phone,
+        distance_label: "Available nearby",
+        available_items_count: availableItemsCount,
+        unavailable_items_count: unavailableItemsCount,
+        selected: store.id === selectedStoreId,
+      };
+    }),
+  );
 }
 
 function buildSummary(input: {
@@ -1863,6 +1922,31 @@ export function createSupabaseCheckoutDataSource(
           )
           .eq("market_id", marketId),
         `List tax rates ${marketId}`,
+      );
+    },
+    async listStoresByMarket(marketId) {
+      return queryMany<CheckoutStoreRow>(
+        supabase
+          .from("stores")
+          .select(
+            [
+              "id",
+              "market_id",
+              "name",
+              "phone",
+              "address_line1",
+              "address_line2",
+              "city",
+              "state",
+              "postal_code",
+              "country_code",
+              "is_active",
+            ].join(", "),
+          )
+          .eq("market_id", marketId)
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        `List pickup stores ${marketId}`,
       );
     },
     async getStoreById(storeId) {
