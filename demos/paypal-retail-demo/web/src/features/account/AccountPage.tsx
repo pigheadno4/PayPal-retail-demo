@@ -71,13 +71,24 @@ export function AccountPage({
   onUpdateAddress,
 }: AccountPageProps) {
   const [addressForm, setAddressForm] = useState<AddressFormState>(null);
+  const [confirmingAddressId, setConfirmingAddressId] = useState<string | null>(
+    null,
+  );
+  const [confirmingSavedPaymentId, setConfirmingSavedPaymentId] = useState<
+    string | null
+  >(null);
 
   if (section === "orders") {
     return (
-      <section className="route-stage route-stage--account">
-        <p className="route-stage__eyebrow">Account</p>
-        <h1>Orders</h1>
-        <p>Order history and resume payment actions are planned for M14.</p>
+      <section className="route-stage route-stage--account account-page">
+        <AccountHubHeader section={section} />
+        <div className="account-page__panel account-page__panel--feature">
+          <h2>Orders</h2>
+          <p>
+            Order history, pending payment resume, item reviews, and delivery
+            timelines are planned for the next M14 slice.
+          </p>
+        </div>
       </section>
     );
   }
@@ -92,20 +103,42 @@ export function AccountPage({
 
   return (
     <section className="route-stage route-stage--account account-page">
-      <p className="route-stage__eyebrow">Account</p>
-      <h1>Account settings</h1>
+      <AccountHubHeader section={section} />
+      <div className="account-page__summary" aria-label="Account overview">
+        <div>
+          <span>Saved addresses</span>
+          <strong>{addresses.length}</strong>
+        </div>
+        <div>
+          <span>Payment methods</span>
+          <strong>{visibleSavedPayments.length}</strong>
+        </div>
+        <div>
+          <span>Default checkout</span>
+          <strong>
+            {addresses.some((address) => address.is_default_shipping)
+              ? "Ready"
+              : "Needs address"}
+          </strong>
+        </div>
+      </div>
       <div className="account-page__grid">
         <section
-          className="account-page__panel"
+          className="account-page__panel account-page__panel--profile"
           aria-labelledby="profile-title"
         >
-          <h2 id="profile-title">Profile</h2>
+          <div className="account-page__panel-kicker">Profile</div>
+          <h2 id="profile-title">Collector profile</h2>
           <dl className="account-page__definition-list">
             <div>
               <dt>Email</dt>
               <dd>{email ?? "Signed-in buyer"}</dd>
             </div>
           </dl>
+          <p className="account-page__panel-note">
+            This account keeps saved checkout details and completed-order review
+            access together.
+          </p>
         </section>
         <section
           className="account-page__panel"
@@ -123,12 +156,26 @@ export function AccountPage({
               Add address
             </button>
           </div>
-          {addressesStatus === "loading" ? <p>Loading addresses.</p> : null}
-          {addressesStatus === "error" ? (
-            <p>Addresses could not be loaded.</p>
+          {addressesStatus === "loading" ? (
+            <StatusCard
+              tone="loading"
+              title="Finding your saved addresses..."
+              body="We keep this section stable while your address book loads."
+            />
           ) : null}
-          {addressesStatus !== "loading" && addresses.length === 0 ? (
-            <p>No saved addresses.</p>
+          {addressesStatus === "error" ? (
+            <StatusCard
+              tone="error"
+              title="Addresses could not be loaded."
+              body="Try refreshing this page before checkout."
+            />
+          ) : null}
+          {addressesStatus === "ready" && addresses.length === 0 ? (
+            <StatusCard
+              tone="empty"
+              title="No saved addresses yet."
+              body="Add a shipping or billing address to make checkout faster."
+            />
           ) : null}
           {addressForm ? (
             <AddressForm
@@ -155,12 +202,18 @@ export function AccountPage({
                 const label = formatAddressLabel(address);
                 const deleteBlocked =
                   address.is_default_shipping || address.is_default_billing;
+                const reasonId = `address-${address.id}-delete-reason`;
+                const isConfirmingDelete = confirmingAddressId === address.id;
 
                 return (
-                  <li key={address.id}>
+                  <li key={address.id} className="account-page__address-card">
                     <div className="account-page__address-copy">
                       <strong>{label}</strong>
+                      <span>{address.recipient_name}</span>
                       <span>{address.address_line1}</span>
+                      {address.address_line2 ? (
+                        <span>{address.address_line2}</span>
+                      ) : null}
                       <span>{formatAddressCityLine(address)}</span>
                       <div className="account-page__badges">
                         {address.is_default_shipping ? (
@@ -170,6 +223,14 @@ export function AccountPage({
                           <span>Default billing</span>
                         ) : null}
                       </div>
+                      {deleteBlocked ? (
+                        <p
+                          className="account-page__disabled-reason"
+                          id={reasonId}
+                        >
+                          Cannot delete until another default is set.
+                        </p>
+                      ) : null}
                     </div>
                     <div className="account-page__address-actions">
                       {!address.is_default_shipping ||
@@ -198,22 +259,50 @@ export function AccountPage({
                       >
                         Edit
                       </button>
-                      <button
-                        type="button"
-                        className="link-button"
-                        aria-label={`Delete address ${label}`}
-                        disabled={deleteBlocked}
-                        title={
-                          deleteBlocked
-                            ? "Choose another default before deleting this address."
-                            : undefined
-                        }
-                        onClick={() => {
-                          void onDeleteAddress?.(address.id);
-                        }}
-                      >
-                        Delete
-                      </button>
+                      {isConfirmingDelete ? (
+                        <div
+                          className="account-page__confirm"
+                          role="group"
+                          aria-label={`Confirm delete address ${label}`}
+                        >
+                          <span>Delete this address?</span>
+                          <button
+                            type="button"
+                            className="link-button"
+                            aria-label={`Confirm delete address ${label}`}
+                            onClick={() => {
+                              setConfirmingAddressId(null);
+                              void onDeleteAddress?.(address.id);
+                            }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            className="link-button"
+                            onClick={() => {
+                              setConfirmingAddressId(null);
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="link-button"
+                          aria-describedby={
+                            deleteBlocked ? reasonId : undefined
+                          }
+                          aria-label={`Delete address ${label}`}
+                          disabled={deleteBlocked}
+                          onClick={() => {
+                            setConfirmingAddressId(address.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </li>
                 );
@@ -225,38 +314,89 @@ export function AccountPage({
           className="account-page__panel"
           aria-labelledby="saved-payments-title"
         >
+          <div className="account-page__panel-kicker">Payments</div>
           <h2 id="saved-payments-title">Saved payments</h2>
           {savedPaymentsStatus === "loading" ? (
-            <p>Loading saved payments.</p>
+            <StatusCard
+              tone="loading"
+              title="Checking saved payments..."
+              body="Payment methods will appear here after the account sync finishes."
+            />
           ) : null}
           {savedPaymentsStatus === "error" ? (
-            <p>Saved payments could not be loaded.</p>
+            <StatusCard
+              tone="error"
+              title="Saved payments could not be loaded."
+              body="Try refreshing this page before checkout."
+            />
           ) : null}
-          {savedPaymentsStatus !== "loading" &&
+          {savedPaymentsStatus === "ready" &&
           visibleSavedPayments.length === 0 ? (
-            <p>No saved payments.</p>
+            <StatusCard
+              tone="empty"
+              title="No saved payments yet."
+              body="Logged-in buyers can save eligible PayPal or card methods during checkout."
+            />
           ) : null}
           {visibleSavedPayments.length > 0 ? (
             <ul className="account-page__saved-payments">
               {visibleSavedPayments.map((savedPayment) => {
                 const label = formatSavedPaymentLabel(savedPayment);
+                const isConfirmingDelete =
+                  confirmingSavedPaymentId === savedPayment.id;
 
                 return (
-                  <li key={savedPayment.id}>
+                  <li
+                    key={savedPayment.id}
+                    className="account-page__saved-payment-card"
+                  >
                     <div>
                       <strong>{label}</strong>
                       <span>{formatSavedPaymentMeta(savedPayment)}</span>
+                      <span className="account-page__status-chip">
+                        {formatStatusLabel(savedPayment.status)}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      className="link-button"
-                      aria-label={`Delete saved payment ${label}`}
-                      onClick={() => {
-                        void onDeleteSavedPayment?.(savedPayment.id);
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {isConfirmingDelete ? (
+                      <div
+                        className="account-page__confirm"
+                        role="group"
+                        aria-label={`Confirm delete saved payment ${label}`}
+                      >
+                        <span>Remove this saved payment?</span>
+                        <button
+                          type="button"
+                          className="link-button"
+                          aria-label={`Confirm delete saved payment ${label}`}
+                          onClick={() => {
+                            setConfirmingSavedPaymentId(null);
+                            void onDeleteSavedPayment?.(savedPayment.id);
+                          }}
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => {
+                            setConfirmingSavedPaymentId(null);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="link-button"
+                        aria-label={`Delete saved payment ${label}`}
+                        onClick={() => {
+                          setConfirmingSavedPaymentId(savedPayment.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -265,6 +405,54 @@ export function AccountPage({
         </section>
       </div>
     </section>
+  );
+}
+
+function AccountHubHeader({
+  section,
+}: {
+  readonly section: AccountPageProps["section"];
+}) {
+  return (
+    <header className="account-page__hero">
+      <div>
+        <p className="route-stage__eyebrow">Account</p>
+        <h1>{section === "orders" ? "Orders" : "Account settings"}</h1>
+        <p>
+          Manage saved checkout details, payment methods, and order activity for
+          collector drop days.
+        </p>
+      </div>
+      <nav className="account-page__nav" aria-label="Account sections">
+        <a
+          href="/account/orders"
+          aria-current={section === "orders" ? "page" : undefined}
+        >
+          Orders
+        </a>
+        <a href="#addresses-title">Addresses</a>
+        <a href="#saved-payments-title">Payments</a>
+        <a href="#profile-title">Profile</a>
+        <span aria-disabled="true">Reviews soon</span>
+      </nav>
+    </header>
+  );
+}
+
+function StatusCard({
+  body,
+  title,
+  tone,
+}: {
+  readonly body: string;
+  readonly title: string;
+  readonly tone: "empty" | "error" | "loading";
+}) {
+  return (
+    <div className={`account-page__status account-page__status--${tone}`}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+    </div>
   );
 }
 
@@ -519,4 +707,11 @@ function formatSavedPaymentMeta(
   return savedPayment.status === "active"
     ? "Ready for future checkout"
     : savedPayment.status;
+}
+
+function formatStatusLabel(status: AccountSavedPaymentStatus): string {
+  return status
+    .split("_")
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }

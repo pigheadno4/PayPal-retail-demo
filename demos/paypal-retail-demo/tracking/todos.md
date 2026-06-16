@@ -135,7 +135,7 @@
 - [x] Continue Milestone 14 with signed-in account settings profile info plus saved payment list/delete.
 - [x] Continue Milestone 14 with account address book list/add/edit/delete, make-default, and default-address delete constraints.
 - [x] Recover frontend `DESIGN.md` into an implementation-grade source of truth with POP MART tokens, component contracts, page-level specs, UX-flow contracts, and frontend close gates.
-- [ ] Apply the recovered POP MART design language and page specs to existing Account settings before closing Account UX polish.
+- [x] Apply the recovered POP MART design language and page specs to existing Account settings before closing Account UX polish.
 - [ ] Apply the recovered POP MART design language and page specs to upcoming Order history, Order detail, Guest lookup, inline registration, and review surfaces.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.

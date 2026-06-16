@@ -524,6 +524,12 @@ describe("App buyer interactions", () => {
         name: "Delete saved payment Visa ending in 4242",
       }),
     );
+    expect(screen.getByText("Remove this saved payment?")).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Confirm delete saved payment Visa ending in 4242",
+      }),
+    );
 
     await waitFor(() => {
       expect(apiClient.calls).toContainEqual(

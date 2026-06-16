@@ -133,6 +133,7 @@
 
 - [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
 - [x] `DESIGN.md` defines implementation-grade frontend tokens, component contracts, detailed page specs, UX-flow contracts, and frontend acceptance gates before continuing customer-facing M14/M16 UI slices.
+- [x] Account settings matches the recovered `DESIGN.md` account page spec: buyer account hub navigation, overview cards, profile/address/payment cards, default-address disabled reason, buyer-friendly loading/error/empty states, and inline destructive confirmation.
 - [ ] Customer-facing Account, Order history/detail, Guest lookup, inline registration, and review slices match their `DESIGN.md` page specs before they are marked complete.
 - [ ] Customer-facing frontend slices include Computer Use or browser/Playwright visual evidence at mobile and desktop sizes before completion.
 - [x] PayPal provider scope is limited to payment UI when `provider_key` changes.
