@@ -182,6 +182,52 @@ describe("web API client", () => {
     ]);
   });
 
+  it("deletes app API resources with normalized query params and request headers", async () => {
+    const calls: Array<{
+      readonly url: string;
+      readonly init: RequestInit;
+    }> = [];
+    const client = createApiClient({
+      baseUrl: "https://demo.example.test/",
+      fetch: async (url, init) => {
+        calls.push({
+          url: String(url),
+          init: init ?? {},
+        });
+        return responseJson({
+          ok: true,
+          data: { saved_payments: [] },
+          debug_id: "dbg_delete",
+        });
+      },
+    });
+
+    const result = await client.delete(
+      "/api/account/saved-payments/saved_payment_123",
+      {
+        market: "US",
+      },
+      {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    );
+
+    expect(result).toEqual({ saved_payments: [] });
+    expect(calls).toEqual([
+      {
+        url: "https://demo.example.test/api/account/saved-payments/saved_payment_123?market=US",
+        init: {
+          method: "DELETE",
+          headers: {
+            authorization: "Bearer access_token_existing",
+          },
+        },
+      },
+    ]);
+  });
+
   it("sends paired guest cart headers when request headers are provided", async () => {
     const calls: Array<{
       readonly url: string;

@@ -447,9 +447,9 @@ Verification:
 - [x] Fix live Pickup market/store source so US ZIP searches cannot show GB/London stores, even after previous guest/logged-in fixture cleanup.
 - [x] Keep checkout Order Summary payment-neutral until the Payment method section is active and a radio method is selected.
 - [x] Pass authenticated buyer request context into checkout and delivery-express PayPal create-order surfaces after login, so logged-in payment attempts use bearer auth instead of guest cart secrets.
-- [ ] Implement account settings profile info.
-- [ ] Implement address book with default delete constraints.
-- [ ] Implement saved payment list/delete.
+- [x] Implement account settings profile info.
+- [x] Implement address book with default delete constraints.
+- [x] Implement saved payment list/delete.
 - [ ] Implement order history and order detail timeline.
 - [ ] Implement guest order lookup.
 - [ ] Implement guest confirmation inline account creation prompt.

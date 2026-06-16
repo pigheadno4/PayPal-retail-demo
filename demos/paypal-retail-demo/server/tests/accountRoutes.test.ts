@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
+  AccountAddress,
+  AccountAddressInput,
+  AccountAddressPatch,
+  AccountAddressDeleteResult,
   AccountRepository,
   AccountSavedPaymentMethod,
   PreparedSavedPaymentDelete,
@@ -86,6 +90,162 @@ describe("Account routes", () => {
     expect(accountRepository.listCalls).toEqual(["user_123"]);
   });
 
+  it("lists account addresses for the authenticated buyer", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(app, "GET", "/api/account/addresses", {
+      headers: {
+        authorization: "Bearer buyer-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        addresses: [defaultAddress()],
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.listAddressCalls).toEqual(["user_123"]);
+  });
+
+  it("creates account addresses with normalized input", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(app, "POST", "/api/account/addresses", {
+      headers: {
+        authorization: "Bearer buyer-token",
+      },
+      json: {
+        label: " Home ",
+        recipient_name: " Buyer One ",
+        phone: " 555-0101 ",
+        address_line1: " 1 Market St ",
+        address_line2: " Apt 4 ",
+        city: " San Francisco ",
+        state: " CA ",
+        postal_code: " 94105 ",
+        country_code: " us ",
+        is_default_shipping: true,
+        is_default_billing: true,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        addresses: [createdAddress()],
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.createAddressCalls).toEqual([
+      {
+        authUserId: "user_123",
+        address: {
+          label: "Home",
+          recipient_name: "Buyer One",
+          phone: "555-0101",
+          address_line1: "1 Market St",
+          address_line2: "Apt 4",
+          city: "San Francisco",
+          state: "CA",
+          postal_code: "94105",
+          country_code: "US",
+          is_default_shipping: true,
+          is_default_billing: true,
+        },
+      },
+    ]);
+  });
+
+  it("updates account addresses and can promote a new default", async () => {
+    const accountRepository = createAccountRepository({
+      refreshedAddresses: [promotedAddress(), nonDefaultAddress()],
+    });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "PATCH",
+      "/api/account/addresses/address_secondary",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+        json: {
+          is_default_shipping: true,
+          is_default_billing: true,
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        addresses: [promotedAddress(), nonDefaultAddress()],
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.updateAddressCalls).toEqual([
+      {
+        authUserId: "user_123",
+        addressId: "address_secondary",
+        patch: {
+          is_default_shipping: true,
+          is_default_billing: true,
+        },
+      },
+    ]);
+  });
+
+  it("returns a buyer-safe conflict when deleting the only default address", async () => {
+    const accountRepository = createAccountRepository({
+      deleteAddressResult: {
+        status: "blocked",
+        reason:
+          "Choose another default shipping and billing address before deleting this address.",
+        addresses: [defaultAddress()],
+      },
+    });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "DELETE",
+      "/api/account/addresses/address_default",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "ADDRESS_DELETE_BLOCKED",
+        message:
+          "Choose another default shipping and billing address before deleting this address.",
+        details: {
+          addresses: [defaultAddress()],
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.deleteAddressCalls).toEqual([
+      {
+        authUserId: "user_123",
+        addressId: "address_default",
+      },
+    ]);
+  });
+
   it("deletes a saved payment through PayPal before marking the local token deleted", async () => {
     const accountRepository = createAccountRepository({
       refreshedSavedPayments: [deletedSavedPayment()],
@@ -156,6 +316,20 @@ describe("Account routes", () => {
 interface FakeAccountRepository extends AccountRepository {
   readonly lookupCalls: string[];
   readonly listCalls: string[];
+  readonly listAddressCalls: string[];
+  readonly createAddressCalls: {
+    readonly authUserId: string;
+    readonly address: AccountAddressInput;
+  }[];
+  readonly updateAddressCalls: {
+    readonly authUserId: string;
+    readonly addressId: string;
+    readonly patch: AccountAddressPatch;
+  }[];
+  readonly deleteAddressCalls: {
+    readonly authUserId: string;
+    readonly addressId: string;
+  }[];
   readonly prepareDeleteCalls: {
     readonly authUserId: string;
     readonly savedPaymentId: string;
@@ -168,17 +342,27 @@ interface FakeAccountRepository extends AccountRepository {
 
 function createAccountRepository(
   options: {
+    readonly deleteAddressResult?: AccountAddressDeleteResult;
+    readonly refreshedAddresses?: readonly AccountAddress[];
     readonly refreshedSavedPayments?: readonly AccountSavedPaymentMethod[];
   } = {},
 ): FakeAccountRepository {
   const lookupCalls: string[] = [];
   const listCalls: string[] = [];
+  const listAddressCalls: string[] = [];
+  const createAddressCalls: FakeAccountRepository["createAddressCalls"] = [];
+  const updateAddressCalls: FakeAccountRepository["updateAddressCalls"] = [];
+  const deleteAddressCalls: FakeAccountRepository["deleteAddressCalls"] = [];
   const prepareDeleteCalls: FakeAccountRepository["prepareDeleteCalls"] = [];
   const completeDeleteCalls: FakeAccountRepository["completeDeleteCalls"] = [];
 
   return {
     lookupCalls,
     listCalls,
+    listAddressCalls,
+    createAddressCalls,
+    updateAddressCalls,
+    deleteAddressCalls,
     prepareDeleteCalls,
     completeDeleteCalls,
     async lookupAuthEmail(email) {
@@ -196,6 +380,27 @@ function createAccountRepository(
     async listSavedPayments(authUserId) {
       listCalls.push(authUserId);
       return [activeSavedPayment()];
+    },
+    async listAddresses(authUserId) {
+      listAddressCalls.push(authUserId);
+      return [defaultAddress()];
+    },
+    async createAddress(input) {
+      createAddressCalls.push(input);
+      return options.refreshedAddresses ?? [createdAddress()];
+    },
+    async updateAddress(input) {
+      updateAddressCalls.push(input);
+      return options.refreshedAddresses ?? [updatedAddress()];
+    },
+    async deleteAddress(input) {
+      deleteAddressCalls.push(input);
+      return (
+        options.deleteAddressResult ?? {
+          status: "deleted",
+          addresses: [nonDefaultAddress()],
+        }
+      );
     },
     async prepareSavedPaymentDelete(
       input,
@@ -259,6 +464,65 @@ function deletedSavedPayment(): AccountSavedPaymentMethod {
   return {
     ...activeSavedPayment(),
     status: "deleted",
+  };
+}
+
+function defaultAddress(): AccountAddress {
+  return {
+    id: "address_default",
+    label: "Home",
+    recipient_name: "Buyer One",
+    phone: "555-0101",
+    address_line1: "742 N Fairfax Ave",
+    address_line2: null,
+    city: "Los Angeles",
+    state: "CA",
+    postal_code: "90046",
+    country_code: "US",
+    is_default_shipping: true,
+    is_default_billing: true,
+  };
+}
+
+function createdAddress(): AccountAddress {
+  return {
+    id: "address_created",
+    label: "Home",
+    recipient_name: "Buyer One",
+    phone: "555-0101",
+    address_line1: "1 Market St",
+    address_line2: "Apt 4",
+    city: "San Francisco",
+    state: "CA",
+    postal_code: "94105",
+    country_code: "US",
+    is_default_shipping: true,
+    is_default_billing: true,
+  };
+}
+
+function updatedAddress(): AccountAddress {
+  return {
+    ...defaultAddress(),
+    label: "Updated home",
+  };
+}
+
+function nonDefaultAddress(): AccountAddress {
+  return {
+    ...defaultAddress(),
+    id: "address_secondary",
+    label: "Studio",
+    is_default_shipping: false,
+    is_default_billing: false,
+  };
+}
+
+function promotedAddress(): AccountAddress {
+  return {
+    ...nonDefaultAddress(),
+    is_default_shipping: true,
+    is_default_billing: true,
   };
 }
 

@@ -15,6 +15,36 @@ export interface AccountSavedPaymentMethod {
   readonly label: string | null;
 }
 
+export interface AccountAddress {
+  readonly id: string;
+  readonly label: string | null;
+  readonly recipient_name: string;
+  readonly phone: string | null;
+  readonly address_line1: string;
+  readonly address_line2: string | null;
+  readonly city: string;
+  readonly state: string | null;
+  readonly postal_code: string;
+  readonly country_code: string;
+  readonly is_default_shipping: boolean;
+  readonly is_default_billing: boolean;
+}
+
+export type AccountAddressInput = Omit<AccountAddress, "id">;
+
+export type AccountAddressPatch = Partial<AccountAddressInput>;
+
+export type AccountAddressDeleteResult =
+  | {
+      readonly status: "deleted";
+      readonly addresses: readonly AccountAddress[];
+    }
+  | {
+      readonly status: "blocked";
+      readonly reason: string;
+      readonly addresses: readonly AccountAddress[];
+    };
+
 export type AccountAuthEmailLookupStatus = "existing" | "new";
 
 export interface AccountAuthEmailLookupResult {
@@ -34,6 +64,22 @@ export interface AccountRepository {
   readonly listSavedPayments: (
     authUserId: string,
   ) => Promise<readonly AccountSavedPaymentMethod[]>;
+  readonly listAddresses: (
+    authUserId: string,
+  ) => Promise<readonly AccountAddress[]>;
+  readonly createAddress: (input: {
+    readonly authUserId: string;
+    readonly address: AccountAddressInput;
+  }) => Promise<readonly AccountAddress[]>;
+  readonly updateAddress: (input: {
+    readonly authUserId: string;
+    readonly addressId: string;
+    readonly patch: AccountAddressPatch;
+  }) => Promise<readonly AccountAddress[]>;
+  readonly deleteAddress: (input: {
+    readonly authUserId: string;
+    readonly addressId: string;
+  }) => Promise<AccountAddressDeleteResult>;
   readonly prepareSavedPaymentDelete: (input: {
     readonly authUserId: string;
     readonly savedPaymentId: string;
@@ -69,6 +115,115 @@ export function createAccountRouter(input: CreateAccountRouterInput): Router {
 
       const lookupResult = await input.accountRepository.lookupAuthEmail(email);
       sendApiSuccess(response, lookupResult);
+    }),
+  );
+
+  router.get(
+    "/account/addresses",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const addresses = await input.accountRepository.listAddresses(authUserId);
+      sendApiSuccess(response, {
+        addresses,
+      });
+    }),
+  );
+
+  router.post(
+    "/account/addresses",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const address = parseAddressInputBody(request.body);
+      if (!address) {
+        sendApiError(response, 400, {
+          code: "INVALID_ADDRESS_REQUEST",
+          message: "A complete address is required.",
+        });
+        return;
+      }
+
+      const addresses = await input.accountRepository.createAddress({
+        authUserId,
+        address,
+      });
+      sendApiSuccess(response, {
+        addresses,
+      });
+    }),
+  );
+
+  router.patch(
+    "/account/addresses/:addressId",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const addressId = firstRouteParamValue(request, "addressId");
+      const patch = parseAddressPatchBody(request.body);
+      if (!addressId || !patch) {
+        sendApiError(response, 400, {
+          code: "INVALID_ADDRESS_REQUEST",
+          message: "A valid address update is required.",
+        });
+        return;
+      }
+
+      const addresses = await input.accountRepository.updateAddress({
+        authUserId,
+        addressId,
+        patch,
+      });
+      sendApiSuccess(response, {
+        addresses,
+      });
+    }),
+  );
+
+  router.delete(
+    "/account/addresses/:addressId",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const addressId = firstRouteParamValue(request, "addressId");
+      if (!addressId) {
+        sendApiError(response, 400, {
+          code: "INVALID_ADDRESS_REQUEST",
+          message: "An address ID is required.",
+        });
+        return;
+      }
+
+      const result = await input.accountRepository.deleteAddress({
+        authUserId,
+        addressId,
+      });
+      if (result.status === "blocked") {
+        sendApiError(response, 409, {
+          code: "ADDRESS_DELETE_BLOCKED",
+          message: result.reason,
+          details: {
+            addresses: result.addresses,
+          },
+        });
+        return;
+      }
+
+      sendApiSuccess(response, {
+        addresses: result.addresses,
+      });
     }),
   );
 
@@ -181,6 +336,111 @@ function normalizeAuthEmail(value: string): string | null {
   }
 
   return email;
+}
+
+function parseAddressInputBody(body: unknown): AccountAddressInput | null {
+  const bodyRecord = getBodyRecord(body);
+  if (!bodyRecord) {
+    return null;
+  }
+
+  const recipientName = normalizeBodyString(bodyRecord.recipient_name);
+  const addressLine1 = normalizeBodyString(bodyRecord.address_line1);
+  const city = normalizeBodyString(bodyRecord.city);
+  const postalCode = normalizeBodyString(bodyRecord.postal_code);
+  const countryCode = normalizeCountryCode(bodyRecord.country_code);
+
+  if (!recipientName || !addressLine1 || !city || !postalCode || !countryCode) {
+    return null;
+  }
+
+  return {
+    label: normalizeOptionalBodyString(bodyRecord.label),
+    recipient_name: recipientName,
+    phone: normalizeOptionalBodyString(bodyRecord.phone),
+    address_line1: addressLine1,
+    address_line2: normalizeOptionalBodyString(bodyRecord.address_line2),
+    city,
+    state: normalizeOptionalBodyString(bodyRecord.state),
+    postal_code: postalCode,
+    country_code: countryCode,
+    is_default_shipping: bodyRecord.is_default_shipping === true,
+    is_default_billing: bodyRecord.is_default_billing === true,
+  };
+}
+
+function parseAddressPatchBody(body: unknown): AccountAddressPatch | null {
+  const bodyRecord = getBodyRecord(body);
+  if (!bodyRecord) {
+    return null;
+  }
+
+  const patch: Record<string, unknown> = {};
+  const optionalStringKeys = [
+    "label",
+    "phone",
+    "address_line2",
+    "state",
+  ] as const;
+  const requiredStringKeys = [
+    "recipient_name",
+    "address_line1",
+    "city",
+    "postal_code",
+  ] as const;
+
+  for (const key of optionalStringKeys) {
+    if (Object.hasOwn(bodyRecord, key)) {
+      patch[key] = normalizeOptionalBodyString(bodyRecord[key]);
+    }
+  }
+
+  for (const key of requiredStringKeys) {
+    if (Object.hasOwn(bodyRecord, key)) {
+      const value = normalizeBodyString(bodyRecord[key]);
+      if (!value) {
+        return null;
+      }
+      patch[key] = value;
+    }
+  }
+
+  if (Object.hasOwn(bodyRecord, "country_code")) {
+    const countryCode = normalizeCountryCode(bodyRecord.country_code);
+    if (!countryCode) {
+      return null;
+    }
+    patch.country_code = countryCode;
+  }
+
+  if (typeof bodyRecord.is_default_shipping === "boolean") {
+    patch.is_default_shipping = bodyRecord.is_default_shipping;
+  }
+
+  if (typeof bodyRecord.is_default_billing === "boolean") {
+    patch.is_default_billing = bodyRecord.is_default_billing;
+  }
+
+  return Object.keys(patch).length ? (patch as AccountAddressPatch) : null;
+}
+
+function getBodyRecord(body: unknown): Record<string, unknown> | null {
+  return body && typeof body === "object"
+    ? (body as Record<string, unknown>)
+    : null;
+}
+
+function normalizeBodyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeOptionalBodyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeCountryCode(value: unknown): string | null {
+  const countryCode = normalizeBodyString(value)?.toUpperCase() ?? null;
+  return countryCode && /^[A-Z]{2}$/.test(countryCode) ? countryCode : null;
 }
 
 function asyncRoute(handler: RequestHandler): RequestHandler {

@@ -528,7 +528,7 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 - Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
 - Guest order lookup.
 - Inline account creation on guest confirmation.
-- Account settings.
+- Account settings profile info, saved payment list/delete, and address book with default delete constraints.
 - Order history/detail timeline.
 - Review submission/edit/delete.
 

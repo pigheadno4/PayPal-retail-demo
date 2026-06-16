@@ -132,6 +132,8 @@
 - [x] Fix live Pickup market/store leakage so US ZIP search cannot return GB/London stores.
 - [x] Keep checkout Order Summary payment-neutral until the Payment method section is active and a buyer has selected a method.
 - [x] Continue Milestone 14 with authenticated buyer request context for checkout and delivery-express PayPal create-order surfaces after login.
+- [x] Continue Milestone 14 with signed-in account settings profile info plus saved payment list/delete.
+- [x] Continue Milestone 14 with account address book list/add/edit/delete, make-default, and default-address delete constraints.
 - [ ] Continue Milestone 16 with POP MART playful collectible visual refresh tokens and typography.
 - [ ] Continue Milestone 16 with playful homepage/category/PDP card, badge, calendar, and promo visual refresh.
 - [ ] Continue Milestone 16 with cart/minicart/checkout visual accents that stay readable and preserve PayPal official surfaces.
