@@ -234,9 +234,15 @@ Delete default address must fail unless another default exists.
 ### Order APIs
 
 - `GET /api/account/orders`
-- `GET /api/account/orders/:id`
+- `GET /api/account/orders/:orderNumber`
 
-Order detail returns buyer-facing timeline and review eligibility. Technical IDs stay hidden from buyer UI.
+Account order APIs require authenticated buyer context.
+
+`GET /api/account/orders` returns `{ orders }` for the signed-in buyer, newest first.
+
+`GET /api/account/orders/:orderNumber` returns `{ order }` only when the order belongs to the signed-in buyer.
+
+Order DTOs include buyer-facing order number, placed date, fulfillment mode, status, payment status, currency, totals, item rows, lifecycle timeline, fulfillment addresses, and per-item review eligibility/submitted state. Technical PayPal order IDs, payment-session IDs, internal database IDs, and Admin/debug snapshots stay hidden from buyer UI.
 
 ### Saved Payment APIs
 

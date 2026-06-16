@@ -36,12 +36,63 @@ export interface AccountSavedPaymentMethodView {
   readonly last4: string | null;
 }
 
+export type AccountOrderFulfillmentMode = "delivery" | "pickup";
+export type AccountOrderStatus =
+  | "cancelled"
+  | "delivered"
+  | "paid"
+  | "pending"
+  | "picked_up"
+  | "preparing_pickup"
+  | "processing"
+  | "ready_for_pickup"
+  | "shipped";
+
+export interface AccountOrderItemView {
+  readonly id: string;
+  readonly imageAlt: string;
+  readonly imagePath: string;
+  readonly lineTotalLabel: string;
+  readonly name: string;
+  readonly quantity: number;
+  readonly reviewEligible: boolean;
+  readonly reviewSubmitted: boolean;
+}
+
+export interface AccountOrderTimelineStepView {
+  readonly description: string;
+  readonly label: string;
+  readonly status: "complete" | "current" | "pending";
+}
+
+export interface AccountOrderTotalLineView {
+  readonly label: string;
+  readonly value: string;
+}
+
+export interface AccountOrderView {
+  readonly orderNumber: string;
+  readonly placedDateLabel: string;
+  readonly fulfillmentMode: AccountOrderFulfillmentMode;
+  readonly status: AccountOrderStatus;
+  readonly fulfillmentLabel: string;
+  readonly paymentStatusLabel: string;
+  readonly totalLabel: string;
+  readonly note: string;
+  readonly items: readonly AccountOrderItemView[];
+  readonly timeline: readonly AccountOrderTimelineStepView[];
+  readonly totals: readonly AccountOrderTotalLineView[];
+}
+
 export interface AccountPageProps {
   readonly addresses: readonly AccountAddressView[];
   readonly addressesStatus: "error" | "idle" | "loading" | "ready";
   readonly email: string | null;
+  readonly orders?: readonly AccountOrderView[];
+  readonly ordersStatus?: "empty" | "error" | "loading" | "ready";
   readonly savedPayments: readonly AccountSavedPaymentMethodView[];
   readonly savedPaymentsStatus: "error" | "idle" | "loading" | "ready";
+  readonly selectedOrderNumber?: string | null;
   readonly section: "orders" | "settings";
   readonly onCreateAddress?: (
     address: AccountAddressMutationInput,
@@ -61,8 +112,11 @@ export function AccountPage({
   addresses,
   addressesStatus,
   email,
+  orders = [],
+  ordersStatus = "ready",
   savedPayments,
   savedPaymentsStatus,
+  selectedOrderNumber = null,
   section,
   onCreateAddress,
   onDeleteAddress,
@@ -82,13 +136,11 @@ export function AccountPage({
     return (
       <section className="route-stage route-stage--account account-page">
         <AccountHubHeader section={section} />
-        <div className="account-page__panel account-page__panel--feature">
-          <h2>Orders</h2>
-          <p>
-            Order history, pending payment resume, item reviews, and delivery
-            timelines are planned for the next M14 slice.
-          </p>
-        </div>
+        <OrderHistoryView
+          orders={orders}
+          selectedOrderNumber={selectedOrderNumber}
+          status={ordersStatus}
+        />
       </section>
     );
   }
@@ -408,11 +460,305 @@ export function AccountPage({
   );
 }
 
+function OrderHistoryView({
+  orders,
+  selectedOrderNumber,
+  status,
+}: {
+  readonly orders: readonly AccountOrderView[];
+  readonly selectedOrderNumber: string | null;
+  readonly status: NonNullable<AccountPageProps["ordersStatus"]>;
+}) {
+  if (status === "loading") {
+    return (
+      <StatusCard
+        tone="loading"
+        title="Loading your orders..."
+        body="We are gathering your latest pending and completed order activity."
+      />
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <StatusCard
+        tone="error"
+        title="Order history could not be loaded."
+        body="Refresh the page before resuming payment or leaving reviews."
+      />
+    );
+  }
+
+  if (status === "empty" || orders.length === 0) {
+    return (
+      <section
+        className="account-page__panel account-page__panel--feature"
+        aria-labelledby="order-history-title"
+      >
+        <h2 id="order-history-title">Order history</h2>
+        <p className="account-page__panel-note">
+          No account orders yet. Browse products or use guest order lookup if
+          you checked out without signing in.
+        </p>
+        <a className="button button--secondary" href="/products">
+          Browse products
+        </a>
+      </section>
+    );
+  }
+
+  const selectedOrder =
+    selectedOrderNumber === null
+      ? null
+      : orders.find((order) => order.orderNumber === selectedOrderNumber);
+
+  if (selectedOrderNumber !== null && !selectedOrder) {
+    return (
+      <section
+        className="account-page__panel account-page__panel--feature"
+        aria-labelledby="order-history-title"
+      >
+        <h2 id="order-history-title">Order not found</h2>
+        <p className="account-page__panel-note">
+          This account order was not found. Return to order history or use guest
+          lookup if the order was placed without signing in.
+        </p>
+        <a className="button button--secondary" href="/account/orders">
+          Back to orders
+        </a>
+      </section>
+    );
+  }
+
+  if (selectedOrder) {
+    return <OrderDetailView order={selectedOrder} />;
+  }
+
+  return (
+    <section className="account-page__orders" aria-labelledby="orders-title">
+      <div className="account-page__section-heading">
+        <div>
+          <p className="account-page__panel-kicker">Order activity</p>
+          <h2 id="orders-title">Order history</h2>
+        </div>
+        <span>{orders.length} orders</span>
+      </div>
+      <ul className="account-page__order-list">
+        {orders.map((order) => (
+          <li key={order.orderNumber}>
+            <OrderHistoryCard order={order} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function OrderDetailView({ order }: { readonly order: AccountOrderView }) {
+  return (
+    <section
+      className="account-page__order-detail"
+      aria-labelledby="order-detail-title"
+    >
+      <a className="link-button" href="/account/orders">
+        Back to order history
+      </a>
+      <div className="account-page__section-heading">
+        <div>
+          <p className="account-page__panel-kicker">Order detail</p>
+          <h2 id="order-detail-title">{order.orderNumber}</h2>
+        </div>
+        <span
+          className={`account-page__status-chip account-page__status-chip--${getOrderStatusTone(
+            order.status,
+          )}`}
+        >
+          {formatOrderStatusLabel(order.status)}
+        </span>
+      </div>
+      <div className="account-page__order-detail-grid">
+        <section
+          className="account-page__panel"
+          aria-labelledby="order-fulfillment-title"
+        >
+          <p className="account-page__panel-kicker">
+            {formatFulfillmentModeLabel(order.fulfillmentMode)}
+          </p>
+          <h3 id="order-fulfillment-title">{order.fulfillmentLabel}</h3>
+          <p className="account-page__panel-note">{order.note}</p>
+          <dl className="account-page__definition-list">
+            <div>
+              <dt>Placed</dt>
+              <dd>{formatOrderDetailDate(order.placedDateLabel)}</dd>
+            </div>
+            <div>
+              <dt>Payment</dt>
+              <dd>{order.paymentStatusLabel}</dd>
+            </div>
+          </dl>
+        </section>
+        <section
+          className="account-page__panel"
+          aria-labelledby="order-timeline-title"
+        >
+          <h3 id="order-timeline-title">Timeline</h3>
+          <ol className="account-page__timeline">
+            {order.timeline.map((step) => (
+              <li
+                key={step.label}
+                className={`account-page__timeline-step account-page__timeline-step--${step.status}`}
+              >
+                <strong>{step.label}</strong>
+                <span>{step.description}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </div>
+      <section
+        className="account-page__panel"
+        id="review-items"
+        aria-labelledby="order-items-title"
+      >
+        <div className="account-page__panel-header">
+          <h3 id="order-items-title">Items in this order</h3>
+          <span className="account-page__status-chip">
+            {order.items.length} items
+          </span>
+        </div>
+        <ul className="account-page__detail-items">
+          {order.items.map((item) => (
+            <li key={item.id}>
+              <img
+                alt={item.imageAlt}
+                height="64"
+                src={item.imagePath}
+                width="64"
+              />
+              <div>
+                <strong>{item.name}</strong>
+                <span>
+                  Qty {item.quantity} · {item.lineTotalLabel}
+                </span>
+              </div>
+              {item.reviewEligible && !item.reviewSubmitted ? (
+                <div className="account-page__deferred-action">
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    disabled
+                    aria-describedby={`${item.id}-review-note`}
+                  >
+                    Review item
+                  </button>
+                  <span id={`${item.id}-review-note`}>
+                    Review form is handled in the review slice.
+                  </span>
+                </div>
+              ) : null}
+              {item.reviewSubmitted ? (
+                <span className="account-page__status-chip">
+                  Already reviewed
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="account-page__panel" aria-labelledby="totals-title">
+        <h3 id="totals-title">Totals</h3>
+        <dl className="account-page__totals">
+          {order.totals.map((line) => (
+            <div key={line.label}>
+              <dt>{line.label}</dt>
+              <dd>{line.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </section>
+  );
+}
+
+function OrderHistoryCard({ order }: { readonly order: AccountOrderView }) {
+  const canReview = order.items.some(
+    (item) => item.reviewEligible && !item.reviewSubmitted,
+  );
+  const statusLabel = formatOrderStatusLabel(order.status);
+  const detailHref = `/account/orders/${encodeURIComponent(order.orderNumber)}`;
+
+  return (
+    <article className="account-page__order-card">
+      <div className="account-page__order-card-main">
+        <div>
+          <p className="account-page__order-number">{order.orderNumber}</p>
+          <h3>{order.fulfillmentLabel}</h3>
+          <p>{order.note}</p>
+        </div>
+        <span
+          className={`account-page__status-chip account-page__status-chip--${getOrderStatusTone(
+            order.status,
+          )}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+      <div className="account-page__order-meta" aria-label="Order summary">
+        <span>{order.placedDateLabel}</span>
+        <span>{formatFulfillmentModeLabel(order.fulfillmentMode)}</span>
+        <span>{order.paymentStatusLabel}</span>
+        <strong>{order.totalLabel}</strong>
+      </div>
+      <div className="account-page__order-footer">
+        <div className="account-page__order-thumbnails" aria-label="Items">
+          {order.items.slice(0, 4).map((item) => (
+            <img
+              key={item.id}
+              alt={item.imageAlt}
+              height="56"
+              src={item.imagePath}
+              width="56"
+            />
+          ))}
+        </div>
+        <div className="account-page__order-actions">
+          {order.status === "pending" ? (
+            <div className="account-page__deferred-action">
+              <button
+                type="button"
+                className="button"
+                disabled
+                aria-describedby={`${order.orderNumber}-resume-note`}
+              >
+                Resume payment
+              </button>
+              <span id={`${order.orderNumber}-resume-note`}>
+                Resume revalidation is the next payment-recovery slice.
+              </span>
+            </div>
+          ) : (
+            <a className="button button--secondary" href={detailHref}>
+              View details
+            </a>
+          )}
+          {canReview ? (
+            <a className="link-button" href={`${detailHref}#review-items`}>
+              Review items
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function AccountHubHeader({
   section,
 }: {
   readonly section: AccountPageProps["section"];
 }) {
+  const settingsPrefix = section === "settings" ? "" : "/account";
+
   return (
     <header className="account-page__hero">
       <div>
@@ -430,9 +776,9 @@ function AccountHubHeader({
         >
           Orders
         </a>
-        <a href="#addresses-title">Addresses</a>
-        <a href="#saved-payments-title">Payments</a>
-        <a href="#profile-title">Profile</a>
+        <a href={`${settingsPrefix}#addresses-title`}>Addresses</a>
+        <a href={`${settingsPrefix}#saved-payments-title`}>Payments</a>
+        <a href={`${settingsPrefix}#profile-title`}>Profile</a>
         <span aria-disabled="true">Reviews soon</span>
       </nav>
     </header>
@@ -714,4 +1060,34 @@ function formatStatusLabel(status: AccountSavedPaymentStatus): string {
     .split("_")
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
     .join(" ");
+}
+
+function formatOrderStatusLabel(status: AccountOrderStatus): string {
+  switch (status) {
+    case "pending":
+      return "Pending payment";
+    case "picked_up":
+      return "Picked up";
+    case "ready_for_pickup":
+      return "Ready for pickup";
+    default:
+      return status
+        .split("_")
+        .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+        .join(" ");
+  }
+}
+
+function formatFulfillmentModeLabel(
+  fulfillmentMode: AccountOrderFulfillmentMode,
+): string {
+  return fulfillmentMode === "pickup" ? "Pickup" : "Delivery";
+}
+
+function getOrderStatusTone(status: AccountOrderStatus): "done" | "pending" {
+  return status === "pending" ? "pending" : "done";
+}
+
+function formatOrderDetailDate(placedDateLabel: string): string {
+  return placedDateLabel.replace(/^Placed\s+/i, "");
 }

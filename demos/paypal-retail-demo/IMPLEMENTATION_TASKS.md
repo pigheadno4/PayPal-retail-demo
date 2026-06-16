@@ -452,7 +452,7 @@ Verification:
 - [x] Implement account settings profile info.
 - [x] Implement address book with default delete constraints.
 - [x] Implement saved payment list/delete.
-- [ ] Implement order history and order detail timeline.
+- [x] Implement order history and order detail timeline.
 - [ ] Implement guest order lookup.
 - [ ] Implement guest confirmation inline account creation prompt.
 - [ ] Implement review submission/edit/delete from completed order items.

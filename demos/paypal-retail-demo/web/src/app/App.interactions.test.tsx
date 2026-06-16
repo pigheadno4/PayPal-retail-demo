@@ -1107,6 +1107,111 @@ describe("App buyer interactions", () => {
     );
   });
 
+  it("loads signed-in account order history from the account orders API", async () => {
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/account/orders": {
+          orders: [accountOrderApiResponse()],
+        },
+      },
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Order history" }),
+    ).toBeTruthy();
+    expect(await screen.findByText("PO-20260602-000118")).toBeTruthy();
+    expect(screen.getByText("Pickup at POP MART Soho")).toBeTruthy();
+    expect(screen.getByText("Review items")).toBeTruthy();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/account/orders",
+        options: {
+          headers: {
+            authorization: "Bearer access_token_existing",
+          },
+        },
+      }),
+    );
+  });
+
+  it("loads signed-in account order detail from the account order API", async () => {
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/account/orders/PO-20260602-000118": {
+          order: accountOrderApiResponse(),
+        },
+      },
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders/PO-20260602-000118"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "PO-20260602-000118" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Timeline")).toBeTruthy();
+    expect(screen.getByText("Items in this order")).toBeTruthy();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/account/orders/PO-20260602-000118",
+        options: {
+          headers: {
+            authorization: "Bearer access_token_existing",
+          },
+        },
+      }),
+    );
+  });
+
   it("reconciles server cart responses back into cart and minicart UI", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -2017,6 +2122,64 @@ function defaultAccountAddress() {
     country_code: "US",
     is_default_shipping: true,
     is_default_billing: true,
+  };
+}
+
+function accountOrderApiResponse() {
+  return {
+    order_number: "PO-20260602-000118",
+    placed_at: "2026-06-02T18:30:00.000Z",
+    fulfillment_mode: "pickup",
+    status: "picked_up",
+    payment_status: "captured",
+    currency_code: "USD",
+    review_eligible: true,
+    fulfillment_label: "Pickup at POP MART Soho",
+    totals: {
+      subtotal_minor: 2998,
+      discount_minor: 300,
+      tax_minor: 118,
+      shipping_minor: 0,
+      total_minor: 2816,
+    },
+    items: [
+      {
+        id: "line_1",
+        product_name: "Skullpanda Future Drop",
+        product_url: "/products/skullpanda-future-drop",
+        product_image_url:
+          "/assets/popmart/products/skullpanda-future-drop-1.svg",
+        unit_price_minor: 1599,
+        quantity: 1,
+        line_total_minor: 1599,
+        review_eligible: true,
+        review_submitted: false,
+      },
+    ],
+    timeline: [
+      {
+        label: "Order placed",
+        description: "Pickup order was created and paid.",
+        status: "complete",
+        occurred_at: "2026-06-02T18:30:00.000Z",
+      },
+      {
+        label: "Picked up",
+        description: "Buyer collected the order in store.",
+        status: "current",
+        occurred_at: "2026-06-04T16:00:00.000Z",
+      },
+    ],
+    addresses: [
+      {
+        address_type: "pickup_store",
+        recipient_name: "S2S POP MART Soho",
+        city: "New York",
+        state: "NY",
+        postal_code: "10012",
+        country_code: "US",
+      },
+    ],
   };
 }
 

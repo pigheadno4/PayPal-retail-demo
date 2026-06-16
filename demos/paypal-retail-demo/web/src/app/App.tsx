@@ -9,6 +9,7 @@ import {
   AccountPage,
   type AccountAddressMutationInput,
   type AccountAddressView,
+  type AccountOrderView,
   type AccountSavedPaymentMethodView,
   type AccountSavedPaymentStatus,
 } from "../features/account/AccountPage.js";
@@ -171,6 +172,51 @@ interface AccountAddressesApiResponse {
   readonly addresses: readonly AccountAddressApiItem[];
 }
 
+interface AccountOrderApiTotals {
+  readonly subtotal_minor: number;
+  readonly discount_minor: number;
+  readonly tax_minor: number;
+  readonly shipping_minor: number;
+  readonly total_minor: number;
+}
+
+interface AccountOrderApiItem {
+  readonly order_number: string;
+  readonly placed_at: string;
+  readonly fulfillment_mode: "delivery" | "pickup";
+  readonly status: string;
+  readonly payment_status: string;
+  readonly currency_code: string;
+  readonly review_eligible: boolean;
+  readonly fulfillment_label: string;
+  readonly totals: AccountOrderApiTotals;
+  readonly items: readonly {
+    readonly id: string;
+    readonly product_name: string;
+    readonly product_url: string | null;
+    readonly product_image_url: string | null;
+    readonly unit_price_minor: number;
+    readonly quantity: number;
+    readonly line_total_minor: number;
+    readonly review_eligible: boolean;
+    readonly review_submitted: boolean;
+  }[];
+  readonly timeline: readonly {
+    readonly label: string;
+    readonly description: string;
+    readonly status: "complete" | "current" | "pending";
+    readonly occurred_at: string | null;
+  }[];
+}
+
+interface AccountOrdersApiResponse {
+  readonly orders: readonly AccountOrderApiItem[];
+}
+
+interface AccountOrderApiResponse {
+  readonly order: AccountOrderApiItem;
+}
+
 export function App({
   apiClient,
   authClient,
@@ -276,6 +322,12 @@ function BuyerShell({
   const [accountAddressesStatus, setAccountAddressesStatus] = useState<
     "error" | "idle" | "loading" | "ready"
   >("idle");
+  const [accountOrders, setAccountOrders] = useState<
+    readonly AccountOrderView[]
+  >([]);
+  const [accountOrdersStatus, setAccountOrdersStatus] = useState<
+    "empty" | "error" | "loading" | "ready"
+  >("empty");
   const didRunInitialCartRestore = useRef(false);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
@@ -500,6 +552,67 @@ function BuyerShell({
       active = false;
     };
   }, [apiClient, config.market.code, currentAuthSession, currentRoute]);
+
+  useEffect(() => {
+    if (
+      currentRoute.page !== "account" ||
+      currentRoute.section !== "orders" ||
+      !currentAuthSession
+    ) {
+      return;
+    }
+
+    let active = true;
+    setAccountOrdersStatus("loading");
+    const requestOptions = buildAuthRequestOptions(currentAuthSession);
+    const orderRequest = currentRoute.orderNumber
+      ? apiClient
+          .get<AccountOrderApiResponse>(
+            `/api/account/orders/${encodeURIComponent(currentRoute.orderNumber)}`,
+            cartQuery(),
+            requestOptions,
+          )
+          .then((response) => [response.order])
+      : apiClient
+          .get<AccountOrdersApiResponse>(
+            "/api/account/orders",
+            cartQuery(),
+            requestOptions,
+          )
+          .then((response) => response.orders);
+
+    void orderRequest
+      .then((orders) => {
+        if (!active) {
+          return;
+        }
+        const mappedOrders = mapAccountOrders(orders, config.market.locale);
+        setAccountOrders(mappedOrders);
+        setAccountOrdersStatus(mappedOrders.length > 0 ? "ready" : "empty");
+        setShellStatus("Loaded account orders.");
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        console.error("[paypal-retail-demo] Account orders load failed", {
+          error,
+        });
+        setAccountOrders([]);
+        setAccountOrdersStatus("error");
+        setShellStatus("Account orders could not be loaded.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    apiClient,
+    config.market.code,
+    config.market.locale,
+    currentAuthSession,
+    currentRoute,
+  ]);
 
   function openMinicart() {
     setCurrentMinicartState("open");
@@ -978,6 +1091,8 @@ function BuyerShell({
           accountAddresses={accountAddresses}
           accountAddressesStatus={accountAddressesStatus}
           accountEmail={currentAuthSession?.email ?? null}
+          accountOrders={accountOrders}
+          accountOrdersStatus={accountOrdersStatus}
           savedPayments={savedPayments}
           savedPaymentsStatus={savedPaymentsStatus}
           onCreateAddress={handleCreateAddress}
@@ -1087,6 +1202,8 @@ function RouteStage({
   accountAddresses,
   accountAddressesStatus,
   accountEmail,
+  accountOrders,
+  accountOrdersStatus,
   savedPayments,
   savedPaymentsStatus,
   onCreateAddress,
@@ -1115,6 +1232,8 @@ function RouteStage({
   readonly accountAddresses: readonly AccountAddressView[];
   readonly accountAddressesStatus: "error" | "idle" | "loading" | "ready";
   readonly accountEmail: string | null;
+  readonly accountOrders: readonly AccountOrderView[];
+  readonly accountOrdersStatus: "empty" | "error" | "loading" | "ready";
   readonly savedPayments: readonly AccountSavedPaymentMethodView[];
   readonly savedPaymentsStatus: "error" | "idle" | "loading" | "ready";
   readonly onCreateAddress: (
@@ -1203,8 +1322,13 @@ function RouteStage({
         addresses={accountAddresses}
         addressesStatus={accountAddressesStatus}
         email={accountEmail}
+        orders={accountOrders}
+        ordersStatus={accountOrdersStatus}
         savedPayments={savedPayments}
         savedPaymentsStatus={savedPaymentsStatus}
+        selectedOrderNumber={
+          route.section === "orders" ? (route.orderNumber ?? null) : null
+        }
         section={route.section}
         onCreateAddress={onCreateAddress}
         onDeleteAddress={onDeleteAddress}
@@ -1343,6 +1467,169 @@ function mapAccountAddresses(
     is_default_shipping: address.is_default_shipping,
     is_default_billing: address.is_default_billing,
   }));
+}
+
+function mapAccountOrders(
+  orders: readonly AccountOrderApiItem[],
+  locale: string,
+): readonly AccountOrderView[] {
+  return orders.map((order) => mapAccountOrder(order, locale));
+}
+
+function mapAccountOrder(
+  order: AccountOrderApiItem,
+  locale: string,
+): AccountOrderView {
+  return {
+    orderNumber: order.order_number,
+    placedDateLabel: `Placed ${formatAccountDate(order.placed_at, locale)}`,
+    fulfillmentMode: order.fulfillment_mode,
+    status: mapAccountOrderStatus(order.status),
+    fulfillmentLabel: order.fulfillment_label,
+    paymentStatusLabel: formatAccountPaymentStatus(order.payment_status),
+    totalLabel: formatMinorMoney(
+      order.totals.total_minor,
+      order.currency_code,
+      locale,
+    ),
+    note: buildAccountOrderNote(order),
+    items: order.items.map((item) => ({
+      id: item.id,
+      imageAlt: `${item.product_name} collectible`,
+      imagePath:
+        item.product_image_url ??
+        "/assets/popmart/products/labubu-have-a-seat-1.svg",
+      lineTotalLabel: formatMinorMoney(
+        item.line_total_minor,
+        order.currency_code,
+        locale,
+      ),
+      name: item.product_name,
+      quantity: item.quantity,
+      reviewEligible: item.review_eligible,
+      reviewSubmitted: item.review_submitted,
+    })),
+    timeline: order.timeline.map((step) => ({
+      description: step.description,
+      label: step.label,
+      status: step.status,
+    })),
+    totals: [
+      {
+        label: "Merchandise",
+        value: formatMinorMoney(
+          order.totals.subtotal_minor,
+          order.currency_code,
+          locale,
+        ),
+      },
+      {
+        label: "Promo",
+        value:
+          order.totals.discount_minor > 0
+            ? `-${formatMinorMoney(
+                order.totals.discount_minor,
+                order.currency_code,
+                locale,
+              )}`
+            : formatMinorMoney(0, order.currency_code, locale),
+      },
+      {
+        label: "Tax",
+        value: formatMinorMoney(
+          order.totals.tax_minor,
+          order.currency_code,
+          locale,
+        ),
+      },
+      {
+        label: "Shipping",
+        value: formatMinorMoney(
+          order.totals.shipping_minor,
+          order.currency_code,
+          locale,
+        ),
+      },
+      {
+        label: "Total",
+        value: formatMinorMoney(
+          order.totals.total_minor,
+          order.currency_code,
+          locale,
+        ),
+      },
+    ],
+  };
+}
+
+function mapAccountOrderStatus(status: string): AccountOrderView["status"] {
+  if (
+    status === "cancelled" ||
+    status === "delivered" ||
+    status === "paid" ||
+    status === "pending" ||
+    status === "picked_up" ||
+    status === "preparing_pickup" ||
+    status === "processing" ||
+    status === "ready_for_pickup" ||
+    status === "shipped"
+  ) {
+    return status;
+  }
+
+  return "processing";
+}
+
+function buildAccountOrderNote(order: AccountOrderApiItem): string {
+  if (order.status === "pending") {
+    return "Totals and offers refresh before payment.";
+  }
+
+  if (order.review_eligible) {
+    return "Review eligible items from this completed order.";
+  }
+
+  return "Order activity and fulfillment status are up to date.";
+}
+
+function formatAccountPaymentStatus(status: string): string {
+  if (status === "captured") {
+    return "Paid with PayPal";
+  }
+
+  if (status === "started") {
+    return "Payment pending";
+  }
+
+  return status
+    .split("_")
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function formatAccountDate(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatMinorMoney(
+  amountMinor: number,
+  currencyCode: string,
+  locale: string,
+): string {
+  return new Intl.NumberFormat(locale, {
+    currency: currencyCode,
+    style: "currency",
+  }).format(amountMinor / 100);
 }
 
 function shouldSeedStarterCart(

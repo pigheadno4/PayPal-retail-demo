@@ -27,6 +27,7 @@ export type AppRoute =
   | {
       readonly scope: "buyer";
       readonly page: "account";
+      readonly orderNumber?: string;
       readonly section: "orders" | "settings";
     }
   | {
@@ -106,10 +107,15 @@ export function resolveAppRoute(pathname: string): AppRoute {
   }
 
   if (path === "/account/orders" || path.startsWith("/account/orders/")) {
+    const orderNumber = path.startsWith("/account/orders/")
+      ? path.slice("/account/orders/".length)
+      : "";
+
     return {
       scope: "buyer",
       page: "account",
       section: "orders",
+      ...(orderNumber ? { orderNumber: decodeURIComponent(orderNumber) } : {}),
     };
   }
 

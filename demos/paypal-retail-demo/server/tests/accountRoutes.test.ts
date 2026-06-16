@@ -7,6 +7,7 @@ import type {
   AccountAddressInput,
   AccountAddressPatch,
   AccountAddressDeleteResult,
+  AccountOrder,
   AccountRepository,
   AccountSavedPaymentMethod,
   PreparedSavedPaymentDelete,
@@ -109,6 +110,60 @@ describe("Account routes", () => {
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
     expect(accountRepository.listAddressCalls).toEqual(["user_123"]);
+  });
+
+  it("lists buyer-safe account orders for the authenticated buyer", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(app, "GET", "/api/account/orders", {
+      headers: {
+        authorization: "Bearer buyer-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        orders: [accountOrder()],
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.listOrderCalls).toEqual(["user_123"]);
+    expect(JSON.stringify(response.json)).not.toContain("order_internal");
+    expect(JSON.stringify(response.json)).not.toContain("payment_session");
+  });
+
+  it("returns buyer-safe account order detail for the authenticated buyer", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/account/orders/PO-20260602-000118",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order: accountOrder(),
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.getOrderCalls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "PO-20260602-000118",
+      },
+    ]);
   });
 
   it("creates account addresses with normalized input", async () => {
@@ -317,6 +372,11 @@ interface FakeAccountRepository extends AccountRepository {
   readonly lookupCalls: string[];
   readonly listCalls: string[];
   readonly listAddressCalls: string[];
+  readonly listOrderCalls: string[];
+  readonly getOrderCalls: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }[];
   readonly createAddressCalls: {
     readonly authUserId: string;
     readonly address: AccountAddressInput;
@@ -350,6 +410,8 @@ function createAccountRepository(
   const lookupCalls: string[] = [];
   const listCalls: string[] = [];
   const listAddressCalls: string[] = [];
+  const listOrderCalls: string[] = [];
+  const getOrderCalls: FakeAccountRepository["getOrderCalls"] = [];
   const createAddressCalls: FakeAccountRepository["createAddressCalls"] = [];
   const updateAddressCalls: FakeAccountRepository["updateAddressCalls"] = [];
   const deleteAddressCalls: FakeAccountRepository["deleteAddressCalls"] = [];
@@ -360,6 +422,8 @@ function createAccountRepository(
     lookupCalls,
     listCalls,
     listAddressCalls,
+    listOrderCalls,
+    getOrderCalls,
     createAddressCalls,
     updateAddressCalls,
     deleteAddressCalls,
@@ -384,6 +448,14 @@ function createAccountRepository(
     async listAddresses(authUserId) {
       listAddressCalls.push(authUserId);
       return [defaultAddress()];
+    },
+    async listOrders(authUserId) {
+      listOrderCalls.push(authUserId);
+      return [accountOrder()];
+    },
+    async getOrder(input) {
+      getOrderCalls.push(input);
+      return input.orderNumber === "PO-20260602-000118" ? accountOrder() : null;
     },
     async createAddress(input) {
       createAddressCalls.push(input);
@@ -523,6 +595,64 @@ function promotedAddress(): AccountAddress {
     ...nonDefaultAddress(),
     is_default_shipping: true,
     is_default_billing: true,
+  };
+}
+
+function accountOrder(): AccountOrder {
+  return {
+    order_number: "PO-20260602-000118",
+    placed_at: "2026-06-02T18:30:00.000Z",
+    fulfillment_mode: "pickup",
+    status: "picked_up",
+    payment_status: "captured",
+    currency_code: "USD",
+    review_eligible: true,
+    fulfillment_label: "Pickup at POP MART Soho",
+    totals: {
+      subtotal_minor: 2998,
+      discount_minor: 300,
+      tax_minor: 118,
+      shipping_minor: 0,
+      total_minor: 2816,
+    },
+    items: [
+      {
+        id: "order_item_skullpanda",
+        product_name: "Skullpanda Future Drop",
+        product_url: "/products/skullpanda-future-drop",
+        product_image_url:
+          "/assets/popmart/products/skullpanda-future-drop-1.svg",
+        unit_price_minor: 1599,
+        quantity: 1,
+        line_total_minor: 1599,
+        review_eligible: true,
+        review_submitted: false,
+      },
+    ],
+    timeline: [
+      {
+        label: "Order placed",
+        description: "Pickup order was created and paid.",
+        status: "complete",
+        occurred_at: "2026-06-02T18:30:00.000Z",
+      },
+      {
+        label: "Picked up",
+        description: "Buyer collected the order in store.",
+        status: "current",
+        occurred_at: "2026-06-04T16:00:00.000Z",
+      },
+    ],
+    addresses: [
+      {
+        address_type: "pickup_store",
+        recipient_name: "S2S POP MART Soho",
+        city: "New York",
+        state: "NY",
+        postal_code: "10012",
+        country_code: "US",
+      },
+    ],
   };
 }
 

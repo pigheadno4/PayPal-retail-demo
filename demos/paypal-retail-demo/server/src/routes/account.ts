@@ -34,6 +34,76 @@ export type AccountAddressInput = Omit<AccountAddress, "id">;
 
 export type AccountAddressPatch = Partial<AccountAddressInput>;
 
+export type AccountOrderFulfillmentMode = "delivery" | "pickup";
+export type AccountOrderStatus =
+  | "cancelled"
+  | "delivered"
+  | "paid"
+  | "pending"
+  | "picked_up"
+  | "preparing_pickup"
+  | "processing"
+  | "ready_for_pickup"
+  | "shipped";
+export type AccountOrderPaymentStatus =
+  | "approved"
+  | "cancelled"
+  | "captured"
+  | "failed"
+  | "not_started"
+  | "started";
+
+export interface AccountOrderTotals {
+  readonly subtotal_minor: number;
+  readonly discount_minor: number;
+  readonly tax_minor: number;
+  readonly shipping_minor: number;
+  readonly total_minor: number;
+}
+
+export interface AccountOrderItem {
+  readonly id: string;
+  readonly product_name: string;
+  readonly product_url: string | null;
+  readonly product_image_url: string | null;
+  readonly unit_price_minor: number;
+  readonly quantity: number;
+  readonly line_total_minor: number;
+  readonly review_eligible: boolean;
+  readonly review_submitted: boolean;
+}
+
+export interface AccountOrderTimelineEvent {
+  readonly label: string;
+  readonly description: string;
+  readonly status: "complete" | "current" | "pending";
+  readonly occurred_at: string | null;
+}
+
+export interface AccountOrderAddress {
+  readonly address_type: "billing" | "pickup_store" | "shipping";
+  readonly recipient_name: string;
+  readonly city: string;
+  readonly state: string | null;
+  readonly postal_code: string;
+  readonly country_code: string;
+}
+
+export interface AccountOrder {
+  readonly order_number: string;
+  readonly placed_at: string;
+  readonly fulfillment_mode: AccountOrderFulfillmentMode;
+  readonly status: AccountOrderStatus;
+  readonly payment_status: AccountOrderPaymentStatus;
+  readonly currency_code: string;
+  readonly review_eligible: boolean;
+  readonly fulfillment_label: string;
+  readonly totals: AccountOrderTotals;
+  readonly items: readonly AccountOrderItem[];
+  readonly timeline: readonly AccountOrderTimelineEvent[];
+  readonly addresses: readonly AccountOrderAddress[];
+}
+
 export type AccountAddressDeleteResult =
   | {
       readonly status: "deleted";
@@ -67,6 +137,11 @@ export interface AccountRepository {
   readonly listAddresses: (
     authUserId: string,
   ) => Promise<readonly AccountAddress[]>;
+  readonly listOrders: (authUserId: string) => Promise<readonly AccountOrder[]>;
+  readonly getOrder: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }) => Promise<AccountOrder | null>;
   readonly createAddress: (input: {
     readonly authUserId: string;
     readonly address: AccountAddressInput;
@@ -223,6 +298,56 @@ export function createAccountRouter(input: CreateAccountRouterInput): Router {
 
       sendApiSuccess(response, {
         addresses: result.addresses,
+      });
+    }),
+  );
+
+  router.get(
+    "/account/orders",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orders = await input.accountRepository.listOrders(authUserId);
+      sendApiSuccess(response, {
+        orders,
+      });
+    }),
+  );
+
+  router.get(
+    "/account/orders/:orderNumber",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orderNumber = firstRouteParamValue(request, "orderNumber");
+      if (!orderNumber) {
+        sendApiError(response, 400, {
+          code: "INVALID_ACCOUNT_ORDER_REQUEST",
+          message: "An order number is required.",
+        });
+        return;
+      }
+
+      const order = await input.accountRepository.getOrder({
+        authUserId,
+        orderNumber,
+      });
+      if (!order) {
+        sendApiError(response, 404, {
+          code: "ACCOUNT_ORDER_NOT_FOUND",
+          message: "No order matched the current buyer.",
+        });
+        return;
+      }
+
+      sendApiSuccess(response, {
+        order,
       });
     }),
   );

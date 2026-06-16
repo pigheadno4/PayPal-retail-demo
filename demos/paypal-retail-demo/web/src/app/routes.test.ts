@@ -22,6 +22,12 @@ describe("app route resolver", () => {
       page: "account",
       section: "orders",
     });
+    expect(resolveAppRoute("/account/orders/DO-20260607-000123")).toEqual({
+      scope: "buyer",
+      page: "account",
+      section: "orders",
+      orderNumber: "DO-20260607-000123",
+    });
     expect(resolveAppRoute("/products/labubu-macaron")).toEqual({
       scope: "buyer",
       page: "product",

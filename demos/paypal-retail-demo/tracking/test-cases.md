@@ -203,6 +203,8 @@
 - [x] M14 Delivery checkout submits start the draft update immediately instead of waiting behind artificial UI timers.
 - [x] M14 Delivery shipping-option radio changes immediately reflect the selected shipping amount and total in Order Summary while backend recalculation remains the source of truth after submit.
 - [x] M14 signed-in Account opens account settings, shows the buyer profile email, loads saved payment methods with bearer auth, and deletes a saved payment through the account API.
+- [x] M14 signed-in Order history loads `GET /api/account/orders` with bearer auth, renders retail order cards, keeps technical PayPal/payment-session/internal IDs hidden, and visually verifies the recovered account order page.
+- [x] M14 signed-in Order detail loads `GET /api/account/orders/:orderNumber` with bearer auth, renders fulfillment summary, lifecycle timeline, item review eligibility, totals, and visually verifies the recovered account order detail page.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
