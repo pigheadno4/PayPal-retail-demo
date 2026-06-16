@@ -5,6 +5,13 @@ import type {
   ApiQueryParams,
   ApiRequestOptions,
 } from "../api/client.js";
+import {
+  AccountPage,
+  type AccountAddressMutationInput,
+  type AccountAddressView,
+  type AccountSavedPaymentMethodView,
+  type AccountSavedPaymentStatus,
+} from "../features/account/AccountPage.js";
 import { AuthModalShell } from "../features/account/AuthModalShell.js";
 import {
   createSupabaseBrowserAuthClient,
@@ -130,6 +137,40 @@ interface AuthEmailLookupApiResponse {
   readonly status: "existing" | "new";
 }
 
+interface AccountSavedPaymentApiItem {
+  readonly id: string;
+  readonly method_type: string;
+  readonly status: string;
+  readonly brand: string | null;
+  readonly expiry_month: number | null;
+  readonly expiry_year: number | null;
+  readonly label: string | null;
+  readonly last4: string | null;
+}
+
+interface AccountSavedPaymentsApiResponse {
+  readonly saved_payments: readonly AccountSavedPaymentApiItem[];
+}
+
+interface AccountAddressApiItem {
+  readonly id: string;
+  readonly label: string | null;
+  readonly recipient_name: string;
+  readonly phone: string | null;
+  readonly address_line1: string;
+  readonly address_line2: string | null;
+  readonly city: string;
+  readonly state: string | null;
+  readonly postal_code: string;
+  readonly country_code: string;
+  readonly is_default_shipping: boolean;
+  readonly is_default_billing: boolean;
+}
+
+interface AccountAddressesApiResponse {
+  readonly addresses: readonly AccountAddressApiItem[];
+}
+
 export function App({
   apiClient,
   authClient,
@@ -223,6 +264,18 @@ function BuyerShell({
   const [currentAuthSession, setCurrentAuthSession] = useState<
     BuyerAuthSession | null | undefined
   >(undefined);
+  const [savedPayments, setSavedPayments] = useState<
+    readonly AccountSavedPaymentMethodView[]
+  >([]);
+  const [savedPaymentsStatus, setSavedPaymentsStatus] = useState<
+    "error" | "idle" | "loading" | "ready"
+  >("idle");
+  const [accountAddresses, setAccountAddresses] = useState<
+    readonly AccountAddressView[]
+  >([]);
+  const [accountAddressesStatus, setAccountAddressesStatus] = useState<
+    "error" | "idle" | "loading" | "ready"
+  >("idle");
   const didRunInitialCartRestore = useRef(false);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
@@ -395,6 +448,58 @@ function BuyerShell({
     currentLocation,
     currentRoute.page,
   ]);
+
+  useEffect(() => {
+    if (
+      currentRoute.page !== "account" ||
+      currentRoute.section !== "settings" ||
+      !currentAuthSession
+    ) {
+      return;
+    }
+
+    let active = true;
+    setSavedPaymentsStatus("loading");
+    setAccountAddressesStatus("loading");
+    const requestOptions = buildAuthRequestOptions(currentAuthSession);
+    void Promise.all([
+      apiClient.get<AccountSavedPaymentsApiResponse>(
+        "/api/account/saved-payments",
+        cartQuery(),
+        requestOptions,
+      ),
+      apiClient.get<AccountAddressesApiResponse>(
+        "/api/account/addresses",
+        cartQuery(),
+        requestOptions,
+      ),
+    ])
+      .then(([savedPaymentResponse, addressResponse]) => {
+        if (!active) {
+          return;
+        }
+        setSavedPayments(mapAccountSavedPayments(savedPaymentResponse));
+        setAccountAddresses(mapAccountAddresses(addressResponse));
+        setSavedPaymentsStatus("ready");
+        setAccountAddressesStatus("ready");
+        setShellStatus("Loaded account settings.");
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        console.error("[paypal-retail-demo] Saved payments load failed", {
+          error,
+        });
+        setSavedPaymentsStatus("error");
+        setAccountAddressesStatus("error");
+        setShellStatus("Account settings could not be loaded.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [apiClient, config.market.code, currentAuthSession, currentRoute]);
 
   function openMinicart() {
     setCurrentMinicartState("open");
@@ -621,6 +726,107 @@ function BuyerShell({
     pushBuyerHistory(pathname);
   }
 
+  function handleAccountNavigate() {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    void navigateBuyer({
+      pathname: "/account/settings",
+      statusMessage: "Opened account settings.",
+    });
+  }
+
+  async function handleDeleteSavedPayment(savedPaymentId: string) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    const response = await apiClient.delete<AccountSavedPaymentsApiResponse>(
+      `/api/account/saved-payments/${encodeURIComponent(savedPaymentId)}`,
+      cartQuery(),
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    setSavedPayments(mapAccountSavedPayments(response));
+    setSavedPaymentsStatus("ready");
+    setShellStatus("Deleted saved payment.");
+  }
+
+  async function handleCreateAddress(address: AccountAddressMutationInput) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    const response = await apiClient.post<AccountAddressesApiResponse>(
+      "/api/account/addresses",
+      address,
+      cartQuery(),
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    setAccountAddresses(mapAccountAddresses(response));
+    setAccountAddressesStatus("ready");
+    setShellStatus("Saved address.");
+  }
+
+  async function handleUpdateAddress(
+    addressId: string,
+    address: AccountAddressMutationInput,
+  ) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    const response = await apiClient.patch<AccountAddressesApiResponse>(
+      `/api/account/addresses/${encodeURIComponent(addressId)}`,
+      address,
+      cartQuery(),
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    setAccountAddresses(mapAccountAddresses(response));
+    setAccountAddressesStatus("ready");
+    setShellStatus("Updated address.");
+  }
+
+  async function handleMakeDefaultAddress(addressId: string) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    const response = await apiClient.patch<AccountAddressesApiResponse>(
+      `/api/account/addresses/${encodeURIComponent(addressId)}`,
+      {
+        is_default_shipping: true,
+        is_default_billing: true,
+      },
+      cartQuery(),
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    setAccountAddresses(mapAccountAddresses(response));
+    setAccountAddressesStatus("ready");
+    setShellStatus("Updated default address.");
+  }
+
+  async function handleDeleteAddress(addressId: string) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      return;
+    }
+
+    const response = await apiClient.delete<AccountAddressesApiResponse>(
+      `/api/account/addresses/${encodeURIComponent(addressId)}`,
+      cartQuery(),
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    setAccountAddresses(mapAccountAddresses(response));
+    setAccountAddressesStatus("ready");
+    setShellStatus("Deleted address.");
+  }
+
   function handleAddProductToCart(product: ProductDetailPageData) {
     setCurrentCart((cart) => incrementCartItemQuantity(cart, product.slug));
     setCurrentMinicartState("open");
@@ -747,10 +953,7 @@ function BuyerShell({
           <a href="/checkout">Checkout</a>
         </nav>
         <div className="site-header__actions">
-          <button
-            type="button"
-            {...(currentAuthSession ? {} : { onClick: openAuthModal })}
-          >
+          <button type="button" onClick={handleAccountNavigate}>
             {currentAuthSession ? "Account" : "Sign in"}
           </button>
           <button
@@ -772,6 +975,16 @@ function BuyerShell({
           checkoutData={checkoutData}
           expressReviewData={currentExpressReviewData}
           expressCaptureState={currentExpressCaptureState}
+          accountAddresses={accountAddresses}
+          accountAddressesStatus={accountAddressesStatus}
+          accountEmail={currentAuthSession?.email ?? null}
+          savedPayments={savedPayments}
+          savedPaymentsStatus={savedPaymentsStatus}
+          onCreateAddress={handleCreateAddress}
+          onDeleteAddress={handleDeleteAddress}
+          onDeleteSavedPayment={handleDeleteSavedPayment}
+          onMakeDefaultAddress={handleMakeDefaultAddress}
+          onUpdateAddress={handleUpdateAddress}
           onAddProductToCart={handleAddProductToCart}
           onCartQuantityChange={handleCartQuantityChange}
           onCheckoutDraftUpdate={updateCheckoutDraft}
@@ -871,6 +1084,16 @@ function RouteStage({
   checkoutData,
   expressReviewData,
   expressCaptureState,
+  accountAddresses,
+  accountAddressesStatus,
+  accountEmail,
+  savedPayments,
+  savedPaymentsStatus,
+  onCreateAddress,
+  onDeleteAddress,
+  onDeleteSavedPayment,
+  onMakeDefaultAddress,
+  onUpdateAddress,
   onAddProductToCart,
   onCartQuantityChange,
   onCheckoutDraftUpdate,
@@ -889,6 +1112,21 @@ function RouteStage({
   readonly checkoutData: CheckoutPageData;
   readonly expressReviewData: ExpressReviewPageData;
   readonly expressCaptureState: ExpressReviewCaptureState;
+  readonly accountAddresses: readonly AccountAddressView[];
+  readonly accountAddressesStatus: "error" | "idle" | "loading" | "ready";
+  readonly accountEmail: string | null;
+  readonly savedPayments: readonly AccountSavedPaymentMethodView[];
+  readonly savedPaymentsStatus: "error" | "idle" | "loading" | "ready";
+  readonly onCreateAddress: (
+    address: AccountAddressMutationInput,
+  ) => Promise<void>;
+  readonly onDeleteAddress: (addressId: string) => Promise<void>;
+  readonly onDeleteSavedPayment: (savedPaymentId: string) => Promise<void>;
+  readonly onMakeDefaultAddress: (addressId: string) => Promise<void>;
+  readonly onUpdateAddress: (
+    addressId: string,
+    address: AccountAddressMutationInput,
+  ) => Promise<void>;
   readonly onAddProductToCart: (product: ProductDetailPageData) => void;
   readonly onCartQuantityChange: (
     slug: string,
@@ -961,10 +1199,19 @@ function RouteStage({
 
   if (route.page === "account") {
     return (
-      <section className="route-stage route-stage--account">
-        <p className="route-stage__eyebrow">Account</p>
-        <h1>{route.section === "orders" ? "Orders" : "Settings"}</h1>
-      </section>
+      <AccountPage
+        addresses={accountAddresses}
+        addressesStatus={accountAddressesStatus}
+        email={accountEmail}
+        savedPayments={savedPayments}
+        savedPaymentsStatus={savedPaymentsStatus}
+        section={route.section}
+        onCreateAddress={onCreateAddress}
+        onDeleteAddress={onDeleteAddress}
+        onDeleteSavedPayment={onDeleteSavedPayment}
+        onMakeDefaultAddress={onMakeDefaultAddress}
+        onUpdateAddress={onUpdateAddress}
+      />
     );
   }
 
@@ -1037,6 +1284,65 @@ function buildCartRequestOptions(
   return {
     headers,
   };
+}
+
+function buildAuthRequestOptions(
+  authSession: BuyerAuthSession,
+): ApiRequestOptions {
+  return {
+    headers: {
+      authorization: `Bearer ${authSession.accessToken}`,
+    },
+  };
+}
+
+function mapAccountSavedPayments(
+  response: AccountSavedPaymentsApiResponse,
+): readonly AccountSavedPaymentMethodView[] {
+  return response.saved_payments.map((savedPayment) => ({
+    id: savedPayment.id,
+    brand: savedPayment.brand,
+    expiryMonth: savedPayment.expiry_month,
+    expiryYear: savedPayment.expiry_year,
+    label: savedPayment.label,
+    last4: savedPayment.last4,
+    methodType: savedPayment.method_type === "card" ? "card" : "paypal_wallet",
+    status: mapAccountSavedPaymentStatus(savedPayment.status),
+  }));
+}
+
+function mapAccountSavedPaymentStatus(
+  status: string,
+): AccountSavedPaymentStatus {
+  if (
+    status === "active" ||
+    status === "deleted" ||
+    status === "disabled" ||
+    status === "pending"
+  ) {
+    return status;
+  }
+
+  return "active";
+}
+
+function mapAccountAddresses(
+  response: AccountAddressesApiResponse,
+): readonly AccountAddressView[] {
+  return response.addresses.map((address) => ({
+    id: address.id,
+    label: address.label,
+    recipient_name: address.recipient_name,
+    phone: address.phone,
+    address_line1: address.address_line1,
+    address_line2: address.address_line2,
+    city: address.city,
+    state: address.state,
+    postal_code: address.postal_code,
+    country_code: address.country_code,
+    is_default_shipping: address.is_default_shipping,
+    is_default_billing: address.is_default_billing,
+  }));
 }
 
 function shouldSeedStarterCart(

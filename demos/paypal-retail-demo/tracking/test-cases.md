@@ -198,6 +198,7 @@
 - [x] M14 checkout PayPal and Pay Later create-order request builders preserve authenticated request options for bearer-context payment attempts.
 - [x] M14 Delivery checkout submits start the draft update immediately instead of waiting behind artificial UI timers.
 - [x] M14 Delivery shipping-option radio changes immediately reflect the selected shipping amount and total in Order Summary while backend recalculation remains the source of truth after submit.
+- [x] M14 signed-in Account opens account settings, shows the buyer profile email, loads saved payment methods with bearer auth, and deletes a saved payment through the account API.
 - [ ] Guest checkout completes and offers inline account creation.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
@@ -302,6 +303,7 @@
 - [x] Pickup checkout step submits call checkout draft APIs for location, store, billing address, and pickup date, then reconcile returned promo/tax/inventory totals into Order Summary.
 - [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
 - [x] Buyer can move from full cart checkout through Pickup store selection, billing, pickup date, and payment selection.
+- [x] Account settings lists saved addresses, supports add/edit/delete/make-default actions, disables deleting default shipping/billing addresses until another address is promoted, and blocks cross-buyer address updates.
 - [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
 - [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
 - [ ] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.

@@ -364,6 +364,227 @@ describe("App buyer interactions", () => {
     ).toContain("Cart (4)");
   });
 
+  it("opens signed-in account settings, lists saved payments, and deletes a saved payment", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/account/addresses": {
+          addresses: [defaultAccountAddress(), secondaryAccountAddress()],
+        },
+        "/api/account/saved-payments": {
+          saved_payments: [
+            {
+              id: "saved_payment_paypal",
+              method_type: "paypal_wallet",
+              status: "active",
+              brand: null,
+              last4: null,
+              expiry_month: null,
+              expiry_year: null,
+              label: "Alice PayPal wallet",
+            },
+            {
+              id: "saved_payment_card",
+              method_type: "card",
+              status: "active",
+              brand: "Visa",
+              last4: "4242",
+              expiry_month: 12,
+              expiry_year: 2029,
+              label: null,
+            },
+          ],
+        },
+      },
+      deleteResponseByPath: {
+        "/api/account/addresses/address_secondary": {
+          addresses: [defaultAccountAddress()],
+        },
+        "/api/account/saved-payments/saved_payment_card": {
+          saved_payments: [
+            {
+              id: "saved_payment_paypal",
+              method_type: "paypal_wallet",
+              status: "active",
+              brand: null,
+              last4: null,
+              expiry_month: null,
+              expiry_year: null,
+              label: "Alice PayPal wallet",
+            },
+          ],
+        },
+      },
+      patchResponseByPath: {
+        "/api/account/addresses/address_secondary": {
+          addresses: [promotedAccountAddress(), nonDefaultAccountAddress()],
+        },
+      },
+      postResponseByPath: {
+        "/api/account/addresses": {
+          addresses: [
+            defaultAccountAddress(),
+            secondaryAccountAddress(),
+            createdAccountAddress(),
+          ],
+        },
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 3,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Account" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Account settings" }),
+    ).toBeTruthy();
+    expect(screen.getByText("alice.la@example.test")).toBeTruthy();
+    expect(screen.getByText("Alice PayPal wallet")).toBeTruthy();
+    expect(screen.getByText("Visa ending in 4242")).toBeTruthy();
+    const addressBook = screen.getByRole("region", { name: "Address book" });
+    expect(within(addressBook).getByText("Home")).toBeTruthy();
+    expect(within(addressBook).getByText("742 N Fairfax Ave")).toBeTruthy();
+    expect(within(addressBook).getByText("Default shipping")).toBeTruthy();
+    expect(within(addressBook).getByText("Default billing")).toBeTruthy();
+    expect(within(addressBook).getByText("Studio")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Delete address Home",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/account/saved-payments",
+        options: {
+          headers: {
+            authorization: "Bearer access_token_existing",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/account/addresses",
+        options: {
+          headers: {
+            authorization: "Bearer access_token_existing",
+          },
+        },
+      }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Make default address Studio" }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: "/api/account/addresses/address_secondary",
+          body: {
+            is_default_shipping: true,
+            is_default_billing: true,
+          },
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+            },
+          },
+        }),
+      );
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete saved payment Visa ending in 4242",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "delete",
+          path: "/api/account/saved-payments/saved_payment_card",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.queryByText("Visa ending in 4242")).toBeNull();
+    expect(screen.getByText("Alice PayPal wallet")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Add address" }));
+    await user.clear(screen.getByLabelText("Address label"));
+    await user.type(screen.getByLabelText("Address label"), "Office");
+    await user.clear(screen.getByLabelText("Recipient name"));
+    await user.type(screen.getByLabelText("Recipient name"), "Alice Lane");
+    await user.clear(screen.getByLabelText("Phone"));
+    await user.type(screen.getByLabelText("Phone"), "555-0102");
+    await user.clear(screen.getByLabelText("Street address"));
+    await user.type(screen.getByLabelText("Street address"), "1 Market St");
+    await user.clear(screen.getByLabelText("Apt, suite, etc."));
+    await user.type(screen.getByLabelText("Apt, suite, etc."), "Suite 4");
+    await user.clear(screen.getByLabelText("City"));
+    await user.type(screen.getByLabelText("City"), "San Francisco");
+    await user.clear(screen.getByLabelText("State"));
+    await user.type(screen.getByLabelText("State"), "CA");
+    await user.clear(screen.getByLabelText("ZIP/postal code"));
+    await user.type(screen.getByLabelText("ZIP/postal code"), "94105");
+    await user.clear(screen.getByLabelText("Country code"));
+    await user.type(screen.getByLabelText("Country code"), "US");
+    await user.click(screen.getByRole("button", { name: "Save address" }));
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/account/addresses",
+          body: {
+            label: "Office",
+            recipient_name: "Alice Lane",
+            phone: "555-0102",
+            address_line1: "1 Market St",
+            address_line2: "Suite 4",
+            city: "San Francisco",
+            state: "CA",
+            postal_code: "94105",
+            country_code: "US",
+            is_default_shipping: false,
+            is_default_billing: false,
+          },
+        }),
+      );
+    });
+  });
+
   it("adds a PDP item to the shared cart state and opens the minicart", async () => {
     const user = userEvent.setup();
 
@@ -1776,6 +1997,69 @@ function expectExpressScopes(container: HTMLElement) {
   expect(methods).toContain("paylater");
 }
 
+function defaultAccountAddress() {
+  return {
+    id: "address_default",
+    label: "Home",
+    recipient_name: "Alice Lane",
+    phone: "555-0101",
+    address_line1: "742 N Fairfax Ave",
+    address_line2: null,
+    city: "Los Angeles",
+    state: "CA",
+    postal_code: "90046",
+    country_code: "US",
+    is_default_shipping: true,
+    is_default_billing: true,
+  };
+}
+
+function secondaryAccountAddress() {
+  return {
+    ...defaultAccountAddress(),
+    id: "address_secondary",
+    label: "Studio",
+    address_line1: "1 Market St",
+    city: "San Francisco",
+    postal_code: "94105",
+    is_default_shipping: false,
+    is_default_billing: false,
+  };
+}
+
+function promotedAccountAddress() {
+  return {
+    ...secondaryAccountAddress(),
+    is_default_shipping: true,
+    is_default_billing: true,
+  };
+}
+
+function nonDefaultAccountAddress() {
+  return {
+    ...defaultAccountAddress(),
+    is_default_shipping: false,
+    is_default_billing: false,
+  };
+}
+
+function createdAccountAddress() {
+  return {
+    id: "address_created",
+    label: "Office",
+    recipient_name: "Alice Lane",
+    phone: "555-0102",
+    address_line1: "1 Market St",
+    address_line2: "Suite 4",
+    city: "San Francisco",
+    state: "CA",
+    postal_code: "94105",
+    country_code: "US",
+    is_default_shipping: false,
+    is_default_billing: false,
+  };
+}
+
 function singleItemCart({
   cartClientSecret = "cart_secret_existing",
   quantity,
@@ -1812,7 +2096,7 @@ function singleItemCart({
 }
 
 interface RecordingApiCall {
-  readonly method: "get" | "patch" | "post";
+  readonly method: "delete" | "get" | "patch" | "post";
   readonly path: string;
   readonly body?: unknown;
   readonly query?: ApiQueryParams | undefined;
@@ -1820,8 +2104,11 @@ interface RecordingApiCall {
 }
 
 interface RecordingApiClientInput {
+  readonly deleteResponseByPath?: Readonly<Record<string, unknown>>;
   readonly getResponse?: unknown;
+  readonly getResponseByPath?: Readonly<Record<string, unknown>>;
   readonly patchError?: Error;
+  readonly patchResponseByPath?: Readonly<Record<string, unknown>>;
   readonly patchResponse?: unknown;
   readonly postError?: Error;
   readonly postResponseByPath?: Readonly<Record<string, unknown>>;
@@ -1904,7 +2191,21 @@ function createRecordingApiClient(
       if (path === "/api/paypal/sdk-config") {
         return sdkConfigApiResponse(query) as TData;
       }
+      if (input.getResponseByPath && path in input.getResponseByPath) {
+        return input.getResponseByPath[path] as TData;
+      }
       return (input.getResponse ?? {}) as TData;
+    },
+    async delete<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "delete", path, query, options });
+      if (input.deleteResponseByPath && path in input.deleteResponseByPath) {
+        return input.deleteResponseByPath[path] as TData;
+      }
+      return {} as TData;
     },
     async patch<TData = unknown>(
       path: string,
@@ -1915,6 +2216,9 @@ function createRecordingApiClient(
       calls.push({ method: "patch", path, body, query, options });
       if (input.patchError) {
         throw input.patchError;
+      }
+      if (input.patchResponseByPath && path in input.patchResponseByPath) {
+        return input.patchResponseByPath[path] as TData;
       }
       return (input.patchResponse ?? {}) as TData;
     },

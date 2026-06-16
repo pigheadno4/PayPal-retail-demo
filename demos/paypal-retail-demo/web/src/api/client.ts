@@ -53,6 +53,11 @@ export class ApiClientError extends Error {
 }
 
 export interface ApiClient {
+  readonly delete: <TData = unknown>(
+    path: string,
+    query?: ApiQueryParams,
+    options?: ApiRequestOptions,
+  ) => Promise<TData>;
   readonly get: <TData = unknown>(
     path: string,
     query?: ApiQueryParams,
@@ -77,6 +82,17 @@ export function createApiClient(input: ApiClientInput = {}): ApiClient {
   const baseUrl = input.baseUrl ?? resolveDefaultApiBaseUrl();
 
   return {
+    async delete<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      const response = await fetchClient(
+        buildApiUrl(baseUrl, path, query),
+        buildRequestInit("DELETE", options),
+      );
+      return readApiEnvelope<TData>(response);
+    },
     async get<TData = unknown>(
       path: string,
       query?: ApiQueryParams,
