@@ -56,6 +56,389 @@ PayPal appears only in:
 
 No PayPal-heavy hero, header, nav, or promotional co-branding.
 
+## UI/UX Implementation Guide
+
+This section is the frontend source of truth. Frontend work must follow these rules before a milestone or slice can be marked complete.
+
+### Design Authority
+
+- `DESIGN.md` owns buyer and Admin UI/UX decisions.
+- `IMPLEMENTATION_TASKS.md` owns sequencing, but cannot override the visual or interaction contracts here.
+- `tracking/test-cases.md` must include a UX acceptance row for every customer-facing page or meaningful component slice.
+- If implementation discovers a design gap, update this file first, then update tasks/tests.
+- Do not treat a rendered component as complete unless it matches the page contract, state contract, and visual language here.
+
+### Chosen POP MART Direction
+
+Use `ui-ux-pro-max` as a reference, but do not copy every generated recommendation blindly. For this demo:
+
+- Adopt: e-commerce-clean typography, vibrant/block retail hierarchy, bento-like product modules, tactile toy-like cards, sticker badges, and restrained micro-interactions.
+- Avoid: Liquid Glass as a primary system, heavy blur, iridescent gradients, low-contrast translucent panels, large decorative orbs, and generic red/white ecommerce shells.
+- Preserve: PayPal official button/message containers exactly enough that SDK-rendered surfaces stay readable, stable, and undistorted.
+
+### POP MART Design Tokens
+
+Use these tokens as the starting point for CSS variables. Add new tokens only when a real component need is not covered.
+
+Colors:
+
+- `--pm-coral-red: #f42434` for primary retail CTAs, active nav, urgent drops.
+- `--pm-candy-pink: #ff8ab3` for surprise/reveal accents and soft feature backgrounds.
+- `--pm-lemon: #ffd75a` for new-drop markers, calendar highlights, and cheerful badges.
+- `--pm-mint: #4ecf9a` for pickup availability, success, and ready states.
+- `--pm-sky: #82cfff` for informational panels and payment-support surfaces.
+- `--pm-lavender: #bda7ff` for account/order secondary accents.
+- `--pm-warm-white: #fff8f3` for page background.
+- `--pm-card: #ffffff` for primary cards and forms.
+- `--pm-ink: #161616` for body text.
+- `--pm-muted: #67615f` for secondary text.
+- `--pm-border: #eadfda` for card borders and separators.
+- `--pm-error: #a6111f` for destructive/error states.
+
+Typography:
+
+- Preferred web fonts: Rubik for headings, Nunito Sans for body/UI.
+- Fallback: system sans-serif with the same weight scale.
+- Headings should feel round and confident; avoid thin SaaS typography.
+- Do not use viewport-width font sizing. Use fixed/rem/clamp ranges with clear min/max.
+- Letter spacing should be `0` by default. Use uppercase labels sparingly.
+
+Geometry and spacing:
+
+- Page max width: 1200px for storefront/account pages unless a page contract says otherwise.
+- Compact panels: 8px radius.
+- Product/category/order/account cards: 12-14px radius.
+- Tactile hero/category modules: 16px radius maximum.
+- Official payment containers: use stable dimensions and do not add decorative deformation.
+- Section spacing: 40-56px desktop, 28-36px mobile.
+- Card gap: 12-20px depending on density.
+
+Shadows and borders:
+
+- Use soft retail depth: `0 10px 28px rgba(22, 22, 22, 0.08)` for elevated cards.
+- Use subtle inset or border highlights for selected cards.
+- Avoid dark heavy shadows, glass blur, and shadow-only affordances.
+
+Motion:
+
+- Hover/focus transitions: 150-300ms.
+- Active button press may use color/brightness or slight inset shadow; avoid layout-shifting scale by default.
+- Use `prefers-reduced-motion` to remove non-essential animation.
+- Loading states for waits over 300ms must show skeleton, spinner, or disabled button label.
+
+### Component Contracts
+
+Buttons:
+
+- Primary retail actions use coral red fill with high-contrast text.
+- Secondary actions use white fill, coral border/text, and clear hover/focus states.
+- Destructive actions are text or outline actions unless inside a confirmation dialog.
+- Disabled buttons must show disabled styling and a reason when the action is important.
+- Async submit buttons must disable during submission and change label or show spinner.
+
+Badges and status chips:
+
+- Use sticker-like chips for retail status: `New drop`, `Limited`, `Hot`, `Low stock`, `Ready for pickup`, `Pending payment`, `Delivered`, `Review available`.
+- Chips must include text; color alone is never enough.
+- Use one dominant chip per card plus secondary chips only when needed.
+
+Cards:
+
+- Product cards emphasize image, title, current/regular price, release status, and primary action.
+- Account/order cards emphasize buyer task and status, not raw database structure.
+- Store cards use a ticket style with address, phone, distance, available count, unavailable count, and partial-inventory callout.
+- Cards that are clickable need pointer cursor, visible hover/focus, and accessible names.
+
+Forms:
+
+- Use visible labels for every input.
+- Do not rely only on browser-native validation tooltips for demo-critical forms.
+- Field errors must render inline and be announced with `role="alert"` or `aria-live`.
+- Required fields should be marked with text or helper copy, not color alone.
+- Account and checkout forms should preserve entered values on recoverable errors.
+
+Loading, empty, and error states:
+
+- Loading: use skeleton blocks or a compact spinner plus plain-language copy.
+- Empty: explain what is missing and offer the next action when one exists.
+- Error: show what failed, whether retry is possible, and avoid exposing secrets or raw stack traces.
+- API-backed UI must cover loading, success, empty, and failure states in tests or manual evidence.
+
+Official payment surfaces:
+
+- Use official PayPal SDK-rendered buttons/messages where promised.
+- Reserve stable layout space before SDK hydration.
+- Do not restyle official buttons in a way that distorts brand shape, color, label, or eligibility behavior.
+- For Pay Later, use brief non-amount marketing copy on homepage/category and amount-aware messages on PDP/cart/minicart/checkout.
+
+### Page-Level Contracts
+
+Homepage:
+
+- First viewport must feel like a collectible drop, not a generic marketplace.
+- Hero is image-led with direct product/drop context.
+- Hot sales, categories, release calendar, promo cards, and popular series must use distinct but restrained accent identities.
+- Pay Later homepage copy is brief and non-amount-specific.
+
+Category:
+
+- Filter controls must be scan-friendly and show active counts.
+- Product grid must preserve image dominance.
+- Empty filtered state needs a reset action.
+- Pickup availability filters stay disabled with a hint until a location context exists.
+
+Product detail:
+
+- PDP should feel like inspecting a collectible: large gallery, thumbnail rail, concise story/details, status badge, price, and action hierarchy.
+- Unreleased products remain viewable but all checkout/payment actions are blocked or hidden with clear reason.
+- PDP has no pickup hint.
+
+Cart and minicart:
+
+- Keep the payment/action area compact. Do not add competing pickup buttons.
+- Pickup is communicated as text hint only: buyer chooses Pickup during checkout.
+- Quantity controls must be obvious, stable, and connected to server-backed cart state.
+- PayPal/Pay Later express actions are delivery-only and must be official SDK surfaces.
+
+Checkout:
+
+- Use playful accents only for orientation: step badges, selected summaries, store tickets, promo/status callouts.
+- Payment method rows and official PayPal surfaces must remain calm, stable, and readable.
+- Only one accordion section is expanded at a time.
+- Every collapsed saved section needs a concise buyer-readable summary and Edit action.
+- Order Summary must update immediately for buyer-selected options when possible, then reconcile with backend totals.
+
+Account settings:
+
+- Account must feel like a buyer account hub, not an admin panel.
+- Provide account-level navigation for `Orders`, `Addresses`, `Payments`, `Profile`, and later `Reviews`.
+- Address cards should show label, recipient, formatted address, default badges, and actions with disabled reasons.
+- Add/edit address should use a polished form panel or modal with inline validation, not browser tooltip-only validation.
+- Saved payment rows should show payment type, status, and delete action with confirmation when destructive.
+
+Order history and order detail:
+
+- Order history uses retail cards, not a dense table.
+- Each order card shows order number, date, fulfillment mode, status chip, total, thumbnail strip, and primary CTA.
+- Pending orders show `Resume payment` as the primary CTA.
+- Completed orders show `View details` and later `Review items` where eligible.
+- Order detail shows a buyer-facing timeline: placed, payment, processing, shipped/delivered or pickup ready/completed.
+- Do not show technical PayPal IDs, payment-session IDs, or internal database IDs in buyer order detail.
+
+Guest order lookup:
+
+- Lookup form asks for order number and email.
+- Empty, invalid, not-found, and found states must be explicit.
+- Guest order detail is read-only and should encourage account creation after successful lookup.
+
+Admin Portal:
+
+- Admin can be denser and more utilitarian than buyer UI.
+- Admin still needs readable tables, filters, loading states, and sanitized debug views.
+- Do not let Admin visual style leak into buyer account screens.
+
+### Detailed Page Implementation Specs
+
+These specs turn the page contracts above into implementation guidance. When a page is touched, use the matching section as the UI checklist.
+
+Global app shell:
+
+- Header uses a clean retail layout: logo left, primary nav centered or left-aligned by viewport, account/cart actions right.
+- Header should not expose admin or demo labels in buyer mode.
+- Cart button shows a live count from the active server-backed cart.
+- Active route state is visible through coral underline/fill, not only text weight.
+- Mobile header may collapse nav, but cart and account entry remain reachable in one tap.
+- Global status messages use a polite live region or toast area and should read like buyer support copy, not logs.
+
+Homepage:
+
+- First viewport includes a collectible drop hero with real product/collection imagery, short launch copy, and one primary shopping action.
+- Hero should hint at the next section on desktop and mobile so the page feels browsable, not like a static landing page.
+- Hot sales use product cards with image, title, current/regular price, release status, and one dominant action.
+- Category shelf uses tactile category modules with image, short category label, and item count or short description.
+- Release calendar uses outlined circles for release dates, selected-date details, PDP links, and a text legend.
+- Brief Pay Later message is amount-free and should not compete with merchandise modules.
+- Loading state uses skeleton hero/cards; empty curated sections show fallback curated copy and keep layout stable.
+
+Category page:
+
+- Top area shows current category/all-products context, category switcher with `All options`, sort control, and applied-filter count.
+- Filter controls use chips or a compact drawer; selected filters remain visible after apply.
+- Product grid keeps consistent image ratio and stable card height for sale/current price, release status, and unavailable states.
+- Pickup availability filter stays disabled until location context exists and includes a concise reason.
+- Empty filtered state shows the applied filters, a reset action, and a link back to all products.
+- Pay Later copy is brief and amount-free.
+
+Product detail page:
+
+- Desktop layout is gallery left and purchase panel right; mobile places gallery first, then purchase panel.
+- Gallery includes one large image, 3-4 thumbnails, keyboard-selectable thumbnails, and image alt text based on product/series.
+- Purchase panel order is title, category/status chips, short intro, current/regular price, product facts, Pay Later message, add-to-cart, official express actions.
+- PDP does not show pickup hint or store selection.
+- Future/unreleased PDP shows status and release date, blocks add-to-cart and express actions with clear reason, and hides reviews.
+- Reviews render only for released products and stay below the purchase decision area.
+
+Cart page:
+
+- Cart items use row cards: image, title, variant/status, quantity stepper, current/regular line price, remove action, and inline item error when needed.
+- Quantity changes are optimistic only while the server request is in flight; failed updates roll back or preserve input with retry copy.
+- Order summary shows merchandise subtotal, promo, tax, shipping placeholder or selected shipping, and total.
+- Pay Later amount message uses current cart amount and updates when quantity changes.
+- Express PayPal/Pay Later buttons are official delivery-only SDK surfaces.
+- Pickup appears only as a text hint: `Prefer pickup? Choose store pickup during checkout.`
+
+Minicart:
+
+- Drawer is anchored inside the viewport on desktop and mobile; open drawer should not mount offscreen.
+- Each item row includes thumbnail, title, quantity stepper, line amount, and remove/decrement behavior.
+- Action area contains View cart, Checkout, official PayPal delivery express, official Pay Later delivery express, amount-aware Pay Later message, and pickup hint.
+- Keep button density under control: no pickup button and no duplicate checkout action labels.
+- Empty state shows a friendly message and one return-to-shopping action.
+
+Checkout Delivery:
+
+- Initial state expands Shipping address only.
+- Shipping address form shows saved/default address when available, otherwise editable fields.
+- Submit disables the button immediately, shows saving/recalculating copy, saves through backend, collapses to summary, and expands Billing.
+- Billing starts with `same as shipping` checked after shipping is saved; buyer can uncheck to reveal separate fields.
+- Billing submit follows the same immediate saving/collapse/edit pattern and expands Shipping options.
+- Shipping options start unsaved; cheapest eligible option is selected by default after destination is known.
+- Changing a shipping option updates Order Summary immediately, then backend reconciliation is reflected after submit.
+- Payment method section opens only after required delivery steps are saved.
+- Official payment action appears only when Payment is active and a method radio is selected.
+
+Checkout Pickup:
+
+- Guest initial state shows ZIP/postcode input only; no default-address checkbox, no preselected store, and no store summary.
+- Guest submits ZIP/postcode, then an accessible store-list modal opens with active-market stores only.
+- Logged-in buyer starts with nearest/default-address store preselected and a Change store action.
+- Store list cards show name, address, phone, distance, available count, unavailable count, and full/partial inventory status.
+- Selecting a partial store updates Order Summary with ready-for-pickup and not-available-at-this-store sections before payment.
+- Billing follows store selection and uses the buyer default address for logged-in buyers when appropriate; guests fill billing address.
+- Pickup calendar appears after billing, uses store-specific pickup dates, and blocks unavailable/past dates.
+- Payment method section opens only after store, billing, and pickup date are saved.
+
+Express Review and Confirm:
+
+- Used only for PayPal/Pay Later express started from PDP, cart, or minicart.
+- Page shows final synchronized items, shipping address, selected shipping option, promo, tax, total, and amount-guard status.
+- Confirm button is the only action that triggers capture.
+- If amount guard fails, keep capture blocked and show buyer-safe retry/support copy plus merchant debug reference.
+- Success state shows buyer-facing order number and next-step delivery message, not raw provider IDs.
+
+Account settings:
+
+- Account uses buyer hub navigation: Orders, Addresses, Payments, Profile, and later Reviews.
+- Profile panel shows email and lightweight account info without admin/internal IDs.
+- Address cards show label, recipient, formatted address, default shipping/billing badges, Edit, Delete, and Make default actions.
+- Add/edit address uses inline validation and a checked-by-default `Save to address book` behavior where relevant checkout flows later hand off to account.
+- Deleting a default-only address is disabled with reason; destructive delete asks for confirmation.
+- Saved payment cards show method type, display name/last digits where available, status, and delete with confirmation.
+
+Order history:
+
+- Order history uses retail cards instead of tables.
+- Each card shows order number, date, fulfillment mode, status chip, total, thumbnail strip, and one primary CTA.
+- Pending orders show Resume payment and explain that totals/promos may be refreshed.
+- Completed orders show View details and Review items when eligible.
+- Empty order history invites browsing products and, for guests, suggests guest lookup if they checked out without an account.
+
+Order detail:
+
+- Detail page shows timeline, fulfillment summary, item list, totals breakdown, payment status, and review eligibility.
+- Delivery orders show shipping address, selected option, and delivery lifecycle.
+- Pickup orders show store, pickup date/window, ready/unavailable split when applicable, and pickup lifecycle.
+- Completed order item rows expose review action only once per item unless editing is supported.
+- Technical IDs stay hidden from buyer detail; Admin/debug pages can expose sanitized provider references.
+
+Guest order lookup:
+
+- Form asks for order number and email with visible labels and inline validation.
+- Not-found response is the same for wrong email and missing order number.
+- Found state shows read-only order detail and account-registration encouragement.
+- Loading and retry states preserve entered values.
+
+Admin Portal:
+
+- Admin route stays manually reachable through `/admin`; no buyer header label is needed.
+- Admin surfaces orders, webhooks, inventory, and lifecycle only in v1 scope.
+- Admin uses denser tables, filters, copied debug IDs, sanitized PayPal snapshots, and lifecycle actions.
+- Admin does not adopt toy-like buyer styling beyond basic brand coherence.
+
+### UX Flow Contracts
+
+These flows must be reflected in tests and browser evidence when implemented.
+
+Account sign-in/register:
+
+- Entry: Sign in button, checkout account prompt, or confirmation-page registration prompt.
+- Email-first modal checks whether the email exists.
+- Existing email shows password sign-in; new email shows password registration.
+- Successful sign-in/register restores session, merges guest cart into account cart, and keeps the buyer on the same route.
+- Failure keeps the modal open, preserves email, and shows inline buyer-safe error.
+
+Cart persistence and checkout entry:
+
+- Guest browser stores only opaque `cart_public_id` and `cart_client_secret`.
+- Refresh, route navigation, minicart open, checkout entry, and express entry all restore or refresh server cart before using totals.
+- Missing or incomplete cart binding blocks checkout/payment with buyer-safe "cart is syncing" copy instead of fixture IDs.
+
+Delivery checkout accordion:
+
+- Shipping saved -> Billing editing -> Billing saved -> Shipping option editing -> Shipping option saved -> Payment editing.
+- Edit on a saved section expands only that section and collapses others.
+- Editing an upstream section marks downstream totals as recalculating or stale until backend reconciliation completes.
+- Order Summary updates immediately for local choices where safe, then reconciles to backend totals.
+
+Pickup checkout accordion:
+
+- Guest ZIP/postcode -> store modal -> selected store summary -> billing -> pickup calendar -> payment.
+- Logged-in preselected store -> optional Change store modal -> submit store -> billing -> pickup calendar -> payment.
+- Partial inventory stays visible in store picker and Order Summary before payment.
+- Original cart intent remains intact when unavailable pickup items are excluded from payable amount.
+
+Payment method selection:
+
+- Payment rows appear only in the Payment section.
+- PayPal selected renders only PayPal official action under Order Summary.
+- Pay Later selected renders Pay Later official action and amount-aware Pay Later message under Order Summary.
+- Card selected expands card fields and pay button inside the payment section, never in mobile sticky bar.
+- Wallet rows render only when runtime eligible and hide otherwise.
+
+Pending order resume:
+
+- Entry: Order history Pending card.
+- Resume loads the order snapshot, revalidates prices, inventory, pickup dates, shipping, tax, and promos.
+- Expired pickup dates require a new date before payment.
+- Promo evaluation runs fresh and explains changed accepted/rejected results.
+- Resume payment creates a fresh payment session when the old one is expired or invalid.
+
+Completed order review:
+
+- Entry: completed order card or order detail item row.
+- Buyer can review only items from completed orders.
+- Review form is item-scoped, preserves draft input on failure, and updates PDP review display after success.
+- If editing/deleting reviews is not implemented yet, the UI must say so through absence of controls, not broken buttons.
+
+Guest order lookup and registration:
+
+- Guest searches with order number and email.
+- Found order stays read-only.
+- Confirmation and found lookup states encourage account creation.
+- Registering with the same email links matching guest orders to the account after verification/login.
+
+### Frontend Slice Acceptance Gate
+
+Before any frontend slice is closed:
+
+- `DESIGN.md` page/component contract has been checked and updated if needed.
+- `tracking/test-cases.md` has acceptance rows for visual state, interaction state, async loading/error state, and responsive behavior.
+- Component or interaction tests cover important state transitions where practical.
+- Computer Use or Browser/Playwright evidence is captured for customer-facing pages.
+- Screens are checked at minimum 375px mobile and 1024px desktop for the touched area.
+- Official PSP surfaces are verified in browser when the slice touches PayPal, Pay Later, card, Apple Pay, Google Pay, or Venmo placement.
+- Any shell-only UI remains unchecked in `IMPLEMENTATION_TASKS.md` and explicitly deferred in tracking.
+
 ## Visual System Rules
 
 - Favor product imagery, collectible character art, and retail merchandising density over abstract decorative effects.

@@ -26,6 +26,8 @@ The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start ther
 
 ## Milestone Close Gates
 - For user-facing UI, rendered screens or component shells are not enough to mark a milestone complete.
+- For customer-facing or sales-facing UI, `DESIGN.md` must be implementation-grade before coding: tokens, component contracts, detailed page specs, UX-flow contracts, state contracts, responsive rules, and visual QA gates.
+- Before closing a frontend slice, verify the touched UI against `DESIGN.md`; if the implementation only follows generic styling or shell layout, keep the item open.
 - Before checking a milestone item as done, every visible user action must be wired to real state/API behavior, disabled with a clear reason, or explicitly recorded as deferred.
 - Verify the promised user journey with interaction tests or a manual verification note; render/snapshot tests only prove the shell exists.
 - For PSP or wallet UI, verify the hydrated official SDK/provider surface in a browser for each promised placement; branded local buttons or static text are shell progress only.

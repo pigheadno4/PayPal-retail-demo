@@ -6,6 +6,7 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 ## Guardrails
 - Preserve the confirmed POP MART-style retail demo purpose and mixed business/technical audience.
 - Keep buyer UI retail-first; PayPal branding belongs in official payment surfaces, not hero/nav marketing.
+- Frontend work must follow the implementation-grade UI/UX contracts in `DESIGN.md`; do not extend the generic red/white shell when a page contract requires POP MART collectible retail language.
 - Treat POP MART assets as customer-specific and not reusable outside this demo.
 - Keep the generic MochiToy Studio profile public-safe and fictional.
 - Use TypeScript for web, server, shared modules, tests, and seed tooling.
@@ -15,6 +16,7 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 
 ## Milestone Close Gates
 - Do not close PDP, cart, minicart, checkout, or payment UI milestones based only on rendered layout.
+- Do not close customer-facing frontend slices unless the touched page/component matches the `DESIGN.md` tokens, component contract, detailed page spec, UX-flow contract, and responsive/interaction acceptance rows.
 - Every visible buyer action must be wired to demo state/API behavior, disabled with a buyer-facing reason, or explicitly listed as deferred in tracking.
 - Checkout/payment milestones require buyer-flow interaction evidence: editable fields, submit/collapse behavior, option selection, payment-method switching, and selected payment surface rendering.
 - Payment SDK surfaces require live browser evidence of the hydrated official provider/button/message on each promised placement; static labels or local HTML buttons do not count.

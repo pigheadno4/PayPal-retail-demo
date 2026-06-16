@@ -5,6 +5,7 @@
 - [ ] Primary payment scenario can be verified.
 - [ ] Requirement traceability matrix maps each important promise to a source doc, implementation task, test case, and evidence type.
 - [ ] Evidence ladder is identified for each milestone: shell, interaction, backend/database, PSP/browser, and failure-state evidence.
+- [ ] `DESIGN.md` is implementation-grade before customer-facing frontend coding: tokens, component contracts, page specs, UX-flow contracts, state contracts, responsive rules, accessibility, and visual QA gates.
 - [ ] Multi-step UI state contracts or virtual mockups are linked from the related test cases.
 - [ ] Every visible user action is wired, disabled with a reason, or explicitly deferred in tracking.
 - [ ] Rendered UI is paired with interaction or manual verification for the promised user journey.

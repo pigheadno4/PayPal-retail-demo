@@ -440,6 +440,8 @@ Verification:
 
 ## Milestone 14: Account, Guest, Reviews
 
+- [x] Recover the frontend design source of truth before continuing account/order UI: strengthen `DESIGN.md` with POP MART tokens, component contracts, detailed page implementation specs, UX-flow contracts, state contracts, and frontend acceptance gates.
+- [ ] Apply the recovered POP MART design language to existing buyer account surfaces before closing Account UX polish.
 - [x] Implement email-first login/register modal branching with server email lookup.
 - [x] Wire Supabase Auth sign-in/register submit, buyer session persistence, and authenticated cart merge.
 - [x] Resolve live Supabase Auth sign-in/register blocker where the configured remote project returns a token-endpoint database schema error before the app can merge the signed-in cart.
@@ -457,6 +459,8 @@ Verification:
 
 Verification:
 
+- Frontend slices check `DESIGN.md` before implementation and update `tracking/test-cases.md` with visual, interaction, async state, and responsive acceptance rows.
+- Customer-facing frontend slices include Computer Use or browser/Playwright visual evidence before being marked complete.
 - Guest checkout cannot vault.
 - Guest order lookup requires order number and email.
 - Completed delivered/picked-up order allows one active review per order item.

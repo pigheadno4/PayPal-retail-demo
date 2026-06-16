@@ -132,6 +132,9 @@
 ## Buyer Flows
 
 - [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
+- [x] `DESIGN.md` defines implementation-grade frontend tokens, component contracts, detailed page specs, UX-flow contracts, and frontend acceptance gates before continuing customer-facing M14/M16 UI slices.
+- [ ] Customer-facing Account, Order history/detail, Guest lookup, inline registration, and review slices match their `DESIGN.md` page specs before they are marked complete.
+- [ ] Customer-facing frontend slices include Computer Use or browser/Playwright visual evidence at mobile and desktop sizes before completion.
 - [x] PayPal provider scope is limited to payment UI when `provider_key` changes.
 - [x] Homepage calendar marks release dates with outlined circles.
 - [x] Homepage calendar includes a legend and does not rely on color alone.

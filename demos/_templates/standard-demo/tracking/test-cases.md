@@ -4,6 +4,7 @@
 - [ ] Demo can run locally.
 - [ ] Primary payment scenario can be verified.
 - [ ] Requirement Traceability: important promises are mapped to a task, test or manual verification row, and evidence type.
+- [ ] `DESIGN.md` is implementation-grade before customer-facing frontend coding: tokens, component contracts, page specs, UX-flow contracts, responsive rules, accessibility, and visual QA gates.
 - [ ] UX State Contracts: multi-step UI or PSP SDK placement has state guidance or mockup coverage before implementation.
 - [ ] Every visible user action is wired, disabled with a reason, or explicitly deferred in tracking.
 - [ ] Rendered UI is paired with interaction or manual verification for the promised user journey.
