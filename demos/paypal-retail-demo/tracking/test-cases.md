@@ -55,8 +55,8 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PayPal SDK config API returns browser-safe client ID for basic flows and never returns client secret.
 - [x] PayPal SDK config API returns currency, locale, buyer country, Pay Later buyer country, component set, and provider key.
 - [x] PayPal SDK config API returns sandbox test buyer country in sandbox and omits or nulls it in production.
-- [ ] PayPal SDK v6 provider maps backend `sandbox_test_buyer_country` to `createInstance({ testBuyerCountry })` in sandbox/test.
-- [ ] PayPal SDK v6 provider omits `testBuyerCountry` in production.
+- [x] PayPal SDK v6 provider maps backend `sandbox_test_buyer_country` to `createInstance({ testBuyerCountry })` in sandbox/test.
+- [x] PayPal SDK v6 provider omits `testBuyerCountry` in production.
 - [x] PayPal provider key changes when client ID, environment, market, currency, locale, buyer country, sandbox test buyer country, component set, or market version changes.
 - [x] PayPal client token request planner skips standard one-time flows.
 - [x] PayPal client token request planner allows logged-in card and PayPal vaulting only.
