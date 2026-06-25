@@ -122,6 +122,7 @@ interface PayPalCaptureOrderResponseBody {
   readonly id?: unknown;
   readonly status?: unknown;
   readonly name?: unknown;
+  readonly debug_id?: unknown;
   readonly error?: unknown;
   readonly purchase_units?: unknown;
 }
@@ -249,6 +250,14 @@ export function createPayPalClientTokenGateway(
         (await response.json()) as PayPalCaptureOrderResponseBody;
 
       if (!response.ok) {
+        console.error(
+          "[paypal-retail-demo] PayPal capture order gateway rejected",
+          {
+            paypalDebugId: extractPayPalDebugId(responseBody),
+            paypalErrorName: extractPayPalErrorName(responseBody),
+            status: response.status,
+          },
+        );
         throw new Error(
           `PayPal capture order request failed: ${extractPayPalErrorName(
             responseBody,

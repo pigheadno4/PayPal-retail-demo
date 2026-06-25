@@ -8,6 +8,12 @@ Do not store secrets, credentials, private customer data, raw payment tokens, or
 
 Active stage: Milestone 16 QA, UX Review, and Demo Polish. Current investigations should prioritize presentation-readiness blockers: generated media quality, filter metadata correctness, POP MART visual refresh, responsive QA, PayPal SDK/message layout stability, and sandbox/manual demo readiness. M15 Admin Portal work remains backlog unless explicitly selected.
 
+## 2026-06-25
+
+- Render HTTPS QA observability gap: local tests and browser errors were not enough to isolate hosted PayPal failures after the demo moved to `https://retail-demo.onrender.com`; the backend needed safe stage-by-stage evidence that can be copied from Render logs.
+- Fix: route PayPal SDK config, client-token, create-order, express-review, and capture events through the shared redacting runtime debug logger, and log sanitized server startup context. Search Render logs for `server_starting`, `server_started`, `paypal_sdk_config_returned`, `paypal_client_token_planned`, `paypal_client_token_generated`, `paypal_create_order_starting`, `paypal_create_order_prepared`, `paypal_create_order_gateway_created`, `paypal_create_order_recorded`, `paypal_express_review_lookup_starting`, `paypal_express_review_found`, `paypal_capture_starting`, `paypal_capture_prepared`, `paypal_capture_gateway_captured`, `paypal_capture_recorded`, and any matching `*_failed` events.
+- Redaction rule: copied Render logs may include debug IDs, route stages, order/payment-session IDs, PayPal order/capture IDs, amount/currency metadata, and safe booleans. They must not include bearer tokens, cart secrets, client tokens, PayPal client secrets, OAuth access tokens, Supabase service keys, or raw buyer PII.
+
 ## 2026-05-26
 
 - `npm install` produced no output for roughly two minutes in the tool session but completed successfully. Avoid treating a quiet install as failed unless it exits non-zero or leaves no lockfile/modules after enough time.

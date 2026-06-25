@@ -91,6 +91,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PayPal delivery create-order API uses `SET_PROVIDED_ADDRESS`, merchant shipping address, detailed line items, `PayPal-Request-Id`, and records merchant snapshots.
 - [x] PayPal express delivery create-order API uses `GET_FROM_FILE` and server-side shipping callback config.
 - [x] PayPal frontend delivery express and backend create-order routes emit structured diagnostics for start/prepared/failure stages without logging cart secrets, bearer tokens, or PayPal credentials.
+- [x] PayPal backend HTTPS diagnostics emit sanitized server startup, SDK config, client-token, create-order, express-review, capture, and gateway failure events without logging cart secrets, bearer tokens, client tokens, PayPal credentials, or Supabase service keys.
 - [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.

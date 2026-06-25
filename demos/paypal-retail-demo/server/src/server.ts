@@ -64,10 +64,22 @@ type SupabaseRuntimeClient = SupabaseCatalogClient &
 
 export function startServer(env: RawServerEnv = process.env) {
   const config = parseServerEnv(env);
+  const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore();
+  runtimeDebugLogStore.logger.info("server_starting", {
+    app_base_url: config.appBaseUrl,
+    environment: config.paypalEnvironment,
+    has_paypal_bn_code: Boolean(config.paypalBnCode),
+    has_public_https_origin: Boolean(config.publicHttpsOrigin),
+    node_env:
+      (env as RawServerEnv & { readonly NODE_ENV?: string }).NODE_ENV ?? null,
+    port: config.port,
+    public_https_origin: config.publicHttpsOrigin,
+    static_asset_directory: resolve(process.cwd(), "web/dist"),
+    supabase_service_configured: Boolean(config.supabaseServiceRoleKey),
+  });
   const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
   const activeStorefrontContextStore =
     createInMemoryActiveStorefrontContextStore();
-  const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore();
   const catalogRepository = createSupabaseCatalogRepository({
     dataSource: createSupabaseCatalogDataSource(supabase),
   });
@@ -151,6 +163,10 @@ export function startServer(env: RawServerEnv = process.env) {
   });
 
   return app.listen(config.port, "0.0.0.0", () => {
+    runtimeDebugLogStore.logger.info("server_started", {
+      bind_host: "0.0.0.0",
+      port: config.port,
+    });
     console.log(`PayPal retail demo API listening on 0.0.0.0:${config.port}`);
   });
 }

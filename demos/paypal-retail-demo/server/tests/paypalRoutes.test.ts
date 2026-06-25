@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
+import {
+  createDebugLogger,
+  type DebugLogEntry,
+} from "../src/debug/logger.js";
 import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
@@ -160,6 +164,63 @@ describe("PayPal routes", () => {
     ]);
   });
 
+  it("emits safe PayPal route telemetry for hosted debugging", async () => {
+    const entries: DebugLogEntry[] = [];
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(
+      gateway,
+      orderRepository,
+      undefined,
+      createDebugLogger({
+        sink: (entry) => entries.push(entry),
+      }),
+    );
+
+    await requestApp(
+      app,
+      "GET",
+      "/api/paypal/sdk-config?market=us&page_type=checkout&flow=standard&method=paypal",
+    );
+    await requestApp(app, "POST", "/api/paypal/client-token", {
+      headers: {
+        authorization: "Bearer buyer-token",
+      },
+      json: {
+        flow: "vaulting",
+        method: "paypal",
+      },
+    });
+    await requestApp(
+      app,
+      "GET",
+      "/api/paypal/orders/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS",
+    );
+    await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/PAYPAL_ORDER_DELIVERY/capture",
+    );
+
+    expect(entries.map((entry) => entry.message)).toEqual(
+      expect.arrayContaining([
+        "api_request_completed",
+        "paypal_sdk_config_returned",
+        "paypal_client_token_planned",
+        "paypal_client_token_generated",
+        "paypal_express_review_lookup_starting",
+        "paypal_express_review_found",
+        "paypal_capture_starting",
+        "paypal_capture_prepared",
+        "paypal_capture_gateway_captured",
+        "paypal_capture_recorded",
+      ]),
+    );
+    expect(JSON.stringify(entries)).not.toContain("buyer-token");
+    expect(JSON.stringify(entries)).not.toContain("browser-safe-client-token");
+    expect(JSON.stringify(entries)).not.toContain("cart-secret");
+  });
+
   it("creates a full-checkout delivery PayPal order with provided shipping address", async () => {
     const gateway = createPayPalGateway();
     const orderRepository = createOrderRepository();
@@ -310,10 +371,17 @@ describe("PayPal routes", () => {
   });
 
   it("logs structured create-order diagnostics without secrets", async () => {
-    const infoSpy = vi.spyOn(console, "info");
+    const entries: DebugLogEntry[] = [];
     const gateway = createPayPalGateway();
     const orderRepository = createOrderRepository();
-    const app = createPayPalApp(gateway, orderRepository);
+    const app = createPayPalApp(
+      gateway,
+      orderRepository,
+      undefined,
+      createDebugLogger({
+        sink: (entry) => entries.push(entry),
+      }),
+    );
 
     const response = await requestApp(
       app,
@@ -332,44 +400,46 @@ describe("PayPal routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(infoSpy).toHaveBeenCalledWith(
-      "[paypal-retail-demo] PayPal create-order route starting",
-      expect.objectContaining({
-        cartId: "cart_public_guest",
-        checkoutDraftId: null,
-        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
-        kind: "express_delivery",
-        market: "US",
-        method: "paypal",
-        buyerKind: "guest",
-        hasGuestCartSecret: true,
-      }),
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "paypal_create_order_starting",
+          context: expect.objectContaining({
+            cart_id: "cart_public_guest",
+            checkout_draft_id: null,
+            debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+            kind: "express_delivery",
+            market: "US",
+            method: "paypal",
+            buyer_kind: "guest",
+            has_guest_cart_secret: true,
+          }),
+        }),
+        expect.objectContaining({
+          message: "paypal_create_order_prepared",
+          context: expect.objectContaining({
+            amount_total_minor: 2999,
+            debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+            kind: "express_delivery",
+            order_number: "DO-20260601-000002",
+            paypal_invoice_id: "DO-20260601-000002-A2",
+            paypal_request_id: "request-express",
+            payment_session_id: "payment_session_express",
+          }),
+        }),
+        expect.objectContaining({
+          message: "paypal_create_order_gateway_created",
+          context: expect.objectContaining({
+            debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+            kind: "express_delivery",
+            paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+            paypal_order_status: "CREATED",
+            payment_session_id: "payment_session_express",
+          }),
+        }),
+      ]),
     );
-    expect(infoSpy).toHaveBeenCalledWith(
-      "[paypal-retail-demo] PayPal create-order route prepared",
-      expect.objectContaining({
-        amountTotalMinor: 2999,
-        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
-        kind: "express_delivery",
-        orderNumber: "DO-20260601-000002",
-        paypalInvoiceId: "DO-20260601-000002-A2",
-        paypalRequestId: "request-express",
-        paymentSessionId: "payment_session_express",
-      }),
-    );
-    expect(infoSpy).toHaveBeenCalledWith(
-      "[paypal-retail-demo] PayPal create-order route gateway created",
-      expect.objectContaining({
-        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
-        kind: "express_delivery",
-        paypalOrderId: "PAYPAL_ORDER_EXPRESS",
-        paypalOrderStatus: "CREATED",
-        paymentSessionId: "payment_session_express",
-      }),
-    );
-    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain(
-      "cart_secret_guest",
-    );
+    expect(JSON.stringify(entries)).not.toContain("cart_secret_guest");
   });
 
   it("creates a BOPIS PayPal order with pickup-in-store shipping semantics", async () => {
@@ -782,8 +852,10 @@ function createPayPalApp(
   gateway: FakePayPalGateway,
   orderRepository?: FakeOrderRepository,
   webhookRepository?: FakeWebhookRepository,
+  debugLogger?: ReturnType<typeof createDebugLogger>,
 ) {
   return createApp({
+    ...(debugLogger ? { debugLogger } : {}),
     paypal: {
       environment: "sandbox",
       clientId: "PAYPAL_PUBLIC_CLIENT_ID",

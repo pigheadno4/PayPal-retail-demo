@@ -18,9 +18,11 @@ describe("sanitized debug logger", () => {
       authorization: "Bearer secret-access-token",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-value",
       nested: {
-        client_secret: "paypal-client-secret",
-        card_number: "4111111111111111",
-        safe_status: "created",
+      client_secret: "paypal-client-secret",
+      client_token: "browser-client-token",
+      cart_client_secret: "cart-secret-value",
+      card_number: "4111111111111111",
+      safe_status: "created",
       },
     });
 
@@ -38,6 +40,8 @@ describe("sanitized debug logger", () => {
           SUPABASE_SERVICE_ROLE_KEY: "[redacted]",
           nested: {
             client_secret: "[redacted]",
+            client_token: "[redacted]",
+            cart_client_secret: "[redacted]",
             card_number: "[redacted]",
             safe_status: "created",
           },
@@ -47,5 +51,7 @@ describe("sanitized debug logger", () => {
     expect(JSON.stringify(entries)).not.toContain("secret-access-token");
     expect(JSON.stringify(entries)).not.toContain("service-role-value");
     expect(JSON.stringify(entries)).not.toContain("4111111111111111");
+    expect(JSON.stringify(entries)).not.toContain("browser-client-token");
+    expect(JSON.stringify(entries)).not.toContain("cart-secret-value");
   });
 });

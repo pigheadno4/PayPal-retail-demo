@@ -277,6 +277,7 @@ export function createApp(input: CreateAppInput = {}) {
                 input.paypal.activeStorefrontContextStore,
             }
           : {}),
+        ...(input.debugLogger ? { debugLogger: input.debugLogger } : {}),
       }),
     );
   }

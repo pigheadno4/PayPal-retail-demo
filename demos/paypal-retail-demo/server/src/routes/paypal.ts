@@ -45,6 +45,7 @@ import type {
 } from "../middleware/guestCart.js";
 import type { ActiveStorefrontContextStore } from "../state/storefrontContext.js";
 import type { BuyerContext } from "../middleware/auth.js";
+import type { DebugLogger } from "../debug/logger.js";
 import type { StorefrontContext } from "./catalog.js";
 
 export type PayPalOrderKind = "delivery" | "express_delivery" | "bopis";
@@ -312,6 +313,7 @@ export interface CreatePayPalRouterInput {
   readonly orderRepository?: PayPalOrderPreparationRepository;
   readonly webhookRepository?: PayPalWebhookProcessingRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
+  readonly debugLogger?: DebugLogger;
 }
 
 const supportedPageTypes: readonly PayPalSdkPageType[] = [
@@ -348,6 +350,14 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
       );
 
       if (!sdkConfigInput) {
+        logPayPalRouteWarn(input, "paypal_sdk_config_rejected", {
+          debug_id: getResponseDebugId(response),
+          reason: "invalid_request",
+          query_market: firstQueryValue(request, "market"),
+          query_page_type: firstQueryValue(request, "page_type"),
+          query_flow: firstQueryValue(request, "flow"),
+          query_method: firstQueryValue(request, "method"),
+        });
         sendApiError(response, 400, {
           code: "INVALID_PAYPAL_SDK_CONFIG_REQUEST",
           message:
@@ -355,6 +365,15 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
         });
         return;
       }
+
+      logPayPalRouteInfo(input, "paypal_sdk_config_returned", {
+        debug_id: getResponseDebugId(response),
+        environment: input.environment,
+        market: sdkConfigInput.marketCode,
+        page_type: sdkConfigInput.pageType,
+        flow: sdkConfigInput.flow,
+        method: sdkConfigInput.method,
+      });
 
       sendApiSuccess(
         response,
@@ -379,6 +398,13 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
       const requestDomains = parseClientTokenDomains(body?.domains);
 
       if (!flow || !method || requestDomains === "invalid") {
+        logPayPalRouteWarn(input, "paypal_client_token_rejected", {
+          debug_id: getResponseDebugId(response),
+          reason: "invalid_request",
+          has_domains: Boolean(requestDomains),
+          flow: typeof body?.flow === "string" ? body.flow : null,
+          method: typeof body?.method === "string" ? body.method : null,
+        });
         sendApiError(response, 400, {
           code: "INVALID_PAYPAL_CLIENT_TOKEN_REQUEST",
           message:
@@ -393,6 +419,18 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
         method,
         buyer,
         domains: requestDomains ?? input.defaultClientTokenDomains,
+      });
+
+      logPayPalRouteInfo(input, "paypal_client_token_planned", {
+        debug_id: getResponseDebugId(response),
+        action: plan.action,
+        buyer_kind: buyer.kind,
+        domain_count:
+          plan.action === "generate"
+            ? plan.paypal_oauth_form.domains.length
+            : (requestDomains ?? input.defaultClientTokenDomains).length,
+        flow,
+        method,
       });
 
       if (plan.action === "not_required") {
@@ -411,9 +449,28 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
         return;
       }
 
-      const clientToken = await input.clientTokenGateway.generateClientToken({
-        domains: plan.paypal_oauth_form.domains,
-        targetCustomerId: plan.paypal_oauth_form.target_customer_id ?? null,
+      let clientToken;
+      try {
+        clientToken = await input.clientTokenGateway.generateClientToken({
+          domains: plan.paypal_oauth_form.domains,
+          targetCustomerId: plan.paypal_oauth_form.target_customer_id ?? null,
+        });
+      } catch (error) {
+        logPayPalRouteError(input, "paypal_client_token_failed", {
+          debug_id: getResponseDebugId(response),
+          error_name: error instanceof Error ? error.name : "UnknownError",
+          error_message: error instanceof Error ? error.message : String(error),
+          flow,
+          method,
+        });
+        throw error;
+      }
+
+      logPayPalRouteInfo(input, "paypal_client_token_generated", {
+        debug_id: getResponseDebugId(response),
+        expires_in_seconds: clientToken.expiresInSeconds,
+        flow,
+        method,
       });
 
       sendApiSuccess(response, {
@@ -568,10 +625,10 @@ async function handleCreateOrderRoute(
   const orderRepository = input.orderRepository;
 
   if (!orderGateway || !orderRepository) {
-    console.warn("[paypal-retail-demo] PayPal create-order route unavailable", {
-      debugId,
-      hasOrderGateway: Boolean(orderGateway),
-      hasOrderRepository: Boolean(orderRepository),
+    logPayPalRouteWarn(input, "paypal_create_order_unavailable", {
+      debug_id: debugId,
+      has_order_gateway: Boolean(orderGateway),
+      has_order_repository: Boolean(orderRepository),
       kind,
     });
     sendApiError(response, 503, {
@@ -584,8 +641,8 @@ async function handleCreateOrderRoute(
   const createOrderInput = parseCreateOrderInput(request, kind);
 
   if (!createOrderInput) {
-    console.warn("[paypal-retail-demo] PayPal create-order route rejected", {
-      debugId,
+    logPayPalRouteWarn(input, "paypal_create_order_rejected", {
+      debug_id: debugId,
       kind,
       reason: "invalid_request",
     });
@@ -602,11 +659,11 @@ async function handleCreateOrderRoute(
     input.activeStorefrontContextStore,
   );
   const routeLogContext = {
-    buyerKind: context.buyer.kind,
-    cartId: createOrderInput.cartId ?? null,
-    checkoutDraftId: createOrderInput.checkoutDraftId ?? null,
-    debugId,
-    hasGuestCartSecret: Boolean(context.guestCart?.cartClientSecret),
+    buyer_kind: context.buyer.kind,
+    cart_id: createOrderInput.cartId ?? null,
+    checkout_draft_id: createOrderInput.checkoutDraftId ?? null,
+    debug_id: debugId,
+    has_guest_cart_secret: Boolean(context.guestCart?.cartClientSecret),
     kind,
     market: context.storefrontContext.marketCode,
     method: createOrderInput.method,
@@ -618,10 +675,7 @@ async function handleCreateOrderRoute(
     | "gateway_create"
     | "record_result" = "prepare";
 
-  console.info(
-    "[paypal-retail-demo] PayPal create-order route starting",
-    routeLogContext,
-  );
+  logPayPalRouteInfo(input, "paypal_create_order_starting", routeLogContext);
 
   try {
     const preparedOrder = await orderRepository.prepareCreateOrder(
@@ -633,24 +687,24 @@ async function handleCreateOrderRoute(
     const merchantSnapshot = extractPayPalPurchaseUnitAmountSnapshot(
       payload.purchase_units[0]!,
     );
-    console.info("[paypal-retail-demo] PayPal create-order route prepared", {
+    logPayPalRouteInfo(input, "paypal_create_order_prepared", {
       ...routeLogContext,
-      amountCurrencyCode: merchantSnapshot.currencyCode,
-      amountTotalMinor: merchantSnapshot.totalMinor,
-      orderNumber: preparedOrder.orderNumber,
-      paypalInvoiceId: preparedOrder.paypalInvoiceId,
-      paypalRequestId: preparedOrder.paypalRequestId,
-      paymentSessionId: preparedOrder.paymentSessionId,
+      amount_currency_code: merchantSnapshot.currencyCode,
+      amount_total_minor: merchantSnapshot.totalMinor,
+      order_number: preparedOrder.orderNumber,
+      paypal_invoice_id: preparedOrder.paypalInvoiceId,
+      paypal_request_id: preparedOrder.paypalRequestId,
+      payment_session_id: preparedOrder.paymentSessionId,
     });
     stage = "amount_consistency";
     const amountConsistency = checkPayPalCreateOrderAmountConsistency(payload);
 
     if (amountConsistency.status !== "matched") {
-      console.warn("[paypal-retail-demo] PayPal create-order amount mismatch", {
+      logPayPalRouteWarn(input, "paypal_create_order_amount_mismatch", {
         ...routeLogContext,
-        mismatchCount: amountConsistency.mismatches.length,
-        orderNumber: preparedOrder.orderNumber,
-        paymentSessionId: preparedOrder.paymentSessionId,
+        mismatch_count: amountConsistency.mismatches.length,
+        order_number: preparedOrder.orderNumber,
+        payment_session_id: preparedOrder.paymentSessionId,
       });
       sendApiError(response, 409, {
         code: "PAYPAL_ORDER_AMOUNT_MISMATCH",
@@ -672,16 +726,13 @@ async function handleCreateOrderRoute(
       paypalRequestId: preparedOrder.paypalRequestId,
       payload,
     });
-    console.info(
-      "[paypal-retail-demo] PayPal create-order route gateway created",
-      {
-        ...routeLogContext,
-        approvalUrlPresent: Boolean(createOrderResponse.approvalUrl),
-        paypalOrderId: createOrderResponse.paypalOrderId,
-        paypalOrderStatus: createOrderResponse.status,
-        paymentSessionId: preparedOrder.paymentSessionId,
-      },
-    );
+    logPayPalRouteInfo(input, "paypal_create_order_gateway_created", {
+      ...routeLogContext,
+      approval_url_present: Boolean(createOrderResponse.approvalUrl),
+      paypal_order_id: createOrderResponse.paypalOrderId,
+      paypal_order_status: createOrderResponse.status,
+      payment_session_id: preparedOrder.paymentSessionId,
+    });
 
     stage = "record_result";
     await orderRepository.recordCreateOrderResult(context, {
@@ -694,11 +745,11 @@ async function handleCreateOrderRoute(
       response: createOrderResponse,
       merchantSnapshot,
     });
-    console.info("[paypal-retail-demo] PayPal create-order route recorded", {
+    logPayPalRouteInfo(input, "paypal_create_order_recorded", {
       ...routeLogContext,
-      orderNumber: preparedOrder.orderNumber,
-      paypalOrderId: createOrderResponse.paypalOrderId,
-      paymentSessionId: preparedOrder.paymentSessionId,
+      order_number: preparedOrder.orderNumber,
+      paypal_order_id: createOrderResponse.paypalOrderId,
+      payment_session_id: preparedOrder.paymentSessionId,
     });
 
     sendApiSuccess(response, {
@@ -711,10 +762,10 @@ async function handleCreateOrderRoute(
       approval_url: createOrderResponse.approvalUrl,
     });
   } catch (error) {
-    console.error("[paypal-retail-demo] PayPal create-order route failed", {
+    logPayPalRouteError(input, "paypal_create_order_failed", {
       ...routeLogContext,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      errorName: error instanceof Error ? error.name : "UnknownError",
+      error_message: error instanceof Error ? error.message : String(error),
+      error_name: error instanceof Error ? error.name : "UnknownError",
       stage,
     });
     throw error;
@@ -728,8 +779,14 @@ async function handleCaptureOrderRoute(
 ): Promise<void> {
   const orderGateway = input.orderGateway;
   const orderRepository = input.orderRepository;
+  const debugId = getResponseDebugId(response);
 
   if (!orderGateway || !orderRepository) {
+    logPayPalRouteWarn(input, "paypal_capture_unavailable", {
+      debug_id: debugId,
+      has_order_gateway: Boolean(orderGateway),
+      has_order_repository: Boolean(orderRepository),
+    });
     sendApiError(response, 503, {
       code: "PAYPAL_CAPTURE_UNAVAILABLE",
       message: "PayPal capture is not configured.",
@@ -739,6 +796,10 @@ async function handleCaptureOrderRoute(
 
   const paypalOrderId = normalizeBodyString(request.params.paypalOrderId);
   if (!paypalOrderId) {
+    logPayPalRouteWarn(input, "paypal_capture_rejected", {
+      debug_id: debugId,
+      reason: "invalid_request",
+    });
     sendApiError(response, 400, {
       code: "INVALID_PAYPAL_CAPTURE_REQUEST",
       message: "A PayPal order ID is required.",
@@ -746,48 +807,100 @@ async function handleCaptureOrderRoute(
     return;
   }
 
-  const preparedCapture = await orderRepository.prepareCapture({
-    paypalOrderId,
+  let stage: "prepare" | "gateway_capture" | "record_result" = "prepare";
+  logPayPalRouteInfo(input, "paypal_capture_starting", {
+    debug_id: debugId,
+    paypal_order_id: paypalOrderId,
   });
 
-  if (preparedCapture.action === "block") {
-    sendApiError(response, 409, {
-      code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH",
-      message: "PayPal capture blocked because order amounts do not match.",
-      details: {
-        amount_guard: preparedCapture.amountGuard,
-      },
+  try {
+    const preparedCapture = await orderRepository.prepareCapture({
+      paypalOrderId,
     });
-    return;
+
+    logPayPalRouteInfo(input, "paypal_capture_prepared", {
+      debug_id: debugId,
+      action: preparedCapture.action,
+      amount_guard_status: preparedCapture.amountGuard.status,
+      amount_total_minor: preparedCapture.merchantSnapshot.totalMinor,
+      order_number: preparedCapture.orderNumber,
+      paypal_order_id: preparedCapture.paypalOrderId,
+      payment_session_id: preparedCapture.paymentSessionId,
+    });
+
+    if (preparedCapture.action === "block") {
+      logPayPalRouteWarn(input, "paypal_capture_amount_mismatch", {
+        debug_id: debugId,
+        mismatch_count: preparedCapture.amountGuard.mismatches.length,
+        order_number: preparedCapture.orderNumber,
+        paypal_order_id: preparedCapture.paypalOrderId,
+        payment_session_id: preparedCapture.paymentSessionId,
+      });
+      sendApiError(response, 409, {
+        code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH",
+        message: "PayPal capture blocked because order amounts do not match.",
+        details: {
+          amount_guard: preparedCapture.amountGuard,
+        },
+      });
+      return;
+    }
+
+    stage = "gateway_capture";
+    const captureResponse = await orderGateway.captureOrder({
+      paypalOrderId: preparedCapture.paypalOrderId,
+      paypalRequestId: preparedCapture.paypalRequestId,
+    });
+    logPayPalRouteInfo(input, "paypal_capture_gateway_captured", {
+      debug_id: debugId,
+      capture_status: captureResponse.captureStatus,
+      order_number: preparedCapture.orderNumber,
+      paypal_capture_id: captureResponse.captureId,
+      paypal_order_id: captureResponse.paypalOrderId,
+      paypal_order_status: captureResponse.status,
+      payment_session_id: preparedCapture.paymentSessionId,
+    });
+
+    stage = "record_result";
+    await orderRepository.recordCaptureResult({
+      paymentSessionId: preparedCapture.paymentSessionId,
+      paypalOrderId: preparedCapture.paypalOrderId,
+      paypalCaptureId: captureResponse.captureId,
+      paypalOrderStatus: captureResponse.status,
+      paypalCaptureStatus: captureResponse.captureStatus,
+      paypalRequestId: preparedCapture.paypalRequestId,
+      response: captureResponse,
+      merchantSnapshot: preparedCapture.merchantSnapshot,
+      amountGuard: preparedCapture.amountGuard,
+    });
+    logPayPalRouteInfo(input, "paypal_capture_recorded", {
+      debug_id: debugId,
+      order_number: preparedCapture.orderNumber,
+      paypal_capture_id: captureResponse.captureId,
+      paypal_order_id: captureResponse.paypalOrderId,
+      payment_session_id: preparedCapture.paymentSessionId,
+    });
+
+    sendApiSuccess(response, {
+      order_number: preparedCapture.orderNumber,
+      payment_session_id: preparedCapture.paymentSessionId,
+      paypal_order_id: captureResponse.paypalOrderId,
+      paypal_capture_id: captureResponse.captureId,
+      paypal_order_status: captureResponse.status,
+      paypal_capture_status: captureResponse.captureStatus,
+      paypal_request_id: preparedCapture.paypalRequestId,
+      amount_guard: preparedCapture.amountGuard,
+    });
+  } catch (error) {
+    logPayPalRouteError(input, "paypal_capture_failed", {
+      debug_id: debugId,
+      error_message: error instanceof Error ? error.message : String(error),
+      error_name: error instanceof Error ? error.name : "UnknownError",
+      paypal_order_id: paypalOrderId,
+      stage,
+    });
+    throw error;
   }
-
-  const captureResponse = await orderGateway.captureOrder({
-    paypalOrderId: preparedCapture.paypalOrderId,
-    paypalRequestId: preparedCapture.paypalRequestId,
-  });
-
-  await orderRepository.recordCaptureResult({
-    paymentSessionId: preparedCapture.paymentSessionId,
-    paypalOrderId: preparedCapture.paypalOrderId,
-    paypalCaptureId: captureResponse.captureId,
-    paypalOrderStatus: captureResponse.status,
-    paypalCaptureStatus: captureResponse.captureStatus,
-    paypalRequestId: preparedCapture.paypalRequestId,
-    response: captureResponse,
-    merchantSnapshot: preparedCapture.merchantSnapshot,
-    amountGuard: preparedCapture.amountGuard,
-  });
-
-  sendApiSuccess(response, {
-    order_number: preparedCapture.orderNumber,
-    payment_session_id: preparedCapture.paymentSessionId,
-    paypal_order_id: captureResponse.paypalOrderId,
-    paypal_capture_id: captureResponse.captureId,
-    paypal_order_status: captureResponse.status,
-    paypal_capture_status: captureResponse.captureStatus,
-    paypal_request_id: preparedCapture.paypalRequestId,
-    amount_guard: preparedCapture.amountGuard,
-  });
 }
 
 async function handleExpressReviewSnapshotRoute(
@@ -796,8 +909,12 @@ async function handleExpressReviewSnapshotRoute(
   input: CreatePayPalRouterInput,
 ): Promise<void> {
   const orderRepository = input.orderRepository;
+  const debugId = getResponseDebugId(response);
 
   if (!orderRepository) {
+    logPayPalRouteWarn(input, "paypal_express_review_unavailable", {
+      debug_id: debugId,
+    });
     sendApiError(response, 503, {
       code: "PAYPAL_EXPRESS_REVIEW_UNAVAILABLE",
       message: "PayPal express review loading is not configured.",
@@ -811,6 +928,10 @@ async function handleExpressReviewSnapshotRoute(
   );
 
   if (!paypalOrderId && !paymentSessionId) {
+    logPayPalRouteWarn(input, "paypal_express_review_rejected", {
+      debug_id: debugId,
+      reason: "missing_lookup",
+    });
     sendApiError(response, 400, {
       code: "INVALID_PAYPAL_EXPRESS_REVIEW_REQUEST",
       message: "A PayPal order ID or payment session ID is required.",
@@ -818,18 +939,42 @@ async function handleExpressReviewSnapshotRoute(
     return;
   }
 
+  logPayPalRouteInfo(input, "paypal_express_review_lookup_starting", {
+    debug_id: debugId,
+    has_paypal_order_id: Boolean(paypalOrderId),
+    has_payment_session_id: Boolean(paymentSessionId),
+    paypal_order_id: paypalOrderId ?? null,
+    payment_session_id: paymentSessionId ?? null,
+  });
+
   const snapshot = await orderRepository.getExpressReviewSnapshot({
     paypalOrderId: paypalOrderId ?? null,
     paymentSessionId: paymentSessionId ?? null,
   });
 
   if (!snapshot) {
+    logPayPalRouteWarn(input, "paypal_express_review_not_found", {
+      debug_id: debugId,
+      paypal_order_id: paypalOrderId ?? null,
+      payment_session_id: paymentSessionId ?? null,
+    });
     sendApiError(response, 404, {
       code: "PAYPAL_EXPRESS_REVIEW_NOT_FOUND",
       message: "The synchronized PayPal express review snapshot was not found.",
     });
     return;
   }
+
+  logPayPalRouteInfo(input, "paypal_express_review_found", {
+    debug_id: debugId,
+    amount_guard_status: snapshot.amount_guard.status,
+    item_count: snapshot.items.length,
+    order_number: snapshot.order_number,
+    paypal_order_id: snapshot.paypal_order_id,
+    payment_session_id: snapshot.payment_session_id,
+    status_label: snapshot.status_label,
+    total_minor: snapshot.totals.total_minor,
+  });
 
   sendApiSuccess(response, snapshot);
 }
@@ -1175,6 +1320,30 @@ function firstHeaderValue(request: Request, key: string): string | null {
 
   const trimmedValue = firstValue.trim();
   return trimmedValue ? trimmedValue : null;
+}
+
+function logPayPalRouteInfo(
+  input: CreatePayPalRouterInput,
+  message: string,
+  context?: unknown,
+): void {
+  input.debugLogger?.info(message, context);
+}
+
+function logPayPalRouteWarn(
+  input: CreatePayPalRouterInput,
+  message: string,
+  context?: unknown,
+): void {
+  input.debugLogger?.warn(message, context);
+}
+
+function logPayPalRouteError(
+  input: CreatePayPalRouterInput,
+  message: string,
+  context?: unknown,
+): void {
+  input.debugLogger?.error(message, context);
 }
 
 function asyncRoute(handler: RequestHandler): RequestHandler {

@@ -48,7 +48,9 @@ const sensitiveDebugKeys = new Set([
   "authorization",
   "bearer",
   "card_number",
+  "cart_client_secret",
   "client_secret",
+  "client_token",
   "cvv",
   "cvc",
   "id_token",
@@ -107,8 +109,12 @@ export function createInMemoryRuntimeDebugLogStore(
 }
 
 export function sanitizeDebugLogContext(context: unknown): DebugLogJson {
-  if (context === null || context === undefined) {
+  if (context === undefined) {
     return {};
+  }
+
+  if (context === null) {
+    return null;
   }
 
   if (
