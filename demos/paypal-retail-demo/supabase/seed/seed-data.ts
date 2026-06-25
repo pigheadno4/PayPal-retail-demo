@@ -228,6 +228,8 @@ const genericSeries = [
   "Bloom Lab",
 ];
 
+const genericPlaceholderImagePath = "/assets/generic/products/placeholder.svg";
+
 const stores: readonly StoreSeed[] = [
   {
     marketCode: "US",
@@ -1223,7 +1225,10 @@ function createRows() {
         slug: category.slug,
         name: category.name,
         description: category.description,
-        image_path: `/${profile.slug}/categories/${category.slug}.webp`,
+        image_path:
+          profile.slug === "generic"
+            ? genericPlaceholderImagePath
+            : `/${profile.slug}/categories/${category.slug}.webp`,
         sort_order: categoryIndex + 1,
         is_active: true,
       });
@@ -1266,7 +1271,7 @@ function createRows() {
         });
       }
 
-      const productImageCount = profile.slug === "popmart" ? 1 : 3;
+      const productImageCount = 1;
       for (
         let imageIndex = 1;
         imageIndex <= productImageCount;
@@ -1941,7 +1946,10 @@ function createHomepageSections(
           : "Small Joy, Big Shelf Energy",
       subtitle: "Fresh drops, store pickup, and flexible PayPal checkout.",
       content_json: {
-        image_path: `/${profile.slug}/homepage/hero.webp`,
+        image_path:
+          profile.slug === "generic"
+            ? genericPlaceholderImagePath
+            : `/${profile.slug}/homepage/hero.webp`,
         cta_primary: "Shop new arrivals",
         cta_secondary: "See release calendar",
       },
@@ -2613,16 +2621,16 @@ function productImagePath(
     return `/assets/popmart/products/${productSlug}-${imageIndex}.png`;
   }
 
-  return `/${profile.slug}/products/${productSlug}-${imageIndex}.webp`;
+  return genericPlaceholderImagePath;
 }
 
 function productImageAltText(
   profile: ProfileSeed,
   product: ProductSeedRow,
-  imageIndex: number,
+  _imageIndex: number,
 ): string {
   if (profile.slug !== "popmart") {
-    return `${product.name} view ${imageIndex}`;
+    return `${product.name} neutral MochiToy collectible placeholder.`;
   }
 
   const categorySlug = categorySlugForProduct(product);

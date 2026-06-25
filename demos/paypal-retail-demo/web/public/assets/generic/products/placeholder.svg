@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" role="img" aria-labelledby="title description">
-  <title id="title">Product image loading</title>
-  <desc id="description">A neutral collectible placeholder for product imagery while live catalog data loads.</desc>
-  <rect width="900" height="900" rx="72" fill="#fff7ed"/>
-  <rect x="96" y="96" width="708" height="708" rx="56" fill="#ffffff" stroke="#f2d7c7" stroke-width="8"/>
-  <circle cx="342" cy="340" r="92" fill="#ffe066"/>
-  <circle cx="558" cy="340" r="92" fill="#9ee6cf"/>
-  <rect x="252" y="502" width="396" height="116" rx="58" fill="#ff6f61"/>
-  <rect x="300" y="650" width="300" height="34" rx="17" fill="#1f2937" opacity="0.16"/>
+  <title id="title">MochiToy product placeholder</title>
+  <desc id="description">A neutral MochiToy collectible placeholder for generic storefront product imagery.</desc>
+  <rect width="900" height="900" rx="72" fill="#faf8f5"/>
+  <rect x="96" y="96" width="708" height="708" rx="56" fill="#ffffff" stroke="#ded6c9" stroke-width="8"/>
+  <circle cx="342" cy="340" r="92" fill="#c5914e"/>
+  <circle cx="558" cy="340" r="92" fill="#dbe7ff"/>
+  <rect x="252" y="502" width="396" height="116" rx="58" fill="#0a2240"/>
+  <rect x="300" y="650" width="300" height="34" rx="17" fill="#233145" opacity="0.16"/>
 </svg>

@@ -578,7 +578,7 @@ Reference-level polish execution guide:
 - [x] Verify POP MART mode is playful premium collectible retail, not a generic white/red ecommerce shell and not the generic profile's blue/amber/cream treatment.
 - [x] Verify visual accents stay controlled: no childish clutter, no heavy glassmorphism, no decorative orbs, no page-wide rainbow effect, and product imagery remains the hero.
 - [x] Verify POP MART asset quality remains demo-acceptable in-context; defer replacement workflow unless new Popmart/audience criteria require it.
-- [ ] Verify generic MochiToy profile assets are public-safe.
+- [x] Verify generic MochiToy profile assets are public-safe.
 - [x] Update runbook with exact commands.
 - [x] Update tracking files and promote reusable learnings.
 

@@ -402,6 +402,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PDP, Cart, and Minicart Pay Later messaging render official PayPal message components for eligible/generated live states, not static-only local copy.
 - [x] Category sidebar secondary filters are fully backed by supported API query params and live count metadata.
 - [x] Current generated POP MART-leaning primary images are accepted for this Popmart-specific demo version, while generic/non-Popmart audience demos remain responsible for separate safer media.
+- [x] Generic MochiToy profile product, homepage, category, and order-snapshot image rows resolve to existing public-safe `/assets/generic/` media with no POP MART/IP terms.
 - [ ] Product image assets remain optimized enough for responsive storefront loading after final gallery coverage is generated.
 - [x] Homepage hero, hot sales, category cards, release calendar, and promo cards communicate blind-box drop, collectible shelf, and limited-release energy without childish clutter.
 - [x] Home desktop/mobile visual refresh uses richer collectible/drop modules instead of a sparse red/white commerce shell.

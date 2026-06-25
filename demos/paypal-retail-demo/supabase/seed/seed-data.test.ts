@@ -13,7 +13,7 @@ describe("retail demo seed data", () => {
     expect(dataset.summary.categories).toBe(10);
     expect(dataset.summary.products).toBe(50);
     expect(dataset.summary.productPrices).toBe(100);
-    expect(dataset.summary.productImages).toBe(100);
+    expect(dataset.summary.productImages).toBe(50);
     expect(dataset.summary.stores).toBe(18);
     expect(dataset.summary.storePickupDates).toBe(126);
     expect(dataset.summary.centralInventory).toBe(100);
@@ -161,6 +161,106 @@ describe("retail demo seed data", () => {
     for (const imagePath of popmartImageSnapshots) {
       expect(imagePath).toMatch(
         /^\/assets\/popmart\/products\/[a-z0-9-]+-1\.png$/,
+      );
+      expect(
+        existsSync(new URL(`../../web/public${imagePath}`, import.meta.url)),
+        String(imagePath),
+      ).toBe(true);
+    }
+  });
+
+  it("uses one existing public-safe placeholder image for generic products", () => {
+    const dataset = buildSeedDataset();
+    const productTable = dataset.tables.find(
+      (table) => table.name === "app.products",
+    );
+    const productImageTable = dataset.tables.find(
+      (table) => table.name === "app.product_images",
+    );
+    const genericProducts = new Map(
+      productTable?.rows
+        .filter((row) => row.profile_id === stableUuid("profile:generic"))
+        .map((row) => [String(row.id), row]) ?? [],
+    );
+
+    const genericImages =
+      productImageTable?.rows.filter((row) =>
+        genericProducts.has(String(row.product_id)),
+      ) ?? [];
+
+    expect(genericImages).toHaveLength(25);
+    for (const image of genericImages) {
+      const product = genericProducts.get(String(image.product_id));
+      expect(image.sort_order).toBe(1);
+      expect(image.image_path).toBe("/assets/generic/products/placeholder.svg");
+      expect(image.alt_text).toContain(String(product?.name));
+      expect(String(image.alt_text)).not.toMatch(/\bview\s+\d+\b/i);
+      expect(String(image.alt_text)).not.toMatch(
+        /pop mart|labubu|molly|dimoo|skullpanda|hirono|crybaby|pucky|sweet bean|zsiga|azura|the monsters/i,
+      );
+      expect(
+        existsSync(
+          new URL(`../../web/public${image.image_path}`, import.meta.url),
+        ),
+        String(image.image_path),
+      ).toBe(true);
+    }
+  });
+
+  it("uses the public-safe generic placeholder in generic order item image snapshots", () => {
+    const dataset = buildSeedDataset();
+    const orderItems = dataset.tables.find(
+      (table) => table.name === "app.order_items",
+    );
+
+    const genericImageSnapshots =
+      orderItems?.rows
+        .filter((row) =>
+          String(row.product_url_snapshot).startsWith("/generic/products/"),
+        )
+        .map((row) => row.product_image_url_snapshot) ?? [];
+
+    expect(genericImageSnapshots.length).toBeGreaterThan(0);
+    for (const imagePath of genericImageSnapshots) {
+      expect(imagePath).toBe("/assets/generic/products/placeholder.svg");
+      expect(
+        existsSync(new URL(`../../web/public${imagePath}`, import.meta.url)),
+        String(imagePath),
+      ).toBe(true);
+    }
+  });
+
+  it("uses existing public-safe generic assets for generic homepage and category imagery", () => {
+    const dataset = buildSeedDataset();
+    const categories = dataset.tables.find(
+      (table) => table.name === "app.categories",
+    );
+    const homepageSections = dataset.tables.find(
+      (table) => table.name === "app.homepage_sections",
+    );
+    const genericCategoryImagePaths =
+      categories?.rows
+        .filter((row) => row.profile_id === stableUuid("profile:generic"))
+        .map((row) => row.image_path) ?? [];
+    const genericHomepageImagePaths =
+      homepageSections?.rows
+        .filter((row) => row.profile_id === stableUuid("profile:generic"))
+        .flatMap((row) => {
+          const content = row.content_json as Record<string, unknown>;
+          return typeof content.image_path === "string"
+            ? [content.image_path]
+            : [];
+        }) ?? [];
+
+    expect(genericCategoryImagePaths.length).toBeGreaterThan(0);
+    expect(genericHomepageImagePaths.length).toBeGreaterThan(0);
+    for (const imagePath of [
+      ...genericCategoryImagePaths,
+      ...genericHomepageImagePaths,
+    ]) {
+      expect(imagePath).toMatch(/^\/assets\/generic\//);
+      expect(String(imagePath)).not.toMatch(
+        /popmart|pop-mart|labubu|molly|dimoo|skullpanda|hirono|crybaby|pucky|sweet-bean|zsiga|azura|the-monsters/i,
       );
       expect(
         existsSync(new URL(`../../web/public${imagePath}`, import.meta.url)),
