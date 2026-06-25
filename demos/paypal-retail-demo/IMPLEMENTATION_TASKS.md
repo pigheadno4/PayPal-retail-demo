@@ -317,10 +317,11 @@ Verification:
 - [x] Build `/checkout` with Delivery/Pickup tabs and preserved tab state.
 - [x] Build Delivery accordion: shipping address, billing address, shipping option, payment.
 - [x] Build Pickup accordion: ZIP/default location, store selection, billing address, pickup date, payment.
+- [x] Normalize stale seeded pickup dates into a current rolling checkout calendar window, and submit the default selected date when the buyer does not manually change the calendar.
 - [x] Build checkout step states: idle, saving, saved/collapsed, editing, recalculating totals, blocked/error, and locked.
 - [x] Build focus movement and announced errors for checkout form validation.
-- [x] Build partial pickup store card counts before store submit.
-- [x] Build Order Summary with promo evaluation, ready/unavailable pickup item split, and selected payment action slot.
+- [x] Build partial pickup store card inventory before store submit, including item-level cart-line status where the checkout draft provides product names and quantities.
+- [x] Build Order Summary with neutral/no-promo state unless a real code/discount exists, ready/unavailable pickup item split, and selected payment action slot.
 - [x] Build mobile sticky payment action for selected non-card methods.
 
 Verification:
@@ -379,7 +380,8 @@ Verification:
 - [x] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
 - [x] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
 - [x] Render PayPal standalone button when PayPal radio is selected.
-- [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected, using explicit message content fetch with a buyer-safe fallback when PayPal presentment content fails.
+- [x] Keep Pay Later radio rows compact with logo labeling, and render Pay Later button/message under Order Summary when selected, using explicit message content fetch with a buyer-safe fallback when PayPal presentment content fails or renders empty.
+- [x] Detect Pay Later message slots that report ready but render empty, then show the same buyer-safe fallback and structured console evidence.
 - [x] Render card fields expanded in the payment step with save checkbox inside card box.
 - [x] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
 - [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.

@@ -45,7 +45,7 @@ Initial Delivery state:
 - Billing address: collapsed and idle.
 - Shipping options: collapsed and idle.
 - Payment method: collapsed and idle.
-- Order Summary: visible, recalculating promo allowed, no payment action.
+- Order Summary: visible, neutral promo state unless a real code/discount exists, no payment action.
 
 Submit behavior:
 
@@ -61,8 +61,8 @@ Guest Pickup:
 - Start with Pickup location expanded.
 - Do not preselect a store, default-address checkbox, or Order Summary store before ZIP/postcode submit and modal confirmation.
 - Buyer enters ZIP/postcode and submits.
-- Store picker modal opens with ranked stores, inventory counts, address, phone, distance, and full/partial status.
-- Confirming a store collapses location/store summary and opens billing.
+- Store picker modal opens with ranked stores, address, non-dominant phone, distance, full/partial status, item-level inventory lines when cart-line data is available, and a direct Select button on each store card.
+- Selecting or confirming a store collapses location/store summary and opens billing.
 - ZIP/postcode defaults and ranked stores must match the active market.
 
 Logged-in Pickup:
@@ -71,9 +71,16 @@ Logged-in Pickup:
 - Buyer can click Change store to open the same store picker modal.
 - Continue with selected store opens billing.
 
+Pickup date:
+
+- The pickup date step uses the shadcn Calendar surface after billing is saved.
+- Past-only seeded/demo pickup date windows are normalized to a rolling window starting from the current checkout date.
+- The first available date is visually selected by default and must be included in the submit payload if the buyer clicks Submit pickup date without manually changing the calendar selection.
+
 Partial inventory:
 
 - Order Summary separates ready-for-pickup and not-available items.
+- Store cards must not rely on aggregate counts alone when the checkout draft returns item-level inventory lines; show each cart item with `In stock`, `Only N available`, or `Sold out`.
 - Unavailable pickup items are excluded from the BOPIS payment amount and remain in the original cart.
 
 ## Loading And Error States

@@ -28,6 +28,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -87,9 +88,18 @@ export interface CheckoutStoreCard {
   readonly phoneLabel: string;
   readonly availableItemsLabel: string;
   readonly unavailableItemsLabel: string;
+  readonly inventoryLines?: readonly CheckoutStoreInventoryLine[];
   readonly statusLabel?: string;
   readonly partialInventoryNote?: string;
   readonly selected?: boolean;
+}
+
+export interface CheckoutStoreInventoryLine {
+  readonly itemName: string;
+  readonly requestedQuantity: number;
+  readonly fulfillableQuantity: number;
+  readonly status: "available" | "limited" | "unavailable";
+  readonly statusLabel: string;
 }
 
 export interface CheckoutSummaryItem {
@@ -220,6 +230,34 @@ const paymentMethodLabels = {
   venmo: "Venmo",
 } satisfies Record<CheckoutSelectedPaymentMethod, string>;
 
+const paymentMethodLogoByMethod: Partial<
+  Record<
+    CheckoutSelectedPaymentMethod,
+    { readonly alt: string; readonly src: string }
+  >
+> = {
+  paypal: {
+    alt: "PayPal",
+    src: "/assets/paypal-logos/paypal-rebrand-default.svg",
+  },
+  paylater: {
+    alt: "Pay Later",
+    src: "/assets/paypal-logos/paylater-rebrand-mark.svg",
+  },
+  card: {
+    alt: "Credit or debit card",
+    src: "/assets/paypal-logos/card-rebrand-default.svg",
+  },
+  apple_pay: {
+    alt: "Apple Pay",
+    src: "/assets/paypal-logos/applepay-default.svg",
+  },
+  venmo: {
+    alt: "Venmo",
+    src: "/assets/paypal-logos/venmo-rebrand-default.svg",
+  },
+};
+
 const checkoutSubmitTransitionDelayMs = 50;
 const checkoutMobilePaymentQuery = "(max-width: 760px)";
 
@@ -230,7 +268,6 @@ export function CheckoutPage({
   onDraftUpdate,
   renderPaymentAction,
   renderCardPaymentBox,
-  renderPayLaterRowMessage,
 }: CheckoutPageProps) {
   const [currentData, setCurrentData] = useState(data);
   const pageData = currentData;
@@ -362,9 +399,6 @@ export function CheckoutPage({
     activePaymentContext.selectedPaymentMethod === "card"
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
-  const payLaterRowMessage = activePaymentStepExpanded
-    ? renderPayLaterRowMessage?.(activePaymentContext)
-    : null;
   const pickupStoreCards = getPickupStoreCards(pageData.pickup);
   const selectedPickupStore = getPickupStoreByName(
     pickupStoreCards,
@@ -734,8 +768,9 @@ export function CheckoutPage({
     pickupStoreTriggerRef.current?.focus();
   }
 
-  function savePickupStoreAndEditBilling() {
+  function savePickupStoreAndEditBilling(storeNameOverride?: string) {
     const nextStoreName =
+      storeNameOverride ??
       pendingPickupStoreName ??
       selectedPickupStoreName ??
       pickupStoreCards[0]?.name;
@@ -855,9 +890,6 @@ export function CheckoutPage({
               onChoiceChange={updateChoiceSelection}
               onStepEdit={editStep}
               onStepSubmit={submitStep}
-              payLaterRowMessage={
-                activeMode === "delivery" ? payLaterRowMessage : null
-              }
               cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
             />
             <CheckoutModePanel
@@ -878,9 +910,6 @@ export function CheckoutPage({
               onChoiceChange={updateChoiceSelection}
               onStepEdit={editStep}
               onStepSubmit={submitStep}
-              payLaterRowMessage={
-                activeMode === "pickup" ? payLaterRowMessage : null
-              }
               cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
             />
           </Tabs>
@@ -904,7 +933,8 @@ export function CheckoutPage({
             null
           }
           onClose={closePickupStoreModal}
-          onConfirm={savePickupStoreAndEditBilling}
+          onChoose={savePickupStoreAndEditBilling}
+          onConfirm={() => savePickupStoreAndEditBilling()}
           onSelect={setPendingPickupStoreName}
         />
       ) : null}
@@ -979,7 +1009,6 @@ function CheckoutModePanel({
   onChoiceChange,
   onStepEdit,
   onStepSubmit,
-  payLaterRowMessage,
   cardPaymentBox,
 }: {
   readonly draft: CheckoutFulfillmentDraft;
@@ -1010,7 +1039,6 @@ function CheckoutModePanel({
     mode: CheckoutFulfillmentMode,
   ) => void;
   readonly onStepSubmit: (step: CheckoutStep) => void;
-  readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
 }) {
   return (
@@ -1088,7 +1116,6 @@ function CheckoutModePanel({
                   {isExpanded ? (
                     <CheckoutStepDetails
                       step={stepWithDetails}
-                      payLaterRowMessage={payLaterRowMessage}
                       cardPaymentBox={cardPaymentBox}
                       submitErrorMessage={submitErrorMessage}
                       submitErrorId={submitErrorId}
@@ -1222,9 +1249,7 @@ function buildDraftUpdateRequest(
   draftId: string | null,
   step: CheckoutStep,
 ): CheckoutDraftUpdateRequest {
-  const selectedChoice = step.choices?.find(
-    (choice) => choice.selected === true,
-  );
+  const selectedChoice = getSelectedCheckoutChoiceForSubmit(step);
 
   return {
     draftId,
@@ -1244,6 +1269,20 @@ function buildDraftUpdateRequest(
       : {}),
     type,
   };
+}
+
+function getSelectedCheckoutChoiceForSubmit(
+  step: CheckoutStep,
+): CheckoutChoice | undefined {
+  const selectedChoice = step.choices?.find(
+    (choice) => choice.selected === true,
+  );
+
+  if (selectedChoice || step.id !== "pickup-date") {
+    return selectedChoice;
+  }
+
+  return step.choices?.find((choice) => isDefinedString(choice.value));
 }
 
 function getSelectedPaymentMethodForMode(
@@ -1533,9 +1572,14 @@ function CheckoutStepSummary({
       {mode === "pickup" &&
       step.id === "store-selection" &&
       selectedStores.length ? (
-        <button type="button" onClick={() => onStepSubmit(step)}>
+        <Button
+          className="checkout-step__summary-action"
+          onClick={() => onStepSubmit(step)}
+          type="button"
+          variant="secondary"
+        >
           Continue with this store
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -1609,6 +1653,7 @@ function PickupStoreTicketDetails({
   const availableCount = parseInventoryCount(store.availableItemsLabel);
   const unavailableCount = parseInventoryCount(store.unavailableItemsLabel);
   const inventoryState = getPickupStoreInventoryState(store);
+  const inventoryLines = store.inventoryLines ?? [];
 
   return (
     <>
@@ -1616,20 +1661,36 @@ function PickupStoreTicketDetails({
         <span className="checkout-store-card__address">{store.address}</span>
         <span className="checkout-store-card__phone">{store.phoneLabel}</span>
       </div>
-      <div
-        aria-label={`Pickup inventory for ${store.name}`}
-        className="checkout-store-card__availability"
-        data-inventory-state={inventoryState}
-      >
-        <span data-inventory-kind="available">
-          <strong>{availableCount}</strong>
-          <small>{store.availableItemsLabel}</small>
-        </span>
-        <span data-inventory-kind="unavailable">
-          <strong>{unavailableCount}</strong>
-          <small>{store.unavailableItemsLabel}</small>
-        </span>
-      </div>
+      {inventoryLines.length ? (
+        <ul
+          aria-label={`Pickup inventory for ${store.name}`}
+          className="checkout-store-card__inventory-lines"
+        >
+          {inventoryLines.map((line) => (
+            <li data-inventory-kind={line.status} key={line.itemName}>
+              <span>
+                {line.itemName} x {line.requestedQuantity}
+              </span>
+              <strong>{line.statusLabel}</strong>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div
+          aria-label={`Pickup inventory for ${store.name}`}
+          className="checkout-store-card__availability"
+          data-inventory-state={inventoryState}
+        >
+          <span data-inventory-kind="available">
+            <strong>{availableCount}</strong>
+            <small>{store.availableItemsLabel}</small>
+          </span>
+          <span data-inventory-kind="unavailable">
+            <strong>{unavailableCount}</strong>
+            <small>{store.unavailableItemsLabel}</small>
+          </span>
+        </div>
+      )}
       {store.statusLabel || store.partialInventoryNote ? (
         <div className="checkout-store-card__footer">
           {store.statusLabel ? (
@@ -1655,12 +1716,14 @@ function PickupStoreModal({
   stores,
   selectedStoreName,
   onClose,
+  onChoose,
   onConfirm,
   onSelect,
 }: {
   readonly stores: readonly CheckoutStoreCard[];
   readonly selectedStoreName: string | null;
   readonly onClose: () => void;
+  readonly onChoose: (storeName: string) => void;
   readonly onConfirm: () => void;
   readonly onSelect: (storeName: string) => void;
 }) {
@@ -1703,7 +1766,7 @@ function PickupStoreModal({
             const inventoryState = getPickupStoreInventoryState(store);
 
             return (
-              <label
+              <div
                 className="checkout-store-card checkout-store-card--ticket checkout-store-card--selectable"
                 data-inventory-state={inventoryState}
                 data-pickup-store-ticket="true"
@@ -1713,6 +1776,7 @@ function PickupStoreModal({
                 key={store.name}
               >
                 <input
+                  aria-label={store.name}
                   checked={store.name === selectedStoreName}
                   name="pickup-store-options"
                   onChange={() => onSelect(store.name)}
@@ -1732,8 +1796,23 @@ function PickupStoreModal({
                     </Badge>
                   </span>
                   <PickupStoreTicketDetails store={store} />
+                  <Button
+                    className="checkout-store-card__select"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onChoose(store.name);
+                    }}
+                    type="button"
+                    variant={
+                      store.name === selectedStoreName ? "default" : "outline"
+                    }
+                  >
+                    {store.name === selectedStoreName
+                      ? "Use selected store"
+                      : "Select this store"}
+                  </Button>
                 </span>
-              </label>
+              </div>
             );
           })}
         </div>
@@ -1871,9 +1950,91 @@ function getCheckoutFieldDescription(
   return null;
 }
 
+function CheckoutPickupDateCalendar({
+  step,
+  onChoiceChange,
+}: {
+  readonly step: CheckoutStep;
+  readonly onChoiceChange: (
+    stepId: string,
+    label: string,
+    method?: CheckoutSelectedPaymentMethod,
+  ) => void;
+}) {
+  const choices = step.choices ?? [];
+  const selectedChoice =
+    choices.find((choice) => choice.selected === true) ?? choices[0];
+  const selectedDate = parseCheckoutDateValue(selectedChoice?.value);
+  const defaultMonth =
+    selectedDate ?? parseCheckoutDateValue(choices[0]?.value);
+  const availableDates = new Set(
+    choices.map((choice) => choice.value).filter(isDefinedString),
+  );
+
+  return (
+    <div className="checkout-pickup-calendar">
+      <Calendar
+        mode="single"
+        {...(selectedDate ? { selected: selectedDate } : {})}
+        {...(defaultMonth ? { defaultMonth } : {})}
+        disabled={(date) => !availableDates.has(formatCheckoutDateValue(date))}
+        onSelect={(date) => {
+          if (!date) {
+            return;
+          }
+          const selectedValue = formatCheckoutDateValue(date);
+          const choice = choices.find((item) => item.value === selectedValue);
+
+          if (choice) {
+            onChoiceChange(step.id, choice.label, choice.method);
+          }
+        }}
+      />
+      {selectedChoice ? (
+        <p className="checkout-pickup-calendar__selected">
+          <strong>{selectedChoice.label}</strong>
+          {selectedChoice.description ? (
+            <span>{selectedChoice.description}</span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function isDefinedString(value: string | undefined): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function parseCheckoutDateValue(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const parsedDate = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+
+  return Number.isNaN(parsedDate.valueOf()) ? null : parsedDate;
+}
+
+function formatCheckoutDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function CheckoutStepDetails({
   step,
-  payLaterRowMessage,
   cardPaymentBox,
   submitErrorMessage,
   submitErrorId,
@@ -1883,7 +2044,6 @@ function CheckoutStepDetails({
   onStepSubmit,
 }: {
   readonly step: CheckoutStep;
-  readonly payLaterRowMessage?: ReactNode;
   readonly cardPaymentBox?: ReactNode;
   readonly submitErrorMessage?: string | undefined;
   readonly submitErrorId?: string | undefined;
@@ -2010,42 +2170,59 @@ function CheckoutStepDetails({
         <FormFieldError id={submitErrorId}>{submitErrorMessage}</FormFieldError>
       ) : null}
 
-      {step.choices?.length ? (
+      {step.id === "pickup-date" && step.choices?.length ? (
+        <CheckoutPickupDateCalendar
+          step={step}
+          onChoiceChange={onChoiceChange}
+        />
+      ) : step.choices?.length ? (
         <div className="checkout-choices">
-          {step.choices.map((choice) => (
-            <label
-              className="checkout-choice"
-              data-payment-method-row={choice.method}
-              key={choice.label}
-            >
-              <input
-                checked={choice.selected ?? false}
-                name={step.id}
-                onChange={() =>
-                  onChoiceChange(step.id, choice.label, choice.method)
-                }
-                type="radio"
-              />
-              <span>
-                <strong>{choice.label}</strong>
-                {choice.description ? (
-                  <small>{choice.description}</small>
+          {step.choices.map((choice) => {
+            const paymentLogo = choice.method
+              ? paymentMethodLogoByMethod[choice.method]
+              : null;
+
+            return (
+              <label
+                className="checkout-choice"
+                data-payment-method-row={choice.method}
+                key={choice.label}
+              >
+                <input
+                  checked={choice.selected ?? false}
+                  name={step.id}
+                  onChange={() =>
+                    onChoiceChange(step.id, choice.label, choice.method)
+                  }
+                  type="radio"
+                />
+                <span className="checkout-choice__label">
+                  {paymentLogo ? (
+                    <img
+                      alt={paymentLogo.alt}
+                      className="checkout-choice__logo"
+                      src={paymentLogo.src}
+                    />
+                  ) : null}
+                  <span className="checkout-choice__copy">
+                    <strong>{choice.label}</strong>
+                    {choice.description ? (
+                      <small>{choice.description}</small>
+                    ) : null}
+                  </span>
+                </span>
+                {choice.method === "card" &&
+                choice.selected &&
+                cardPaymentBox ? (
+                  <div className="checkout-choice__card-box">
+                    {cardPaymentBox}
+                  </div>
                 ) : null}
-              </span>
-              {choice.method === "paylater" && payLaterRowMessage ? (
-                <div className="checkout-choice__message">
-                  {payLaterRowMessage}
-                </div>
-              ) : null}
-              {choice.method === "card" && choice.selected && cardPaymentBox ? (
-                <div className="checkout-choice__card-box">
-                  {cardPaymentBox}
-                </div>
-              ) : null}
-              {choice.badgeLabel ? <em>{choice.badgeLabel}</em> : null}
-              {choice.amountLabel ? <b>{choice.amountLabel}</b> : null}
-            </label>
-          ))}
+                {choice.badgeLabel ? <em>{choice.badgeLabel}</em> : null}
+                {choice.amountLabel ? <b>{choice.amountLabel}</b> : null}
+              </label>
+            );
+          })}
         </div>
       ) : null}
 
@@ -2400,6 +2577,27 @@ function getDefaultPickupStoreName(
   );
 }
 
+function buildDefaultPickupDateChoices(
+  baseDate = new Date(),
+): readonly CheckoutChoice[] {
+  const startDate = new Date(baseDate);
+  startDate.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const pickupDate = new Date(startDate);
+    pickupDate.setDate(startDate.getDate() + index);
+
+    return {
+      label: new Intl.DateTimeFormat("en-US", {
+        day: "numeric",
+        month: "long",
+      }).format(pickupDate),
+      value: formatCheckoutDateValue(pickupDate),
+      ...(index === 0 ? { selected: true } : {}),
+    };
+  });
+}
+
 const deliveryBillingAddressFields: readonly CheckoutField[] = [
   {
     label: "Billing street address",
@@ -2488,12 +2686,10 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       {
         label: "Pay Later",
         method: "paylater",
-        description: "Pay Later message renders in the eligible row.",
       },
       {
         label: "Credit or debit card",
         method: "card",
-        description: "Card fields expand inside this step.",
       },
       {
         label: "Apple Pay",
@@ -2529,6 +2725,22 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
         phoneLabel: "+44 20 5555 0135",
         availableItemsLabel: "Available: 1 item",
         unavailableItemsLabel: "Unavailable: 1 item",
+        inventoryLines: [
+          {
+            itemName: "Labubu Have a Seat",
+            requestedQuantity: 1,
+            fulfillableQuantity: 1,
+            status: "available",
+            statusLabel: "In stock",
+          },
+          {
+            itemName: "Hirono Little Mischief",
+            requestedQuantity: 1,
+            fulfillableQuantity: 0,
+            status: "unavailable",
+            statusLabel: "Sold out",
+          },
+        ],
         statusLabel: "Partial inventory",
         partialInventoryNote: "Unavailable items stay in the original cart.",
         selected: true,
@@ -2541,6 +2753,22 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
         phoneLabel: "+44 20 5555 0199",
         availableItemsLabel: "Available: 2 items",
         unavailableItemsLabel: "Unavailable: 0 items",
+        inventoryLines: [
+          {
+            itemName: "Labubu Have a Seat",
+            requestedQuantity: 1,
+            fulfillableQuantity: 1,
+            status: "available",
+            statusLabel: "In stock",
+          },
+          {
+            itemName: "Hirono Little Mischief",
+            requestedQuantity: 1,
+            fulfillableQuantity: 1,
+            status: "available",
+            statusLabel: "In stock",
+          },
+        ],
         statusLabel: "Full inventory",
       },
     ],
@@ -2567,19 +2795,7 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
     primaryActionLabel: "Save billing address",
   },
   "pickup-date": {
-    choices: [
-      {
-        label: "June 12",
-        value: "2026-06-12",
-        description: "10:00 AM - 1:00 PM",
-        selected: true,
-      },
-      {
-        label: "June 13",
-        value: "2026-06-13",
-        description: "2:00 PM - 5:00 PM",
-      },
-    ],
+    choices: buildDefaultPickupDateChoices(),
     primaryActionLabel: "Submit pickup date",
   },
   "pickup-payment-method": {
@@ -2644,8 +2860,9 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         },
       ],
       subtotalLabel: "$25.98",
-      promoLabel: "Auto promo calculating",
-      promoHelpLabel: "Automatic demo offers refresh after address changes.",
+      promoLabel: "No promo applied",
+      promoHelpLabel:
+        "Eligible promos appear here after checkout details match.",
       taxLabel: "Calculated before payment",
       totalLabel: "$25.98",
       selectedPaymentLabel: "PayPal selected",
@@ -2696,8 +2913,9 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         },
       ],
       subtotalLabel: "$12.99",
-      promoLabel: "Pickup promo recalculating",
-      promoHelpLabel: "Pickup offers refresh after store selection.",
+      promoLabel: "No promo applied",
+      promoHelpLabel:
+        "Eligible pickup promos appear after a store is selected.",
       taxLabel: "Calculated before payment",
       totalLabel: "$12.99",
       selectedPaymentLabel: "PayPal selected",

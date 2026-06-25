@@ -76,6 +76,9 @@ type PayPalMessageElement = HTMLElement & {
   readonly setContent?: (content: Record<string, unknown>) => void;
 };
 
+const payLaterMessageLoadingFallbackDelayMs = 2200;
+const payLaterMessageEmptyFallbackDelayMs = 1200;
+
 export function PayLaterStandaloneAction({
   buyerCountry,
   checkoutDraftId,
@@ -221,6 +224,7 @@ export function PayLaterAmountMessage({
   placement,
 }: PayLaterAmountMessageProps) {
   const messageElementRef = useRef<PayPalMessageElement | null>(null);
+  const lastMessageRequestKey = useRef<string | null>(null);
   const [renderState, setRenderState] =
     useState<PayLaterMessageRenderState>("loading");
   const amount = amountLabel
@@ -230,8 +234,19 @@ export function PayLaterAmountMessage({
     buyerCountry,
     currencyCode,
   });
+  const fetchContentRef = useRef(handleFetchContent);
   const fallbackMessage = buildPayLaterMessageFallback(amountLabel);
   const shouldShowFallback = Boolean(error) || renderState === "fallback";
+  const messageRequestKey = [
+    placement,
+    buyerCountry,
+    currencyCode,
+    amount ?? "no-amount",
+  ].join(":");
+
+  useEffect(() => {
+    fetchContentRef.current = handleFetchContent;
+  }, [handleFetchContent]);
 
   useEffect(() => {
     if (error) {
@@ -243,6 +258,31 @@ export function PayLaterAmountMessage({
       });
     }
   }, [buyerCountry, currencyCode, error, placement]);
+
+  useEffect(() => {
+    if (error || renderState !== "loading") {
+      return undefined;
+    }
+
+    const timerId = setTimeout(() => {
+      setRenderState((currentState) => {
+        if (currentState !== "loading") {
+          return currentState;
+        }
+        console.warn("[paypal-retail-demo] Pay Later message timed out", {
+          amount: amount ?? null,
+          buyerCountry,
+          currencyCode,
+          placement,
+        });
+        return "fallback";
+      });
+    }, payLaterMessageLoadingFallbackDelayMs);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [amount, buyerCountry, currencyCode, error, placement, renderState]);
 
   const applyMessageContent = useCallback(
     (content: Record<string, unknown>) => {
@@ -286,29 +326,31 @@ export function PayLaterAmountMessage({
   );
 
   useEffect(() => {
-    if (!isReady) {
+    if (!isReady || lastMessageRequestKey.current === messageRequestKey) {
       return;
     }
 
     let isCurrent = true;
     let didApplyContent = false;
+    lastMessageRequestKey.current = messageRequestKey;
     setRenderState("loading");
 
-    void handleFetchContent({
-      ...(amount ? { amount } : {}),
-      buyerCountry,
-      currencyCode,
-      logoPosition: "INLINE",
-      logoType: "WORDMARK",
-      onReady: (content) => {
-        if (!isCurrent) {
-          return;
-        }
-        didApplyContent = true;
-        applyMessageContent(content);
-      },
-      textColor: "BLACK",
-    })
+    void fetchContentRef
+      .current({
+        ...(amount ? { amount } : {}),
+        buyerCountry,
+        currencyCode,
+        logoPosition: "INLINE",
+        logoType: "WORDMARK",
+        onReady: (content) => {
+          if (!isCurrent) {
+            return;
+          }
+          didApplyContent = true;
+          applyMessageContent(content);
+        },
+        textColor: "BLACK",
+      })
       .then((content) => {
         if (!isCurrent || didApplyContent || !content) {
           return;
@@ -341,10 +383,33 @@ export function PayLaterAmountMessage({
     applyMessageContent,
     buyerCountry,
     currencyCode,
-    handleFetchContent,
     isReady,
+    messageRequestKey,
     placement,
   ]);
+
+  useEffect(() => {
+    if (renderState !== "ready") {
+      return undefined;
+    }
+
+    const timerId = setTimeout(() => {
+      if (hasRenderedPayLaterMessageContent(messageElementRef.current)) {
+        return;
+      }
+      setRenderState("fallback");
+      console.warn("[paypal-retail-demo] Pay Later message rendered empty", {
+        amount: amount ?? null,
+        buyerCountry,
+        currencyCode,
+        placement,
+      });
+    }, payLaterMessageEmptyFallbackDelayMs);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [amount, buyerCountry, currencyCode, placement, renderState]);
 
   return (
     <div
@@ -358,9 +423,13 @@ export function PayLaterAmountMessage({
         id={`paylater-${placement}-message-status`}
         className="sr-only"
       >
-        {amountLabel
-          ? `Pay Later message ready for ${amountLabel}.`
-          : "Pay Later message ready."}
+        {shouldShowFallback
+          ? fallbackMessage
+          : renderState === "loading"
+            ? "Pay Later message loading."
+            : amountLabel
+              ? `Pay Later message ready for ${amountLabel}.`
+              : "Pay Later message ready."}
       </StatusRegion>
       <paypal-message
         ref={(element) => {
@@ -379,6 +448,25 @@ export function PayLaterAmountMessage({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function hasRenderedPayLaterMessageContent(
+  element: PayPalMessageElement | null,
+): boolean {
+  if (!element) {
+    return false;
+  }
+
+  const lightDomText = element.textContent?.trim();
+
+  if (lightDomText || element.childElementCount > 0) {
+    return true;
+  }
+
+  return Boolean(
+    element.shadowRoot?.textContent?.trim() ||
+    element.shadowRoot?.childElementCount,
   );
 }
 

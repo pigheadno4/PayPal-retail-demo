@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,9 @@ import { PayLaterStandaloneAction } from "./PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "./PayPalStandaloneAction.js";
 
 const paypalSdkMockState = vi.hoisted(() => ({
+  payLaterMessageContent: null as Record<string, unknown> | null,
   payLaterMessageError: null as Error | null,
+  payLaterMessageReady: false,
 }));
 
 vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
@@ -31,19 +33,35 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
   usePayPalMessages: () => ({
     error: paypalSdkMockState.payLaterMessageError,
     handleCreateLearnMore: vi.fn(),
-    handleFetchContent: vi.fn(),
-    isReady: false,
+    handleFetchContent: vi.fn(
+      (options: { onReady?: (content: unknown) => void }) => {
+        const content = paypalSdkMockState.payLaterMessageContent;
+
+        if (content) {
+          options.onReady?.(content);
+        }
+
+        return Promise.resolve(content);
+      },
+    ),
+    isReady: paypalSdkMockState.payLaterMessageReady,
   }),
 }));
 
 beforeEach(() => {
+  paypalSdkMockState.payLaterMessageContent = null;
   paypalSdkMockState.payLaterMessageError = null;
+  paypalSdkMockState.payLaterMessageReady = false;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
 
 afterEach(() => {
   cleanup();
+  delete (HTMLElement.prototype as HTMLElement & { setContent?: unknown })
+    .setContent;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -394,10 +412,57 @@ describe("payment action failure handling", () => {
 
     expect(document.querySelector("paypal-message")).toBeTruthy();
     expect(
-      screen.getByText(
+      document.querySelector(".paylater-amount-message__fallback")?.textContent,
+    ).toBe(
+      "Pay Later messaging is temporarily unavailable for $25.98. Select Pay Later to review PayPal-hosted options and terms.",
+    );
+    expect(
+      screen.getAllByText(
         "Pay Later messaging is temporarily unavailable for $25.98. Select Pay Later to review PayPal-hosted options and terms.",
-      ),
+      ).length,
     ).toBeTruthy();
+  });
+
+  it("falls back when official Pay Later content applies but renders empty", async () => {
+    vi.useFakeTimers();
+    const setContent = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "setContent", {
+      configurable: true,
+      value: setContent,
+    });
+    paypalSdkMockState.payLaterMessageContent = {
+      message: "official content",
+    };
+    paypalSdkMockState.payLaterMessageReady = true;
+
+    render(
+      <AppProviders apiClient={createSuccessfulApiClient()}>
+        <PayLaterStandaloneAction
+          buyerCountry="US"
+          checkoutDraftId="draft_delivery_123"
+          currencyCode="USD"
+          fulfillmentMode="delivery"
+          market="US"
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(setContent).toHaveBeenCalledWith({
+      message: "official content",
+    });
+    act(() => {
+      vi.advanceTimersByTime(1201);
+    });
+
+    expect(
+      document.querySelector(".paylater-amount-message__fallback")?.textContent,
+    ).toBe(
+      "Pay Later messaging is temporarily unavailable for $25.98. Select Pay Later to review PayPal-hosted options and terms.",
+    );
   });
 });
 

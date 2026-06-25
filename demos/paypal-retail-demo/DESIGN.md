@@ -474,7 +474,8 @@ Checkout Pickup:
 - Store list cards show name, address, phone, distance, available count, unavailable count, and full/partial inventory status.
 - Selecting a partial store updates Order Summary with ready-for-pickup and not-available-at-this-store sections before payment.
 - Billing follows store selection and uses the buyer default address for logged-in buyers when appropriate; guests fill billing address.
-- Pickup calendar appears after billing, uses store-specific pickup dates, and blocks unavailable/past dates.
+- Pickup calendar appears after billing, uses store-specific pickup dates, blocks unavailable/past dates, and rolls stale seed/demo date windows forward from the current checkout date so the buyer never sees past-only pickup choices.
+- The first available pickup date is the default selected calendar value and must submit even if the buyer does not manually click the date.
 - Payment method section opens only after store, billing, and pickup date are saved.
 
 Express Review and Confirm:
@@ -776,7 +777,7 @@ Reference-level checkout layout:
 - before the payment step is active, Order Summary does not show a payment placeholder or reserved PayPal panel. Payment controls appear only after the payment step is active and a method is selected.
 - checkout form controls use the shadcn `FieldGroup`/`Field`/`FieldLabel`/`Input`/`Checkbox` pattern, visible required markers, correct `autocomplete`/`inputMode`/`type` metadata, and inline validation/status copy rather than browser-tooltip-only form state
 - Runtime checkout summary itemizes active cart items when available and caps the visible list before `+N more` copy so mobile order context stays compact.
-- Promo UI must not fake manual code entry. Until manual promo application is wired, checkout shows the implemented auto-offer status and explanation only.
+- Promo UI must not fake manual code entry or indefinite calculation. Until manual promo application is wired, checkout shows neutral `No promo applied` copy unless a real selected code or discount is returned by the backend.
 - Trust-strip labels are limited to implemented demo capabilities: official provider-owned payment surfaces, recalculated totals, delivery/pickup selection, and order recovery.
 
 Accordion interaction contract:
@@ -787,7 +788,7 @@ Accordion interaction contract:
 - Initial Pickup logged-in state shows the preselected store summary in Store selection and lets the buyer change it from a store picker modal.
 - Pickup guest state must not show a selected store, default-address checkbox, or store summary before the buyer submits ZIP/postcode and confirms a store from the modal.
 - Pickup seeded defaults must match the active market; US checkout must not show GB postcode/store defaults, and GB checkout must not show US ZIP/store defaults.
-- Pickup store selection must show nearby stores only after ZIP/postcode or saved-address lookup succeeds. Inline and modal cards must expose `data-pickup-store-ticket`, `data-inventory-state`, and an accessible `Pickup inventory for {store}` label so visual QA can verify full and partial inventory states without relying on color alone.
+- Pickup store selection must show nearby stores only after ZIP/postcode or saved-address lookup succeeds. Inline and modal cards must expose `data-pickup-store-ticket`, `data-inventory-state`, and an accessible `Pickup inventory for {store}` label. When server cart lines are available, inventory is shown per cart item with `In stock`, `Only N available`, or `Sold out` status, plus direct per-store Select buttons in the modal so buyers do not need to scroll to a footer confirmation.
 - Submitting a section immediately collapses that section into a concise summary while the backend save/recalculation runs, then expands the next actionable section after reconciliation succeeds.
 - Editing a submitted section expands only that section, collapses the others, and marks downstream totals as needing recalculation where applicable.
 - Collapsed submitted sections show a compact buyer-readable summary plus an icon-only pencil Edit action. Do not repeat field labels such as `Full name` or state labels such as `Saved`.
@@ -888,7 +889,7 @@ Rules:
 
 - PayPal selected by default if eligible.
 - PayPal selected: standalone official PayPal button under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
-- Pay Later row includes official amount-aware Pay Later message when eligible, tied to the active Delivery/Pickup draft total.
+- Pay Later radio row stays compact with brand/logo labeling only; amount-aware Pay Later messaging belongs with the selected Pay Later action under Order Summary or the mobile sticky payment surface.
 - Pay Later selected: standalone official Pay Later button with the official amount-aware Pay Later message directly below it under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
 - Apple Pay selected: official Apple Pay button under Order Summary when eligible.
 - Google Pay selected: official Google Pay button under Order Summary when eligible.
@@ -896,7 +897,7 @@ Rules:
 - Ineligible wallet rows are hidden and do not render Order Summary or sticky actions. Google Pay must stay runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
 - Card selected: card fields expand in payment section; card pay button is inside card box.
 - Order Summary reserves stable space only after a selected non-card provider action is active; before payment selection, there is no payment placeholder panel.
-- Pay Later row message reserves stable space while PayPal eligibility/message rendering finishes.
+- Selected Pay Later action reserves stable space for PayPal message rendering and shows buyer-safe fallback copy if PayPal presentment content is unavailable or renders empty.
 - Mobile: selected non-card action appears in sticky bottom payment bar.
 - Mobile sticky bar shows only one selected non-card payment action at a time.
 - Mobile sticky bar reserves space for the selected method label, total, button, and any required Pay Later message without overlapping content.

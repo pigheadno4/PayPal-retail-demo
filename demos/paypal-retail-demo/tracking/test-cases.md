@@ -382,12 +382,12 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Checkout fulfillment mode lock displays the payment-session lock reason and disables inactive tab switching.
 - [x] Checkout mobile sticky selected-payment action shell is present without replacing card payment fields.
 - [x] Delivery checkout accordion renders shipping address fields, same-as-shipping billing checkbox, cheapest-default shipping options, and payment method choices.
-- [x] Pickup checkout accordion renders ZIP/default-location controls, store selection cards, billing address fields, store-specific pickup date choices, and payment method choices.
-- [x] Pickup store cards show available and unavailable item counts before store submit, including a partial-inventory callout.
+- [x] Pickup checkout accordion renders ZIP/default-location controls, store selection cards, billing address fields, shadcn Calendar-based pickup date selection, and payment method choices.
+- [x] Pickup store cards show buyer-readable inventory before store submit, including item-level in-stock/limited/sold-out lines where checkout draft data is available and a partial-inventory callout when unavailable quantities remain.
 - [x] Checkout validation summary renders as an assertive live region.
 - [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
 - [x] Checkout validation marks the first invalid step as a keyboard focus target.
-- [x] Checkout Order Summary and Pay Later row reserve stable layout space for async PayPal button/message surfaces in component tests.
+- [x] Checkout Order Summary and selected Pay Later action reserve stable layout space for async PayPal button/message surfaces in component tests; Pay Later radio rows remain compact and do not mount row-level message slots.
 - [x] Delivery checkout step submits call checkout draft APIs for shipping address, billing address, and shipping option, then reconcile returned promo/tax/shipping totals into Order Summary.
 - [x] Pickup checkout step submits call checkout draft APIs for location, store, billing address, and pickup date, then reconcile returned promo/tax/inventory totals into Order Summary.
 - [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
@@ -432,9 +432,13 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Cart desktop/mobile summary shows shipping plus promo/estimated-tax placeholders, cart subtotal, Pay Later messaging, and a reachable primary checkout action without feeling like a thin subtotal-only sidebar.
 - [x] Cart and minicart PayPal/Pay Later loading or unavailable states are method-labeled or consolidated, not repeated as identical "cart is refreshing" copy in adjacent slots.
 - [x] Mobile minicart keeps item confirmation, Checkout, View cart, Pay Later, express, and pickup hint scannable without crowding the first drawer viewport or hiding the primary action.
+- [x] Minicart Checkout and View cart actions render as clear stacked buttons in narrow drawers; View cart must not appear as unframed stray text.
 - [x] Open minicart panel has enough backdrop, edge, or elevation that underlying cart content and controls do not visually compete with drawer actions.
 - [x] Pickup store cards read as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory note.
+- [x] Pickup date Calendar opens from the current checkout date when seeded dates are stale, and submitting without manually clicking a date sends the default selected `YYYY-MM-DD` value.
+- [x] Checkout selected Pay Later shows buyer-safe fallback copy when the PayPal sandbox presentment message times out or reports ready while rendering an empty message.
 - [x] Meaningful product, category, and banner images have descriptive alt text.
 - [x] PayPal buttons and Pay Later messages render without major layout shift in API-backed responsive browser screenshots: Category, PDP, Cart, open Minicart, and Checkout payment step render official SDK message/button elements on 375px mobile without horizontal overflow, and the cart PayPal button opens the sandbox approval/login modal.
 - [x] Sticky header and sticky payment bar do not obscure content.
 - [x] Text fits inside buttons, cards, accordions, and payment rows.
+- [x] Footer headings and section labels meet readable contrast against the deep navy buyer-shell footer.

@@ -6,6 +6,7 @@ import type {
   CheckoutPageData,
   CheckoutStep,
   CheckoutStoreCard,
+  CheckoutStoreInventoryLine,
 } from "./CheckoutPage.js";
 
 export interface CheckoutDraftApiResponse {
@@ -68,7 +69,18 @@ export interface CheckoutPickupStoreDto {
   readonly distance_label?: string | null;
   readonly available_items_count: number;
   readonly unavailable_items_count: number;
+  readonly inventory_lines?: readonly CheckoutPickupStoreInventoryLineDto[];
   readonly selected?: boolean;
+}
+
+export interface CheckoutPickupStoreInventoryLineDto {
+  readonly product_id?: string;
+  readonly product_name?: string | null;
+  readonly requested_quantity?: number;
+  readonly fulfillable_quantity?: number;
+  readonly unavailable_quantity?: number;
+  readonly status?: "available" | "limited" | "unavailable" | string;
+  readonly status_label?: string | null;
 }
 
 export interface CheckoutPickupInventoryDto {
@@ -339,6 +351,7 @@ function mapPickupStoreCard(
   selectedStoreId: string | null | undefined,
 ): CheckoutStoreCard {
   const unavailableItemsCount = store.unavailable_items_count;
+  const inventoryLines = mapPickupStoreInventoryLines(store.inventory_lines);
   const baseStoreCard: CheckoutStoreCard = {
     id: store.id,
     name: store.name,
@@ -351,6 +364,7 @@ function mapPickupStoreCard(
     unavailableItemsLabel: `Unavailable: ${formatItemCount(
       unavailableItemsCount,
     )}`,
+    ...(inventoryLines ? { inventoryLines } : {}),
     selected: store.selected === true || store.id === selectedStoreId,
   };
 
@@ -394,7 +408,56 @@ function formatPromoLabel(
     return `-${formatMinor(summary.discount_minor, summary)}`;
   }
 
-  return promo?.status === "pending" ? "Promo calculating" : "No promo applied";
+  return "No promo applied";
+}
+
+function mapPickupStoreInventoryLines(
+  lines: readonly CheckoutPickupStoreInventoryLineDto[] | undefined,
+): readonly CheckoutStoreInventoryLine[] | undefined {
+  if (!lines?.length) {
+    return undefined;
+  }
+
+  return lines.map((line) => {
+    const requestedQuantity = line.requested_quantity ?? 0;
+    const fulfillableQuantity = line.fulfillable_quantity ?? 0;
+    const status = normalizePickupStoreInventoryStatus(line.status);
+
+    return {
+      itemName: line.product_name?.trim() || "Cart item",
+      requestedQuantity,
+      fulfillableQuantity,
+      status,
+      statusLabel:
+        line.status_label?.trim() ||
+        formatPickupStoreInventoryStatus(status, fulfillableQuantity),
+    };
+  });
+}
+
+function normalizePickupStoreInventoryStatus(
+  status: string | undefined,
+): CheckoutStoreInventoryLine["status"] {
+  return status === "available" || status === "limited"
+    ? status
+    : status === "unavailable"
+      ? "unavailable"
+      : "available";
+}
+
+function formatPickupStoreInventoryStatus(
+  status: CheckoutStoreInventoryLine["status"],
+  fulfillableQuantity: number,
+): string {
+  if (status === "available") {
+    return "In stock";
+  }
+
+  if (status === "limited") {
+    return `Only ${fulfillableQuantity} available`;
+  }
+
+  return "Sold out";
 }
 
 function formatMinor(

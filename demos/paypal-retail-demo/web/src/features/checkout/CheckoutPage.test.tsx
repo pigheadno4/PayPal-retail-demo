@@ -88,8 +88,9 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Qty 1");
     expect(html).toContain("Offer status");
     expect(html).toContain(
-      "Automatic demo offers refresh after address changes.",
+      "Eligible promos appear here after checkout details match.",
     );
+    expect(html).not.toContain("Promo calculating");
     expect(html).toContain("Estimated tax");
     expect(html).toContain("Calculated before payment");
     expect(html).toContain("Official payment surfaces");
@@ -197,10 +198,12 @@ describe("CheckoutPage", () => {
     expect(html).toContain("checkout-store-card__badge");
     expect(html).toContain('data-inventory-state="partial"');
     expect(html).toContain('data-inventory-state="full"');
-    expect(html).toContain("checkout-store-card__availability");
+    expect(html).toContain("checkout-store-card__inventory-lines");
     expect(html).toContain('aria-label="Pickup inventory for POP MART Soho"');
-    expect(html).toContain("Available: 1 item");
-    expect(html).toContain("Unavailable: 1 item");
+    expect(html).toContain("Labubu Have a Seat");
+    expect(html).toContain("Hirono Little Mischief");
+    expect(html).toContain("In stock");
+    expect(html).toContain("Sold out");
     expect(html).toContain("Partial inventory");
     expect(html).toContain("Full inventory");
     expect(html).toContain("Submit pickup store");
@@ -301,7 +304,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-payment-action-reserved-space="true"');
   });
 
-  it("renders the Pay Later row message for the active checkout draft", () => {
+  it("keeps the Pay Later row compact and leaves messaging beside the payment action", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData({
@@ -322,12 +325,11 @@ describe("CheckoutPage", () => {
     );
 
     expect(html).toContain('data-payment-method-row="paylater"');
-    expect(html).toContain('data-paylater-message-placement="payment-row"');
-    expect(html).toContain('data-paylater-message-amount-label="$25.98"');
     expect(html).toContain(
-      'data-paylater-message-checkout-draft-id="draft_delivery_123"',
+      'src="/assets/paypal-logos/paylater-rebrand-mark.svg"',
     );
-    expect(html).toContain('data-paylater-message-fulfillment-mode="delivery"');
+    expect(html).not.toContain('data-paylater-message-placement="payment-row"');
+    expect(html).not.toContain("Pay Later row message");
   });
 
   it("expands selected card fields inside the payment step without a sticky payment action", () => {
@@ -683,8 +685,9 @@ function checkoutData(
           },
         ],
         subtotalLabel: "$25.98",
-        promoLabel: "Auto promo calculating",
-        promoHelpLabel: "Automatic demo offers refresh after address changes.",
+        promoLabel: "No promo applied",
+        promoHelpLabel:
+          "Eligible promos appear here after checkout details match.",
         ...(overrides.deliveryShippingLabel
           ? { shippingLabel: overrides.deliveryShippingLabel }
           : {}),
@@ -719,8 +722,9 @@ function checkoutData(
           },
         ],
         subtotalLabel: "$12.99",
-        promoLabel: "Pickup promo recalculating",
-        promoHelpLabel: "Pickup offers refresh after store selection.",
+        promoLabel: "No promo applied",
+        promoHelpLabel:
+          "Eligible pickup promos appear after a store is selected.",
         taxLabel: "Calculated before payment",
         totalLabel: "$12.99",
         selectedPaymentLabel,

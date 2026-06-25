@@ -68,6 +68,7 @@ export interface CheckoutCartItemRow {
   readonly id: string;
   readonly cart_id: string;
   readonly product_id: string;
+  readonly product_name: string;
   readonly category_id: string;
   readonly quantity: number;
   readonly unit_price_minor_snapshot: number;
@@ -549,8 +550,10 @@ export function createSupabaseCheckoutRepository(
         throw new Error("Pickup store is required before pickup date");
       }
 
-      const pickupDates =
-        await dependencies.dataSource.listPickupDates(selectedStoreId);
+      const pickupDates = normalizePickupDatesForCheckout(
+        await dependencies.dataSource.listPickupDates(selectedStoreId),
+        dependencies.now,
+      );
       const isAvailable = pickupDates.some(
         (date) =>
           date.pickup_date === dateInput.pickupDate && date.is_available,
@@ -861,6 +864,7 @@ async function buildPickupDto(
   const selectedStoreId = state.selected_store_id ?? null;
   const cartLines = cartItems.map((item) => ({
     productId: item.product_id,
+    productName: item.product_name,
     quantity: item.quantity,
     unitPriceMinor: item.unit_price_minor_snapshot,
   }));
@@ -869,7 +873,10 @@ async function buildPickupDto(
       ? await buildPickupStoreDtos(input, draft, cartLines, selectedStoreId)
       : [];
   const pickupDates = selectedStoreId
-    ? await input.dataSource.listPickupDates(selectedStoreId)
+    ? normalizePickupDatesForCheckout(
+        await input.dataSource.listPickupDates(selectedStoreId),
+        input.now,
+      )
     : [];
   const inventory = selectedStoreId
     ? await input.dataSource.listStoreInventory(selectedStoreId)
@@ -909,6 +916,7 @@ async function buildPickupStoreDtos(
   draft: CheckoutDraftRow,
   cartLines: readonly {
     readonly productId: string;
+    readonly productName: string;
     readonly quantity: number;
     readonly unitPriceMinor: number;
   }[],
@@ -949,10 +957,54 @@ async function buildPickupStoreDtos(
         distance_label: "Available nearby",
         available_items_count: availableItemsCount,
         unavailable_items_count: unavailableItemsCount,
+        inventory_lines: cartLines.map((line) =>
+          mapPickupStoreInventoryLine(line, split),
+        ),
         selected: store.id === selectedStoreId,
       };
     }),
   );
+}
+
+function mapPickupStoreInventoryLine(
+  line: {
+    readonly productId: string;
+    readonly productName: string;
+    readonly quantity: number;
+  },
+  split: PickupInventorySplit,
+): CatalogJson {
+  const readyItem = split.readyItems.find(
+    (item) => item.productId === line.productId,
+  );
+  const unavailableItem = split.unavailableItems.find(
+    (item) => item.productId === line.productId,
+  );
+  const fulfillableQuantity = readyItem?.fulfillableQuantity ?? 0;
+  const unavailableQuantity =
+    unavailableItem?.unavailableQuantity ??
+    Math.max(line.quantity - fulfillableQuantity, 0);
+  const status =
+    fulfillableQuantity >= line.quantity
+      ? "available"
+      : fulfillableQuantity > 0
+        ? "limited"
+        : "unavailable";
+
+  return {
+    product_id: line.productId,
+    product_name: line.productName,
+    requested_quantity: line.quantity,
+    fulfillable_quantity: fulfillableQuantity,
+    unavailable_quantity: unavailableQuantity,
+    status,
+    status_label:
+      status === "available"
+        ? "In stock"
+        : status === "limited"
+          ? `Only ${fulfillableQuantity} available`
+          : "Sold out",
+  };
 }
 
 function buildSummary(input: {
@@ -1576,6 +1628,43 @@ function mapPickupDateDto(row: CheckoutPickupDateRow): CatalogJson {
   };
 }
 
+function normalizePickupDatesForCheckout(
+  rows: readonly CheckoutPickupDateRow[],
+  now: RepositoryNow | undefined,
+): readonly CheckoutPickupDateRow[] {
+  if (!rows.length) {
+    return rows;
+  }
+
+  const today = formatDateOnly(resolveNow(now));
+  const currentOrFutureRows = rows.filter((row) => row.pickup_date >= today);
+
+  if (currentOrFutureRows.length) {
+    return currentOrFutureRows;
+  }
+
+  return rows.map((row, index) => ({
+    ...row,
+    pickup_date: addDaysDateOnly(today, index),
+  }));
+}
+
+function formatDateOnly(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function addDaysDateOnly(dateOnly: string, days: number): string {
+  const date = new Date(`${dateOnly}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function mapPickupSplitDto(split: PickupInventorySplit): CatalogJson {
   return {
     ready_items: split.readyItems.map((item) => ({
@@ -1855,7 +1944,7 @@ export function createSupabaseCheckoutDataSource(
     },
     async listCartItems(cartId) {
       const cartItems = await queryMany<
-        Omit<CheckoutCartItemRow, "category_id">
+        Omit<CheckoutCartItemRow, "category_id" | "product_name">
       >(
         supabase
           .from("cart_items")
@@ -1871,23 +1960,25 @@ export function createSupabaseCheckoutDataSource(
       const productRows = await queryMany<{
         readonly id: string;
         readonly category_id: string;
+        readonly name: string;
       }>(
         supabase
           .from("products")
-          .select("id, category_id")
+          .select("id, category_id, name")
           .in(
             "id",
             cartItems.map((item) => item.product_id),
           ),
         `List checkout cart product categories ${cartId}`,
       );
-      const categoryByProductId = new Map(
-        productRows.map((product) => [product.id, product.category_id]),
+      const productById = new Map(
+        productRows.map((product) => [product.id, product]),
       );
 
       return cartItems.map((item) => ({
         ...item,
-        category_id: categoryByProductId.get(item.product_id) ?? "",
+        category_id: productById.get(item.product_id)?.category_id ?? "",
+        product_name: productById.get(item.product_id)?.name ?? "Cart item",
       }));
     },
     async listShippingOptions(marketId) {

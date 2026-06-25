@@ -240,6 +240,38 @@ describe("Supabase-backed checkout repository", () => {
     });
   });
 
+  it("rolls stale pickup date windows forward from the current checkout date", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.pickupDates[0] = {
+      ...dataSource.pickupDates[0],
+      pickup_date: "2026-05-28",
+    };
+    dataSource.drafts.push(existingDraft({ fulfillmentMode: "pickup" }));
+    const repository = createRepository(dataSource, "2026-06-25T10:00:00.000Z");
+
+    const storeResponse = await repository.selectPickupStore(guestContext(), {
+      draftId: "draft_delivery",
+      storeId: "store_sf",
+    });
+    const dateResponse = await repository.selectPickupDate(guestContext(), {
+      draftId: "draft_delivery",
+      pickupDate: "2026-06-25",
+    });
+
+    expect(storeResponse.draft.pickup).toMatchObject({
+      pickup_dates: [
+        {
+          id: "pickup_date_sf",
+          pickup_date: "2026-06-25",
+          is_available: true,
+        },
+      ],
+    });
+    expect(dateResponse.draft.pickup).toMatchObject({
+      selected_pickup_date: "2026-06-25",
+    });
+  });
+
   it("returns market-scoped pickup stores after the guest submits a pickup location", async () => {
     const dataSource = createCheckoutDataSource();
     dataSource.stores.push({
@@ -465,12 +497,15 @@ describe("Supabase-backed checkout repository", () => {
   });
 });
 
-function createRepository(dataSource: FakeCheckoutDataSource) {
+function createRepository(
+  dataSource: FakeCheckoutDataSource,
+  now: string = "2026-06-01T10:00:00.000Z",
+) {
   let promoEvaluationLineSequence = 0;
 
   return createSupabaseCheckoutRepository({
     dataSource,
-    now: "2026-06-01T10:00:00.000Z",
+    now,
     createDraftId: () => "draft_new",
     createPromoEvaluationId: () =>
       `promo_eval_${dataSource.promoEvaluations.length + 1}`,

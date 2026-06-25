@@ -425,7 +425,6 @@ describe("CheckoutPage interactions", () => {
         renderPaymentAction={(context) => (
           <div>Selected {context.selectedPaymentMethod}</div>
         )}
-        renderPayLaterRowMessage={() => <div>Pay Later row message</div>}
       />,
     );
 
@@ -441,7 +440,8 @@ describe("CheckoutPage interactions", () => {
     );
 
     expect(screen.getByText("Selected paylater")).toBeTruthy();
-    expect(within(paymentStep).getByText("Pay Later row message")).toBeTruthy();
+    expect(within(paymentStep).getByAltText("Pay Later")).toBeTruthy();
+    expect(within(paymentStep).queryByText("Pay Later row message")).toBeNull();
 
     await user.click(
       within(paymentStep).getByRole("radio", {
@@ -676,7 +676,6 @@ describe("CheckoutPage interactions", () => {
         renderPaymentAction={(context) => (
           <div>Selected {context.selectedPaymentMethod}</div>
         )}
-        renderPayLaterRowMessage={() => <div>Pay Later row message</div>}
       />,
     );
 
@@ -713,11 +712,11 @@ describe("CheckoutPage interactions", () => {
 
     const pickupDateStep = getStep("Pickup date");
     expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
-    await user.click(
-      within(pickupDateStep).getByRole("radio", {
-        name: /June 13/,
-      }),
-    );
+    const selectedDateLabel = new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "long",
+    }).format(new Date());
+    expect(within(pickupDateStep).getByText(selectedDateLabel)).toBeTruthy();
     await user.click(
       within(pickupDateStep).getByRole("button", {
         name: "Submit pickup date",
@@ -726,11 +725,9 @@ describe("CheckoutPage interactions", () => {
     await waitForStepState(pickupDateStep, "saved");
 
     expect(pickupDateStep.getAttribute("data-step-state")).toBe("saved");
-    expect(within(pickupDateStep).getByText("June 13")).toBeTruthy();
+    expect(within(pickupDateStep).getByText(selectedDateLabel)).toBeTruthy();
     expect(
-      within(pickupDateStep).queryByRole("radio", {
-        name: /June 13/,
-      }),
+      pickupDateStep.querySelector(".checkout-pickup-calendar"),
     ).toBeNull();
 
     const paymentStep = getStep("Payment method");
@@ -744,7 +741,50 @@ describe("CheckoutPage interactions", () => {
     );
 
     expect(screen.getByText("Selected paylater")).toBeTruthy();
-    expect(within(paymentStep).getByText("Pay Later row message")).toBeTruthy();
+    expect(within(paymentStep).getByAltText("Pay Later")).toBeTruthy();
+    expect(within(paymentStep).queryByText("Pay Later row message")).toBeNull();
+  });
+
+  it("submits the default selected pickup calendar date", async () => {
+    const user = userEvent.setup();
+    const draftUpdates: TestDraftUpdateRequest[] = [];
+    const selectedDateValue = new Date().toISOString().slice(0, 10);
+
+    render(
+      <CheckoutPage
+        onDraftUpdate={(request) => {
+          draftUpdates.push(request as TestDraftUpdateRequest);
+          return undefined;
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+    await choosePickupStore(user, "POP MART Covent Garden");
+
+    const billingStep = getStep("Billing address");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Save billing address",
+      }),
+    );
+    await waitForStepState(billingStep, "saved");
+
+    const pickupDateStep = getStep("Pickup date");
+    await user.click(
+      within(pickupDateStep).getByRole("button", {
+        name: "Submit pickup date",
+      }),
+    );
+
+    expect(draftUpdates).toContainEqual(
+      expect.objectContaining({
+        fulfillmentMode: "pickup",
+        selectedChoiceValue: selectedDateValue,
+        type: "pickup_date",
+      }),
+    );
   });
 });
 
@@ -847,6 +887,8 @@ interface TestDraftUpdateRequest {
     readonly label: string;
     readonly value: string | boolean;
   }[];
+  readonly selectedChoiceLabel?: string;
+  readonly selectedChoiceValue?: string;
   readonly selectedStoreName?: string | null;
 }
 
