@@ -10,6 +10,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Production start exposes a `start` script that runs the compiled Express server and binds to Render's injected `PORT`.
 - [x] Compiled Express app serves built storefront assets and SPA browser routes while preserving `/api/*` JSON responses.
 - [x] Hosted Render smoke returns 200 app responses for `/api/health`, `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` before hosted PayPal checkout QA continues.
+- [x] Hosted Render checkout completes official PayPal sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, and an empty cart.
 
 ## Seed And Database QA
 
