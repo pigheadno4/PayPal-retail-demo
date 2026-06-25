@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this file are acceptance or regression gates for the current polish stage unless they are explicitly older backlog, such as M15 Admin Portal, local Supabase migration verification, or broader wallet/card sandbox capture coverage.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this file are acceptance or regression gates for the current polish stage unless they are explicitly older backlog, such as M15 Admin Portal, local Supabase migration verification, or wallet/card sandbox capture coverage.
 
 ## Deployment QA
 
@@ -11,6 +11,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Compiled Express app serves built storefront assets and SPA browser routes while preserving `/api/*` JSON responses.
 - [x] Hosted Render smoke returns 200 app responses for `/api/health`, `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` before hosted PayPal checkout QA continues.
 - [x] Hosted Render checkout completes official PayPal sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, and an empty cart.
+- [x] Hosted Render checkout completes official Pay Later Pay in 4 sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, Pay Later payment method, and an empty cart.
 
 ## Seed And Database QA
 
