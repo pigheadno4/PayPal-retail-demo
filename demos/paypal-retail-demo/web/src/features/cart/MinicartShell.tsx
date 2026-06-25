@@ -212,7 +212,10 @@ export function MinicartShell({
                 />
               </section>
               <div className="minicart-actions">
-                <Button asChild className="button button--primary">
+                <Button
+                  asChild
+                  className="button button--primary minicart-actions__link minicart-actions__link--primary"
+                >
                   <a
                     href={cart.checkoutHref}
                     onClick={(event) =>
@@ -224,7 +227,7 @@ export function MinicartShell({
                 </Button>
                 <Button
                   asChild
-                  className="button button--secondary"
+                  className="button button--secondary minicart-actions__link minicart-actions__link--secondary"
                   variant="outline"
                 >
                   <a

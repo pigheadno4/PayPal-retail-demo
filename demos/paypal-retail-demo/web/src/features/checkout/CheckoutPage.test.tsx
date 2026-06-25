@@ -311,16 +311,6 @@ describe("CheckoutPage", () => {
           activeDeliveryStepId: "payment-method",
           activeMode: "delivery",
         })}
-        renderPayLaterRowMessage={(context) => (
-          <div
-            data-paylater-message-placement="payment-row"
-            data-paylater-message-amount-label={context.totalLabel}
-            data-paylater-message-checkout-draft-id={context.checkoutDraftId}
-            data-paylater-message-fulfillment-mode={context.fulfillmentMode}
-          >
-            Pay Later row message
-          </div>
-        )}
       />,
     );
 
@@ -328,6 +318,7 @@ describe("CheckoutPage", () => {
     expect(html).toContain(
       'src="/assets/paypal-logos/paylater-rebrand-mark.svg"',
     );
+    expect(html).toContain('src="/assets/paypal-logos/applepay-black.svg"');
     expect(html).not.toContain('data-paylater-message-placement="payment-row"');
     expect(html).not.toContain("Pay Later row message");
   });

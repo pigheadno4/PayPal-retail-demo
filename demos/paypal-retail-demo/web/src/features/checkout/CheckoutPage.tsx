@@ -167,8 +167,6 @@ export interface CheckoutPaymentActionContext {
   readonly totalLabel: string;
 }
 
-export type CheckoutPayLaterRowMessageContext = CheckoutPaymentActionContext;
-
 export interface CheckoutPageData {
   readonly activeMode: CheckoutFulfillmentMode;
   readonly modeLocked: boolean;
@@ -190,9 +188,6 @@ export interface CheckoutPageProps {
   ) => ReactNode;
   readonly renderCardPaymentBox?: (
     context: CheckoutPaymentActionContext,
-  ) => ReactNode;
-  readonly renderPayLaterRowMessage?: (
-    context: CheckoutPayLaterRowMessageContext,
   ) => ReactNode;
 }
 
@@ -250,7 +245,7 @@ const paymentMethodLogoByMethod: Partial<
   },
   apple_pay: {
     alt: "Apple Pay",
-    src: "/assets/paypal-logos/applepay-default.svg",
+    src: "/assets/paypal-logos/applepay-black.svg",
   },
   venmo: {
     alt: "Venmo",
@@ -891,6 +886,7 @@ export function CheckoutPage({
               onStepEdit={editStep}
               onStepSubmit={submitStep}
               cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
+              suppressInlineStoreCards={false}
             />
             <CheckoutModePanel
               draft={pageData.pickup}
@@ -911,6 +907,7 @@ export function CheckoutPage({
               onStepEdit={editStep}
               onStepSubmit={submitStep}
               cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
+              suppressInlineStoreCards={pickupStoreModalOpen}
             />
           </Tabs>
         </section>
@@ -1009,6 +1006,7 @@ function CheckoutModePanel({
   onChoiceChange,
   onStepEdit,
   onStepSubmit,
+  suppressInlineStoreCards,
   cardPaymentBox,
 }: {
   readonly draft: CheckoutFulfillmentDraft;
@@ -1039,6 +1037,7 @@ function CheckoutModePanel({
     mode: CheckoutFulfillmentMode,
   ) => void;
   readonly onStepSubmit: (step: CheckoutStep) => void;
+  readonly suppressInlineStoreCards: boolean;
   readonly cardPaymentBox?: ReactNode;
 }) {
   return (
@@ -1117,6 +1116,7 @@ function CheckoutModePanel({
                     <CheckoutStepDetails
                       step={stepWithDetails}
                       cardPaymentBox={cardPaymentBox}
+                      suppressInlineStoreCards={suppressInlineStoreCards}
                       submitErrorMessage={submitErrorMessage}
                       submitErrorId={submitErrorId}
                       validationMessages={validationMessages}
@@ -2036,6 +2036,7 @@ function formatCheckoutDateValue(date: Date): string {
 function CheckoutStepDetails({
   step,
   cardPaymentBox,
+  suppressInlineStoreCards,
   submitErrorMessage,
   submitErrorId,
   validationMessages,
@@ -2045,6 +2046,7 @@ function CheckoutStepDetails({
 }: {
   readonly step: CheckoutStep;
   readonly cardPaymentBox?: ReactNode;
+  readonly suppressInlineStoreCards: boolean;
   readonly submitErrorMessage?: string | undefined;
   readonly submitErrorId?: string | undefined;
   readonly validationMessages: readonly CheckoutValidationMessage[];
@@ -2226,7 +2228,7 @@ function CheckoutStepDetails({
         </div>
       ) : null}
 
-      {step.storeCards?.length ? (
+      {step.storeCards?.length && !suppressInlineStoreCards ? (
         <div className="checkout-store-grid">
           {step.storeCards.map((store) => {
             const inventoryState = getPickupStoreInventoryState(store);

@@ -2983,12 +2983,6 @@ function BuyerShell({
               onApproved: handleCheckoutPaymentApproved,
             })
           }
-          renderPayLaterRowMessage={(context) =>
-            renderPayLaterRowMessage({
-              config,
-              context,
-            })
-          }
           renderStorefrontPayLaterMessage={(context) =>
             renderStorefrontPayLaterMessage({
               config,
@@ -3118,7 +3112,6 @@ function RouteStage({
   renderCardPaymentBox,
   renderCheckoutPaymentAction,
   renderDeliveryExpressAction,
-  renderPayLaterRowMessage,
   renderStorefrontPayLaterMessage,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "buyer" }>;
@@ -3196,9 +3189,6 @@ function RouteStage({
     source: DeliveryExpressSource,
     totalLabel: string,
   ) => ReactNode;
-  readonly renderPayLaterRowMessage: (
-    context: CheckoutPaymentActionContext,
-  ) => ReactNode;
   readonly renderStorefrontPayLaterMessage: (
     context: StorefrontPayLaterMessageContext,
   ) => ReactNode;
@@ -3210,7 +3200,6 @@ function RouteStage({
         onDraftUpdate={onCheckoutDraftUpdate}
         renderCardPaymentBox={renderCardPaymentBox}
         renderPaymentAction={renderCheckoutPaymentAction}
-        renderPayLaterRowMessage={renderPayLaterRowMessage}
       />
     );
   }
@@ -5331,34 +5320,6 @@ function renderCardPaymentBox({
         fulfillmentMode={context.fulfillmentMode}
         market={config.market.code}
         requestOptions={buildCartRequestOptions(cart, authSession)}
-      />
-    </PayPalSdkProviderScope>
-  );
-}
-
-function renderPayLaterRowMessage({
-  config,
-  context,
-}: {
-  readonly config: StorefrontRuntimeConfig;
-  readonly context: CheckoutPaymentActionContext;
-}) {
-  return (
-    <PayPalSdkProviderScope
-      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:paylater-row-message`}
-      providerKey={config.paypal.providerKey}
-      configRequest={{
-        market: config.market.code,
-        pageType: "checkout",
-        flow: "standard",
-        method: "paylater",
-      }}
-    >
-      <PayLaterAmountMessage
-        amountLabel={context.totalLabel}
-        buyerCountry={resolvePayLaterBuyerCountry(config)}
-        currencyCode={config.market.currencyCode}
-        placement="payment-row"
       />
     </PayPalSdkProviderScope>
   );

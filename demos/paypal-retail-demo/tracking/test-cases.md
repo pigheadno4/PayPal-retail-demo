@@ -232,6 +232,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] M11.5 checkout initializes with only the first actionable section expanded in the active fulfillment tab.
 - [x] M11.5 checkout edit actions expand only the edited section, collapse the others, and preserve submitted summaries.
 - [x] M11.5 Pickup guest enters ZIP/postcode, submits, and opens an accessible ranked store-list modal.
+- [x] Pickup store picker modal suppresses inline store-ticket cards behind the dialog so only the modal list competes for attention.
 - [x] M11.5 Pickup logged-in buyer sees a preselected nearest/default-address store and opens the ranked store-list modal from Change store.
 - [x] M11.5 Pickup logged-in buyer can continue from the preselected store directly into billing, pickup date, and payment selection.
 - [x] M11.5 Pickup store-list modal supports keyboard-accessible select/confirm/close behavior and returns focus to the triggering control.
@@ -370,6 +371,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PDP route keeps unreleased products viewable while disabling checkout actions, hiding Pay Later amount message, and hiding reviews.
 - [x] PDP has no pickup hint.
 - [x] Minicart renders item summary, amount-aware Pay Later message, view-cart/checkout actions, framed PayPal/Pay Later delivery express controls, and pickup hint text when items are present.
+- [x] Minicart `View cart` renders as a visible secondary button from the portaled shadcn Sheet context, with portal-safe color fallbacks instead of white-on-white text.
 - [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, framed PayPal/Pay Later delivery express controls, and pickup hint text when items are present.
 - [x] Empty cart and minicart states suppress checkout, Pay Later, PayPal, and Pay Later express controls instead of showing `$0.00` payment prompts.
 - [x] Homepage default/Vite-only fallback uses generated POP MART PNG product assets and category-backed links, with no old Labubu/Hirono/Skullpanda/THE MONSTERS fixture text or unsupported `series=` links.
@@ -388,6 +390,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Checkout invalid fields render `aria-invalid` and are described by their field-level error text.
 - [x] Checkout validation marks the first invalid step as a keyboard focus target.
 - [x] Checkout Order Summary and selected Pay Later action reserve stable layout space for async PayPal button/message surfaces in component tests; Pay Later radio rows remain compact and do not mount row-level message slots.
+- [x] Checkout Apple Pay payment row uses the visible black PayPal SDK Apple Pay logo asset and the image loads in browser QA.
 - [x] Delivery checkout step submits call checkout draft APIs for shipping address, billing address, and shipping option, then reconcile returned promo/tax/shipping totals into Order Summary.
 - [x] Pickup checkout step submits call checkout draft APIs for location, store, billing address, and pickup date, then reconcile returned promo/tax/inventory totals into Order Summary.
 - [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
@@ -412,6 +415,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Cold-loading Home, Category, PDP, Cart, Checkout, and hidden Minicart does not render old fixture product names or SVG mock images before generated API-backed data resolves.
 - [x] Category Pay Later promo renders an official PayPal Pay Later message component when Pay Later is enabled, with static copy only while SDK config is loading or errored.
 - [x] PDP, Cart, and Minicart Pay Later messaging render official PayPal message components for eligible/generated live states, not static-only local copy.
+- [x] Storefront Pay Later message placements on Category/PDP/Cart/Minicart use official auto-bootstrap `paypal-message` rendering and do not call the checkout-only managed fetch/fallback path.
 - [x] Category sidebar secondary filters are fully backed by supported API query params and live count metadata.
 - [x] Current generated POP MART-leaning primary images are accepted for this Popmart-specific demo version, while generic/non-Popmart audience demos remain responsible for separate safer media.
 - [x] Generic MochiToy profile product, homepage, category, and order-snapshot image rows resolve to existing public-safe `/assets/generic/` media with no POP MART/IP terms.

@@ -7,10 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError, createApiClient } from "../../api/client.js";
 import { AppProviders } from "../../state/appProviders.js";
 import { DeliveryExpressAction } from "./DeliveryExpressAction.js";
-import { PayLaterStandaloneAction } from "./PayLaterStandaloneAction.js";
+import {
+  PayLaterAmountMessage,
+  PayLaterStandaloneAction,
+} from "./PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "./PayPalStandaloneAction.js";
 
 const paypalSdkMockState = vi.hoisted(() => ({
+  payLaterMessageFetchCalls: 0,
   payLaterMessageContent: null as Record<string, unknown> | null,
   payLaterMessageError: null as Error | null,
   payLaterMessageReady: false,
@@ -35,6 +39,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
     handleCreateLearnMore: vi.fn(),
     handleFetchContent: vi.fn(
       (options: { onReady?: (content: unknown) => void }) => {
+        paypalSdkMockState.payLaterMessageFetchCalls += 1;
         const content = paypalSdkMockState.payLaterMessageContent;
 
         if (content) {
@@ -49,6 +54,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
 }));
 
 beforeEach(() => {
+  paypalSdkMockState.payLaterMessageFetchCalls = 0;
   paypalSdkMockState.payLaterMessageContent = null;
   paypalSdkMockState.payLaterMessageError = null;
   paypalSdkMockState.payLaterMessageReady = false;
@@ -423,7 +429,7 @@ describe("payment action failure handling", () => {
     ).toBeTruthy();
   });
 
-  it("falls back when official Pay Later content applies but renders empty", async () => {
+  it("keeps the official Pay Later message when content applies before readable DOM paints", async () => {
     vi.useFakeTimers();
     const setContent = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "setContent", {
@@ -460,9 +466,33 @@ describe("payment action failure handling", () => {
 
     expect(
       document.querySelector(".paylater-amount-message__fallback")?.textContent,
-    ).toBe(
-      "Pay Later messaging is temporarily unavailable for $25.98. Select Pay Later to review PayPal-hosted options and terms.",
+    ).toBeUndefined();
+  });
+
+  it("lets storefront Pay Later messages auto-render without manual content fetch", async () => {
+    paypalSdkMockState.payLaterMessageReady = true;
+    paypalSdkMockState.payLaterMessageContent = {
+      message: "official content",
+    };
+
+    render(
+      <PayLaterAmountMessage
+        amountLabel="$69.68"
+        buyerCountry="US"
+        currencyCode="USD"
+        placement="minicart-summary"
+      />,
     );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(paypalSdkMockState.payLaterMessageFetchCalls).toBe(0);
+    expect(document.querySelector("paypal-message")).toBeTruthy();
+    expect(
+      document.querySelector(".paylater-amount-message__fallback"),
+    ).toBeNull();
   });
 });
 

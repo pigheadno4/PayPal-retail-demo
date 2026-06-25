@@ -163,6 +163,28 @@ describe("CheckoutPage interactions", () => {
     expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
   });
 
+  it("suppresses inline pickup store tickets while the store picker modal is open", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage />);
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+
+    expect(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Soho/,
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByLabelText("Pickup store ticket for POP MART Soho"),
+    ).toBeNull();
+  });
+
   it("shrinks a submitted section while saving and recalculating in the background", async () => {
     vi.useFakeTimers();
 

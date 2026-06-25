@@ -48,7 +48,7 @@ export interface PayLaterStandaloneApprovedContext {
 }
 
 export interface PayLaterAmountMessageProps {
-  readonly amountLabel?: string;
+  readonly amountLabel?: string | undefined;
   readonly buyerCountry: string;
   readonly currencyCode: string;
   readonly placement:
@@ -77,7 +77,6 @@ type PayPalMessageElement = HTMLElement & {
 };
 
 const payLaterMessageLoadingFallbackDelayMs = 2200;
-const payLaterMessageEmptyFallbackDelayMs = 1200;
 
 export function PayLaterStandaloneAction({
   buyerCountry,
@@ -223,6 +222,72 @@ export function PayLaterAmountMessage({
   currencyCode,
   placement,
 }: PayLaterAmountMessageProps) {
+  if (placement !== "order-summary") {
+    return (
+      <PayLaterAutoAmountMessage
+        amountLabel={amountLabel}
+        buyerCountry={buyerCountry}
+        currencyCode={currencyCode}
+        placement={placement}
+      />
+    );
+  }
+
+  return (
+    <PayLaterManagedAmountMessage
+      amountLabel={amountLabel}
+      buyerCountry={buyerCountry}
+      currencyCode={currencyCode}
+      placement={placement}
+    />
+  );
+}
+
+function PayLaterAutoAmountMessage({
+  amountLabel,
+  buyerCountry,
+  currencyCode,
+  placement,
+}: PayLaterAmountMessageProps) {
+  const amount = amountLabel
+    ? normalizePayLaterMessageAmount(amountLabel)
+    : undefined;
+
+  return (
+    <div
+      className="paylater-amount-message"
+      data-paylater-message-amount={amount}
+      data-paylater-message-buyer-country={buyerCountry}
+      data-paylater-message-currency-code={currencyCode}
+      data-paylater-message-placement={placement}
+    >
+      <StatusRegion
+        id={`paylater-${placement}-message-status`}
+        className="sr-only"
+      >
+        {amountLabel
+          ? `Pay Later message ready for ${amountLabel}.`
+          : "Pay Later message ready."}
+      </StatusRegion>
+      <paypal-message
+        {...(amount ? { amount } : {})}
+        auto-bootstrap={true}
+        buyer-country={buyerCountry}
+        currency-code={currencyCode}
+        logo-position="INLINE"
+        logo-type="WORDMARK"
+        text-color="BLACK"
+      />
+    </div>
+  );
+}
+
+function PayLaterManagedAmountMessage({
+  amountLabel,
+  buyerCountry,
+  currencyCode,
+  placement,
+}: PayLaterAmountMessageProps) {
   const messageElementRef = useRef<PayPalMessageElement | null>(null);
   const lastMessageRequestKey = useRef<string | null>(null);
   const [renderState, setRenderState] =
@@ -289,9 +354,9 @@ export function PayLaterAmountMessage({
       const messageElement = messageElementRef.current;
 
       if (typeof messageElement?.setContent !== "function") {
-        setRenderState("fallback");
-        console.error(
-          "[paypal-retail-demo] Pay Later message element unavailable",
+        setRenderState("ready");
+        console.info(
+          "[paypal-retail-demo] Pay Later message content fetched; relying on element auto-render",
           {
             amount: amount ?? null,
             buyerCountry,
@@ -388,29 +453,6 @@ export function PayLaterAmountMessage({
     placement,
   ]);
 
-  useEffect(() => {
-    if (renderState !== "ready") {
-      return undefined;
-    }
-
-    const timerId = setTimeout(() => {
-      if (hasRenderedPayLaterMessageContent(messageElementRef.current)) {
-        return;
-      }
-      setRenderState("fallback");
-      console.warn("[paypal-retail-demo] Pay Later message rendered empty", {
-        amount: amount ?? null,
-        buyerCountry,
-        currencyCode,
-        placement,
-      });
-    }, payLaterMessageEmptyFallbackDelayMs);
-
-    return () => {
-      clearTimeout(timerId);
-    };
-  }, [amount, buyerCountry, currencyCode, placement, renderState]);
-
   return (
     <div
       className="paylater-amount-message"
@@ -448,25 +490,6 @@ export function PayLaterAmountMessage({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function hasRenderedPayLaterMessageContent(
-  element: PayPalMessageElement | null,
-): boolean {
-  if (!element) {
-    return false;
-  }
-
-  const lightDomText = element.textContent?.trim();
-
-  if (lightDomText || element.childElementCount > 0) {
-    return true;
-  }
-
-  return Boolean(
-    element.shadowRoot?.textContent?.trim() ||
-    element.shadowRoot?.childElementCount,
   );
 }
 

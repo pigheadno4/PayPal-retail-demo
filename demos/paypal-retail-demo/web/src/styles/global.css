@@ -6180,10 +6180,32 @@ p {
   width: 100%;
 }
 
-.minicart-actions .button--secondary {
-  background: #ffffff;
-  border: 1px solid var(--shell-border);
+.minicart-actions__link {
+  min-height: 42px;
+}
+
+.minicart-actions .minicart-actions__link--secondary {
+  background-color: color-mix(
+    in srgb,
+    var(--shell-bg, #fff8f3) 88%,
+    #ffffff
+  ) !important;
+  border: 2px solid color-mix(in srgb, var(--shell-ink, #191919) 20%, #ffffff) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.72);
   color: var(--shell-ink);
+}
+
+.minicart-actions .minicart-actions__link--secondary:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--shell-pickup-accent, #4ecf9a) 10%,
+    #ffffff
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--shell-ink, #191919) 30%,
+    #ffffff
+  ) !important;
 }
 
 @media (max-width: 1020px) {

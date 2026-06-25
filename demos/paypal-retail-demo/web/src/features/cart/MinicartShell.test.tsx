@@ -108,6 +108,7 @@ describe("MinicartShell", () => {
     expect(html).toMatch(
       /<a href="\/cart"[^>]*data-slot="button"[^>]*data-variant="outline"[^>]*data-size="default"/,
     );
+    expect(html).toContain("minicart-actions__link--secondary");
     expect(html).toContain("PayPal");
     expect(html).toContain("Pay Later");
     expect(html).toContain('data-slot="field-set"');
