@@ -512,6 +512,37 @@ interface AdminPaymentDebugListResponse {
   readonly payment_sessions?: readonly AdminPaymentDebugSessionResponse[];
 }
 
+type AdminRuntimeDebugLogContext =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly AdminRuntimeDebugLogContext[]
+  | { readonly [key: string]: AdminRuntimeDebugLogContext };
+
+interface AdminRuntimeDebugLogResponse {
+  readonly timestamp: string;
+  readonly level: string;
+  readonly message: string;
+  readonly debug_id: string | null;
+  readonly source: string | null;
+  readonly request_path: string | null;
+  readonly context: AdminRuntimeDebugLogContext;
+}
+
+interface AdminRuntimeDebugLogListResponse {
+  readonly debug_logs?: readonly AdminRuntimeDebugLogResponse[];
+}
+
+const adminRuntimeDebugElevatedContextKeys = new Set([
+  "debug_id",
+  "debugId",
+  "source",
+  "path",
+  "request_path",
+  "route",
+]);
+
 const buyerFooterColumns = [
   {
     title: "Shop",
@@ -5497,6 +5528,15 @@ function AdminShell({
     paymentSessions: [],
     message: "Payment debug sessions are loaded from the Admin API.",
   });
+  const [runtimeDebugLogState, setRuntimeDebugLogState] = useState<{
+    readonly status: "idle" | "loading" | "ready" | "error";
+    readonly logs: readonly AdminRuntimeDebugLogResponse[];
+    readonly message: string;
+  }>({
+    status: "idle",
+    logs: [],
+    message: "Runtime debug logs are loaded from the Admin API.",
+  });
   const [inventoryDrafts, setInventoryDrafts] = useState<
     Readonly<Record<string, string>>
   >({});
@@ -5674,6 +5714,62 @@ function AdminShell({
     }
 
     void loadAdminPaymentDebug();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [apiClient, token]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadAdminRuntimeDebugLogs() {
+      setRuntimeDebugLogState((current) => ({
+        ...current,
+        status: "loading",
+        message: "Loading runtime debug logs.",
+      }));
+
+      try {
+        const response = await apiClient.get<AdminRuntimeDebugLogListResponse>(
+          "/api/admin/debug-logs",
+          undefined,
+          {
+            headers: {
+              "x-admin-session": token,
+            },
+          },
+        );
+
+        if (isCancelled) {
+          return;
+        }
+
+        setRuntimeDebugLogState({
+          status: "ready",
+          logs: response.debug_logs ?? [],
+          message:
+            (response.debug_logs ?? []).length > 0
+              ? "Runtime debug logs are ready."
+              : "No runtime debug logs are available yet.",
+        });
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setRuntimeDebugLogState({
+          status: "error",
+          logs: [],
+          message:
+            error instanceof ApiClientError
+              ? error.message
+              : "Unable to load runtime debug logs.",
+        });
+      }
+    }
+
+    void loadAdminRuntimeDebugLogs();
 
     return () => {
       isCancelled = true;
@@ -6925,6 +7021,109 @@ function AdminShell({
               </div>
             </CardContent>
           </Card>
+          <Card
+            className="admin-shell__card admin-shell__orders-card"
+            size="sm"
+          >
+            <CardHeader>
+              <CardTitle>Runtime debug logs</CardTitle>
+              <CardDescription>
+                Inspect recent API runtime events with redacted context for
+                checkout and PayPal troubleshooting.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p
+                className="admin-shell__feedback"
+                data-status={
+                  runtimeDebugLogState.status === "error" ? "error" : "idle"
+                }
+                {...(runtimeDebugLogState.status === "error"
+                  ? { role: "alert" }
+                  : {})}
+              >
+                {runtimeDebugLogState.message}
+              </p>
+              <div
+                className="admin-shell__runtime-debug-list"
+                aria-label="Admin runtime debug logs"
+              >
+                {runtimeDebugLogState.logs.length > 0 ? (
+                  runtimeDebugLogState.logs.map((entry) => {
+                    const contextLines = formatAdminRuntimeDebugContext(
+                      entry.context,
+                    ).filter(
+                      (line) =>
+                        !adminRuntimeDebugElevatedContextKeys.has(line.key),
+                    );
+
+                    return (
+                      <article
+                        key={`${entry.timestamp}:${entry.message}:${
+                          entry.debug_id ?? "no-debug-id"
+                        }`}
+                        className="admin-shell__runtime-debug-row"
+                      >
+                        <div className="admin-shell__runtime-debug-summary">
+                          <div>
+                            <h2>{entry.message}</h2>
+                            <p>
+                              {entry.debug_id ?? "No debug ID"} /{" "}
+                              {entry.request_path ?? "No request path"}
+                            </p>
+                          </div>
+                          <strong>{formatAdminStatusLabel(entry.level)}</strong>
+                        </div>
+                        <dl className="admin-shell__runtime-list admin-shell__runtime-debug-metrics">
+                          <div>
+                            <dt>Debug ID</dt>
+                            <dd>{entry.debug_id ?? "Missing"}</dd>
+                          </div>
+                          <div>
+                            <dt>Source</dt>
+                            <dd>{entry.source ?? "Unknown"}</dd>
+                          </div>
+                          <div>
+                            <dt>Path</dt>
+                            <dd>{entry.request_path ?? "Unknown"}</dd>
+                          </div>
+                          <div>
+                            <dt>Logged</dt>
+                            <dd>
+                              {formatAccountDate(
+                                entry.timestamp,
+                                activeConfig.market.locale,
+                              )}
+                            </dd>
+                          </div>
+                        </dl>
+                        {contextLines.length > 0 ? (
+                          <dl className="admin-shell__runtime-debug-context">
+                            {contextLines.map((line) => (
+                              <div key={line.key}>
+                                <dt>{line.key}</dt>
+                                <dd>{line.value}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        ) : (
+                          <p className="admin-shell__empty-state">
+                            No runtime context linked.
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <p className="admin-shell__empty-state">
+                    {runtimeDebugLogState.status === "loading"
+                      ? "Loading runtime debug logs"
+                      : "No runtime debug logs found"}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           <Button
             type="button"
             variant="outline"
@@ -7007,6 +7206,72 @@ function formatAdminStatusLabel(status: string): string {
     .split("_")
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
     .join(" ");
+}
+
+function formatAdminRuntimeDebugContext(
+  context: AdminRuntimeDebugLogContext,
+): readonly {
+  readonly key: string;
+  readonly value: string;
+}[] {
+  const lines: {
+    readonly key: string;
+    readonly value: string;
+  }[] = [];
+
+  collectAdminRuntimeDebugContextLines(lines, [], context);
+
+  return lines;
+}
+
+function collectAdminRuntimeDebugContextLines(
+  lines: {
+    readonly key: string;
+    readonly value: string;
+  }[],
+  path: readonly string[],
+  value: AdminRuntimeDebugLogContext,
+): void {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      lines.push({
+        key: path.join(".") || "context",
+        value: "[]",
+      });
+      return;
+    }
+
+    value.forEach((item, index) => {
+      collectAdminRuntimeDebugContextLines(
+        lines,
+        [...path, `[${index}]`],
+        item,
+      );
+    });
+    return;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value);
+
+    if (entries.length === 0) {
+      lines.push({
+        key: path.join(".") || "context",
+        value: "{}",
+      });
+      return;
+    }
+
+    entries.forEach(([key, nestedValue]) => {
+      collectAdminRuntimeDebugContextLines(lines, [...path, key], nestedValue);
+    });
+    return;
+  }
+
+  lines.push({
+    key: path.join(".") || "context",
+    value: value === null ? "null" : String(value),
+  });
 }
 
 function normalizeAdminIntegerDraft(value: string): number | null {

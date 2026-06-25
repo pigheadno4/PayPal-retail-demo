@@ -345,7 +345,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Admin webhook UI loads with `x-admin-session` and renders event ID/type, verification status, processing status, linked order/payment session IDs, and timestamps.
 - [x] Admin payment-debug route requires the signed admin session and lists recent payment sessions with linked order summary, amount comparison, total snapshots, PayPal snapshots, and webhook evidence.
 - [x] Admin payment-debug UI loads with `x-admin-session` and renders order number, PayPal order/capture IDs, amount comparison, latest total stage, and linked webhook evidence.
-- [ ] Runtime debug logs are visible without exposing secrets.
+- [x] Runtime debug logs are visible without exposing secrets.
 
 ## Visual QA
 

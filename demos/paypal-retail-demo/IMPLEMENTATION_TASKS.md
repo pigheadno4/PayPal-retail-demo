@@ -479,7 +479,7 @@ Verification:
 - [x] Build inventory and pickup date controls.
 - [x] Build webhook viewer.
 - [x] Build payment/order debug viewer.
-- [ ] Build runtime debug logs.
+- [x] Build runtime debug logs.
 
 Verification:
 

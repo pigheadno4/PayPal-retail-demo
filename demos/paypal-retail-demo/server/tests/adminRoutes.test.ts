@@ -13,6 +13,7 @@ import type {
   AdminOrderRow,
   AdminPaymentDebugRepository,
   AdminPickupDateRow,
+  AdminRuntimeDebugLogRepository,
   AdminStoreInventoryRow,
   AdminWebhookRepository,
 } from "../src/repositories/adminRepository.js";
@@ -949,6 +950,87 @@ describe("admin payment/order debug routes", () => {
   });
 });
 
+describe("admin runtime debug log routes", () => {
+  it("requires a signed admin session before listing runtime debug logs", async () => {
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        runtimeDebugLogRepository: createAdminRuntimeDebugLogRepository(),
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const response = await requestApp(app, "GET", "/api/admin/debug-logs");
+
+    expect(response.status).toBe(401);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "ADMIN_SESSION_REQUIRED",
+        message: "A valid admin session is required.",
+        details: {},
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+  });
+
+  it("lists sanitized runtime debug logs without exposing secret values", async () => {
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        runtimeDebugLogRepository: createAdminRuntimeDebugLogRepository(),
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const response = await requestApp(app, "GET", "/api/admin/debug-logs", {
+      headers: {
+        "x-admin-session": createAdminToken(),
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        debug_logs: [
+          {
+            timestamp: "2026-06-24T10:30:00.000Z",
+            level: "error",
+            message: "PayPal create order failed",
+            debug_id: "dbg_runtime_1",
+            source: "paypal",
+            request_path: "/api/paypal/orders/delivery",
+            context: {
+              debug_id: "dbg_runtime_1",
+              source: "paypal",
+              path: "/api/paypal/orders/delivery",
+              payment_session_id: "payment_session_1",
+              access_token: "[redacted]",
+              nested: {
+                client_secret: "[redacted]",
+              },
+            },
+          },
+        ],
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(JSON.stringify(response.json)).not.toContain("secret-access-token");
+    expect(JSON.stringify(response.json)).not.toContain("paypal-client-secret");
+  });
+});
+
 function createAdminToken(): string {
   return createAdminSessionToken({
     adminPasscode: "local-admin-passcode",
@@ -1460,6 +1542,30 @@ function createAdminPaymentDebugRepository(): AdminPaymentDebugRepository {
               processed_at: "2026-06-24T10:18:05.000Z",
             },
           ],
+        },
+      ];
+    },
+  };
+}
+
+function createAdminRuntimeDebugLogRepository(): AdminRuntimeDebugLogRepository {
+  return {
+    async listRuntimeDebugLogs() {
+      return [
+        {
+          timestamp: "2026-06-24T10:30:00.000Z",
+          level: "error",
+          message: "PayPal create order failed",
+          context: {
+            debug_id: "dbg_runtime_1",
+            source: "paypal",
+            path: "/api/paypal/orders/delivery",
+            payment_session_id: "payment_session_1",
+            access_token: "secret-access-token",
+            nested: {
+              client_secret: "paypal-client-secret",
+            },
+          },
         },
       ];
     },

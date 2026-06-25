@@ -5478,6 +5478,89 @@ p {
   color: #20242a;
 }
 
+.admin-shell__runtime-debug-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.admin-shell__runtime-debug-row {
+  background: #f8fafc;
+  border: 1px solid #e3e7ed;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.admin-shell__runtime-debug-summary {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.admin-shell__runtime-debug-summary h2 {
+  color: #20242a;
+  font-size: 1rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell__runtime-debug-summary p {
+  color: #57606d;
+  font-size: 0.84rem;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell__runtime-debug-summary > strong {
+  color: #20242a;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-shell__runtime-debug-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-shell__runtime-debug-metrics dd {
+  overflow-wrap: anywhere;
+}
+
+.admin-shell__runtime-debug-context {
+  background: #ffffff;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+}
+
+.admin-shell__runtime-debug-context div {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 0.65fr);
+}
+
+.admin-shell__runtime-debug-context dt {
+  color: #697386;
+  font-size: 0.76rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell__runtime-debug-context dd {
+  color: #20242a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .admin-shell__lifecycle-actions {
   align-items: center;
   display: flex;
@@ -5959,15 +6042,19 @@ p {
 
   .admin-shell__webhook-row,
   .admin-shell__payment-debug-metrics,
-  .admin-shell__payment-debug-details {
+  .admin-shell__payment-debug-details,
+  .admin-shell__runtime-debug-metrics,
+  .admin-shell__runtime-debug-context div {
     grid-template-columns: 1fr;
   }
 
-  .admin-shell__payment-debug-summary {
+  .admin-shell__payment-debug-summary,
+  .admin-shell__runtime-debug-summary {
     display: grid;
   }
 
-  .admin-shell__payment-debug-summary > strong {
+  .admin-shell__payment-debug-summary > strong,
+  .admin-shell__runtime-debug-summary > strong {
     white-space: normal;
   }
 

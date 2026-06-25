@@ -2,6 +2,7 @@ import { Router, type Request, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
 
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
+import { sanitizeDebugLogContext, type DebugLogJson } from "../debug/logger.js";
 import type {
   AdminCentralInventoryRow,
   AdminInventoryProductRow,
@@ -16,6 +17,8 @@ import type {
   AdminPickupDateRow,
   AdminPickupDateSnapshot,
   AdminProfileMarketRepository,
+  AdminRuntimeDebugLogEntry,
+  AdminRuntimeDebugLogRepository,
   AdminStoreInventoryRow,
   AdminWebhookEventRow,
   AdminWebhookRepository,
@@ -43,6 +46,7 @@ export interface CreateAdminRouterInput {
   readonly inventoryRepository?: AdminInventoryRepository;
   readonly webhookRepository?: AdminWebhookRepository;
   readonly debugRepository?: AdminPaymentDebugRepository;
+  readonly runtimeDebugLogRepository?: AdminRuntimeDebugLogRepository;
   readonly activeStorefrontContextStore: ActiveStorefrontContextStore;
 }
 
@@ -432,6 +436,21 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
 
         sendApiSuccess(response, {
           payment_sessions: (paymentDebug ?? []).map(mapAdminPaymentDebugEntry),
+        });
+      }),
+    );
+  }
+
+  if (input.runtimeDebugLogRepository) {
+    router.get(
+      "/admin/debug-logs",
+      input.adminSessionGuard,
+      asyncRoute(async (_request, response) => {
+        const debugLogs =
+          await input.runtimeDebugLogRepository?.listRuntimeDebugLogs();
+
+        sendApiSuccess(response, {
+          debug_logs: (debugLogs ?? []).map(mapAdminRuntimeDebugLogEntry),
         });
       }),
     );
@@ -844,6 +863,50 @@ function mapAdminPaymentDebugEntry(entry: AdminPaymentDebugEntry) {
     })),
     linked_webhooks: entry.linkedWebhooks.map(mapAdminWebhookEvent),
   };
+}
+
+function mapAdminRuntimeDebugLogEntry(entry: AdminRuntimeDebugLogEntry) {
+  const context = sanitizeDebugLogContext(entry.context);
+
+  return {
+    timestamp: entry.timestamp,
+    level: entry.level,
+    message: entry.message,
+    debug_id: readDebugContextString(context, ["debug_id", "debugId"]),
+    source: readDebugContextString(context, ["source"]),
+    request_path: readDebugContextString(context, [
+      "request_path",
+      "path",
+      "route",
+    ]),
+    context,
+  };
+}
+
+function readDebugContextString(
+  context: DebugLogJson,
+  keys: readonly string[],
+): string | null {
+  if (!isDebugLogObject(context)) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = context[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function isDebugLogObject(
+  context: DebugLogJson,
+): context is { readonly [key: string]: DebugLogJson } {
+  return (
+    typeof context === "object" && context !== null && !Array.isArray(context)
+  );
 }
 
 function mapAdminInventorySnapshot(

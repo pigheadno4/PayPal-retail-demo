@@ -6,6 +6,7 @@ import {
   sendApiError,
   sendApiSuccess,
 } from "./http/responses.js";
+import type { DebugLogger } from "./debug/logger.js";
 import {
   createBuyerAuthMiddleware,
   type SupabaseAuthVerifier,
@@ -21,6 +22,7 @@ import type {
   AdminOrderRepository,
   AdminPaymentDebugRepository,
   AdminProfileMarketRepository,
+  AdminRuntimeDebugLogRepository,
   AdminWebhookRepository,
 } from "./repositories/adminRepository.js";
 import { createAdminRouter } from "./routes/admin.js";
@@ -51,6 +53,7 @@ import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js"
 
 export interface CreateAppInput {
   readonly allowedCorsOrigins?: readonly string[];
+  readonly debugLogger?: DebugLogger;
   readonly catalogRepository?: CatalogRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   readonly admin?: {
@@ -60,6 +63,7 @@ export interface CreateAppInput {
     readonly inventoryRepository?: AdminInventoryRepository;
     readonly webhookRepository?: AdminWebhookRepository;
     readonly debugRepository?: AdminPaymentDebugRepository;
+    readonly runtimeDebugLogRepository?: AdminRuntimeDebugLogRepository;
     readonly activeStorefrontContextStore: ActiveStorefrontContextStore;
   };
   readonly cart?: {
@@ -107,6 +111,24 @@ export function createApp(input: CreateAppInput = {}) {
   app.use(express.json({ limit: "1mb" }));
   app.use((_request, response, next) => {
     response.locals.debugId = createDebugId();
+    next();
+  });
+  app.use((request, response, next) => {
+    if (!input.debugLogger) {
+      next();
+      return;
+    }
+
+    const startedAt = Date.now();
+    response.on("finish", () => {
+      input.debugLogger?.info("api_request_completed", {
+        debug_id: getResponseDebugId(response),
+        method: request.method,
+        path: request.originalUrl,
+        status_code: response.statusCode,
+        duration_ms: Date.now() - startedAt,
+      });
+    });
     next();
   });
 
@@ -160,6 +182,9 @@ export function createApp(input: CreateAppInput = {}) {
           : {}),
         ...(input.admin.debugRepository
           ? { debugRepository: input.admin.debugRepository }
+          : {}),
+        ...(input.admin.runtimeDebugLogRepository
+          ? { runtimeDebugLogRepository: input.admin.runtimeDebugLogRepository }
           : {}),
         activeStorefrontContextStore: input.admin.activeStorefrontContextStore,
       }),
@@ -264,12 +289,14 @@ export function createApp(input: CreateAppInput = {}) {
       },
     });
   });
-  app.use("/api", createApiErrorMiddleware());
+  app.use("/api", createApiErrorMiddleware(input.debugLogger));
 
   return app;
 }
 
-function createApiErrorMiddleware(): express.ErrorRequestHandler {
+function createApiErrorMiddleware(
+  debugLogger?: DebugLogger,
+): express.ErrorRequestHandler {
   return (error, request, response, next) => {
     if (response.headersSent) {
       next(error);
@@ -277,6 +304,12 @@ function createApiErrorMiddleware(): express.ErrorRequestHandler {
     }
 
     const debugId = getResponseDebugId(response);
+    debugLogger?.error("api_request_failed", {
+      debug_id: debugId,
+      error_name: error instanceof Error ? error.name : typeof error,
+      method: request.method,
+      path: request.originalUrl,
+    });
     console.error("[paypal-retail-demo] API request failed", {
       debugId,
       errorName: error instanceof Error ? error.name : typeof error,

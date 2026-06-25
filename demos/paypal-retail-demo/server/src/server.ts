@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 
 import { createApp } from "./app.js";
 import { parseServerEnv, type RawServerEnv } from "./config/env.js";
+import { createInMemoryRuntimeDebugLogStore } from "./debug/logger.js";
 import { createSupabaseServerClient } from "./db/supabase.js";
 import type { SupabaseAuthVerifier } from "./middleware/auth.js";
 import { createPayPalClientTokenGateway } from "./paypal/client.js";
@@ -65,6 +66,7 @@ export function startServer(env: RawServerEnv = process.env) {
   const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
   const activeStorefrontContextStore =
     createInMemoryActiveStorefrontContextStore();
+  const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore();
   const catalogRepository = createSupabaseCatalogRepository({
     dataSource: createSupabaseCatalogDataSource(supabase),
   });
@@ -97,6 +99,7 @@ export function startServer(env: RawServerEnv = process.env) {
       config.appBaseUrl,
       ...(config.publicHttpsOrigin ? [config.publicHttpsOrigin] : []),
     ],
+    debugLogger: runtimeDebugLogStore.logger,
     catalogRepository,
     activeStorefrontContextStore,
     admin: {
@@ -107,6 +110,7 @@ export function startServer(env: RawServerEnv = process.env) {
       inventoryRepository: createSupabaseAdminInventoryRepository(supabase),
       webhookRepository: createSupabaseAdminWebhookRepository(supabase),
       debugRepository: createSupabaseAdminPaymentDebugRepository(supabase),
+      runtimeDebugLogRepository: runtimeDebugLogStore,
       activeStorefrontContextStore,
     },
     cart: {

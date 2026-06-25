@@ -26,6 +26,21 @@ export interface CreateDebugLoggerInput {
   readonly sink?: (entry: DebugLogEntry) => void;
 }
 
+export interface RuntimeDebugLogRepository {
+  readonly listRuntimeDebugLogs: () => Promise<readonly DebugLogEntry[]>;
+}
+
+export interface RuntimeDebugLogStore extends RuntimeDebugLogRepository {
+  readonly logger: DebugLogger;
+  readonly sink: (entry: DebugLogEntry) => void;
+}
+
+export interface CreateInMemoryRuntimeDebugLogStoreInput {
+  readonly clock?: () => Date;
+  readonly limit?: number;
+  readonly downstreamSink?: (entry: DebugLogEntry) => void;
+}
+
 const redactedValue = "[redacted]";
 
 const sensitiveDebugKeys = new Set([
@@ -61,6 +76,32 @@ export function createDebugLogger(
     },
     error(message, context) {
       sink(buildDebugLogEntry("error", message, context, clock));
+    },
+  };
+}
+
+export function createInMemoryRuntimeDebugLogStore(
+  input: CreateInMemoryRuntimeDebugLogStoreInput = {},
+): RuntimeDebugLogStore {
+  const entries: DebugLogEntry[] = [];
+  const limit = Math.max(1, Math.floor(input.limit ?? 100));
+  const downstreamSink = input.downstreamSink ?? defaultDebugLogSink;
+  const sink = (entry: DebugLogEntry) => {
+    entries.unshift(entry);
+    if (entries.length > limit) {
+      entries.length = limit;
+    }
+    downstreamSink(entry);
+  };
+
+  return {
+    logger: createDebugLogger({
+      ...(input.clock ? { clock: input.clock } : {}),
+      sink,
+    }),
+    sink,
+    async listRuntimeDebugLogs() {
+      return [...entries];
     },
   };
 }

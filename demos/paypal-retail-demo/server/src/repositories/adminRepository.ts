@@ -4,6 +4,10 @@ import type {
   SupabaseCatalogClient,
 } from "./catalogRepository.js";
 import type { OrderStatus } from "../../../shared/src/orders.js";
+import type {
+  DebugLogEntry,
+  RuntimeDebugLogRepository,
+} from "../debug/logger.js";
 
 interface SupabaseAdminError {
   readonly message: string;
@@ -350,6 +354,10 @@ export interface AdminWebhookRepository {
 export interface AdminPaymentDebugRepository {
   readonly listPaymentDebug: () => Promise<readonly AdminPaymentDebugEntry[]>;
 }
+
+export type AdminRuntimeDebugLogEntry = DebugLogEntry;
+
+export type AdminRuntimeDebugLogRepository = RuntimeDebugLogRepository;
 
 export function createSupabaseAdminProfileMarketRepository(
   supabase: SupabaseCatalogClient,

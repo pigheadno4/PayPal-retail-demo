@@ -4007,6 +4007,59 @@ describe("App admin interactions", () => {
     );
   });
 
+  it("loads admin runtime debug logs with the signed session and hides secrets", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/inventory": adminInventoryListApiResponse(),
+        "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
+        "/api/admin/webhooks": adminWebhookListApiResponse(),
+        "/api/admin/payment-debug": adminPaymentDebugApiResponse(),
+        "/api/admin/debug-logs": adminRuntimeDebugLogApiResponse(),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "debug-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/debug" />);
+
+    await screen.findByText("Runtime debug logs are ready.");
+    const runtimeLogRegion = screen.getByLabelText("Admin runtime debug logs");
+    expect(
+      within(runtimeLogRegion).getByText("PayPal create order failed"),
+    ).toBeTruthy();
+    expect(within(runtimeLogRegion).getByText("Error")).toBeTruthy();
+    expect(within(runtimeLogRegion).getByText("dbg_runtime_1")).toBeTruthy();
+    expect(within(runtimeLogRegion).getByText("paypal")).toBeTruthy();
+    expect(
+      within(runtimeLogRegion).getByText("/api/paypal/orders/delivery"),
+    ).toBeTruthy();
+    expect(within(runtimeLogRegion).getAllByText("[redacted]").length).toBe(2);
+    expect(screen.queryByText("secret-access-token")).toBeNull();
+    expect(screen.queryByText("paypal-client-secret")).toBeNull();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/debug-logs",
+        options: {
+          headers: {
+            "x-admin-session": "debug-token",
+          },
+        },
+      }),
+    );
+  });
+
   it("logs out and clears the admin session token", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -4904,6 +4957,31 @@ function adminPaymentDebugApiResponse() {
             processed_at: "2026-06-24T10:18:05.000Z",
           },
         ],
+      },
+    ],
+  };
+}
+
+function adminRuntimeDebugLogApiResponse() {
+  return {
+    debug_logs: [
+      {
+        timestamp: "2026-06-24T10:30:00.000Z",
+        level: "error",
+        message: "PayPal create order failed",
+        debug_id: "dbg_runtime_1",
+        source: "paypal",
+        request_path: "/api/paypal/orders/delivery",
+        context: {
+          debug_id: "dbg_runtime_1",
+          source: "paypal",
+          path: "/api/paypal/orders/delivery",
+          payment_session_id: "payment_session_1",
+          access_token: "[redacted]",
+          nested: {
+            client_secret: "[redacted]",
+          },
+        },
       },
     ],
   };

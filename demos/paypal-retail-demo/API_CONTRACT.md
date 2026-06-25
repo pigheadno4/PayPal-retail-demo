@@ -969,4 +969,6 @@ Admin clients must echo the returned ID in the patch URL instead of reconstructi
 
 `GET /api/admin/payment-debug` requires a signed admin session and returns recent payment sessions ordered by latest update. Each row includes the payment-session status, PayPal order/capture/invoice/request IDs, merchant/provider total comparison, linked order summary when available, total snapshots, sanitized PayPal request/response snapshot metadata, and linked webhook events. The route is read-only and must not mutate orders, saved payment methods, payment sessions, inventory, or webhook processing state.
 
+`GET /api/admin/debug-logs` requires a signed admin session and returns the bounded in-memory runtime debug log buffer. Each row includes timestamp, level, message, derived `debug_id`, derived source, derived request path, and sanitized context. Runtime context is sanitized recursively before storage/output and must redact access tokens, authorization headers, service-role keys, client secrets, PayPal auth assertions, card security fields, and similar secret-bearing keys. The route is read-only and must not mutate orders, saved payment methods, payment sessions, inventory, or webhook processing state.
+
 Admin debug may show sanitized PayPal request/response snapshots, amount comparisons, promo evaluations, and webhook verification status.
