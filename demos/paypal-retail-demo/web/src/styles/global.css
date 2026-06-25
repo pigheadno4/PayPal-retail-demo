@@ -4319,6 +4319,14 @@ a {
   min-height: 28px;
 }
 
+.paylater-amount-message__fallback {
+  color: var(--shell-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
 .paylater-message-stack {
   display: grid;
   gap: 8px;

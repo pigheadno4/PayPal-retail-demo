@@ -379,7 +379,7 @@ Verification:
 - [x] Verify the installed `@paypal/react-paypal-js` v9 / SDK v6 types still include `testBuyerCountry` before wiring the provider.
 - [x] Map backend `sandbox_test_buyer_country` to SDK v6 `createInstance({ testBuyerCountry })` for sandbox/test environments only.
 - [x] Render PayPal standalone button when PayPal radio is selected.
-- [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected.
+- [x] Render Pay Later message in Pay Later radio row and Pay Later button/message under Order Summary when selected, using explicit message content fetch with a buyer-safe fallback when PayPal presentment content fails.
 - [x] Render card fields expanded in the payment step with save checkbox inside card box.
 - [x] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
 - [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.

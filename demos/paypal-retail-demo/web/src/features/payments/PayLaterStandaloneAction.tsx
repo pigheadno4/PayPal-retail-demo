@@ -2,7 +2,7 @@ import {
   PayLaterOneTimePaymentButton,
   usePayPalMessages,
 } from "@paypal/react-paypal-js/sdk-v6";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   OnApproveDataOneTimePayments,
   OnCancelDataOneTimePayments,
@@ -69,6 +69,12 @@ export interface PayLaterCreateOrderRequest {
   readonly query: ApiQueryParams;
   readonly options?: ApiRequestOptions | undefined;
 }
+
+type PayLaterMessageRenderState = "loading" | "ready" | "fallback";
+
+type PayPalMessageElement = HTMLElement & {
+  readonly setContent?: (content: Record<string, unknown>) => void;
+};
 
 export function PayLaterStandaloneAction({
   buyerCountry,
@@ -214,21 +220,131 @@ export function PayLaterAmountMessage({
   currencyCode,
   placement,
 }: PayLaterAmountMessageProps) {
+  const messageElementRef = useRef<PayPalMessageElement | null>(null);
+  const [renderState, setRenderState] =
+    useState<PayLaterMessageRenderState>("loading");
   const amount = amountLabel
     ? normalizePayLaterMessageAmount(amountLabel)
     : undefined;
-  const { error } = usePayPalMessages({
+  const { error, handleFetchContent, isReady } = usePayPalMessages({
     buyerCountry,
     currencyCode,
   });
+  const fallbackMessage = buildPayLaterMessageFallback(amountLabel);
+  const shouldShowFallback = Boolean(error) || renderState === "fallback";
 
   useEffect(() => {
     if (error) {
       console.error("[paypal-retail-demo] Pay Later message error", {
+        buyerCountry,
+        currencyCode,
+        placement,
         message: error.message,
       });
     }
-  }, [error]);
+  }, [buyerCountry, currencyCode, error, placement]);
+
+  const applyMessageContent = useCallback(
+    (content: Record<string, unknown>) => {
+      const messageElement = messageElementRef.current;
+
+      if (typeof messageElement?.setContent !== "function") {
+        setRenderState("fallback");
+        console.error(
+          "[paypal-retail-demo] Pay Later message element unavailable",
+          {
+            amount: amount ?? null,
+            buyerCountry,
+            currencyCode,
+            placement,
+          },
+        );
+        return;
+      }
+
+      try {
+        messageElement.setContent(content);
+        setRenderState("ready");
+      } catch (setContentError) {
+        setRenderState("fallback");
+        console.error(
+          "[paypal-retail-demo] Pay Later message content apply failed",
+          {
+            amount: amount ?? null,
+            buyerCountry,
+            currencyCode,
+            message:
+              setContentError instanceof Error
+                ? setContentError.message
+                : String(setContentError),
+            placement,
+          },
+        );
+      }
+    },
+    [amount, buyerCountry, currencyCode, placement],
+  );
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    let isCurrent = true;
+    let didApplyContent = false;
+    setRenderState("loading");
+
+    void handleFetchContent({
+      ...(amount ? { amount } : {}),
+      buyerCountry,
+      currencyCode,
+      logoPosition: "INLINE",
+      logoType: "WORDMARK",
+      onReady: (content) => {
+        if (!isCurrent) {
+          return;
+        }
+        didApplyContent = true;
+        applyMessageContent(content);
+      },
+      textColor: "BLACK",
+    })
+      .then((content) => {
+        if (!isCurrent || didApplyContent || !content) {
+          return;
+        }
+        didApplyContent = true;
+        applyMessageContent(content);
+      })
+      .catch((fetchError: unknown) => {
+        if (!isCurrent) {
+          return;
+        }
+        setRenderState("fallback");
+        console.error("[paypal-retail-demo] Pay Later message fetch failed", {
+          amount: amount ?? null,
+          buyerCountry,
+          currencyCode,
+          message:
+            fetchError instanceof Error
+              ? fetchError.message
+              : String(fetchError),
+          placement,
+        });
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [
+    amount,
+    applyMessageContent,
+    buyerCountry,
+    currencyCode,
+    handleFetchContent,
+    isReady,
+    placement,
+  ]);
 
   return (
     <div
@@ -247,16 +363,29 @@ export function PayLaterAmountMessage({
           : "Pay Later message ready."}
       </StatusRegion>
       <paypal-message
+        ref={(element) => {
+          messageElementRef.current = element as PayPalMessageElement | null;
+        }}
         {...(amount ? { amount } : {})}
-        auto-bootstrap={true}
         buyer-country={buyerCountry}
         currency-code={currencyCode}
         logo-position="INLINE"
         logo-type="WORDMARK"
         text-color="BLACK"
       />
+      {shouldShowFallback ? (
+        <p className="paylater-amount-message__fallback" role="status">
+          {fallbackMessage}
+        </p>
+      ) : null}
     </div>
   );
+}
+
+export function buildPayLaterMessageFallback(amountLabel?: string): string {
+  return amountLabel
+    ? `Pay Later messaging is temporarily unavailable for ${amountLabel}. Select Pay Later to review PayPal-hosted options and terms.`
+    : "Pay Later messaging is temporarily unavailable. Select Pay Later at checkout to review PayPal-hosted options and terms.";
 }
 
 export function buildPayLaterCreateOrderRequest({

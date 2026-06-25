@@ -280,13 +280,14 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PayPal renders and captures in delivery checkout. 2026-06-24 Playwright GUI verified PDP Add to cart -> minicart Checkout -> Delivery checkout shipping/billing/shipping-option submit -> official PayPal modal login/approval -> app-side express review/capture -> confirmation for order `DO-20260624-000004`, PayPal order `6GK84058A01890038`, capture `5VE76310HS283401C`, and empty cart after capture.
 - [x] Checkout PayPal/Pay Later approval callbacks pass the created PayPal order/session into App-level review loading, capture, confirmation rendering, and cart reload handlers.
 - [x] Pay Later radio-row message and selected Order Summary button/message surfaces render in checkout UI.
+- [x] Checkout selected Pay Later action keeps a visible buyer-safe message fallback under the Pay Later button when PayPal presentment message content fails instead of leaving the message slot blank.
 - [ ] Pay Later message/button renders and completes where eligible in sandbox.
 - [x] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
 - [x] Web PayPal SDK provider scope renders loading state while fetching backend SDK config.
 - [x] Web PayPal SDK provider scope keeps currency, buyer country, Pay Later buyer country, SDK URL, and test buyer country metadata available for child payment surfaces.
 - [x] Installed `@paypal/react-paypal-js` v9.2.0 / SDK v6 types compile with `CreateInstanceOptions.testBuyerCountry`.
 - [x] Checkout Order Summary renders the scoped PayPal standalone action when PayPal is selected and passes the active Delivery/Pickup draft context to create-order request selection.
-- [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config and create-order request selection.
+- [x] Checkout Order Summary renders the scoped Pay Later standalone action and amount-aware message when Pay Later is selected, using `method=paylater` for SDK config, create-order request selection, explicit PayPal message content fetch, and fallback copy only when official message content fails.
 - [x] Checkout selected-card row renders a scoped `card-fields` provider, hosted card fields, local save checkbox, and card pay button inside the payment step.
 - [x] Card fields create-order request builders select Delivery/BOPIS endpoints and send `method=card` plus `vault_requested`.
 - [x] Checkout payment wall hides wallet rows marked ineligible and withholds the selected wallet Order Summary/mobile sticky action.

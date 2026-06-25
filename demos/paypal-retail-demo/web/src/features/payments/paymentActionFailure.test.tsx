@@ -10,6 +10,10 @@ import { DeliveryExpressAction } from "./DeliveryExpressAction.js";
 import { PayLaterStandaloneAction } from "./PayLaterStandaloneAction.js";
 import { PayPalStandaloneAction } from "./PayPalStandaloneAction.js";
 
+const paypalSdkMockState = vi.hoisted(() => ({
+  payLaterMessageError: null as Error | null,
+}));
+
 vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
   PayLaterOneTimePaymentButton: MockPayPalButton,
   PayPalOneTimePaymentButton: MockPayPalButton,
@@ -25,11 +29,15 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
     isLoading: false,
   }),
   usePayPalMessages: () => ({
-    error: null,
+    error: paypalSdkMockState.payLaterMessageError,
+    handleCreateLearnMore: vi.fn(),
+    handleFetchContent: vi.fn(),
+    isReady: false,
   }),
 }));
 
 beforeEach(() => {
+  paypalSdkMockState.payLaterMessageError = null;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
@@ -364,6 +372,32 @@ describe("payment action failure handling", () => {
         paymentSessionId: "payment_session_123",
       });
     });
+  });
+
+  it("keeps fallback Pay Later messaging visible when official message content fails", () => {
+    paypalSdkMockState.payLaterMessageError = new Error(
+      "presentment unavailable",
+    );
+
+    render(
+      <AppProviders apiClient={createSuccessfulApiClient()}>
+        <PayLaterStandaloneAction
+          buyerCountry="US"
+          checkoutDraftId="draft_delivery_123"
+          currencyCode="USD"
+          fulfillmentMode="delivery"
+          market="US"
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    expect(document.querySelector("paypal-message")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Pay Later messaging is temporarily unavailable for $25.98. Select Pay Later to review PayPal-hosted options and terms.",
+      ),
+    ).toBeTruthy();
   });
 });
 

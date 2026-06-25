@@ -282,6 +282,7 @@ Official payment surfaces:
 - Do not restyle official buttons in a way that distorts brand shape, color, label, or eligibility behavior.
 - For local sales-demo reliability, PayPal and Pay Later one-time buyer actions use SDK `presentationMode="modal"` instead of popup-dependent auto presentation.
 - For Pay Later, use brief non-amount marketing copy on homepage/category and amount-aware messages on PDP/cart/minicart/checkout.
+- Checkout selected Pay Later actions must keep the official message directly under the Pay Later button by explicitly fetching/applying PayPal message content; if PayPal presentment content fails, show concise buyer-safe fallback copy instead of leaving a blank message slot.
 
 ### Page-Level Contracts
 
