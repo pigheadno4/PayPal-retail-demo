@@ -3074,7 +3074,8 @@ describe("App buyer interactions", () => {
           `.checkout-summary__slot [data-paypal-sdk-method="${method}"]`,
         ),
       ).toBeTruthy();
-      expect(orderSummary.textContent).toContain(`${label} selected`);
+      expect(orderSummary.textContent).not.toContain(`${label} selected`);
+      expect(orderSummary.textContent).toContain(`${label} payment option`);
     }
   });
 
@@ -3435,7 +3436,7 @@ describe("App buyer interactions", () => {
     ).toBe(true);
     expect(
       screen.getByRole("complementary", { name: "Order summary" }).textContent,
-    ).toContain("PayPal selected");
+    ).toContain("PayPal payment button ready.");
   });
 
   it("lets a buyer move from cart checkout into Pickup payment selection", async () => {
@@ -3520,7 +3521,7 @@ describe("App buyer interactions", () => {
     ).toBe(true);
     expect(
       screen.getByRole("complementary", { name: "Order summary" }).textContent,
-    ).toContain("PayPal selected");
+    ).toContain("PayPal payment button ready.");
   });
 });
 

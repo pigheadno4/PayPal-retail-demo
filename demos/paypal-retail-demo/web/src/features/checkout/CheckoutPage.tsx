@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { XIcon } from "lucide-react";
+import { PencilIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -211,16 +211,6 @@ export interface CheckoutSubmittedField {
   readonly value: string | boolean;
 }
 
-const stepStateLabels = {
-  idle: "Idle",
-  saving: "Saving",
-  saved: "Saved",
-  editing: "Editing",
-  recalculating: "Recalculating totals",
-  blocked: "Blocked",
-  locked: "Locked",
-} satisfies Record<CheckoutStepState, string>;
-
 const paymentMethodLabels = {
   paypal: "PayPal",
   paylater: "Pay Later",
@@ -231,6 +221,7 @@ const paymentMethodLabels = {
 } satisfies Record<CheckoutSelectedPaymentMethod, string>;
 
 const checkoutSubmitTransitionDelayMs = 50;
+const checkoutMobilePaymentQuery = "(max-width: 760px)";
 
 type CheckoutFieldValue = string | boolean;
 
@@ -363,6 +354,9 @@ export function CheckoutPage({
     !activePaymentContext.selectedPaymentEligible
       ? null
       : renderPaymentAction?.(activePaymentContext);
+  const isMobilePaymentBar = useCheckoutMobilePaymentBar();
+  const summaryPaymentAction = isMobilePaymentBar ? null : paymentAction;
+  const stickyPaymentAction = isMobilePaymentBar ? paymentAction : null;
   const cardPaymentBox =
     activePaymentStepExpanded &&
     activePaymentContext.selectedPaymentMethod === "card"
@@ -544,11 +538,11 @@ export function CheckoutPage({
     }));
     setExpandedStepIds((currentStepIds) => ({
       ...currentStepIds,
-      pickup: stepId,
+      pickup: null,
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
-      nextStepIds.delete(stepId);
+      nextStepIds.add(stepId);
       return nextStepIds;
     });
 
@@ -618,11 +612,11 @@ export function CheckoutPage({
 
     setExpandedStepIds((currentStepIds) => ({
       ...currentStepIds,
-      [mode]: stepId,
+      [mode]: null,
     }));
     setCollapsedStepIds((currentStepIds) => {
       const nextStepIds = new Set(currentStepIds);
-      nextStepIds.delete(stepId);
+      nextStepIds.add(stepId);
 
       return nextStepIds;
     });
@@ -894,7 +888,7 @@ export function CheckoutPage({
 
         <CheckoutSummary
           summary={displayedSummary}
-          paymentAction={paymentAction}
+          paymentAction={summaryPaymentAction}
         />
       </div>
 
@@ -915,20 +909,56 @@ export function CheckoutPage({
         />
       ) : null}
 
-      {!activePaymentStepExpanded ||
-      activePaymentContext.selectedPaymentMethod === "card" ||
-      !activePaymentContext.selectedPaymentEligible ? null : (
+      {stickyPaymentAction ? (
         <div
           className="checkout-sticky-action"
           aria-label="Selected payment action"
         >
-          <span>{activeSummary.selectedPaymentLabel}</span>
-          <strong>{activeSummary.totalLabel}</strong>
-          <button type="button">Continue</button>
+          <div className="checkout-sticky-action__meta">
+            <span>Secure checkout</span>
+            <strong>{activeSummary.totalLabel}</strong>
+          </div>
+          <div className="checkout-sticky-action__slot">
+            {stickyPaymentAction}
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
+}
+
+function useCheckoutMobilePaymentBar(): boolean {
+  const [matches, setMatches] = useState(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return false;
+    }
+
+    return window.matchMedia(checkoutMobilePaymentQuery).matches;
+  });
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(checkoutMobilePaymentQuery);
+    const updateMatches = () => setMatches(mediaQuery.matches);
+
+    updateMatches();
+    mediaQuery.addEventListener("change", updateMatches);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateMatches);
+    };
+  }, []);
+
+  return matches;
 }
 
 function CheckoutModePanel({
@@ -1048,14 +1078,11 @@ function CheckoutModePanel({
                   <CardTitle className="checkout-step__title">
                     <h2>{step.title}</h2>
                   </CardTitle>
-                  <CardAction>
-                    <span className="checkout-step__state">
-                      {stepStateLabels[stepState]}
-                    </span>
-                  </CardAction>
-                  <CardDescription className="checkout-step__description">
-                    {step.body}
-                  </CardDescription>
+                  {isExpanded ? (
+                    <CardDescription className="checkout-step__description">
+                      {step.body}
+                    </CardDescription>
+                  ) : null}
                 </CardHeader>
                 <CardContent className="checkout-step__content">
                   {isExpanded ? (
@@ -1100,14 +1127,22 @@ function withInteractiveStepFields(
     fieldValues[fieldValueKey(step.id, "Same as shipping")];
   const sameAsShipping =
     sameAsShippingValue === undefined ? true : sameAsShippingValue === true;
+  const fields = (step.fields ?? []).map((field) =>
+    field.type === "checkbox" && field.label === "Same as shipping"
+      ? { ...field, checked: sameAsShipping }
+      : field,
+  );
 
   if (sameAsShipping) {
-    return step;
+    return {
+      ...step,
+      fields,
+    };
   }
 
   return {
     ...step,
-    fields: [...(step.fields ?? []), ...deliveryBillingAddressFields],
+    fields: [...fields, ...deliveryBillingAddressFields],
   };
 }
 
@@ -1231,7 +1266,7 @@ function withSelectedPaymentSummary(
 ): CheckoutOrderSummary {
   return {
     ...summary,
-    selectedPaymentLabel: `${paymentMethodLabels[selectedPaymentMethod]} selected`,
+    selectedPaymentLabel: paymentMethodLabels[selectedPaymentMethod],
     selectedPaymentMethod,
   };
 }
@@ -1437,13 +1472,14 @@ function CheckoutStepSummary({
     step.fields?.filter(
       (field) => field.type === "text" && Boolean(field.value),
     ) ?? [];
+  const summaryLines = getCheckoutStepSummaryLines(step, summaryFields);
   const selectedChoices =
     step.choices?.filter((choice) => choice.selected === true) ?? [];
   const selectedStores =
     step.storeCards?.filter((store) => store.selected === true) ?? [];
 
   if (
-    !summaryFields.length &&
+    !summaryLines.length &&
     !selectedChoices.length &&
     !selectedStores.length
   ) {
@@ -1457,15 +1493,12 @@ function CheckoutStepSummary({
 
   return (
     <div className="checkout-step__summary">
-      {summaryFields.length ? (
-        <dl>
-          {summaryFields.map((field) => (
-            <div key={field.label}>
-              <dt>{field.label}</dt>
-              <dd>{field.value}</dd>
-            </div>
+      {summaryLines.length ? (
+        <address className="checkout-step__summary-lines">
+          {summaryLines.map((line) => (
+            <span key={line}>{line}</span>
           ))}
-        </dl>
+        </address>
       ) : null}
       {selectedChoices.length ? (
         <ul>
@@ -1487,9 +1520,16 @@ function CheckoutStepSummary({
           ))}
         </ul>
       ) : null}
-      <button type="button" onClick={() => onStepEdit(step, mode)}>
-        {editLabel}
-      </button>
+      <Button
+        aria-label={editLabel}
+        className="checkout-step__edit"
+        disabled={step.state === "saving" || step.state === "recalculating"}
+        type="button"
+        onClick={() => onStepEdit(step, mode)}
+        variant="ghost"
+      >
+        <PencilIcon aria-hidden="true" />
+      </Button>
       {mode === "pickup" &&
       step.id === "store-selection" &&
       selectedStores.length ? (
@@ -1499,6 +1539,66 @@ function CheckoutStepSummary({
       ) : null}
     </div>
   );
+}
+
+function getCheckoutStepSummaryLines(
+  step: CheckoutStep,
+  summaryFields: readonly CheckoutField[],
+): readonly string[] {
+  const fieldValueByLabel = new Map(
+    summaryFields.map((field) => [field.label, field.value ?? ""]),
+  );
+
+  if (step.id === "shipping-address") {
+    return compactSummaryLines([
+      fieldValueByLabel.get("Full name"),
+      fieldValueByLabel.get("Street address"),
+      compactSummaryLines([
+        fieldValueByLabel.get("City"),
+        fieldValueByLabel.get("State"),
+        fieldValueByLabel.get("ZIP code"),
+      ]).join(", "),
+    ]);
+  }
+
+  if (step.id === "billing-address") {
+    const sameAsShipping = step.fields?.find(
+      (field) =>
+        field.type === "checkbox" && field.label === "Same as shipping",
+    );
+
+    if (sameAsShipping?.checked !== false) {
+      return ["Same as shipping address"];
+    }
+
+    return compactSummaryLines([
+      fieldValueByLabel.get("Billing street address"),
+      compactSummaryLines([
+        fieldValueByLabel.get("Billing city"),
+        fieldValueByLabel.get("Billing ZIP code"),
+      ]).join(", "),
+    ]);
+  }
+
+  if (step.id === "pickup-billing-address") {
+    return compactSummaryLines([
+      fieldValueByLabel.get("Billing street address"),
+      compactSummaryLines([
+        fieldValueByLabel.get("City"),
+        fieldValueByLabel.get("ZIP code"),
+      ]).join(", "),
+    ]);
+  }
+
+  return compactSummaryLines(summaryFields.map((field) => field.value));
+}
+
+function compactSummaryLines(
+  lines: readonly (string | undefined)[],
+): readonly string[] {
+  return lines
+    .map((line) => line?.trim() ?? "")
+    .filter((line) => line.length > 0);
 }
 
 function PickupStoreTicketDetails({
@@ -2102,18 +2202,19 @@ function CheckoutSummary({
           </div>
         </dl>
       </CardContent>
-      <CardFooter
-        className="checkout-summary__payment"
-        aria-label="Selected payment method"
-      >
-        <span>{summary.selectedPaymentLabel}</span>
-        <div
-          className="checkout-summary__slot"
-          data-payment-action-reserved-space="true"
+      {paymentAction ? (
+        <CardFooter
+          className="checkout-summary__payment"
+          aria-label="Selected payment method"
         >
-          {paymentAction ?? <CheckoutPaymentPlaceholder summary={summary} />}
-        </div>
-      </CardFooter>
+          <div
+            className="checkout-summary__slot"
+            data-payment-action-reserved-space="true"
+          >
+            {paymentAction}
+          </div>
+        </CardFooter>
+      ) : null}
     </Card>
   );
 }
@@ -2152,52 +2253,6 @@ function CheckoutTrustStrip() {
       ))}
     </section>
   );
-}
-
-function CheckoutPaymentPlaceholder({
-  summary,
-}: {
-  readonly summary: CheckoutOrderSummary;
-}) {
-  const placeholder = getCheckoutPaymentPlaceholder(summary);
-
-  return (
-    <div
-      className="checkout-summary__payment-placeholder"
-      data-payment-placeholder-state={placeholder.state}
-    >
-      <strong>{placeholder.title}</strong>
-      <p>{placeholder.body}</p>
-    </div>
-  );
-}
-
-function getCheckoutPaymentPlaceholder(summary: CheckoutOrderSummary): {
-  readonly body: string;
-  readonly state: "card" | "locked" | "unavailable";
-  readonly title: string;
-} {
-  if (summary.selectedPaymentMethod === "card") {
-    return {
-      state: "card",
-      title: "Card fields are active in the payment step.",
-      body: "Complete the secure card form in the expanded payment row before placing the order.",
-    };
-  }
-
-  if (!summary.selectedPaymentMethod) {
-    return {
-      state: "locked",
-      title: "Payment methods unlock after required steps.",
-      body: "Save shipping, billing, fulfillment, and delivery choices to choose PayPal, Pay Later, card, or wallet options.",
-    };
-  }
-
-  return {
-    state: "unavailable",
-    title: "This payment method is not ready yet.",
-    body: "Choose another eligible method in the payment step or wait for this wallet to become available.",
-  };
 }
 
 function withDefaultStepDetails(

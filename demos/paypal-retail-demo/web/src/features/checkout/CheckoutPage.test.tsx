@@ -38,8 +38,9 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-slot="card-header"');
     expect(html).toContain('data-slot="card-title"');
     expect(html).toContain('data-slot="card-content"');
-    expect(html).toContain('data-slot="card-footer"');
     expect(html).toContain('data-visual-accent="checkout-step"');
+    expect(html).toContain('data-step-state="editing"');
+    expect(html).toContain('data-step-state="idle"');
     expect(html).toContain('role="tablist"');
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain("Delivery");
@@ -51,8 +52,8 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Pickup location");
     expect(html).toContain("Store selection");
     expect(html).toContain("Pickup date");
-    expect(html).toContain("Idle");
-    expect(html).toContain("Editing");
+    expect(html).not.toContain("Idle");
+    expect(html).not.toContain("Editing");
   });
 
   it("updates order summary context for the active fulfillment mode", () => {
@@ -235,7 +236,7 @@ describe("CheckoutPage", () => {
     );
   });
 
-  it("reserves Order Summary payment space without mounting the official action before the payment step is active", () => {
+  it("withholds the Order Summary payment action before the payment step is active", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
         data={checkoutData()}
@@ -250,10 +251,10 @@ describe("CheckoutPage", () => {
       />,
     );
 
-    expect(html).toContain('data-payment-action-reserved-space="true"');
-    expect(html).toContain('data-payment-placeholder-state="locked"');
-    expect(html).toContain("Choose payment method");
-    expect(html).toContain("Payment methods unlock after required steps.");
+    expect(html).not.toContain('data-payment-action-reserved-space="true"');
+    expect(html).not.toContain('data-payment-placeholder-state="locked"');
+    expect(html).not.toContain("Choose payment method");
+    expect(html).not.toContain("Payment methods unlock after required steps.");
     expect(html).not.toContain("PayPal selected");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
@@ -361,8 +362,7 @@ describe("CheckoutPage", () => {
     );
     expect(html).toContain('data-payment-fulfillment-mode="delivery"');
     expect(html).toContain('data-payment-method="card"');
-    expect(html).toContain('data-payment-placeholder-state="card"');
-    expect(html).toContain("Card fields are active in the payment step.");
+    expect(html).toContain("Card fields");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
   });

@@ -163,7 +163,7 @@ describe("CheckoutPage interactions", () => {
     expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
   });
 
-  it("shows saving and recalculating states before collapsing a submitted section", async () => {
+  it("shrinks a submitted section while saving and recalculating in the background", async () => {
     vi.useFakeTimers();
 
     try {
@@ -184,8 +184,13 @@ describe("CheckoutPage interactions", () => {
       );
 
       expect(shippingStep.getAttribute("data-step-state")).toBe("saving");
-      expect(within(shippingStep).getByText("Saving")).toBeTruthy();
-      expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+      expect(within(shippingStep).queryByText("Saving")).toBeNull();
+      expect(within(shippingStep).getByText("Taylor Chen")).toBeTruthy();
+      expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+      const editShippingButton = within(shippingStep).getByRole("button", {
+        name: "Edit shipping address",
+      }) as HTMLButtonElement;
+      expect(editShippingButton.disabled).toBe(true);
       expect(
         within(billingStep).queryByLabelText("Same as shipping"),
       ).toBeNull();
@@ -198,8 +203,8 @@ describe("CheckoutPage interactions", () => {
         "recalculating",
       );
       expect(
-        within(shippingStep).getByText("Recalculating totals"),
-      ).toBeTruthy();
+        within(shippingStep).queryByText("Recalculating totals"),
+      ).toBeNull();
 
       await act(async () => {
         resolveDraftUpdate(defaultCheckoutPageData);

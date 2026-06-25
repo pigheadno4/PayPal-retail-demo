@@ -206,7 +206,8 @@ describe("App shell", () => {
     expect(html).toContain("Shipping address");
     expect(html).toContain("Pickup location");
     expect(html).toContain("Delivery order");
-    expect(html).toContain('data-payment-action-reserved-space="true"');
+    expect(html).not.toContain('data-payment-action-reserved-space="true"');
+    expect(html).not.toContain("Payment methods unlock after required steps.");
     expect(html).not.toContain('class="paypal-provider-scope"');
     expect(html).not.toContain('data-paypal-sdk-page-type="checkout"');
     expect(html).not.toContain('href="/admin"');
@@ -244,7 +245,8 @@ describe("App shell", () => {
       />,
     );
 
-    expect(html).toContain("Pay Later selected");
+    expect(html).not.toContain("Pay Later selected");
+    expect(html).toContain("Pay Later");
     expect(html).toContain('data-paypal-sdk-page-type="checkout"');
     expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).toContain('data-paypal-sdk-status="loading"');
@@ -261,7 +263,8 @@ describe("App shell", () => {
       />,
     );
 
-    expect(html).toContain("Credit or debit card selected");
+    expect(html).not.toContain("Credit or debit card selected");
+    expect(html).toContain("Credit or debit card");
     expect(html).toContain('data-payment-method-row="card"');
     expect(html).toContain('class="checkout-choice__card-box"');
     expect(html).toContain('data-paypal-sdk-page-type="checkout"');
@@ -567,16 +570,16 @@ function checkoutData({
 } = {}): CheckoutPageData {
   const selectedPaymentLabel =
     selectedPaymentMethod === "paylater"
-      ? "Pay Later selected"
+      ? "Pay Later"
       : selectedPaymentMethod === "card"
-        ? "Credit or debit card selected"
+        ? "Credit or debit card"
         : selectedPaymentMethod === "apple_pay"
-          ? "Apple Pay selected"
+          ? "Apple Pay"
           : selectedPaymentMethod === "google_pay"
-            ? "Google Pay selected"
+            ? "Google Pay"
             : selectedPaymentMethod === "venmo"
-              ? "Venmo selected"
-              : "PayPal selected";
+              ? "Venmo"
+              : "PayPal";
   const paymentChoices: readonly CheckoutChoice[] = [
     {
       label: "PayPal",

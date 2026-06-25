@@ -179,12 +179,6 @@ export function PayLaterStandaloneAction({
       data-payment-fulfillment-mode={fulfillmentMode}
       data-payment-method="paylater"
     >
-      <PayLaterAmountMessage
-        amountLabel={totalLabel}
-        buyerCountry={buyerCountry}
-        currencyCode={currencyCode}
-        placement="order-summary"
-      />
       <StatusRegion
         id={`paylater-${fulfillmentMode}-button-status`}
         className="sr-only"
@@ -203,6 +197,12 @@ export function PayLaterStandaloneAction({
           presentationMode={PAYPAL_DEMO_PRESENTATION_MODE}
         />
       ) : null}
+      <PayLaterAmountMessage
+        amountLabel={totalLabel}
+        buyerCountry={buyerCountry}
+        currencyCode={currencyCode}
+        placement="order-summary"
+      />
       <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
     </div>
   );

@@ -375,7 +375,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Cart Pay Later amount message recalculates from merchandise quantity totals and excludes shipping.
 - [x] Cart/minicart pickup hints stay as text only with no pickup button.
 - [x] Checkout route renders Delivery/Pickup tabs with separately preserved step state shells.
-- [x] Checkout step states render idle, saving, saved, editing, recalculating totals, blocked/error, and locked labels.
+- [x] Checkout step states remain semantic/testable for idle, saving, saved, editing, recalculating totals, blocked/error, and locked states without rendering bulky visible state chips.
 - [x] Checkout order summary switches context between Delivery and Pickup drafts.
 - [x] Pickup checkout summary shows ready and unavailable item split with unavailable items staying in the original cart.
 - [x] Checkout fulfillment mode lock displays the payment-session lock reason and disables inactive tab switching.
@@ -424,8 +424,9 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Initial Home loading state uses a skeleton-style hero treatment, while secondary storefront product imagery is lazy-loaded.
 - [ ] Product/category cards use tactile rounded surfaces, soft hover/focus feedback, and sticker-like text badges without relying on color alone.
 - [x] Mobile PDP keeps the gallery immersive but exposes product title, price, and primary purchase action without excessive first-pass scrolling, verified at 320px, 375px, 414px, 768px, 1024px, and 1440px with no horizontal overflow.
-- [x] Checkout initial payment placeholder explains that payment methods unlock after required sections, rather than showing an empty dashed panel.
+- [x] Checkout hides inactive payment placeholders until the payment method section is unlocked and a method is selected, avoiding empty or explanatory payment panels before they are actionable.
 - [x] Checkout mobile preserves a compact order-summary/payment context while the buyer works through long address forms.
+- [x] Checkout submitted shipping/billing sections collapse immediately into compact summaries with pencil edit actions while backend draft recalculation continues.
 - [x] Checkout, cart, and minicart use playful accents sparingly while keeping PayPal official buttons/messages stable, readable, and visually undistorted.
 - [x] Cart desktop/mobile summary shows shipping plus promo/estimated-tax placeholders, cart subtotal, Pay Later messaging, and a reachable primary checkout action without feeling like a thin subtotal-only sidebar.
 - [x] Cart and minicart PayPal/Pay Later loading or unavailable states are method-labeled or consolidated, not repeated as identical "cart is refreshing" copy in adjacent slots.

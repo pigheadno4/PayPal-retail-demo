@@ -309,22 +309,23 @@ describe("global storefront visual tokens", () => {
       "padding: 0 12px",
     );
 
-    expect(tabsBlock).toContain("background: #0b315a");
+    expect(tabsBlock).toContain("background: #ffffff");
+    expect(tabsBlock).toContain("border-radius: 999px");
     expect(tabsBlock).toContain("display: grid");
     expect(tabsBlock).toContain("overflow: hidden");
-    expect(triggerBlock).toContain("color: #ffffff");
-    expect(triggerBlock).toContain("min-height: 44px");
-    expect(triggerBlock).toContain("height: 44px");
-    expect(triggerBlock).toContain("max-height: 44px");
+    expect(triggerBlock).toContain("color: #26425f");
+    expect(triggerBlock).toContain("min-height: 40px");
+    expect(triggerBlock).toContain("height: 40px");
+    expect(triggerBlock).toContain("max-height: 40px");
     expect(triggerBlock).toContain("overflow: hidden");
-    expect(selectedTriggerBlock).toContain("background: #ffffff");
-    expect(selectedTriggerBlock).toContain("color: #082747");
-    expect(disabledTriggerBlock).toContain("color: rgb(255 255 255 / 0.72)");
-    expect(dataSlotTriggerBlock).toContain("height: 44px");
-    expect(dataSlotTriggerBlock).toContain("min-height: 44px");
+    expect(selectedTriggerBlock).toContain("background: #ff2438");
+    expect(selectedTriggerBlock).toContain("color: #ffffff");
+    expect(disabledTriggerBlock).toContain("color: #8b817c");
+    expect(dataSlotTriggerBlock).toContain("height: 40px");
+    expect(dataSlotTriggerBlock).toContain("min-height: 40px");
     expect(dataSlotTriggerBlock).toContain("text-overflow: ellipsis");
     expect(dataSlotTriggerBlock).toContain("white-space: nowrap");
-    expect(mobileTabsBlock).toContain("min-height: 54px");
+    expect(mobileTabsBlock).toContain("min-height: 52px");
     expect(mobileTriggerBlock).toContain("min-height: 44px");
   });
 

@@ -455,9 +455,9 @@ Checkout Delivery:
 - Checkout should match the reference left/right rhythm: breadcrumb and secure-checkout label, left-side step cards, right-side order summary with item thumbnails and totals, and bottom trust strip.
 - Initial state expands Shipping address only.
 - Shipping address form shows saved/default address when available, otherwise editable fields.
-- Submit disables the button immediately, shows saving/recalculating copy, saves through backend, collapses to summary, and expands Billing.
+- Submit disables the button immediately, saves through backend, and collapses to a compact summary immediately so the buyer is not left staring at the full form while totals recalculate. Keep saving/recalculating state semantic and testable, but do not show visible `Saved`, `Editing`, `Saving`, or `Recalculating` chips in the card header.
 - Billing starts with `same as shipping` checked after shipping is saved; buyer can uncheck to reveal separate fields.
-- Billing submit follows the same immediate saving/collapse/edit pattern and expands Shipping options.
+- Billing submit follows the same immediate compact-summary/edit pattern and expands Shipping options after backend reconciliation.
 - Shipping options start unsaved; cheapest eligible option is selected by default after destination is known.
 - Changing a shipping option updates Order Summary immediately, then backend reconciliation is reflected after submit.
 - Payment method section opens only after required delivery steps are saved.
@@ -772,7 +772,7 @@ Reference-level checkout layout:
 - right column contains order summary with product thumbnails, quantity, item amount, promo entry when supported, subtotal, shipping, tax, total, and selected payment action
 - bottom trust strip uses implemented capabilities only
 - mobile keeps order context reachable while long forms are active and does not cover fields with sticky payment actions
-- before the payment step is active, Order Summary shows a compact explanatory placeholder instead of an empty PayPal reserve; card-selected and ineligible-wallet states explain where the buyer should act next
+- before the payment step is active, Order Summary does not show a payment placeholder or reserved PayPal panel. Payment controls appear only after the payment step is active and a method is selected.
 - checkout form controls use the shadcn `FieldGroup`/`Field`/`FieldLabel`/`Input`/`Checkbox` pattern, visible required markers, correct `autocomplete`/`inputMode`/`type` metadata, and inline validation/status copy rather than browser-tooltip-only form state
 - Runtime checkout summary itemizes active cart items when available and caps the visible list before `+N more` copy so mobile order context stays compact.
 - Promo UI must not fake manual code entry. Until manual promo application is wired, checkout shows the implemented auto-offer status and explanation only.
@@ -787,9 +787,9 @@ Accordion interaction contract:
 - Pickup guest state must not show a selected store, default-address checkbox, or store summary before the buyer submits ZIP/postcode and confirms a store from the modal.
 - Pickup seeded defaults must match the active market; US checkout must not show GB postcode/store defaults, and GB checkout must not show US ZIP/store defaults.
 - Pickup store selection must show nearby stores only after ZIP/postcode or saved-address lookup succeeds. Inline and modal cards must expose `data-pickup-store-ticket`, `data-inventory-state`, and an accessible `Pickup inventory for {store}` label so visual QA can verify full and partial inventory states without relying on color alone.
-- Submitting a section saves and collapses that section, then expands the next actionable section.
+- Submitting a section immediately collapses that section into a concise summary while the backend save/recalculation runs, then expands the next actionable section after reconciliation succeeds.
 - Editing a submitted section expands only that section, collapses the others, and marks downstream totals as needing recalculation where applicable.
-- Collapsed submitted sections show a compact buyer-readable summary plus an Edit action.
+- Collapsed submitted sections show a compact buyer-readable summary plus an icon-only pencil Edit action. Do not repeat field labels such as `Full name` or state labels such as `Saved`.
 - Accordions move focus to the newly expanded step after successful submit or edit.
 
 Checkout steps must define these UI states:
@@ -886,15 +886,15 @@ Payment section uses radio-first layout.
 Rules:
 
 - PayPal selected by default if eligible.
-- PayPal selected: standalone PayPal button under Order Summary.
+- PayPal selected: standalone official PayPal button under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
 - Pay Later row includes official amount-aware Pay Later message when eligible, tied to the active Delivery/Pickup draft total.
-- Pay Later selected: standalone Pay Later button under Order Summary and Pay Later message below.
+- Pay Later selected: standalone official Pay Later button with the official amount-aware Pay Later message directly below it under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
 - Apple Pay selected: official Apple Pay button under Order Summary when eligible.
 - Google Pay selected: official Google Pay button under Order Summary when eligible.
 - Venmo selected: official Venmo button under Order Summary when eligible.
 - Ineligible wallet rows are hidden and do not render Order Summary or sticky actions. Google Pay must stay runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
 - Card selected: card fields expand in payment section; card pay button is inside card box.
-- Order Summary reserves stable space for selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo action surfaces.
+- Order Summary reserves stable space only after a selected non-card provider action is active; before payment selection, there is no payment placeholder panel.
 - Pay Later row message reserves stable space while PayPal eligibility/message rendering finishes.
 - Mobile: selected non-card action appears in sticky bottom payment bar.
 - Mobile sticky bar shows only one selected non-card payment action at a time.
