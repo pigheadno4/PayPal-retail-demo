@@ -105,6 +105,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PayPal snapshot sanitizer preserves item-level request/response details while redacting secrets and buyer PII.
 - [x] Express `/api/health` returns the standard API success shape with a debug ID.
 - [x] Express unknown API routes return the standard API error shape with a debug ID.
+- [x] Express central API failure logs include debug ID, path, method, error name, and sanitized error message while the buyer response remains a safe generic 500 envelope.
 - [x] Server env validation requires server-only config before startup and does not echo secret values in validation errors.
 - [x] Supabase server client factory uses the private `app` schema, service role key, and disabled browser session persistence.
 - [x] Buyer auth middleware supports guest context, verified Supabase bearer tokens, and standard 401 errors.

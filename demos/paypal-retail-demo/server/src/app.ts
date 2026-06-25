@@ -331,12 +331,14 @@ function createApiErrorMiddleware(
     const debugId = getResponseDebugId(response);
     debugLogger?.error("api_request_failed", {
       debug_id: debugId,
+      error_message: error instanceof Error ? error.message : String(error),
       error_name: error instanceof Error ? error.name : typeof error,
       method: request.method,
       path: request.originalUrl,
     });
     console.error("[paypal-retail-demo] API request failed", {
       debugId,
+      errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : typeof error,
       method: request.method,
       path: request.originalUrl,

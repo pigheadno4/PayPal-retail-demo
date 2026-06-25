@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
+import {
+  createDebugLogger,
+  type DebugLogEntry,
+} from "../src/debug/logger.js";
 import type {
   CatalogProductListFilters,
   CatalogRepository,
@@ -70,9 +74,18 @@ describe("Express app shell", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
+    const entries: DebugLogEntry[] = [];
+    const debugLogger = createDebugLogger({
+      sink(entry) {
+        entries.push(entry);
+      },
+    });
 
     const response = await requestApp(
-      createApp({ catalogRepository: createThrowingCatalogRepository() }),
+      createApp({
+        catalogRepository: createThrowingCatalogRepository(),
+        debugLogger,
+      }),
       "GET",
       "/api/config",
     );
@@ -90,6 +103,31 @@ describe("Express app shell", () => {
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "error",
+          message: "api_request_failed",
+          context: expect.objectContaining({
+            debug_id: response.json?.debug_id,
+            error_message: "database unavailable",
+            error_name: "Error",
+            method: "GET",
+            path: "/api/config",
+          }),
+        }),
+      ]),
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      "[paypal-retail-demo] API request failed",
+      expect.objectContaining({
+        debugId: response.json?.debug_id,
+        errorMessage: "database unavailable",
+        errorName: "Error",
+        method: "GET",
+        path: "/api/config",
+      }),
+    );
     consoleError.mockRestore();
   });
 
