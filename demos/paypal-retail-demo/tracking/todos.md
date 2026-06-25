@@ -31,7 +31,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. The buyer-facing POP 
 - [x] Prepare Milestone 2 Supabase schema/RLS approach before migration files are created.
 - [x] Verify the initial Supabase migration applies against the linked remote Supabase project.
 - [ ] Verify the Supabase migrations apply on local Supabase once Docker Desktop/local Supabase is available.
-- [ ] Resolve Render-hosted Supabase-backed API 500s before continuing hosted PayPal checkout QA; 2026-06-25 HTTPS smoke shows `/api/health` is healthy but `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` return buyer-safe 500 envelopes.
+- [ ] Resolve Render-hosted Supabase-backed API 500s before continuing hosted PayPal checkout QA; 2026-06-25 HTTPS smoke shows `/api/health` is healthy but `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` return buyer-safe 500 envelopes because Render's Supabase key/URL configuration is rejected as `Invalid API key`.
 - [x] Build the TypeScript storefront/reference seed runner data for the two demo profiles.
 - [x] Build the guarded buyer/account/order seed slice with shared demo users, addresses, reviews, pending orders, completed orders, and lifecycle snapshots.
 - [x] Complete Milestone 3 shared business logic helpers with TDD for money, market, catalog, promo, tax, shipping, inventory, cart lifecycle, market switch, pending resume, order numbers, PayPal invoice IDs, and order status transitions.
