@@ -6,6 +6,7 @@ import type { Express } from "express";
 export interface AppResponse {
   readonly status: number;
   readonly headers: Record<string, number | string | string[] | undefined>;
+  readonly text: string;
   readonly json: unknown;
 }
 
@@ -21,7 +22,9 @@ export async function requestApp(
   options: RequestAppOptions = {},
 ): Promise<AppResponse> {
   const requestBody =
-    options.json === undefined ? null : Buffer.from(JSON.stringify(options.json));
+    options.json === undefined
+      ? null
+      : Buffer.from(JSON.stringify(options.json));
   const responseChunks: Buffer[] = [];
   const socket = new Duplex({
     read() {
@@ -62,10 +65,12 @@ export async function requestApp(
 
   const rawResponse = Buffer.concat(responseChunks).toString("utf8");
   const [, body = ""] = rawResponse.split("\r\n\r\n");
+  const contentType = String(response.getHeader("content-type") ?? "");
 
   return {
     status: response.statusCode,
     headers: response.getHeaders(),
-    json: JSON.parse(body),
+    text: body,
+    json: contentType.includes("application/json") ? JSON.parse(body) : null,
   };
 }

@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createApp } from "./app.js";
@@ -99,6 +100,7 @@ export function startServer(env: RawServerEnv = process.env) {
       config.appBaseUrl,
       ...(config.publicHttpsOrigin ? [config.publicHttpsOrigin] : []),
     ],
+    staticAssetDirectory: resolve(process.cwd(), "web/dist"),
     debugLogger: runtimeDebugLogStore.logger,
     catalogRepository,
     activeStorefrontContextStore,
@@ -148,8 +150,8 @@ export function startServer(env: RawServerEnv = process.env) {
     },
   });
 
-  return app.listen(config.port, () => {
-    console.log(`PayPal retail demo API listening on ${config.port}`);
+  return app.listen(config.port, "0.0.0.0", () => {
+    console.log(`PayPal retail demo API listening on 0.0.0.0:${config.port}`);
   });
 }
 

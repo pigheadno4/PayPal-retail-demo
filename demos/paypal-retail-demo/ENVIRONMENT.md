@@ -98,6 +98,27 @@ For PayPal SDK v6 client-token flows, prefer setting `PUBLIC_HTTPS_ORIGIN` to th
 
 Delivery express can create local sandbox orders without `PUBLIC_HTTPS_ORIGIN`, but the backend omits PayPal shipping callback config and line-item product/image URLs when the resolved public origin is local HTTP. Set `PUBLIC_HTTPS_ORIGIN` for callback-enabled express shipping updates and provider-visible item links/images.
 
+## Render Web Service Deployment
+
+Use Render as a single Node Web Service when a public HTTPS origin is needed for PayPal sandbox QA.
+
+Dashboard settings:
+
+- Root directory: leave blank when the GitHub repository root is this demo folder; otherwise set `demos/paypal-retail-demo`.
+- Build command: `npm ci && npm run build`.
+- Start command: `npm start`.
+- Health check path: `/api/health`.
+- Node version: pin a Node 22.12+ runtime, for example `NODE_VERSION=22.16.0`.
+
+Render environment variables:
+
+- Set `APP_BASE_URL`, `PUBLIC_HTTPS_ORIGIN`, and `VITE_API_BASE_URL` to the exact Render HTTPS URL, for example `https://retail-demo.onrender.com`.
+- Copy server-only secrets from the local `.env` into the Render Environment tab: `ADMIN_PASSCODE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAYPAL_ENVIRONMENT`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_BN_CODE`, and `PAYPAL_DEFAULT_SANDBOX_TEST_BUYER_COUNTRY`.
+- Copy browser-safe Supabase values into Render too: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Do not set `PORT`; Render injects it.
+
+The compiled Express server binds to `0.0.0.0:$PORT`, serves `/api/*` as API routes, serves built assets from `web/dist`, and falls back non-API routes to the built Vite SPA.
+
 ## Local Asset Convention
 POP MART assets are customer-specific and stay local to this demo.
 

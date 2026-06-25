@@ -4,6 +4,12 @@
 
 Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this file are acceptance or regression gates for the current polish stage unless they are explicitly older backlog, such as M15 Admin Portal, local Supabase migration verification, or broader wallet/card sandbox capture coverage.
 
+## Deployment QA
+
+- [x] Production build exposes a `build` script that compiles both the Vite storefront and Express server for Render.
+- [x] Production start exposes a `start` script that runs the compiled Express server and binds to Render's injected `PORT`.
+- [x] Compiled Express app serves built storefront assets and SPA browser routes while preserving `/api/*` JSON responses.
+
 ## Seed And Database QA
 
 - [x] Storefront/reference seed summary includes 2 profiles, 2 markets, 5 categories/profile, 25 products/profile, 9 stores/market, inventory, tax, shipping, homepage, release, and promo rows.

@@ -6,6 +6,10 @@
   "scripts": {
     "dev:web": "vite --config vite.config.ts",
     "dev:server": "tsx watch server/src/server.ts",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build --config vite.config.ts",
+    "build:server": "tsc -p server/tsconfig.json",
+    "start": "node server/dist/server/src/server.js",
     "supabase": "supabase",
     "db:start": "supabase start",
     "db:reset": "supabase db reset --local",

@@ -54,6 +54,7 @@ import type { ActiveStorefrontContextStore } from "./state/storefrontContext.js"
 export interface CreateAppInput {
   readonly allowedCorsOrigins?: readonly string[];
   readonly debugLogger?: DebugLogger;
+  readonly staticAssetDirectory?: string;
   readonly catalogRepository?: CatalogRepository;
   readonly activeStorefrontContextStore?: ActiveStorefrontContextStore;
   readonly admin?: {
@@ -290,6 +291,29 @@ export function createApp(input: CreateAppInput = {}) {
     });
   });
   app.use("/api", createApiErrorMiddleware(input.debugLogger));
+
+  if (input.staticAssetDirectory) {
+    app.use(
+      express.static(input.staticAssetDirectory, {
+        index: false,
+      }),
+    );
+    app.use((request, response, next) => {
+      if (!["GET", "HEAD"].includes(request.method)) {
+        next();
+        return;
+      }
+
+      if (request.path.startsWith("/api") || request.path.includes(".")) {
+        next();
+        return;
+      }
+
+      response.sendFile("index.html", {
+        root: input.staticAssetDirectory,
+      });
+    });
+  }
 
   return app;
 }

@@ -18,6 +18,8 @@ npm run verify
 ```bash
 npm run dev:web
 npm run dev:server
+npm run build
+npm start
 npm run db:start
 npm run db:reset
 npm run db:lint
@@ -36,6 +38,20 @@ For API-backed browser QA, use `http://localhost:5173` rather than `127.0.0.1` u
 ```bash
 node --env-file=.env node_modules/tsx/dist/cli.mjs watch server/src/server.ts
 ```
+
+## Render Web Service
+
+Use a single Node Web Service for the demo frontend and backend.
+
+Recommended Dashboard settings:
+
+- Root directory: leave blank when the GitHub repo root is this demo folder; otherwise use `demos/paypal-retail-demo`.
+- Build command: `npm ci && npm run build`
+- Start command: `npm start`
+- Health check path: `/api/health`
+- Runtime: Node 22.12 or newer.
+
+The production build compiles the Vite storefront into `web/dist` and the Express server into `server/dist`. The compiled server serves `/api/*` as JSON API routes and falls back non-API browser routes such as `/products/blind-boxes-2` to the built SPA `index.html`.
 
 ## Environment
 
