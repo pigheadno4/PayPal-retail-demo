@@ -28,6 +28,20 @@ export interface CartData {
   readonly items: readonly CartItem[];
 }
 
+export interface CartProductInput {
+  readonly productId?: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly categoryName: string;
+  readonly imagePath: string;
+  readonly imageAlt: string;
+  readonly unitPriceCents: number;
+  readonly currentPriceLabel: string;
+  readonly regularPriceLabel: string;
+  readonly maxQuantity?: number;
+  readonly href?: string;
+}
+
 export type CartQuantityOverrides = Readonly<Record<string, number>>;
 
 export interface CartApiResponseItem {
@@ -129,15 +143,23 @@ export function reconcileCartDataFromApiResponse(
   }
 
   const currencyCode = response.cart?.currency_code ?? cart.currencyCode;
-  const cartPublicId =
+  const apiCartPublicId =
     nonEmptyString(response.cart?.binding?.cart_public_id) ??
-    nonEmptyString(response.cart?.cart_public_id) ??
-    cart.cartPublicId;
+    nonEmptyString(response.cart?.cart_public_id);
+  const cartPublicId = apiCartPublicId ?? cart.cartPublicId;
   const isAuthenticatedCart = response.cart?.buyer_kind === "authenticated";
+  const apiCartClientSecret = nonEmptyString(
+    response.cart?.binding?.cart_client_secret,
+  );
+  const didApiSwitchGuestCart = Boolean(
+    apiCartPublicId &&
+    cart.cartPublicId &&
+    apiCartPublicId !== cart.cartPublicId,
+  );
   const cartClientSecret = isAuthenticatedCart
     ? undefined
-    : (nonEmptyString(response.cart?.binding?.cart_client_secret) ??
-      cart.cartClientSecret);
+    : (apiCartClientSecret ??
+      (didApiSwitchGuestCart ? undefined : cart.cartClientSecret));
   const baseCart: CartData = isAuthenticatedCart
     ? {
         ...(cart.cartPublicId ? { cartPublicId: cart.cartPublicId } : {}),
@@ -150,8 +172,11 @@ export function reconcileCartDataFromApiResponse(
         items: cart.items,
       }
     : cart;
+  const nextCartBase = cartClientSecret
+    ? baseCart
+    : removeCartClientSecret(baseCart);
   const nextCart = {
-    ...baseCart,
+    ...nextCartBase,
     ...(cartPublicId ? { cartPublicId } : {}),
     ...(cartClientSecret ? { cartClientSecret } : {}),
     currencyCode,
@@ -176,6 +201,19 @@ export function reconcileCartDataFromApiResponse(
         apiItem,
       ),
     ),
+  };
+}
+
+function removeCartClientSecret(cart: CartData): CartData {
+  return {
+    ...(cart.cartPublicId ? { cartPublicId: cart.cartPublicId } : {}),
+    title: cart.title,
+    checkoutHref: cart.checkoutHref,
+    cartHref: cart.cartHref,
+    currencyCode: cart.currencyCode,
+    locale: cart.locale,
+    pickupHint: cart.pickupHint,
+    items: cart.items,
   };
 }
 
@@ -206,6 +244,74 @@ export function incrementCartItemQuantity(
   const item = cart.items.find((cartItem) => cartItem.slug === slug);
 
   return item ? setCartItemQuantity(cart, slug, item.quantity + 1) : cart;
+}
+
+export function addProductToCartQuantity(
+  cart: CartData,
+  product: CartProductInput,
+  quantityDelta: number,
+): CartData {
+  const requestedQuantity = Number.isFinite(quantityDelta)
+    ? Math.trunc(quantityDelta)
+    : 1;
+
+  if (requestedQuantity <= 0) {
+    return cart;
+  }
+
+  const existingItem = cart.items.find(
+    (cartItem) => cartItem.slug === product.slug,
+  );
+
+  if (existingItem) {
+    const nextMaxQuantity = Math.max(
+      existingItem.maxQuantity,
+      product.maxQuantity ?? existingItem.maxQuantity,
+      existingItem.quantity + requestedQuantity,
+    );
+    const cartWithUpdatedLimit = {
+      ...cart,
+      items: cart.items.map((item) =>
+        item.slug === product.slug
+          ? {
+              ...item,
+              maxQuantity: nextMaxQuantity,
+            }
+          : item,
+      ),
+    };
+
+    return setCartItemQuantity(
+      cartWithUpdatedLimit,
+      product.slug,
+      existingItem.quantity + requestedQuantity,
+    );
+  }
+
+  const maxQuantity = Math.max(product.maxQuantity ?? requestedQuantity, 1);
+  const quantity = Math.min(requestedQuantity, maxQuantity);
+
+  return {
+    ...cart,
+    items: [
+      ...cart.items,
+      {
+        id: `local_${product.slug}`,
+        ...(product.productId ? { productId: product.productId } : {}),
+        slug: product.slug,
+        name: product.name,
+        categoryName: product.categoryName,
+        imagePath: product.imagePath,
+        imageAlt: product.imageAlt,
+        unitPriceCents: product.unitPriceCents,
+        currentPriceLabel: product.currentPriceLabel,
+        regularPriceLabel: product.regularPriceLabel,
+        quantity,
+        maxQuantity,
+        href: product.href ?? `/products/${product.slug}`,
+      },
+    ],
+  };
 }
 
 function indexExistingCartItems(
@@ -249,6 +355,9 @@ function mapCartApiItemToCartItem(
   const currentPriceLabel = formatCartAmount(unitPriceCents, cart);
   const checkoutEligible = apiItem.checkout_eligible !== false;
   const blocker = productId ? blockersByProductId.get(productId) : undefined;
+  const hasApiSlug = Boolean(nonEmptyString(apiItem.slug));
+  const hasApiName = Boolean(nonEmptyString(apiItem.name));
+  const hasApiPrice = typeof apiItem.unit_price_minor === "number";
 
   return {
     ...(apiItem.id
@@ -268,13 +377,20 @@ function mapCartApiItemToCartItem(
       nonEmptyString(apiItem.image_path) ??
       existingItem?.imagePath ??
       "/assets/generic/products/placeholder.svg",
-    imageAlt: existingItem?.imageAlt ?? `${name} collectible`,
+    imageAlt:
+      hasApiName || nonEmptyString(apiItem.image_path)
+        ? `${name} collectible`
+        : (existingItem?.imageAlt ?? `${name} collectible`),
     unitPriceCents,
     currentPriceLabel,
-    regularPriceLabel: existingItem?.regularPriceLabel ?? currentPriceLabel,
+    regularPriceLabel: hasApiPrice
+      ? currentPriceLabel
+      : (existingItem?.regularPriceLabel ?? currentPriceLabel),
     quantity,
     maxQuantity: Math.max(existingItem?.maxQuantity ?? quantity, quantity),
-    href: existingItem?.href ?? `/products/${slug}`,
+    href: hasApiSlug
+      ? `/products/${slug}`
+      : (existingItem?.href ?? `/products/${slug}`),
     checkoutEligible,
     ...(!checkoutEligible
       ? {

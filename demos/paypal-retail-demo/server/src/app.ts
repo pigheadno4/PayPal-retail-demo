@@ -16,7 +16,13 @@ import {
   createAccountRouter,
   type AccountRepository,
 } from "./routes/account.js";
-import type { AdminProfileMarketRepository } from "./repositories/adminRepository.js";
+import type {
+  AdminInventoryRepository,
+  AdminOrderRepository,
+  AdminPaymentDebugRepository,
+  AdminProfileMarketRepository,
+  AdminWebhookRepository,
+} from "./repositories/adminRepository.js";
 import { createAdminRouter } from "./routes/admin.js";
 import { createCartRouter, type CartRepository } from "./routes/cart.js";
 import {
@@ -50,6 +56,10 @@ export interface CreateAppInput {
   readonly admin?: {
     readonly adminPasscode: string;
     readonly profileMarketRepository: AdminProfileMarketRepository;
+    readonly orderRepository?: AdminOrderRepository;
+    readonly inventoryRepository?: AdminInventoryRepository;
+    readonly webhookRepository?: AdminWebhookRepository;
+    readonly debugRepository?: AdminPaymentDebugRepository;
     readonly activeStorefrontContextStore: ActiveStorefrontContextStore;
   };
   readonly cart?: {
@@ -136,8 +146,21 @@ export function createApp(input: CreateAppInput = {}) {
         adminSessionGuard: createAdminSessionGuard({
           adminPasscode: input.admin.adminPasscode,
         }),
+        adminPasscode: input.admin.adminPasscode,
         catalogRepository: input.catalogRepository,
         profileMarketRepository: input.admin.profileMarketRepository,
+        ...(input.admin.orderRepository
+          ? { orderRepository: input.admin.orderRepository }
+          : {}),
+        ...(input.admin.inventoryRepository
+          ? { inventoryRepository: input.admin.inventoryRepository }
+          : {}),
+        ...(input.admin.webhookRepository
+          ? { webhookRepository: input.admin.webhookRepository }
+          : {}),
+        ...(input.admin.debugRepository
+          ? { debugRepository: input.admin.debugRepository }
+          : {}),
         activeStorefrontContextStore: input.admin.activeStorefrontContextStore,
       }),
     );

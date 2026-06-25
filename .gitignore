@@ -16,3 +16,16 @@ coverage/
 # Generated local code-graph artifacts. Rebuild with graphify from the relevant
 # project/demo folder.
 **/graphify-out/
+
+# Local browser automation and visual QA evidence. Keep durable evidence in
+# tracking/docs with explicit filenames instead of leaving ad hoc output at repo
+# roots.
+.playwright-mcp/
+**/.playwright-cli/
+/*.png
+/*.log
+/paypal-retail-*.json
+/express-review-*.md
+demos/paypal-retail-demo/*.png
+demos/paypal-retail-demo/*.log
+demos/paypal-retail-demo/*.json

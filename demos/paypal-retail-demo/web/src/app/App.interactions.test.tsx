@@ -8,7 +8,15 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import type {
   ApiClient,
@@ -21,6 +29,17 @@ import { App } from "./App.js";
 
 const deliveryDraftUuid = "11111111-1111-4111-8111-111111111111";
 const pickupDraftUuid = "22222222-2222-4222-8222-222222222222";
+
+class TestResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+beforeAll(() => {
+  globalThis.ResizeObserver =
+    TestResizeObserver as unknown as typeof ResizeObserver;
+});
 
 beforeEach(() => {
   Object.defineProperty(window, "localStorage", {
@@ -36,6 +55,795 @@ afterEach(() => {
 });
 
 describe("App buyer interactions", () => {
+  it("opens and closes the compact mobile menu from the buyer header", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_mobile_menu",
+          cartPublicId: "cart_public_mobile_menu",
+        }),
+        "/api/catalog/products": {
+          products: [],
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products"
+        initialCart={singleItemCart({ quantity: 2 })}
+      />,
+    );
+
+    const menuButton = screen.getByRole("button", {
+      name: "Open mobile menu",
+    });
+
+    expect(menuButton.getAttribute("aria-controls")).toBe("mobile-menu");
+    expect(menuButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("navigation", { name: "Mobile menu" })).toBe(
+      null,
+    );
+
+    await user.click(menuButton);
+
+    const mobileMenu = screen.getByRole("navigation", {
+      name: "Mobile menu",
+    });
+
+    expect(menuButton.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      within(mobileMenu).getByRole("link", { name: "BLIND BOXES" }),
+    ).toBeTruthy();
+    expect(
+      within(mobileMenu).getByRole("link", { name: "Track order" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Close mobile menu" }));
+
+    expect(menuButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("navigation", { name: "Mobile menu" })).toBe(
+      null,
+    );
+  });
+
+  it("loads homepage merchandising from the catalog API with generated image paths", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_home",
+          cartPublicId: "cart_public_home",
+        }),
+        "/api/catalog/products": {
+          products: [
+            {
+              id: "product_blind_boxes_1",
+              slug: "blind-boxes-1",
+              name: "The Monsters Blind Boxes 1",
+              category_slug: "blind-boxes",
+              image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+              release_status: "released",
+              release_date: "2026-06-05",
+              purchasable: true,
+              checkout_block_reason: null,
+              price: {
+                currency_code: "USD",
+                regular_price_minor: 1499,
+                current_price_minor: 1274,
+                is_on_sale: true,
+              },
+              inventory: {
+                delivery_available: true,
+                pickup_available: true,
+              },
+            },
+            {
+              id: "product_plush_11",
+              slug: "plush-11",
+              name: "The Monsters Plush 1",
+              category_slug: "plush",
+              image_path: "/assets/popmart/products/plush-11-1.png",
+              release_status: "coming_soon",
+              release_date: "2026-07-10",
+              purchasable: false,
+              checkout_block_reason: "release_pending",
+              price: {
+                currency_code: "USD",
+                regular_price_minor: 4999,
+                current_price_minor: 4999,
+                is_on_sale: false,
+              },
+              inventory: {
+                delivery_available: false,
+                pickup_available: false,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/" />);
+
+    expect(
+      await screen.findAllByText("The Monsters Blind Boxes 1"),
+    ).not.toHaveLength(0);
+    expect(
+      screen.getAllByAltText("The Monsters Blind Boxes 1 collectible"),
+    ).not.toHaveLength(0);
+    await waitFor(() => {
+      expect(screen.queryByText("Labubu Have a Seat")).toBeNull();
+    });
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/catalog/products",
+        query: {
+          market: "US",
+          profile: "popmart",
+        },
+      }),
+    );
+  });
+
+  it("keeps fallback homepage merchandising when catalog products are unavailable", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_home_fallback",
+          cartPublicId: "cart_public_home_fallback",
+        }),
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/" />);
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("heading", {
+        name: "Blind-box drops, ready to collect",
+      }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Molly Blind Boxes 2")).not.toHaveLength(0);
+    expect(document.body.innerHTML.toLowerCase()).not.toMatch(
+      /labubu|skullpanda|hirono|the-monsters|series=/,
+    );
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("uses generated fallback homepage merchandising when the catalog request fails", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const apiClient = createRecordingApiClient({
+      getErrorByPath: {
+        "/api/catalog/products": new Error("catalog unavailable"),
+      },
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_home_error_fallback",
+          cartPublicId: "cart_public_home_error_fallback",
+        }),
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/" />);
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("heading", {
+        name: "Blind-box drops, ready to collect",
+      }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Molly Blind Boxes 2")).not.toHaveLength(0);
+    expect(document.body.innerHTML.toLowerCase()).not.toMatch(
+      /labubu|skullpanda|hirono|the-monsters|series=/,
+    );
+    expect(consoleError).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
+  it("loads product listing cards from the catalog API with generated image paths", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_catalog",
+          cartPublicId: "cart_public_catalog",
+        }),
+        "/api/catalog/products": {
+          products: [
+            {
+              id: "product_blind_boxes_1",
+              slug: "blind-boxes-1",
+              name: "The Monsters Blind Boxes 1",
+              category_slug: "blind-boxes",
+              image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+              release_status: "released",
+              release_date: "2026-06-05",
+              purchasable: true,
+              checkout_block_reason: null,
+              price: {
+                currency_code: "USD",
+                regular_price_minor: 1499,
+                current_price_minor: 1274,
+                is_on_sale: true,
+              },
+              inventory: {
+                delivery_available: true,
+                pickup_available: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+          query: {
+            market: "US",
+            profile: "popmart",
+          },
+        }),
+      );
+    });
+
+    await screen.findByText("The Monsters Blind Boxes 1");
+    expect(
+      screen
+        .getByAltText("The Monsters Blind Boxes 1 collectible")
+        .getAttribute("src"),
+    ).toBe("/assets/popmart/products/blind-boxes-1-1.png");
+  });
+
+  it("uses generated fallback category merchandising when the catalog request fails", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const apiClient = createRecordingApiClient({
+      getErrorByPath: {
+        "/api/catalog/products": new Error("catalog unavailable"),
+      },
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_category_error_fallback",
+          cartPublicId: "cart_public_category_error_fallback",
+        }),
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/products" />);
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+          query: {
+            market: "US",
+            profile: "popmart",
+          },
+        }),
+      );
+    });
+
+    expect(await screen.findByText("Molly Blind Boxes 2")).toBeTruthy();
+    expect(
+      screen
+        .getByAltText("Molly Blind Boxes 2 collectible")
+        .getAttribute("src"),
+    ).toBe("/assets/popmart/products/blind-boxes-2-1.png");
+    expect(document.body.innerHTML.toLowerCase()).not.toMatch(
+      /labubu|skullpanda|hirono|series=/,
+    );
+    expect(screen.getByText("3 products")).toBeTruthy();
+    expect(
+      screen.queryByText("Catalog products could not be loaded."),
+    ).toBeNull();
+    expect(consoleError).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
+  it("keeps generated fallback category product links navigable when PDP loading fails", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const categoryApiClient = createRecordingApiClient({
+      getErrorByPath: {
+        "/api/catalog/products": new Error("catalog unavailable"),
+      },
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_category_product_fallback",
+          cartPublicId: "cart_public_category_product_fallback",
+        }),
+      },
+    });
+
+    const renderedCategory = render(
+      <App apiClient={categoryApiClient} initialPathname="/products" />,
+    );
+
+    const fallbackProductName = await screen.findByText("Molly Blind Boxes 2");
+    const fallbackProductLink = fallbackProductName.closest("a");
+
+    expect(fallbackProductLink?.getAttribute("href")).toBe(
+      "/products/blind-boxes-2",
+    );
+
+    renderedCategory.unmount();
+
+    render(
+      <App
+        apiClient={createRecordingApiClient({
+          getErrorByPath: {
+            "/api/catalog/products/blind-boxes-2": new Error(
+              "product unavailable",
+            ),
+          },
+          getResponseByPath: {
+            "/api/cart": emptyCartApiResponse({
+              cartClientSecret: "cart_secret_pdp_product_fallback",
+              cartPublicId: "cart_public_pdp_product_fallback",
+            }),
+          },
+        })}
+        initialPathname="/products/blind-boxes-2"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Molly Blind Boxes 2" }),
+    ).toBeTruthy();
+    expect(screen.getByAltText("Molly Blind Boxes 2 front view")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Page unavailable" }),
+    ).toBeNull();
+    expect(document.body.innerHTML.toLowerCase()).not.toMatch(
+      /labubu|skullpanda|hirono|series=/,
+    );
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledTimes(2);
+    });
+    consoleError.mockRestore();
+  });
+
+  it("does not render fixture product imagery while live route data is pending", async () => {
+    const pendingApiResponse = new Promise<unknown>(() => {});
+    const liveRoutes = [
+      "/",
+      "/products",
+      "/products?category=blind-boxes",
+      "/products/blind-boxes-2",
+      "/cart",
+      "/checkout",
+    ];
+
+    for (const initialPathname of liveRoutes) {
+      const rendered = render(
+        <App
+          apiClient={createRecordingApiClient({
+            getResponse: pendingApiResponse,
+            getResponseByPath: {
+              "/api/cart": pendingApiResponse,
+              "/api/catalog/products": pendingApiResponse,
+              "/api/catalog/products/blind-boxes-2": pendingApiResponse,
+            },
+            postResponse: pendingApiResponse,
+          })}
+          initialPathname={initialPathname}
+        />,
+      );
+
+      expect(screen.queryByText("Labubu Have a Seat")).toBeNull();
+      expect(screen.queryByText("Hirono Little Mischief")).toBeNull();
+      expect(screen.queryByText("Skullpanda Future Drop")).toBeNull();
+      expect(
+        Array.from(document.images).map((image) => image.getAttribute("src")),
+      ).not.toContain("/assets/popmart/products/labubu-have-a-seat-1.svg");
+
+      rendered.unmount();
+    }
+  });
+
+  it("applies category route query state to catalog API requests and filter chrome", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_category_query",
+          cartPublicId: "cart_public_category_query",
+        }),
+        "/api/catalog/products": {
+          products: [
+            {
+              id: "product_blind_boxes_1",
+              slug: "blind-boxes-1",
+              name: "The Monsters Blind Boxes 1",
+              category_slug: "blind-boxes",
+              image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+              release_status: "released",
+              release_date: "2026-06-05",
+              purchasable: true,
+              checkout_block_reason: null,
+              price: {
+                currency_code: "USD",
+                regular_price_minor: 1499,
+                current_price_minor: 1274,
+                is_on_sale: true,
+              },
+              inventory: {
+                delivery_available: true,
+                pickup_available: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products?category=blind-boxes"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+          query: {
+            category: "blind-boxes",
+            market: "US",
+            profile: "popmart",
+          },
+        }),
+      );
+    });
+
+    expect(await screen.findByText("1 product")).toBeTruthy();
+    expect(screen.getAllByText("1 filter applied").length).toBeGreaterThan(0);
+    const productFilters = screen.getByRole("complementary", {
+      name: "Product filters",
+    });
+    const blindBoxesFilter = within(productFilters).getByRole("link", {
+      name: "Blind Boxes5",
+    });
+    expect(
+      within(productFilters)
+        .getByRole("link", { name: "All options25" })
+        .getAttribute("data-active"),
+    ).toBe("false");
+    expect(blindBoxesFilter.getAttribute("data-active")).toBe("true");
+    expect(screen.getByText("The Monsters Blind Boxes 1")).toBeTruthy();
+  });
+
+  it("renders the official PayPal Pay Later message on category pages", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_category_paylater",
+          cartPublicId: "cart_public_category_paylater",
+        }),
+        "/api/catalog/products": {
+          products: [
+            {
+              id: "product_blind_boxes_1",
+              slug: "blind-boxes-1",
+              name: "The Monsters Blind Boxes 1",
+              category_slug: "blind-boxes",
+              image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+              release_status: "released",
+              release_date: "2026-06-05",
+              purchasable: true,
+              checkout_block_reason: null,
+              price: {
+                currency_code: "USD",
+                regular_price_minor: 1499,
+                current_price_minor: 1274,
+                is_on_sale: true,
+              },
+              inventory: {
+                delivery_available: true,
+                pickup_available: true,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products?category=blind-boxes"
+      />,
+    );
+
+    await screen.findByText("The Monsters Blind Boxes 1");
+    await waitFor(() => {
+      const catalogMessage = document.querySelector(
+        '[data-paylater-message-placement="catalog-promo"]',
+      );
+      expect(catalogMessage).toBeTruthy();
+      expect(catalogMessage?.querySelector("paypal-message")).toBeTruthy();
+    });
+    const catalogMessageStackText =
+      document
+        .querySelector('[data-paylater-message-placement="catalog-promo"]')
+        ?.closest(".paylater-message-stack")
+        ?.textContent?.toLowerCase() ?? "";
+    expect(document.querySelector(".paylater-message-fallback")).toBeNull();
+    expect(catalogMessageStackText).not.toContain(
+      "flexible payment options may be available at checkout",
+    );
+
+    expect(apiClient.calls).toContainEqual({
+      method: "get",
+      path: "/api/paypal/sdk-config",
+      query: {
+        flow: "standard",
+        market: "US",
+        method: "paylater",
+        page_type: "checkout",
+      },
+    });
+  });
+
+  it("renders official PayPal Pay Later messages on PDP, cart, and minicart", async () => {
+    const user = userEvent.setup();
+    const payLaterMessageRoutes = [
+      {
+        initialPathname: "/products/labubu-have-a-seat",
+        initialProductPages: {
+          "labubu-have-a-seat": releasedProduct(),
+        },
+        placement: "product-detail",
+      },
+      {
+        initialPathname: "/cart",
+        placement: "cart-summary",
+      },
+      {
+        initialPathname: "/",
+        openMinicart: true,
+        placement: "minicart-summary",
+      },
+    ];
+
+    for (const route of payLaterMessageRoutes) {
+      const rendered = render(
+        <App
+          apiClient={createRecordingApiClient()}
+          initialCart={singleItemCart({ quantity: 1 })}
+          initialPathname={route.initialPathname}
+          {...(route.initialProductPages
+            ? { initialProductPages: route.initialProductPages }
+            : {})}
+        />,
+      );
+
+      if (route.openMinicart) {
+        await user.click(screen.getByRole("button", { name: "Open minicart" }));
+      }
+
+      await waitFor(() => {
+        const message = document.querySelector(
+          `[data-paylater-message-placement="${route.placement}"]`,
+        );
+
+        expect(message).toBeTruthy();
+        expect(message?.querySelector("paypal-message")).toBeTruthy();
+      });
+
+      rendered.unmount();
+    }
+  });
+
+  it("shows a pending PDP state while direct product details load", async () => {
+    let resolveProduct!: (value: unknown) => void;
+    const productResponse = new Promise<unknown>((resolve) => {
+      resolveProduct = resolve;
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_pdp_pending",
+          cartPublicId: "cart_public_pdp_pending",
+        }),
+        "/api/catalog/products/blind-boxes-1": productResponse,
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products/blind-boxes-1"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products/blind-boxes-1",
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("heading", { name: "Loading product details" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Page unavailable" }),
+    ).toBeNull();
+
+    resolveProduct(productDetailApiResponse());
+    await screen.findByRole("heading", {
+      name: "The Monsters Blind Boxes 1",
+    });
+  });
+
+  it("loads direct PDP routes from the catalog API with generated gallery images", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_pdp",
+          cartPublicId: "cart_public_pdp",
+        }),
+        "/api/catalog/products/blind-boxes-1": {
+          product: {
+            id: "product_blind_boxes_1",
+            slug: "blind-boxes-1",
+            sku: "POP-001",
+            name: "The Monsters Blind Boxes 1",
+            series_name: "The Monsters",
+            description: "The Monsters collectible for the blind boxes series.",
+            category_slug: "blind-boxes",
+            release_status: "released",
+            release_date: "2026-06-05",
+            purchasable: true,
+            checkout_block_reason: null,
+            max_quantity_per_order: 1,
+            price: {
+              currency_code: "USD",
+              regular_price_minor: 1499,
+              current_price_minor: 1274,
+              is_on_sale: true,
+            },
+            images: [
+              {
+                image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+                alt_text: "The Monsters Blind Boxes 1 view 1",
+              },
+            ],
+            inventory: {
+              delivery_available: true,
+              pickup_available: true,
+            },
+            reviews: {
+              visible: false,
+              items: [],
+            },
+          },
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products/blind-boxes-1"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products/blind-boxes-1",
+          query: {
+            market: "US",
+            profile: "popmart",
+          },
+        }),
+      );
+    });
+
+    await screen.findByRole("heading", {
+      name: "The Monsters Blind Boxes 1",
+    });
+    expect(await screen.findByText("By POP MART")).toBeTruthy();
+    expect(
+      screen
+        .getByAltText(
+          "The Monsters Blind Boxes 1 collectible on a pastel display",
+        )
+        .getAttribute("src"),
+    ).toBe("/assets/popmart/products/blind-boxes-1-1.png");
+    expect(
+      screen.queryByAltText("The Monsters Blind Boxes 1 view 1"),
+    ).toBeNull();
+  });
+
+  it("keeps server catalog metadata when preparing the starter guest cart", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_generated",
+          cartPublicId: "cart_public_generated",
+        }),
+      },
+      postResponseByPath: {
+        "/api/cart/items": generatedStarterCartApiResponse(),
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/" />);
+
+    await screen.findByText("Prepared guest cart.");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open minicart",
+      }),
+    );
+
+    const minicart = screen
+      .getByRole("heading", { name: "Cart" })
+      .closest(".minicart-shell");
+    expect(minicart).not.toBeNull();
+
+    await within(minicart as HTMLElement).findByText("Molly Blind Boxes 2");
+    expect(
+      within(minicart as HTMLElement)
+        .getByAltText("Molly Blind Boxes 2 collectible")
+        .getAttribute("src"),
+    ).toBe("/assets/popmart/products/blind-boxes-2-1.png");
+    expect(
+      within(minicart as HTMLElement)
+        .getByAltText("The Monsters Plush 1 collectible")
+        .getAttribute("src"),
+    ).toBe("/assets/popmart/products/plush-11-1.png");
+    expect(
+      within(minicart as HTMLElement).queryByText("Labubu Have a Seat"),
+    ).toBeNull();
+  });
+
   it("opens email-first auth and branches existing accounts to password entry", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -284,6 +1092,11 @@ describe("App buyer interactions", () => {
       "secret",
     );
     await user.click(
+      within(registerDialog).getByLabelText(
+        "I agree to the Terms of Service and Privacy Policy.",
+      ),
+    );
+    await user.click(
       within(registerDialog).getByRole("button", { name: "Create account" }),
     );
 
@@ -359,9 +1172,11 @@ describe("App buyer interactions", () => {
       );
     });
     expect(screen.getByRole("button", { name: "Account" })).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Open minicart" }).textContent,
-    ).toContain("Cart (4)");
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("Cart (4)");
+    });
   });
 
   it("opens signed-in account settings, lists saved payments, and deletes a saved payment", async () => {
@@ -611,12 +1426,104 @@ describe("App buyer interactions", () => {
     expect(minicart.getAttribute("data-panel-state")).toBe("open");
     expect(within(minicart).getByText("2 items")).toBeTruthy();
     expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
-    expect(
-      within(minicart).getByText(
-        "Flexible payment options may be available for $27.98 at checkout.",
-      ),
-    ).toBeTruthy();
+    expectOfficialPayLaterMessage(minicart, "minicart-summary", "27.98");
     expect(getShellStatusText()).toContain("Added Labubu Have a Seat to cart.");
+  });
+
+  it("persists API-loaded PDP Add to cart before checkout navigation reloads the server cart", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_pdp",
+          cartPublicId: "cart_public_pdp",
+        }),
+        "/api/catalog/products/blind-boxes-1": productDetailApiResponse(),
+      },
+      postResponseByPath: {
+        "/api/cart/items": cartApiResponse({
+          cartClientSecret: "cart_secret_pdp",
+          cartItemId: "cart_item_blind_boxes_1",
+          cartPublicId: "cart_public_pdp",
+          name: "The Monsters Blind Boxes 1",
+          productId: "product_blind_boxes_1",
+          quantity: 1,
+          slug: "blind-boxes-1",
+          unitPriceMinor: 1274,
+        }),
+        "/api/cart/refresh": cartApiResponse({
+          cartClientSecret: "cart_secret_pdp",
+          cartItemId: "cart_item_blind_boxes_1",
+          cartPublicId: "cart_public_pdp",
+          name: "The Monsters Blind Boxes 1",
+          productId: "product_blind_boxes_1",
+          quantity: 1,
+          slug: "blind-boxes-1",
+          unitPriceMinor: 1274,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products/blind-boxes-1"
+        initialCart={emptyInitialCart({
+          cartClientSecret: "cart_secret_pdp",
+          cartPublicId: "cart_public_pdp",
+        })}
+      />,
+    );
+
+    await screen.findByRole("heading", {
+      name: "The Monsters Blind Boxes 1",
+    });
+    await user.click(screen.getByRole("button", { name: "Add to cart" }));
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            product_id: "product_blind_boxes_1",
+            quantity: 1,
+          },
+          method: "post",
+          options: {
+            headers: {
+              "x-cart-id": "cart_public_pdp",
+              "x-cart-secret": "cart_secret_pdp",
+            },
+          },
+          path: "/api/cart/items",
+          query: { market: "US" },
+        }),
+      );
+    });
+    expect(
+      window.localStorage.getItem("paypal-retail-demo:cart-binding:popmart:US"),
+    ).toBe(
+      JSON.stringify({
+        cart_public_id: "cart_public_pdp",
+        cart_client_secret: "cart_secret_pdp",
+      }),
+    );
+
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(within(minicart).getByRole("link", { name: "Checkout" }));
+
+    await screen.findByRole("heading", { name: "Delivery or Pickup" });
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: { trigger: "checkout_start" },
+          method: "post",
+          path: "/api/cart/refresh",
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("complementary", { name: "Order summary" }).textContent,
+    ).toContain("The Monsters Blind Boxes 1");
   });
 
   it("shares full-cart quantity changes with the minicart and Pay Later amount", async () => {
@@ -641,11 +1548,31 @@ describe("App buyer interactions", () => {
     expect(minicart.getAttribute("data-panel-state")).toBe("open");
     expect(within(minicart).getByText("2 items")).toBeTruthy();
     expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
+    expectOfficialPayLaterMessage(minicart, "minicart-summary", "27.98");
+  });
+
+  it("consolidates delivery express pending copy while cart access is restoring", () => {
+    const pendingApiResponse = new Promise<unknown>(() => {});
+
+    render(
+      <App
+        apiClient={createRecordingApiClient({
+          getResponse: pendingApiResponse,
+          postResponse: pendingApiResponse,
+        })}
+        initialPathname="/cart"
+        initialCart={singleItemCart({
+          cartClientSecret: null,
+          quantity: 1,
+        })}
+      />,
+    );
+
     expect(
-      within(minicart).getByText(
-        "Flexible payment options may be available for $27.98 at checkout.",
+      screen.getAllByText(
+        "Cart is refreshing before delivery express checkout.",
       ),
-    ).toBeTruthy();
+    ).toHaveLength(1);
   });
 
   it("syncs cart quantity, refreshes before checkout, and mounts express SDK scopes", async () => {
@@ -769,16 +1696,10 @@ describe("App buyer interactions", () => {
           },
         },
       });
-      expect(
-        screen.getByRole("button", { name: "Open minicart" }).textContent,
-      ).toContain("4");
+      expect(within(minicart).getByText("4 items")).toBeTruthy();
     });
     expect(within(minicart).getByText("Qty 4 · $13.99")).toBeTruthy();
-    expect(
-      within(minicart).getByText(
-        "Flexible payment options may be available for $55.96 at checkout.",
-      ),
-    ).toBeTruthy();
+    expectOfficialPayLaterMessage(minicart, "minicart-summary", "55.96");
   });
 
   it("keeps active cart count and minicart contents when navigating to checkout", async () => {
@@ -828,11 +1749,32 @@ describe("App buyer interactions", () => {
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
     const minicart = screen.getByLabelText("Minicart");
     expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
-    expect(
-      within(minicart).getByText(
-        "Flexible payment options may be available for $27.98 at checkout.",
-      ),
-    ).toBeTruthy();
+    expectOfficialPayLaterMessage(minicart, "minicart-summary", "27.98");
+  });
+
+  it("reconciles the initial checkout summary from the restored active cart", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": cartApiResponse({
+          cartClientSecret: "cart_secret_checkout",
+          cartPublicId: "cart_public_checkout",
+          quantity: 4,
+          unitPriceMinor: 1742,
+        }),
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/checkout" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("Cart (4)");
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("$69.68")).not.toHaveLength(0);
+    });
+    expect(screen.queryByText("$25.98")).toBeNull();
   });
 
   it("blocks checkout draft creation when the guest cart binding is incomplete", async () => {
@@ -1005,6 +1947,145 @@ describe("App buyer interactions", () => {
     });
   });
 
+  it("reacquires a fresh guest cart binding when restore returns a different cart without a new binding", async () => {
+    window.localStorage.setItem(
+      "paypal-retail-demo:cart-binding:popmart:US",
+      JSON.stringify({
+        cart_public_id: "cart_public_stale",
+        cart_client_secret: "cart_secret_stale",
+      }),
+    );
+    const apiClient = createRecordingApiClient({
+      getResponses: [
+        cartApiResponse({
+          cartClientSecret: null,
+          cartPublicId: "cart_public_rotated",
+          quantity: 2,
+          unitPriceMinor: 888,
+        }),
+        cartApiResponse({
+          cartClientSecret: "cart_secret_fresh",
+          cartPublicId: "cart_public_fresh",
+          quantity: 2,
+          unitPriceMinor: 888,
+        }),
+      ],
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open minicart" }).textContent,
+      ).toContain("2");
+    });
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/cart",
+        query: { market: "US" },
+        options: {
+          headers: {
+            "x-cart-id": "cart_public_stale",
+            "x-cart-secret": "cart_secret_stale",
+          },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/cart",
+        query: { market: "US" },
+        options: undefined,
+      });
+    });
+    expect(
+      screen.queryByText(
+        "Cart is refreshing before delivery express checkout.",
+      ),
+    ).toBeNull();
+    expect(
+      screen.getByText("PayPal delivery express button ready."),
+    ).toBeTruthy();
+    expect(
+      window.localStorage.getItem("paypal-retail-demo:cart-binding:popmart:US"),
+    ).toBe(
+      JSON.stringify({
+        cart_public_id: "cart_public_fresh",
+        cart_client_secret: "cart_secret_fresh",
+      }),
+    );
+  });
+
+  it("clears stale guest cart binding and reacquires a fresh binding when restore fails", async () => {
+    window.localStorage.setItem(
+      "paypal-retail-demo:cart-binding:popmart:US",
+      JSON.stringify({
+        cart_public_id: "cart_public_stale",
+        cart_client_secret: "cart_secret_stale",
+      }),
+    );
+    const apiClient = createRecordingApiClient({
+      getErrors: [new Error("Guest cart secret does not match"), undefined],
+      getResponses: [
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_fresh",
+          cartPublicId: "cart_public_fresh",
+        }),
+      ],
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/cart",
+        query: { market: "US" },
+        options: {
+          headers: {
+            "x-cart-id": "cart_public_stale",
+            "x-cart-secret": "cart_secret_stale",
+          },
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/cart",
+        query: { market: "US" },
+        options: undefined,
+      });
+    });
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(
+          "paypal-retail-demo:cart-binding:popmart:US",
+        ),
+      ).toBe(
+        JSON.stringify({
+          cart_public_id: "cart_public_fresh",
+          cart_client_secret: "cart_secret_fresh",
+        }),
+      );
+    });
+  });
+
   it("acquires and persists a guest cart binding on fresh browser load before quantity edits", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1071,7 +2152,7 @@ describe("App buyer interactions", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Increase Labubu Have a Seat quantity",
+        name: "Increase Molly Blind Boxes 2 quantity",
       }),
     );
 
@@ -1092,11 +2173,11 @@ describe("App buyer interactions", () => {
     await waitFor(() => {
       expect(
         screen.getByRole("button", {
-          name: "Increase Labubu Have a Seat quantity",
+          name: "Increase Molly Blind Boxes 2 quantity",
         }),
       ).toBeTruthy();
     });
-    expect(screen.queryByText("Molly Blind Boxes 2")).toBeNull();
+    expect(screen.queryByText("Labubu Have a Seat")).toBeNull();
     expect(
       window.localStorage.getItem("paypal-retail-demo:cart-binding:popmart:US"),
     ).toBe(
@@ -1212,6 +2293,234 @@ describe("App buyer interactions", () => {
     );
   });
 
+  it("submits an account order item review and replaces the order detail from the API response", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/account/orders/PO-20260602-000118": {
+          order: accountOrderApiResponse(),
+        },
+      },
+      postResponseByPath: {
+        "/api/account/orders/PO-20260602-000118/items/line_1/review": {
+          order: reviewedAccountOrderApiResponse(),
+        },
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders/PO-20260602-000118"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await screen.findByRole("heading", { name: "PO-20260602-000118" });
+    await user.click(
+      screen.getByRole("button", {
+        name: "Review item Skullpanda Future Drop",
+      }),
+    );
+    await user.selectOptions(screen.getByLabelText("Rating"), "5");
+    await user.type(screen.getByLabelText("Review title"), "Tiny shelf star");
+    await user.type(
+      screen.getByLabelText("Review body"),
+      "The paint details look great beside my other figures.",
+    );
+    await user.click(screen.getByRole("button", { name: "Submit review" }));
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            rating: 5,
+            title: "Tiny shelf star",
+            body: "The paint details look great beside my other figures.",
+          },
+          method: "post",
+          path: "/api/account/orders/PO-20260602-000118/items/line_1/review",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(await screen.findByText("Tiny shelf star")).toBeTruthy();
+    expect(screen.getByText("Already reviewed")).toBeTruthy();
+  });
+
+  it("edits and deletes an account order item review through the account API", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      deleteResponseByPath: {
+        "/api/account/orders/PO-20260602-000118/items/line_1/review": {
+          order: accountOrderApiResponse(),
+        },
+      },
+      getResponseByPath: {
+        "/api/account/orders/PO-20260602-000118": {
+          order: reviewedAccountOrderApiResponse(),
+        },
+      },
+      patchResponseByPath: {
+        "/api/account/orders/PO-20260602-000118/items/line_1/review": {
+          order: updatedReviewAccountOrderApiResponse(),
+        },
+      },
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders/PO-20260602-000118"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    expect(await screen.findByText("Tiny shelf star")).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Edit review Skullpanda Future Drop",
+      }),
+    );
+    await user.selectOptions(screen.getByLabelText("Rating"), "4");
+    await user.clear(screen.getByLabelText("Review title"));
+    await user.type(screen.getByLabelText("Review title"), "Desk favorite");
+    await user.clear(screen.getByLabelText("Review body"));
+    await user.type(
+      screen.getByLabelText("Review body"),
+      "Still charming after a week on my desk.",
+    );
+    await user.click(screen.getByRole("button", { name: "Save review" }));
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            rating: 4,
+            title: "Desk favorite",
+            body: "Still charming after a week on my desk.",
+          },
+          method: "patch",
+          path: "/api/account/orders/PO-20260602-000118/items/line_1/review",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(await screen.findByText("Desk favorite")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete review Skullpanda Future Drop",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "delete",
+          path: "/api/account/orders/PO-20260602-000118/items/line_1/review",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_existing",
+            },
+          },
+        }),
+      );
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: "Review item Skullpanda Future Drop",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("looks up a guest order by order number and email without exposing technical IDs", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/guest-orders/DO-20260526-000003": guestOrderApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/guest-orders"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Guest order lookup" }),
+    ).toBeTruthy();
+
+    await user.type(
+      screen.getByLabelText("Order number"),
+      "do-20260526-000003",
+    );
+    await user.type(
+      screen.getByLabelText("Email used at checkout"),
+      " Guest.Collector@Example.Test ",
+    );
+    await user.click(screen.getByRole("button", { name: "Find guest order" }));
+
+    expect(await screen.findByText("DO-20260526-000003")).toBeTruthy();
+    expect(screen.getByText("Labubu Macaron Vinyl Face")).toBeTruthy();
+    expect(screen.getByText("Guest Collector")).toBeTruthy();
+    expect(screen.getAllByText("$29.36").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("paypal_order_id")).toBeNull();
+    expect(screen.queryByText("payment_session")).toBeNull();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/guest-orders/DO-20260526-000003",
+        query: {
+          email: "Guest.Collector@Example.Test",
+        },
+      }),
+    );
+  });
+
   it("reconciles server cart responses back into cart and minicart UI", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1249,11 +2558,14 @@ describe("App buyer interactions", () => {
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
     const minicart = screen.getByLabelText("Minicart");
     expect(within(minicart).getByText("Qty 3 · $10.99")).toBeTruthy();
-    expect(
-      within(minicart).getByText(
-        "Flexible payment options may be available for $32.97 at checkout.",
-      ),
-    ).toBeTruthy();
+    expectOfficialPayLaterMessage(minicart, "minicart-summary", "32.97");
+
+    await user.click(
+      within(minicart).getByRole("button", { name: "Close minicart" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Minicart")).toBeNull();
+    });
 
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
 
@@ -1289,7 +2601,7 @@ describe("App buyer interactions", () => {
       }),
     );
 
-    expect(openedMinicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Minicart closed.");
 
     await user.click(screen.getByRole("button", { name: "Open minicart" }));
@@ -1303,7 +2615,7 @@ describe("App buyer interactions", () => {
 
     expect(screen.getByRole("heading", { name: "Shopping cart" })).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/cart");
-    expect(reopenedMinicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Opened cart.");
 
     const orderSummary = screen.getByRole("complementary", {
@@ -1346,7 +2658,7 @@ describe("App buyer interactions", () => {
       screen.getByRole("heading", { name: "Delivery or Pickup" }),
     ).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/checkout");
-    expect(minicart.getAttribute("data-panel-state")).toBe("closed");
+    expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Opened checkout.");
   });
 
@@ -1360,8 +2672,8 @@ describe("App buyer interactions", () => {
           "labubu-have-a-seat": releasedProduct(),
         },
         trigger: async () => {
-          const purchaseActions = screen.getByLabelText("Purchase actions");
-          expectExpressScopes(purchaseActions);
+          const purchasePanel = screen.getByLabelText("Purchase panel");
+          expectExpressScopes(purchasePanel);
         },
       },
       {
@@ -1436,6 +2748,41 @@ describe("App buyer interactions", () => {
     expect(screen.getByText("Amount verified")).toBeTruthy();
   });
 
+  it("does not leave sample express review data visible when snapshot loading fails", async () => {
+    const apiClient = createRecordingApiClient({
+      getErrorByPath: {
+        "/api/paypal/orders/express-review": new Error(
+          "express review not found",
+        ),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_MISSING"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Express review unavailable")).toBeTruthy();
+    });
+
+    expect(screen.queryByText("DO-20260607-000123")).toBeNull();
+    expect(screen.getByText("PAYPAL_ORDER_MISSING")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Confirm and pay",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByText("Express review snapshot could not be loaded."),
+    ).toBeTruthy();
+  });
+
   it("captures the express review order only after the buyer confirms", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1477,9 +2824,161 @@ describe("App buyer interactions", () => {
     });
     expect(screen.getAllByText("Payment captured")).toHaveLength(2);
     expect(screen.getByText("PAYPAL_CAPTURE_EXPRESS")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Thank you!" })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "View Order" }).getAttribute("href"),
+    ).toBe("/guest-orders");
+    expect(
+      screen
+        .getByRole("link", { name: "Continue Shopping" })
+        .getAttribute("href"),
+    ).toBe("/products");
+    expect(
+      screen.queryByRole("button", { name: "Confirm and pay" }),
+    ).toBeNull();
     expect(getShellStatusText()).toContain(
       "Payment captured for order DO-20260601-000002.",
     );
+  });
+
+  it("does not offer guest account creation after signed-in express capture", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponse: expressReviewApiResponse(),
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_existing",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+        "/api/paypal/orders/PAYPAL_ORDER_EXPRESS/capture": captureApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Account" })).toBeTruthy();
+      expect(screen.getByText("DO-20260601-000002")).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: "Confirm and pay" }));
+    await screen.findByText("PAYPAL_CAPTURE_EXPRESS");
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Create account to save this order",
+      }),
+    ).toBeNull();
+  });
+
+  it("offers guest account creation after capture and links matching guest orders after registration", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      signUpSession: {
+        accessToken: "access_token_guest_link",
+        email: "guest.collector@example.test",
+        userId: "user_guest_link",
+      },
+    });
+    const apiClient = createRecordingApiClient({
+      getResponse: expressReviewApiResponse(),
+      postResponseByPath: {
+        "/api/account/auth/lookup": {
+          email: "guest.collector@example.test",
+          status: "new",
+        },
+        "/api/account/guest-orders/link": {
+          linked_order_count: 1,
+        },
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_guest_link",
+          quantity: 0,
+          unitPriceMinor: 1399,
+        }),
+        "/api/paypal/orders/PAYPAL_ORDER_EXPRESS/capture": captureApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/checkout/express-review?paypal_order_id=PAYPAL_ORDER_EXPRESS"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("DO-20260601-000002")).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: "Confirm and pay" }));
+    expect(
+      await screen.findByRole("button", {
+        name: "Create account to save this order",
+      }),
+    ).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Create account to save this order",
+      }),
+    );
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "guest.collector@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+    const registerDialog = await screen.findByRole("dialog", {
+      name: "Create account",
+    });
+    await user.type(
+      within(registerDialog).getByLabelText("Password"),
+      "secret",
+    );
+    await user.click(
+      within(registerDialog).getByLabelText(
+        "I agree to the Terms of Service and Privacy Policy.",
+      ),
+    );
+    await user.click(
+      within(registerDialog).getByRole("button", { name: "Create account" }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/account/guest-orders/link",
+          options: {
+            headers: {
+              authorization: "Bearer access_token_guest_link",
+            },
+          },
+        }),
+      );
+    });
+    expect(getShellStatusText()).toContain("Linked 1 guest order to account.");
   });
 
   it("does not capture from express review when the amount guard blocks payment", async () => {
@@ -1653,7 +3152,7 @@ describe("App buyer interactions", () => {
     await waitFor(() => {
       expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
     });
-    expect(within(orderSummary).getByText("SAVE10")).toBeTruthy();
+    expect(within(orderSummary).getAllByText("SAVE10")).toHaveLength(2);
     await waitForStepState(shippingStep, "saved");
 
     const billingStep = getStep("Billing address");
@@ -1846,7 +3345,7 @@ describe("App buyer interactions", () => {
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
     });
-    expect(within(orderSummary).getByText("PICKUP5")).toBeTruthy();
+    expect(within(orderSummary).getAllByText("PICKUP5")).toHaveLength(2);
     expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
 
     const billingStep = getStep("Billing address");
@@ -2025,6 +3524,542 @@ describe("App buyer interactions", () => {
   });
 });
 
+describe("App admin interactions", () => {
+  it("shows the admin passcode screen for protected admin routes when no session exists", () => {
+    const apiClient = createRecordingApiClient();
+
+    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Protected Portal" }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Admin passcode")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open Admin Portal" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Session", { exact: false })).toBeNull();
+  });
+
+  it("unlocks admin shell with a valid passcode and persists session token", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-1",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+      },
+      postResponseByPath: {
+        "/api/admin/login": {
+          status: "ok",
+          token: "admin-session-token-1",
+          session: {
+            session_id: "session-1",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+
+    await user.type(screen.getByLabelText("Admin passcode"), "  admin-code  ");
+    await user.click(screen.getByRole("button", { name: "Open Admin Portal" }));
+
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem("paypal-retail-demo:admin-session"),
+      ).toBe("admin-session-token-1");
+      expect(
+        screen.getByRole("heading", { name: "Admin Portal" }),
+      ).toBeTruthy();
+    });
+
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/admin/login",
+        body: {
+          passcode: "admin-code",
+        },
+      }),
+    );
+  });
+
+  it("restores admin session from local storage and verifies it with server state", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "restore-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/webhooks" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Admin Portal" }),
+      ).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Orders" })).toBeTruthy();
+      expect(
+        window.localStorage.getItem("paypal-retail-demo:admin-session"),
+      ).toBe("restore-token");
+    });
+
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/state",
+        options: {
+          headers: {
+            "x-admin-session": "restore-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("switches admin profile and market with the signed admin session", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+      },
+      patchResponseByPath: {
+        "/api/admin/profile-market": adminConfigApiResponse({
+          brandMode: "generic",
+          currencyCode: "GBP",
+          displayName: "MochiToy Studio",
+          locale: "en-GB",
+          marketCode: "GB",
+          profileSlug: "generic",
+        }),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "switch-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin" />);
+
+    await screen.findByRole("heading", { name: "Admin Portal" });
+    await user.selectOptions(
+      screen.getByLabelText("Profile"),
+      "effee182-44b2-5da7-8630-b642949e8aed",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Market"),
+      "d9a34eb4-f3b0-5531-b53a-65825d600c41",
+    );
+    await user.click(screen.getByRole("button", { name: "Apply context" }));
+
+    await screen.findByText(
+      "MochiToy Studio / GB is active for new storefront requests.",
+    );
+    expect(
+      screen.getByText(/Current: MochiToy Studio\s+\/\s+GB\s+\/\s+GBP/),
+    ).toBeTruthy();
+    expect(screen.getByText("generic")).toBeTruthy();
+    expect(screen.getByText("en-GB")).toBeTruthy();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/admin/profile-market",
+        body: {
+          profile_id: "effee182-44b2-5da7-8630-b642949e8aed",
+          market_id: "d9a34eb4-f3b0-5531-b53a-65825d600c41",
+        },
+        options: {
+          headers: {
+            "x-admin-session": "switch-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("loads admin orders and advances a lifecycle step with the signed session", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/orders/order_1": adminOrderDetailApiResponse(),
+      },
+      postResponseByPath: {
+        "/api/admin/orders/order_1/lifecycle": adminOrderDetailApiResponse({
+          status: "processing",
+          nextStatuses: ["shipped"],
+          timeline: [
+            {
+              id: "timeline_paid",
+              from_status: "pending",
+              to_status: "paid",
+              actor_type: "system",
+              note: "Payment captured.",
+              created_at: "2026-06-24T10:20:00.000Z",
+            },
+            {
+              id: "timeline_processing",
+              from_status: "paid",
+              to_status: "processing",
+              actor_type: "admin",
+              note: null,
+              created_at: "2026-06-24T10:30:00.000Z",
+            },
+          ],
+        }),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "orders-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+
+    await screen.findByText("Orders are ready for inspection.");
+    await user.click(
+      screen.getByRole("button", {
+        name: /DO-20260624-000001/,
+      }),
+    );
+    await screen.findByText("Molly Imaginary Travel Blind Box");
+    expect(screen.getByText("Payment sessions")).toBeTruthy();
+    expect(screen.getByText(/PAYPAL_ORDER_1/)).toBeTruthy();
+    expect(screen.getByText("Total snapshots")).toBeTruthy();
+    expect(screen.getByText(/POP15/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Mark Processing" }));
+
+    await screen.findByText("DO-20260624-000001 is now Processing.");
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/orders",
+        options: {
+          headers: {
+            "x-admin-session": "orders-token",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/orders/order_1",
+        options: {
+          headers: {
+            "x-admin-session": "orders-token",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/admin/orders/order_1/lifecycle",
+        body: {
+          next_status: "processing",
+        },
+        options: {
+          headers: {
+            "x-admin-session": "orders-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("updates admin inventory and pickup date controls with the signed session", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/inventory": adminInventoryListApiResponse(),
+        "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
+      },
+      patchResponseByPath: {
+        "/api/admin/inventory/central%3Aprofile_popmart%3Amarket_us%3Aproduct_molly":
+          {
+            inventory: {
+              ...adminInventoryListApiResponse().inventory[0],
+              available_quantity: 9,
+              updated_at: "2026-06-24T10:40:00.000Z",
+            },
+          },
+        "/api/admin/pickup-dates/pickup_date_1": {
+          pickup_date: {
+            ...adminPickupDateListApiResponse().pickup_dates[0],
+            capacity: 18,
+            is_available: false,
+            updated_at: "2026-06-24T10:45:00.000Z",
+          },
+        },
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "inventory-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/inventory" />);
+
+    await screen.findByText("Inventory controls are ready.");
+    const inventoryInput = screen.getByLabelText(
+      "Available quantity for MOLLY-BB-001 Central warehouse",
+    );
+    await user.clear(inventoryInput);
+    await user.type(inventoryInput, "9");
+    await user.click(screen.getByRole("button", { name: "Save stock" }));
+
+    await screen.findByText("MOLLY-BB-001 inventory saved at 9.");
+    const pickupInput = screen.getByLabelText(
+      "Pickup capacity for San Jose POP MART 2026-06-28",
+    );
+    await user.clear(pickupInput);
+    await user.type(pickupInput, "18");
+    await user.click(screen.getByLabelText("Available"));
+    await user.click(screen.getByRole("button", { name: "Save date" }));
+
+    await screen.findByText("San Jose POP MART 2026-06-28 saved.");
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/inventory",
+        options: {
+          headers: {
+            "x-admin-session": "inventory-token",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/pickup-dates",
+        options: {
+          headers: {
+            "x-admin-session": "inventory-token",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/admin/inventory/central%3Aprofile_popmart%3Amarket_us%3Aproduct_molly",
+        body: {
+          available_quantity: 9,
+        },
+        options: {
+          headers: {
+            "x-admin-session": "inventory-token",
+          },
+        },
+      }),
+    );
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/admin/pickup-dates/pickup_date_1",
+        body: {
+          capacity: 18,
+          is_available: false,
+        },
+        options: {
+          headers: {
+            "x-admin-session": "inventory-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("loads admin webhook events with the signed session", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/inventory": adminInventoryListApiResponse(),
+        "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
+        "/api/admin/webhooks": adminWebhookListApiResponse(),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "webhooks-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/webhooks" />);
+
+    await screen.findByText("Webhook events are ready.");
+    expect(screen.getByText("WH-INVALID-1")).toBeTruthy();
+    expect(screen.getByText("Invalid")).toBeTruthy();
+    expect(screen.getByText("Ignored")).toBeTruthy();
+    expect(screen.getByText("WH-ORDER-1")).toBeTruthy();
+    expect(screen.getByText("CHECKOUT.ORDER.APPROVED")).toBeTruthy();
+    expect(screen.getAllByText("Processed").length).toBeGreaterThan(0);
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/webhooks",
+        options: {
+          headers: {
+            "x-admin-session": "webhooks-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("loads admin payment and order debug sessions with the signed session", async () => {
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/inventory": adminInventoryListApiResponse(),
+        "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
+        "/api/admin/webhooks": adminWebhookListApiResponse(),
+        "/api/admin/payment-debug": adminPaymentDebugApiResponse(),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "debug-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/debug" />);
+
+    await screen.findByText("Payment debug sessions are ready.");
+    const paymentDebugRegion = screen.getByLabelText(
+      "Admin payment debug sessions",
+    );
+    expect(
+      within(paymentDebugRegion).getByText("DO-20260624-000001"),
+    ).toBeTruthy();
+    expect(within(paymentDebugRegion).getByText("PAYPAL_ORDER_1")).toBeTruthy();
+    expect(
+      within(paymentDebugRegion).getByText("PAYPAL_CAPTURE_1"),
+    ).toBeTruthy();
+    expect(within(paymentDebugRegion).getByText("Matched")).toBeTruthy();
+    expect(within(paymentDebugRegion).getByText("Capture")).toBeTruthy();
+    expect(within(paymentDebugRegion).getByText("WH-ORDER-1")).toBeTruthy();
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "get",
+        path: "/api/admin/payment-debug",
+        options: {
+          headers: {
+            "x-admin-session": "debug-token",
+          },
+        },
+      }),
+    );
+  });
+
+  it("logs out and clears the admin session token", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+      },
+      postResponse: {
+        status: "ok",
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "logout-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/inventory" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Protected Portal" }),
+      ).toBeTruthy();
+      expect(
+        window.localStorage.getItem("paypal-retail-demo:admin-session"),
+      ).toBeNull();
+    });
+
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/admin/logout",
+        options: {
+          headers: {
+            "x-admin-session": "logout-token",
+          },
+        },
+      }),
+    );
+  });
+});
+
 async function advanceDeliveryCheckoutToPayment(
   user: ReturnType<typeof userEvent.setup>,
 ) {
@@ -2072,6 +4107,20 @@ async function waitForStepState(step: HTMLElement, state: string) {
 
 function getShellStatusText(): string {
   return document.querySelector("#shell-status")?.textContent ?? "";
+}
+
+function expectOfficialPayLaterMessage(
+  container: Element,
+  placement: string,
+  amount: string,
+) {
+  const message = container.querySelector(
+    `[data-paylater-message-placement="${placement}"]`,
+  );
+
+  expect(message).toBeTruthy();
+  expect(message?.getAttribute("data-paylater-message-amount")).toBe(amount);
+  expect(message?.querySelector("paypal-message")).toBeTruthy();
 }
 
 function createMemoryStorage(): Storage {
@@ -2154,6 +4203,7 @@ function accountOrderApiResponse() {
         line_total_minor: 1599,
         review_eligible: true,
         review_submitted: false,
+        review: null,
       },
     ],
     timeline: [
@@ -2180,6 +4230,87 @@ function accountOrderApiResponse() {
         country_code: "US",
       },
     ],
+  };
+}
+
+function reviewedAccountOrderApiResponse() {
+  const order = accountOrderApiResponse();
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      review_eligible: false,
+      review_submitted: true,
+      review: {
+        rating: 5,
+        title: "Tiny shelf star",
+        body: "The paint details look great beside my other figures.",
+      },
+    })),
+  };
+}
+
+function updatedReviewAccountOrderApiResponse() {
+  const order = accountOrderApiResponse();
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      review_eligible: false,
+      review_submitted: true,
+      review: {
+        rating: 4,
+        title: "Desk favorite",
+        body: "Still charming after a week on my desk.",
+      },
+    })),
+  };
+}
+
+function guestOrderApiResponse() {
+  return {
+    order: {
+      order_number: "DO-20260526-000003",
+      fulfillment_mode: "delivery",
+      status: "delivered",
+      payment_status: "captured",
+      currency_code: "USD",
+      review_eligible: true,
+      totals: {
+        subtotal_minor: 2599,
+        discount_minor: 500,
+        tax_minor: 242,
+        shipping_minor: 595,
+        total_minor: 2936,
+      },
+      items: [
+        {
+          product_sku: "POP-LABUBU-009",
+          product_name: "Labubu Macaron Vinyl Face",
+          product_url: "/products/labubu-macaron-vinyl-face",
+          product_image_url:
+            "/assets/popmart/products/labubu-macaron-vinyl-face-1.svg",
+          unit_price_minor: 2599,
+          quantity: 1,
+          fulfillable_quantity: 1,
+          unavailable_quantity: 0,
+          line_subtotal_minor: 2599,
+          line_discount_minor: 500,
+          line_tax_minor: 242,
+          line_total_minor: 2341,
+        },
+      ],
+      addresses: [
+        {
+          address_type: "shipping",
+          recipient_name: "Guest Collector",
+          city: "Miami",
+          state: "FL",
+          postal_code: "33127",
+          country_code: "US",
+        },
+      ],
+    },
   };
 }
 
@@ -2264,6 +4395,26 @@ function singleItemCart({
   };
 }
 
+function emptyInitialCart({
+  cartClientSecret,
+  cartPublicId,
+}: {
+  readonly cartClientSecret: string;
+  readonly cartPublicId: string;
+}): CartData {
+  return {
+    cartPublicId,
+    cartClientSecret,
+    title: "Shopping cart",
+    checkoutHref: "/checkout",
+    cartHref: "/cart",
+    currencyCode: "USD",
+    locale: "en-US",
+    pickupHint: "Prefer pickup? Choose store pickup during checkout.",
+    items: [],
+  };
+}
+
 interface RecordingApiCall {
   readonly method: "delete" | "get" | "patch" | "post";
   readonly path: string;
@@ -2273,9 +4424,13 @@ interface RecordingApiCall {
 }
 
 interface RecordingApiClientInput {
+  readonly getError?: Error;
+  readonly getErrorByPath?: Readonly<Record<string, Error>>;
+  readonly getErrors?: readonly (Error | undefined)[];
   readonly deleteResponseByPath?: Readonly<Record<string, unknown>>;
   readonly getResponse?: unknown;
   readonly getResponseByPath?: Readonly<Record<string, unknown>>;
+  readonly getResponses?: readonly unknown[];
   readonly patchError?: Error;
   readonly patchResponseByPath?: Readonly<Record<string, unknown>>;
   readonly patchResponse?: unknown;
@@ -2348,6 +4503,8 @@ function createRecordingApiClient(
   readonly calls: RecordingApiCall[];
 } {
   const calls: RecordingApiCall[] = [];
+  let getErrorIndex = 0;
+  let getResponseIndex = 0;
 
   return {
     calls,
@@ -2360,8 +4517,30 @@ function createRecordingApiClient(
       if (path === "/api/paypal/sdk-config") {
         return sdkConfigApiResponse(query) as TData;
       }
+      if (input.getErrorByPath && path in input.getErrorByPath) {
+        throw input.getErrorByPath[path];
+      }
+      if (input.getErrors?.length) {
+        const error =
+          input.getErrors[Math.min(getErrorIndex, input.getErrors.length - 1)];
+        getErrorIndex += 1;
+        if (error) {
+          throw error;
+        }
+      }
+      if (input.getError) {
+        throw input.getError;
+      }
       if (input.getResponseByPath && path in input.getResponseByPath) {
         return input.getResponseByPath[path] as TData;
+      }
+      if (input.getResponses?.length) {
+        const response =
+          input.getResponses[
+            Math.min(getResponseIndex, input.getResponses.length - 1)
+          ];
+        getResponseIndex += 1;
+        return response as TData;
       }
       return (input.getResponse ?? {}) as TData;
     },
@@ -2405,6 +4584,364 @@ function createRecordingApiClient(
         return input.postResponseByPath[path] as TData;
       }
       return (input.postResponse ?? {}) as TData;
+    },
+  };
+}
+
+function adminOrderListApiResponse({
+  status = "paid",
+  nextStatuses = ["processing"],
+}: {
+  readonly status?: string;
+  readonly nextStatuses?: readonly string[];
+} = {}) {
+  return {
+    orders: [
+      {
+        id: "order_1",
+        profile_id: "profile_popmart",
+        market_id: "market_us",
+        order_number: "DO-20260624-000001",
+        fulfillment_mode: "delivery",
+        status,
+        payment_status: "captured",
+        currency_code: "USD",
+        total_minor: 2633,
+        placed_at: "2026-06-24T10:15:00.000Z",
+        updated_at: "2026-06-24T10:20:00.000Z",
+        next_statuses: nextStatuses,
+      },
+    ],
+  };
+}
+
+function adminOrderDetailApiResponse({
+  status = "paid",
+  nextStatuses = ["processing"],
+  timeline = [
+    {
+      id: "timeline_paid",
+      from_status: "pending",
+      to_status: "paid",
+      actor_type: "system",
+      note: "Payment captured.",
+      created_at: "2026-06-24T10:20:00.000Z",
+    },
+  ],
+}: {
+  readonly status?: string;
+  readonly nextStatuses?: readonly string[];
+  readonly timeline?: readonly Record<string, unknown>[];
+} = {}) {
+  return {
+    order: {
+      ...adminOrderListApiResponse({ status, nextStatuses }).orders[0],
+      totals: {
+        subtotal_minor: 1969,
+        discount_minor: 0,
+        tax_minor: 165,
+        shipping_minor: 499,
+        total_minor: 2633,
+      },
+      items: [
+        {
+          id: "order_item_1",
+          product_sku: "MOLLY-BB-001",
+          product_name: "Molly Imaginary Travel Blind Box",
+          product_url: "/products/blind-boxes-2",
+          product_image_url: "/assets/popmart/products/blind-boxes-2-1.png",
+          unit_price_minor: 1969,
+          quantity: 1,
+          fulfillable_quantity: 1,
+          unavailable_quantity: 0,
+          line_subtotal_minor: 1969,
+          line_discount_minor: 0,
+          line_tax_minor: 165,
+          line_total_minor: 2134,
+        },
+      ],
+      addresses: [
+        {
+          id: "order_address_1",
+          address_type: "shipping",
+          recipient_name: "Sandbox Buyer",
+          phone: null,
+          address_line1: "221 Demo Street",
+          address_line2: null,
+          city: "San Jose",
+          state: "CA",
+          postal_code: "95131",
+          country_code: "US",
+        },
+      ],
+      timeline,
+      payment_sessions: [
+        {
+          id: "payment_session_1",
+          provider: "paypal",
+          method: "paypal",
+          status: "captured",
+          attempt_number: 1,
+          paypal_order_id: "PAYPAL_ORDER_1",
+          paypal_capture_id: "PAYPAL_CAPTURE_1",
+          paypal_invoice_id: "DO-20260624-000001-01",
+          paypal_request_id: "request_1",
+          merchant_total_minor: 2633,
+          provider_total_minor: 2633,
+          amount_consistency_status: "matched",
+          currency_code: "USD",
+          created_at: "2026-06-24T10:16:00.000Z",
+          updated_at: "2026-06-24T10:20:00.000Z",
+        },
+      ],
+      total_snapshots: [
+        {
+          id: "total_snapshot_1",
+          payment_session_id: "payment_session_1",
+          calculation_stage: "capture",
+          currency_code: "USD",
+          merchandise_subtotal_minor: 1969,
+          product_discount_minor: 0,
+          promo_discount_minor: 0,
+          taxable_subtotal_minor: 1969,
+          tax_minor: 165,
+          shipping_minor: 499,
+          total_minor: 2633,
+          promo_evaluation_id: "promo_evaluation_1",
+          created_at: "2026-06-24T10:20:00.000Z",
+        },
+      ],
+      paypal_snapshots: [
+        {
+          id: "paypal_snapshot_1",
+          payment_session_id: "payment_session_1",
+          paypal_invoice_id: "DO-20260624-000001-01",
+          paypal_request_id: "request_1",
+          created_at: "2026-06-24T10:20:00.000Z",
+        },
+      ],
+      promo_evaluations: [
+        {
+          id: "promo_evaluation_1",
+          merchandise_discount_minor: 0,
+          taxable_subtotal_minor: 1969,
+          final_total_minor: 2633,
+          created_at: "2026-06-24T10:19:00.000Z",
+        },
+      ],
+      promo_evaluation_lines: [
+        {
+          id: "promo_line_1",
+          promo_evaluation_id: "promo_evaluation_1",
+          code_snapshot: "POP15",
+          evaluation_status: "selected",
+          rejection_reason: null,
+          discount_minor: 0,
+          explanation: "Selected for Admin demo visibility.",
+        },
+      ],
+      inventory_effects: [
+        {
+          order_item_id: "order_item_1",
+          product_sku: "MOLLY-BB-001",
+          product_name: "Molly Imaginary Travel Blind Box",
+          fulfillment_mode: "delivery",
+          requested_quantity: 1,
+          fulfillable_quantity: 1,
+          unavailable_quantity: 0,
+        },
+      ],
+      linked_webhooks: [
+        {
+          id: "webhook_1",
+          event_id: "WH-ORDER-1",
+          event_type: "CHECKOUT.ORDER.APPROVED",
+          verification_status: "valid",
+          processing_status: "processed",
+          received_at: "2026-06-24T10:18:00.000Z",
+          processed_at: "2026-06-24T10:18:05.000Z",
+        },
+      ],
+    },
+  };
+}
+
+function adminInventoryListApiResponse() {
+  return {
+    inventory: [
+      {
+        id: "central:profile_popmart:market_us:product_molly",
+        inventory_type: "central",
+        profile_id: "profile_popmart",
+        market_id: "market_us",
+        product_id: "product_molly",
+        product_sku: "MOLLY-BB-001",
+        product_name: "Molly Imaginary Travel Blind Box",
+        available_quantity: 12,
+        updated_at: "2026-06-24T10:00:00.000Z",
+      },
+    ],
+  };
+}
+
+function adminPickupDateListApiResponse() {
+  return {
+    pickup_dates: [
+      {
+        id: "pickup_date_1",
+        market_id: "market_us",
+        store_id: "store_san_jose",
+        store_name: "San Jose POP MART",
+        pickup_date: "2026-06-28",
+        capacity: 10,
+        is_available: true,
+        updated_at: "2026-06-24T10:00:00.000Z",
+      },
+    ],
+  };
+}
+
+function adminWebhookListApiResponse() {
+  return {
+    webhooks: [
+      {
+        id: "webhook_invalid_1",
+        event_id: "WH-INVALID-1",
+        event_type: "BILLING.SUBSCRIPTION.CREATED",
+        verification_status: "invalid",
+        linked_order_id: null,
+        linked_payment_session_id: null,
+        processing_status: "ignored",
+        received_at: "2026-06-24T10:25:00.000Z",
+        processed_at: null,
+      },
+      {
+        id: "webhook_valid_1",
+        event_id: "WH-ORDER-1",
+        event_type: "CHECKOUT.ORDER.APPROVED",
+        verification_status: "valid",
+        linked_order_id: "order_1",
+        linked_payment_session_id: "payment_session_1",
+        processing_status: "processed",
+        received_at: "2026-06-24T10:18:00.000Z",
+        processed_at: "2026-06-24T10:18:05.000Z",
+      },
+    ],
+  };
+}
+
+function adminPaymentDebugApiResponse() {
+  return {
+    payment_sessions: [
+      {
+        id: "payment_session_1",
+        order_id: "order_1",
+        order: {
+          ...adminOrderListApiResponse().orders[0],
+        },
+        provider: "paypal",
+        method: "paypal",
+        status: "captured",
+        attempt_number: 1,
+        paypal_order_id: "PAYPAL_ORDER_1",
+        paypal_capture_id: "PAYPAL_CAPTURE_1",
+        paypal_invoice_id: "DO-20260624-000001-01",
+        paypal_request_id: "request_1",
+        vault_requested: false,
+        merchant_total_minor: 2633,
+        provider_total_minor: 2633,
+        amount_consistency_status: "matched",
+        currency_code: "USD",
+        created_at: "2026-06-24T10:16:00.000Z",
+        updated_at: "2026-06-24T10:20:00.000Z",
+        total_snapshots: [
+          {
+            id: "total_snapshot_1",
+            order_id: "order_1",
+            payment_session_id: "payment_session_1",
+            fulfillment_mode: "delivery",
+            calculation_stage: "capture",
+            currency_code: "USD",
+            merchandise_subtotal_minor: 1969,
+            product_discount_minor: 0,
+            promo_discount_minor: 0,
+            taxable_subtotal_minor: 1969,
+            tax_minor: 165,
+            shipping_minor: 499,
+            total_minor: 2633,
+            promo_evaluation_id: "promo_evaluation_1",
+            created_at: "2026-06-24T10:20:00.000Z",
+          },
+        ],
+        paypal_snapshots: [
+          {
+            id: "paypal_snapshot_1",
+            payment_session_id: "payment_session_1",
+            paypal_invoice_id: "DO-20260624-000001-01",
+            paypal_request_id: "request_1",
+            request_json: {
+              intent: "CAPTURE",
+            },
+            response_json: {
+              status: "COMPLETED",
+            },
+            merchant_snapshot_json: {
+              total_minor: 2633,
+            },
+            created_at: "2026-06-24T10:20:00.000Z",
+          },
+        ],
+        linked_webhooks: [
+          {
+            id: "webhook_1",
+            event_id: "WH-ORDER-1",
+            event_type: "CHECKOUT.ORDER.APPROVED",
+            verification_status: "valid",
+            linked_order_id: "order_1",
+            linked_payment_session_id: "payment_session_1",
+            processing_status: "processed",
+            received_at: "2026-06-24T10:18:00.000Z",
+            processed_at: "2026-06-24T10:18:05.000Z",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function adminConfigApiResponse({
+  brandMode,
+  currencyCode,
+  displayName,
+  locale,
+  marketCode,
+  profileSlug,
+}: {
+  readonly brandMode: "generic" | "popmart";
+  readonly currencyCode: string;
+  readonly displayName: string;
+  readonly locale: string;
+  readonly marketCode: string;
+  readonly profileSlug: string;
+}) {
+  return {
+    profile: {
+      slug: profileSlug,
+      display_name: displayName,
+      brand_mode: brandMode,
+    },
+    market: {
+      code: marketCode,
+      currency_code: currencyCode,
+      locale,
+    },
+    features: {
+      delivery: true,
+      pickup: true,
+      vaulting: true,
+      apple_pay: true,
+      google_pay: true,
+      venmo: marketCode === "US",
     },
   };
 }
@@ -2507,6 +5044,93 @@ function cartApiResponse({
             cart_client_secret: cartClientSecret,
           }
         : null,
+    },
+    adjustments: [],
+  };
+}
+
+function productDetailApiResponse() {
+  return {
+    product: {
+      id: "product_blind_boxes_1",
+      slug: "blind-boxes-1",
+      sku: "POP-001",
+      name: "The Monsters Blind Boxes 1",
+      series_name: "The Monsters",
+      description: "The Monsters collectible for the blind boxes series.",
+      category_slug: "blind-boxes",
+      release_status: "released",
+      release_date: "2026-06-05",
+      purchasable: true,
+      checkout_block_reason: null,
+      max_quantity_per_order: 1,
+      price: {
+        currency_code: "USD",
+        regular_price_minor: 1499,
+        current_price_minor: 1274,
+        is_on_sale: true,
+      },
+      images: [
+        {
+          image_path: "/assets/popmart/products/blind-boxes-1-1.png",
+          alt_text: "The Monsters Blind Boxes 1 view 1",
+        },
+      ],
+      inventory: {
+        delivery_available: true,
+        pickup_available: true,
+      },
+      reviews: {
+        visible: false,
+        items: [],
+      },
+    },
+  };
+}
+
+function generatedStarterCartApiResponse() {
+  return {
+    cart: {
+      id: "cart_guest_us",
+      cart_public_id: "cart_public_generated",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      buyer_kind: "guest",
+      status: "active",
+      currency_code: "USD",
+      items: [
+        {
+          id: "cart_item_blind_boxes_2",
+          product_id: "2399a35e-ea68-566d-a6cf-f6ad63425e05",
+          slug: "blind-boxes-2",
+          name: "Molly Blind Boxes 2",
+          image_path: "/assets/popmart/products/blind-boxes-2-1.png",
+          quantity: 1,
+          unit_price_minor: 1969,
+          line_subtotal_minor: 1969,
+          checkout_eligible: true,
+        },
+        {
+          id: "cart_item_plush_11",
+          product_id: "579f3095-579d-5c95-9260-9ecdb5306b9c",
+          slug: "plush-11",
+          name: "The Monsters Plush 1",
+          image_path: "/assets/popmart/products/plush-11-1.png",
+          quantity: 1,
+          unit_price_minor: 4999,
+          line_subtotal_minor: 4999,
+          checkout_eligible: true,
+        },
+      ],
+      totals: {
+        item_count: 2,
+        subtotal_minor: 6968,
+        currency_code: "USD",
+      },
+      binding: {
+        cart_public_id: "cart_public_generated",
+        cart_client_secret: "cart_secret_generated",
+      },
     },
     adjustments: [],
   };

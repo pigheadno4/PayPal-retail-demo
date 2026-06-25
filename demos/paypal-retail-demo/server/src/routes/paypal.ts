@@ -25,7 +25,11 @@ import {
   type PayPalCaptureAmountGuardResult,
   type PayPalSnapshotJson,
 } from "../../../shared/src/paypal.js";
-import { sendApiError, sendApiSuccess } from "../http/responses.js";
+import {
+  getResponseDebugId,
+  sendApiError,
+  sendApiSuccess,
+} from "../http/responses.js";
 import type { BuyerRequest } from "../middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
@@ -559,10 +563,17 @@ async function handleCreateOrderRoute(
   input: CreatePayPalRouterInput,
   kind: PayPalOrderKind,
 ): Promise<void> {
+  const debugId = getResponseDebugId(response);
   const orderGateway = input.orderGateway;
   const orderRepository = input.orderRepository;
 
   if (!orderGateway || !orderRepository) {
+    console.warn("[paypal-retail-demo] PayPal create-order route unavailable", {
+      debugId,
+      hasOrderGateway: Boolean(orderGateway),
+      hasOrderRepository: Boolean(orderRepository),
+      kind,
+    });
     sendApiError(response, 503, {
       code: "PAYPAL_ORDER_CREATE_UNAVAILABLE",
       message: "PayPal order creation is not configured.",
@@ -573,6 +584,11 @@ async function handleCreateOrderRoute(
   const createOrderInput = parseCreateOrderInput(request, kind);
 
   if (!createOrderInput) {
+    console.warn("[paypal-retail-demo] PayPal create-order route rejected", {
+      debugId,
+      kind,
+      reason: "invalid_request",
+    });
     sendApiError(response, 400, {
       code: "INVALID_PAYPAL_CREATE_ORDER_REQUEST",
       message:
@@ -585,57 +601,124 @@ async function handleCreateOrderRoute(
     request,
     input.activeStorefrontContextStore,
   );
-  const preparedOrder = await orderRepository.prepareCreateOrder(
-    context,
-    createOrderInput,
-  );
-  const payload = buildCreateOrderPayload(preparedOrder);
-  const amountConsistency = checkPayPalCreateOrderAmountConsistency(payload);
+  const routeLogContext = {
+    buyerKind: context.buyer.kind,
+    cartId: createOrderInput.cartId ?? null,
+    checkoutDraftId: createOrderInput.checkoutDraftId ?? null,
+    debugId,
+    hasGuestCartSecret: Boolean(context.guestCart?.cartClientSecret),
+    kind,
+    market: context.storefrontContext.marketCode,
+    method: createOrderInput.method,
+  };
+  let stage:
+    | "prepare"
+    | "build_payload"
+    | "amount_consistency"
+    | "gateway_create"
+    | "record_result" = "prepare";
 
-  if (amountConsistency.status !== "matched") {
-    sendApiError(response, 409, {
-      code: "PAYPAL_ORDER_AMOUNT_MISMATCH",
-      message: "Merchant-calculated PayPal order amounts did not reconcile.",
-      details: {
-        mismatches: amountConsistency.mismatches.map((mismatch) => ({
-          purchase_unit_index: mismatch.purchase_unit_index,
-          reason: mismatch.reason,
-          expected_minor: mismatch.expected_minor,
-          actual_minor: mismatch.actual_minor,
-        })),
-      },
+  console.info(
+    "[paypal-retail-demo] PayPal create-order route starting",
+    routeLogContext,
+  );
+
+  try {
+    const preparedOrder = await orderRepository.prepareCreateOrder(
+      context,
+      createOrderInput,
+    );
+    stage = "build_payload";
+    const payload = buildCreateOrderPayload(preparedOrder);
+    const merchantSnapshot = extractPayPalPurchaseUnitAmountSnapshot(
+      payload.purchase_units[0]!,
+    );
+    console.info("[paypal-retail-demo] PayPal create-order route prepared", {
+      ...routeLogContext,
+      amountCurrencyCode: merchantSnapshot.currencyCode,
+      amountTotalMinor: merchantSnapshot.totalMinor,
+      orderNumber: preparedOrder.orderNumber,
+      paypalInvoiceId: preparedOrder.paypalInvoiceId,
+      paypalRequestId: preparedOrder.paypalRequestId,
+      paymentSessionId: preparedOrder.paymentSessionId,
     });
-    return;
+    stage = "amount_consistency";
+    const amountConsistency = checkPayPalCreateOrderAmountConsistency(payload);
+
+    if (amountConsistency.status !== "matched") {
+      console.warn("[paypal-retail-demo] PayPal create-order amount mismatch", {
+        ...routeLogContext,
+        mismatchCount: amountConsistency.mismatches.length,
+        orderNumber: preparedOrder.orderNumber,
+        paymentSessionId: preparedOrder.paymentSessionId,
+      });
+      sendApiError(response, 409, {
+        code: "PAYPAL_ORDER_AMOUNT_MISMATCH",
+        message: "Merchant-calculated PayPal order amounts did not reconcile.",
+        details: {
+          mismatches: amountConsistency.mismatches.map((mismatch) => ({
+            purchase_unit_index: mismatch.purchase_unit_index,
+            reason: mismatch.reason,
+            expected_minor: mismatch.expected_minor,
+            actual_minor: mismatch.actual_minor,
+          })),
+        },
+      });
+      return;
+    }
+
+    stage = "gateway_create";
+    const createOrderResponse = await orderGateway.createOrder({
+      paypalRequestId: preparedOrder.paypalRequestId,
+      payload,
+    });
+    console.info(
+      "[paypal-retail-demo] PayPal create-order route gateway created",
+      {
+        ...routeLogContext,
+        approvalUrlPresent: Boolean(createOrderResponse.approvalUrl),
+        paypalOrderId: createOrderResponse.paypalOrderId,
+        paypalOrderStatus: createOrderResponse.status,
+        paymentSessionId: preparedOrder.paymentSessionId,
+      },
+    );
+
+    stage = "record_result";
+    await orderRepository.recordCreateOrderResult(context, {
+      paymentSessionId: preparedOrder.paymentSessionId,
+      paypalOrderId: createOrderResponse.paypalOrderId,
+      paypalOrderStatus: createOrderResponse.status,
+      paypalInvoiceId: preparedOrder.paypalInvoiceId,
+      paypalRequestId: preparedOrder.paypalRequestId,
+      requestPayload: payload,
+      response: createOrderResponse,
+      merchantSnapshot,
+    });
+    console.info("[paypal-retail-demo] PayPal create-order route recorded", {
+      ...routeLogContext,
+      orderNumber: preparedOrder.orderNumber,
+      paypalOrderId: createOrderResponse.paypalOrderId,
+      paymentSessionId: preparedOrder.paymentSessionId,
+    });
+
+    sendApiSuccess(response, {
+      order_number: preparedOrder.orderNumber,
+      payment_session_id: preparedOrder.paymentSessionId,
+      paypal_order_id: createOrderResponse.paypalOrderId,
+      paypal_order_status: createOrderResponse.status,
+      paypal_invoice_id: preparedOrder.paypalInvoiceId,
+      paypal_request_id: preparedOrder.paypalRequestId,
+      approval_url: createOrderResponse.approvalUrl,
+    });
+  } catch (error) {
+    console.error("[paypal-retail-demo] PayPal create-order route failed", {
+      ...routeLogContext,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      stage,
+    });
+    throw error;
   }
-
-  const createOrderResponse = await orderGateway.createOrder({
-    paypalRequestId: preparedOrder.paypalRequestId,
-    payload,
-  });
-  const merchantSnapshot = extractPayPalPurchaseUnitAmountSnapshot(
-    payload.purchase_units[0]!,
-  );
-
-  await orderRepository.recordCreateOrderResult(context, {
-    paymentSessionId: preparedOrder.paymentSessionId,
-    paypalOrderId: createOrderResponse.paypalOrderId,
-    paypalOrderStatus: createOrderResponse.status,
-    paypalInvoiceId: preparedOrder.paypalInvoiceId,
-    paypalRequestId: preparedOrder.paypalRequestId,
-    requestPayload: payload,
-    response: createOrderResponse,
-    merchantSnapshot,
-  });
-
-  sendApiSuccess(response, {
-    order_number: preparedOrder.orderNumber,
-    payment_session_id: preparedOrder.paymentSessionId,
-    paypal_order_id: createOrderResponse.paypalOrderId,
-    paypal_order_status: createOrderResponse.status,
-    paypal_invoice_id: preparedOrder.paypalInvoiceId,
-    paypal_request_id: preparedOrder.paypalRequestId,
-    approval_url: createOrderResponse.approvalUrl,
-  });
 }
 
 async function handleCaptureOrderRoute(

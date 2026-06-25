@@ -1,7 +1,11 @@
 import { Router, type Request, type RequestHandler } from "express";
 
 import type { CartRefreshTrigger } from "../../../shared/src/cart.js";
-import { sendApiError, sendApiSuccess } from "../http/responses.js";
+import {
+  getResponseDebugId,
+  sendApiError,
+  sendApiSuccess,
+} from "../http/responses.js";
 import type { BuyerContext, BuyerRequest } from "../middleware/auth.js";
 import type {
   GuestCartContext,
@@ -205,16 +209,51 @@ export function createCartRouter(input: CreateCartRouterInput): Router {
         return;
       }
 
-      sendApiSuccess(
-        response,
-        await input.cartRepository.refresh(
-          resolveCartOperationContext(
-            request,
-            input.activeStorefrontContextStore,
-          ),
-          { trigger },
-        ),
+      const context = resolveCartOperationContext(
+        request,
+        input.activeStorefrontContextStore,
       );
+      const debugId = getResponseDebugId(response);
+
+      console.info("[paypal-retail-demo] Cart refresh route starting", {
+        buyerKind: context.buyer.kind,
+        cartId: context.guestCart?.cartPublicId ?? null,
+        debugId,
+        hasGuestCartSecret: Boolean(context.guestCart?.cartClientSecret),
+        market: context.storefrontContext.marketCode,
+        trigger,
+      });
+
+      try {
+        const refreshResponse = await input.cartRepository.refresh(context, {
+          trigger,
+        });
+
+        console.info("[paypal-retail-demo] Cart refresh route succeeded", {
+          buyerKind: context.buyer.kind,
+          cartId: readCartPublicId(refreshResponse),
+          debugId,
+          market: context.storefrontContext.marketCode,
+          trigger,
+        });
+
+        sendApiSuccess(response, refreshResponse);
+      } catch (error) {
+        console.error("[paypal-retail-demo] Cart refresh route failed", {
+          buyerKind: context.buyer.kind,
+          cartId: context.guestCart?.cartPublicId ?? null,
+          debugId,
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : "Unknown cart refresh error",
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          hasGuestCartSecret: Boolean(context.guestCart?.cartClientSecret),
+          market: context.storefrontContext.marketCode,
+          trigger,
+        });
+        throw error;
+      }
     }),
   );
 
@@ -265,6 +304,24 @@ function parseRefreshTrigger(value: unknown): CartRefreshTrigger | null {
   return typeof value === "string" &&
     supportedRefreshTriggers.includes(value as CartRefreshTrigger)
     ? (value as CartRefreshTrigger)
+    : null;
+}
+
+function readCartPublicId(response: CartApiResponse): string | null {
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    return null;
+  }
+
+  const cart = (response as { readonly cart?: unknown }).cart;
+  if (!cart || typeof cart !== "object" || Array.isArray(cart)) {
+    return null;
+  }
+
+  const cartPublicId = (cart as { readonly cart_public_id?: unknown })
+    .cart_public_id;
+
+  return typeof cartPublicId === "string" && cartPublicId.trim()
+    ? cartPublicId
     : null;
 }
 

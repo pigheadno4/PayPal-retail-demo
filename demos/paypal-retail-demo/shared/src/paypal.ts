@@ -147,7 +147,7 @@ export interface BuildPayPalExpressDeliveryCreateOrderInput {
   readonly shippingAmountMinor: number;
   readonly taxAmountMinor: number;
   readonly discountAmountMinor: number;
-  readonly shippingCallbackUrl: string;
+  readonly shippingCallbackUrl: string | null;
   readonly callbackEvents?: readonly PayPalShippingCallbackEvent[];
 }
 
@@ -530,6 +530,8 @@ export function buildPayPalDeliveryCreateOrderPayload(
 export function buildPayPalExpressDeliveryCreateOrderPayload(
   input: BuildPayPalExpressDeliveryCreateOrderInput,
 ): PayPalCreateOrderPayload {
+  const shippingCallbackConfig = buildShippingCallbackConfig(input);
+
   return {
     intent: "CAPTURE",
     purchase_units: [buildPayPalPurchaseUnitBase(input)],
@@ -537,7 +539,9 @@ export function buildPayPalExpressDeliveryCreateOrderPayload(
       paypal: {
         experience_context: {
           shipping_preference: "GET_FROM_FILE",
-          order_update_callback_config: buildShippingCallbackConfig(input),
+          ...(shippingCallbackConfig
+            ? { order_update_callback_config: shippingCallbackConfig }
+            : {}),
         },
       },
     },
@@ -1250,8 +1254,13 @@ function buildPayPalPurchaseUnitBase(input: {
 
 function buildShippingCallbackConfig(
   input: BuildPayPalExpressDeliveryCreateOrderInput,
-): PayPalOrderUpdateCallbackConfig {
-  assertHttpsUrl(input.shippingCallbackUrl);
+): PayPalOrderUpdateCallbackConfig | undefined {
+  const shippingCallbackUrl = input.shippingCallbackUrl?.trim();
+  if (!shippingCallbackUrl) {
+    return undefined;
+  }
+
+  assertHttpsUrl(shippingCallbackUrl);
   const callbackEvents = input.callbackEvents ?? ["SHIPPING_ADDRESS"];
   if (callbackEvents.length === 0) {
     throw new Error("at least one shipping callback event is required");
@@ -1267,7 +1276,7 @@ function buildShippingCallbackConfig(
 
   return {
     callback_events: [...new Set(callbackEvents)],
-    callback_url: input.shippingCallbackUrl,
+    callback_url: shippingCallbackUrl,
   };
 }
 

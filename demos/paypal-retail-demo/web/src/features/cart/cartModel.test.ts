@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addProductToCartQuantity,
   buildCartPayLaterMessage,
   calculateCartMerchandiseTotalCents,
   reconcileCartDataFromApiResponse,
@@ -28,6 +29,81 @@ describe("cartModel", () => {
         "hirono-little-mischief": 3,
       }),
     ).toContain("$51.96");
+  });
+
+  it("adds API PDP products that are not already in the cart", () => {
+    const nextCart = addProductToCartQuantity(
+      cartData(),
+      {
+        slug: "blind-boxes-2",
+        name: "Molly Blind Boxes 2",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
+        imageAlt: "Molly Blind Boxes 2 collectible",
+        unitPriceCents: 1969,
+        currentPriceLabel: "$19.69",
+        regularPriceLabel: "$19.69",
+        maxQuantity: 12,
+        href: "/products/blind-boxes-2",
+      },
+      12,
+    );
+
+    const addedItem = nextCart.items.find(
+      (item) => item.slug === "blind-boxes-2",
+    );
+
+    expect(addedItem).toMatchObject({
+      name: "Molly Blind Boxes 2",
+      quantity: 12,
+      unitPriceCents: 1969,
+      imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
+    });
+    expect(buildCartPayLaterMessage(nextCart)).toContain("$262.26");
+  });
+
+  it("lets whole-box PDP options exceed a stale server cart max quantity", () => {
+    const nextCart = addProductToCartQuantity(
+      {
+        ...cartData(),
+        items: [
+          {
+            id: "cart_item_molly",
+            productId: "product_molly",
+            slug: "blind-boxes-2",
+            name: "Molly Blind Boxes 2",
+            categoryName: "Blind Boxes",
+            imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
+            imageAlt: "Molly Blind Boxes 2 collectible",
+            unitPriceCents: 1969,
+            currentPriceLabel: "$19.69",
+            regularPriceLabel: "$19.69",
+            quantity: 1,
+            maxQuantity: 5,
+            href: "/products/blind-boxes-2",
+          },
+        ],
+      },
+      {
+        slug: "blind-boxes-2",
+        name: "Molly Blind Boxes 2",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
+        imageAlt: "Molly Blind Boxes 2 collectible",
+        unitPriceCents: 1969,
+        currentPriceLabel: "$19.69",
+        regularPriceLabel: "$19.69",
+        maxQuantity: 12,
+        href: "/products/blind-boxes-2",
+      },
+      12,
+    );
+
+    expect(nextCart.items[0]).toMatchObject({
+      quantity: 13,
+      maxQuantity: 13,
+    });
+    expect(buildCartPayLaterMessage(nextCart)).toContain("$255.97");
   });
 
   it("maps backend cart response items into buyer cart data", () => {
@@ -77,7 +153,7 @@ describe("cartModel", () => {
         imageAlt: "Labubu Have a Seat collectible",
         unitPriceCents: 1099,
         currentPriceLabel: "$10.99",
-        regularPriceLabel: "$13.99",
+        regularPriceLabel: "$10.99",
         quantity: 3,
         maxQuantity: 5,
         href: "/products/labubu-have-a-seat",
@@ -107,6 +183,28 @@ describe("cartModel", () => {
     });
 
     expect(reconciled.cartPublicId).toBe("cart_public_user");
+    expect(reconciled.cartClientSecret).toBeUndefined();
+  });
+
+  it("drops a guest cart secret when the API switches cart IDs without returning a new binding", () => {
+    const cart = {
+      ...cartData(),
+      cartPublicId: "cart_public_old",
+      cartClientSecret: "cart_secret_old",
+    };
+
+    const reconciled = reconcileCartDataFromApiResponse(cart, {
+      cart: {
+        cart_public_id: "cart_public_new",
+        buyer_kind: "guest",
+        currency_code: "USD",
+        binding: null,
+        items: [],
+      },
+      adjustments: [],
+    });
+
+    expect(reconciled.cartPublicId).toBe("cart_public_new");
     expect(reconciled.cartClientSecret).toBeUndefined();
   });
 });

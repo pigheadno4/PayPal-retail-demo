@@ -524,6 +524,8 @@ Preferred item fields:
 - `category: "PHYSICAL_GOODS"`
 - `tax` when line-level tax allocation can reconcile exactly with `amount.breakdown.tax_total`
 
+Provider-bound `url` and `image_url` values must be public HTTPS absolute URLs resolved from the configured public origin. Storefront/catalog DTOs may keep app-relative paths such as `/assets/...`, but the PayPal payload boundary must not send relative product/image URLs or local HTTP asset URLs. When the demo runs without a public HTTPS origin, omit PayPal line-item URL/image fields instead of sending localhost URLs.
+
 Amount reconciliation:
 
 - `sum(items[].unit_amount.value * quantity)` must equal `purchase_units[].amount.breakdown.item_total.value`.
@@ -567,9 +569,9 @@ Rules:
 - fulfillment mode is locked to `delivery`
 - frontend uses the active cart public binding as `cart_id`; express entry points do not send checkout draft IDs
 - create pending order when session starts
-- use server-side shipping callback config
+- use server-side shipping callback config when a public HTTPS API origin is configured
 - use `shipping_preference: "GET_FROM_FILE"`
-- include `payment_source.paypal.experience_context.order_update_callback_config`
+- include `payment_source.paypal.experience_context.order_update_callback_config` only when `PUBLIC_HTTPS_ORIGIN` or another HTTPS API origin is available; local HTTP development may omit the callback config so sandbox Create Order can still open the buyer approval modal
 - default callback subscription is `["SHIPPING_ADDRESS"]`; add `SHIPPING_OPTIONS` only when the selected shipping option must trigger a fresh amount/promo recalculation
 - callback URL points to `POST /api/paypal/orders/:callbackContextId/shipping-callback` with enough internal cart/session context for server-side recalculation. Because PayPal order ID is not known until Create Order returns, the initial callback context can be the merchant order/payment-session identifier; the callback handler should also read the PayPal order ID from PayPal's callback payload when present.
 - return buyer to merchant Review and Confirm at `/checkout/express-review?paypal_order_id={paypalOrderId}` after PayPal approval
@@ -690,13 +692,13 @@ Response uses the standard app envelope and returns:
 
 - merchant order number and PayPal order ID
 - payment session ID and payment method label
-- delivery address captured from the latest PayPal shipping callback snapshot
+- delivery address captured from the latest PayPal shipping callback snapshot, or a buyer-safe PayPal-supplied-address placeholder when local/no-callback express mode falls back to the same-session `review_confirm` snapshot
 - selected shipping option label, estimate, and amount
 - item rows with product names, SKU/quantity detail, and line totals
-- merchandise subtotal, shipping, promo discount, tax, and total from the latest `paypal_shipping_update` total snapshot
+- merchandise subtotal, shipping, promo discount, tax, and total from the latest `paypal_shipping_update` total snapshot, falling back to the same payment session's `review_confirm` snapshot when no PayPal shipping callback snapshot exists
 - amount guard result comparing the merchant synchronized total with the provider/payment-session total
 
-If no synchronized `paypal_shipping_update` snapshot exists yet, the endpoint returns `PAYPAL_EXPRESS_REVIEW_NOT_FOUND` instead of showing placeholder totals.
+If neither a same-session `paypal_shipping_update` nor `review_confirm` snapshot exists, the endpoint returns `PAYPAL_EXPRESS_REVIEW_NOT_FOUND` instead of showing placeholder totals. The frontend must render a blocked unavailable state rather than sample order data when this happens.
 
 ### `POST /api/paypal/orders/:paypalOrderId/capture`
 
@@ -800,10 +802,48 @@ Webhook processing is idempotent by PayPal `event_id` per provider. A repeated e
 
 ## Review APIs
 
-- `GET /api/products/:productId/reviews`
-- `POST /api/orders/:orderId/items/:itemId/review`
-- `PATCH /api/reviews/:id`
-- `DELETE /api/reviews/:id`
+Product detail reviews are returned by `GET /api/catalog/products/:slug` under
+`product.reviews`. Released products expose active review rows; unreleased
+products hide reviews.
+
+Authenticated account review mutations use buyer-facing order numbers and
+stable line-item IDs:
+
+- `POST /api/account/orders/:orderNumber/items/:itemId/review`
+- `PATCH /api/account/orders/:orderNumber/items/:itemId/review`
+- `DELETE /api/account/orders/:orderNumber/items/:itemId/review`
+
+Create/update request body:
+
+```json
+{
+  "rating": 5,
+  "title": "Tiny shelf star",
+  "body": "The paint details look great beside my other figures."
+}
+```
+
+Successful mutations return the refreshed buyer-safe account order DTO:
+
+```json
+{
+  "order": {
+    "order_number": "PO-20260602-000118",
+    "items": [
+      {
+        "id": "line_1",
+        "review_eligible": false,
+        "review_submitted": true,
+        "review": {
+          "rating": 5,
+          "title": "Tiny shelf star",
+          "body": "The paint details look great beside my other figures."
+        }
+      }
+    ]
+  }
+}
+```
 
 Create review rules:
 
@@ -811,6 +851,20 @@ Create review rules:
 - order is delivered or picked up
 - item belongs to order
 - no active review exists for the same order item
+
+Edit/delete rules:
+
+- buyer owns the same order and item
+- active review exists for the same account/order item
+- delete marks the review deleted instead of removing history, and the returned
+  order reopens review eligibility for that item
+
+Failure responses:
+
+- `404 REVIEW_TARGET_NOT_FOUND` when the order item or active review cannot be
+  resolved for the buyer
+- `409 REVIEW_NOT_ELIGIBLE` when the order state or one-active-review rule
+  blocks the mutation
 
 ## Admin APIs
 
@@ -852,10 +906,25 @@ Rules:
 - `GET /api/admin/orders/:id`
 - `POST /api/admin/orders/:id/lifecycle`
 
+`GET /api/admin/orders` returns recent orders with internal `id`, buyer-facing `order_number`, profile/market IDs, fulfillment mode, order/payment status, currency, total, placed/updated timestamps, and `next_statuses` for currently allowed manual actions.
+
+`GET /api/admin/orders/:id` returns the selected order plus totals, items, fulfillment addresses, lifecycle timeline events, payment sessions, PayPal snapshots, total snapshots, promo evaluation lines, inventory effects derived from order item quantities, linked webhooks, and the same `next_statuses` action list.
+
+Lifecycle request:
+
+```json
+{
+  "next_status": "processing",
+  "note": "Packed at warehouse station A."
+}
+```
+
 Allowed manual transitions:
 
 - Delivery: `paid -> processing -> shipped -> delivered`
 - Pickup: `paid -> preparing_pickup -> ready_for_pickup -> picked_up`
+
+Invalid transitions return `ADMIN_ORDER_LIFECYCLE_INVALID` with the current status and allowed next statuses. Successful transitions update `orders.status` and append an `order_lifecycle_events` row with `actor_type: "admin"` so buyer order timelines can reflect the change.
 
 ### Inventory And Pickup Dates
 
@@ -864,9 +933,40 @@ Allowed manual transitions:
 - `GET /api/admin/pickup-dates`
 - `PATCH /api/admin/pickup-dates/:id`
 
+`GET /api/admin/inventory` returns central and store inventory rows for the active seeded demo scope. Row IDs are opaque API identifiers:
+
+- Central inventory: `central:<profile_id>:<market_id>:<product_id>`
+- Store inventory: `store:<store_inventory.id>`
+
+Admin clients must echo the returned ID in the patch URL instead of reconstructing table keys. `PATCH /api/admin/inventory/:id` accepts:
+
+```json
+{
+  "available_quantity": 9
+}
+```
+
+`available_quantity` must be a non-negative whole number. Invalid IDs or payloads return `INVALID_ADMIN_INVENTORY_REQUEST`; missing rows return `ADMIN_INVENTORY_NOT_FOUND`.
+
+`GET /api/admin/pickup-dates` returns pickup capacity rows with store labels for Admin editing. `PATCH /api/admin/pickup-dates/:id` accepts either or both fields:
+
+```json
+{
+  "capacity": 18,
+  "is_available": false
+}
+```
+
+`capacity` must be a non-negative whole number and `is_available` must be a boolean. Invalid IDs or payloads return `INVALID_ADMIN_PICKUP_DATE_REQUEST`; missing rows return `ADMIN_PICKUP_DATE_NOT_FOUND`.
+
 ### Webhooks And Debug
 
 - `GET /api/admin/webhooks`
+- `GET /api/admin/payment-debug`
 - `GET /api/admin/debug-logs`
+
+`GET /api/admin/webhooks` requires a signed admin session and returns recent sanitized PayPal webhook events ordered by `received_at` descending. The response includes event ID/type, verification status, processing status, linked order/payment-session IDs when available, received timestamp, and processed timestamp. Invalid webhooks remain visible with `verification_status: "invalid"` and typically `processing_status: "ignored"`; listing them is read-only and must not mutate orders, saved payment methods, or payment sessions.
+
+`GET /api/admin/payment-debug` requires a signed admin session and returns recent payment sessions ordered by latest update. Each row includes the payment-session status, PayPal order/capture/invoice/request IDs, merchant/provider total comparison, linked order summary when available, total snapshots, sanitized PayPal request/response snapshot metadata, and linked webhook events. The route is read-only and must not mutate orders, saved payment methods, payment sessions, inventory, or webhook processing state.
 
 Admin debug may show sanitized PayPal request/response snapshots, amount comparisons, promo evaluations, and webhook verification status.

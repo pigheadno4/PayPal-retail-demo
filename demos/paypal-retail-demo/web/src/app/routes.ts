@@ -32,6 +32,10 @@ export type AppRoute =
     }
   | {
       readonly scope: "buyer";
+      readonly page: "guest_orders";
+    }
+  | {
+      readonly scope: "buyer";
       readonly page: "not_found";
     }
   | {
@@ -116,6 +120,13 @@ export function resolveAppRoute(pathname: string): AppRoute {
       page: "account",
       section: "orders",
       ...(orderNumber ? { orderNumber: decodeURIComponent(orderNumber) } : {}),
+    };
+  }
+
+  if (path === "/guest-orders") {
+    return {
+      scope: "buyer",
+      page: "guest_orders",
     };
   }
 

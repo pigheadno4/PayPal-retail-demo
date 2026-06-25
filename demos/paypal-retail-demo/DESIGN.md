@@ -76,6 +76,117 @@ Use `ui-ux-pro-max` as a reference, but do not copy every generated recommendati
 - Avoid: Liquid Glass as a primary system, heavy blur, iridescent gradients, low-contrast translucent panels, large decorative orbs, and generic red/white ecommerce shells.
 - Preserve: PayPal official button/message containers exactly enough that SDK-rendered surfaces stay readable, stable, and undistorted.
 
+### shadcn Component Foundation
+
+Before continuing broad page polish, migrate the frontend toward a shadcn-based component foundation. The goal is not to replace each page with a generic shadcn page template; the goal is to replace repeated primitive UI with accessible, consistent source-owned components while preserving POP MART-specific ecommerce composition.
+
+Use shadcn primitives for:
+
+- buttons and icon buttons
+- cards and page panels
+- account/profile avatars
+- badges/status chips
+- separators
+- skeletons and loading placeholders
+- sheet/drawer surfaces, especially minicart and mobile filters
+- dialogs, including auth and save-order/account prompts
+- tabs, including PDP detail tabs and account subviews
+- calendars for release-date merchandising
+- accordions/collapsibles for checkout steps, mobile filters, and dense mobile sections
+- scroll areas for drawers/sheets where content can exceed the viewport
+- form fields, labels, descriptions, validation, checkboxes, selects, and submit feedback
+
+Keep custom page composition for Home merchandising, Category product grids, PDP gallery/purchase rail, Cart hierarchy, Checkout flow, Express Review/order confirmation, and Account/order layouts. Do not import or copy generic shadcn page blocks unless a block exactly matches the documented ecommerce behavior and can be adapted without fake capabilities.
+
+PayPal rule: official PayPal buttons, Pay Later buttons, PayPal messages, and SDK-provided custom elements must remain SDK-rendered. shadcn components may wrap or position those surfaces, but must not replace them, restyle them into non-official buttons, hide required messaging, or add unsupported PayPal behavior.
+
+shadcn migration order:
+
+1. Initialize/adopt shadcn/Tailwind-compatible project foundation and aliases.
+2. Add only the primitive components needed for near-term M16 work: `Button`, `Card`, `Avatar`, `Badge`, `Separator`, `Skeleton`, `Sheet`, `Dialog`, `Tabs`, `Calendar`, `Accordion`/`Collapsible`, `ScrollArea`, and form field primitives.
+3. Create thin demo-local wrappers only where needed to preserve POP MART tokens and current route behavior.
+4. Migrate shared primitives before page-specific polish: shell actions, cards/panels, empty states, loading states, modals/drawers, tabs, and forms.
+5. Continue page polish after the shared primitives are stable, verified, and documented.
+
+Foundation status: completed on 2026-06-21 with official shadcn CLI initialization for Vite, Tailwind v4 integration, `@/*` aliases into `web/src`, `components.json`, `web/src/lib/utils.ts`, and the near-term primitive files under `web/src/components/ui/`. `Avatar` and `Calendar` are also available for the buyer shell account entry and release-date merchandising. Remaining work is migration, not foundation setup: existing shared shell/action/card/dialog/sheet/tab/form surfaces should adopt these primitives before page-specific polish continues.
+
+Migration progress: shared cart/minicart actions and payment frames, PDP detail tabs, checkout fulfillment tabs, Category mobile filters, auth/save-order dialogs, cart/minicart presentation, Express Review/order confirmation card/button/status surfaces, buyer-shell account/avatar and Lucide action icons, icon-only close controls, Home release calendar, Home merchandising cards, Category/PLP product cards, PDP story/lineup/review/trust/recommendation cards, Checkout step/store/summary panels, Account overview/profile/address/payment/order/status panels, and Checkout/Account form fields now compose through shadcn/Lucide primitives. Further shadcn work should continue with behavior-specific accordions, summaries, and page polish; do not bulk-replace page-specific product anchors, forms, or behavioral rows without preserving their current route/action contracts.
+
+### Reference-Level Polish Target
+
+The user-approved quality target is the provided Sakura Figure Shop home/PDP reference level, adapted to POP MART rather than copied literally. The goal is premium figure-shop completeness: dense but organized retail modules, strong image-led merchandising, deep header/navigation structure, trust/support strips, release/pre-order context only when backed by real data, and refined product detail hierarchy.
+
+Apply these reference cues:
+
+- Home should feel like a complete figure retailer, not a sparse landing page: utility strip, full search/header actions, primary nav, cinematic collection/drop hero, trust strip, release calendar, product/pre-order shelf, category shelf, promo banners, popular series/collection rail, and deep footer.
+- PDP should feel like a premium product inspection page: breadcrumb, large gallery with thumbnail rail, status/vendor/rating row, clear price/Pay Later/CTA hierarchy, PayPal express frame, trust strip, and tabbed description/specs/reviews/shipping details. Do not add a duplicate purchase-status card when status is already represented in the summary row and product facts.
+- Checkout, order confirmation, cart, category, and account/signup should match the same reference polish level: balanced retail card systems, deep navy shell, warm cream surfaces, gold/coral primary actions, product imagery, concise trust badges, and spacious form/table hierarchy.
+- Detailed PDP should match the richer reference level: vertical thumbnail rail on desktop, large stable gallery image, breadcrumb, badge/title/brand/review hierarchy, truthful chips, concise description, dense product fact grid, right-side purchase/preorder rail, quantity/action controls where implemented, trust grid, detail tabs, review summary, and recommendation rails only when backed by real data.
+- Use a premium navy/ink foundation and warm gold/cream accent logic where it improves perceived quality, while preserving POP MART coral/pink/yellow accents for active CTAs, drops, and collectible badges.
+- Decorative motifs should be subtle and retail-specific. Use borders, corner accents, sticker labels, and image masks before adding illustrative decoration. Do not add floating orbs, heavy blur, or page-wide gradients.
+- The implementation should match the reference density and polish, not its brand names, anime IP, cherry blossom identity, or exact product art.
+
+#### M16 Reference Polish Implementation Guidance
+
+Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.
+
+Reference design-system takeaways from `sakura_figure_shop_design.md`, adapted to POP MART:
+
+- Tone: premium, calm, collector-focused, organized, warm, and refined. Avoid chaotic anime-store clutter and avoid a childish toy-app feel.
+- Color: use deep navy/ink for shell and hierarchy, warm gold for primary actions/prices/active states, cream-white for content-heavy backgrounds, and soft blush/pink only as restrained support. Keep POP MART coral/yellow/pink accents as secondary brand energy, not page-wide noise.
+- Typography: premium serif display can be introduced for hero/page titles if it is locally safe and does not create loading/layout issues; product metadata, tables, payment rows, and forms stay clean sans-serif.
+- Layout: reference-level desktop pages may use 1280-1440px content width when ecommerce density requires it. Keep existing pages stable if a wider shell would break route-specific layouts.
+- Cards: use white cards with warm borders, subtle navy-tinted shadow, 14-16px product-card radii, and 16-20px large page-panel radii only when the panel is genuinely page-scale. Do not nest cards inside cards.
+- Images: product cards use stable 4:5 or square media containers; PDP main media uses 1:1 or 4:5; cart/minicart thumbnails stay square. Image containers must prevent layout jump and preserve product art.
+- Badges: use at most one or two short status badges per card; every status must include text, not color alone.
+- Responsive: desktop supports full header and two-column PDP/cart/checkout; tablet reduces grids; mobile stacks PDP, collapses filters, and turns cart rows into vertical cards.
+
+Implementation must keep these accuracy constraints:
+
+- Do not add fake search. A visible keyword search box is allowed only after `GET /api/storefront/products` and route query handling support real keyword search. Until then, discovery should use supported nav, category, sort, and filter controls.
+- Do not fake pre-order financial terms. Deposit, remaining balance, or estimated release can render only if those fields exist in product data. Otherwise render a release-state facts panel from existing status/detail rows.
+- Do not fake ratings. PDP rating summary must derive from real review data or be omitted.
+- Do not make broad authenticity, shipping-speed, customer-support, or PSP claims unless they are implemented demo capabilities or PSP-confirmed behavior.
+- Do not fake social sign-up. Google/Facebook/Apple buttons may render only if implemented, disabled, or clearly unavailable in demo copy.
+- Trust strips may use implemented capabilities: PayPal checkout, Pay Later where eligible, Delivery/Pickup choice during checkout, order recovery, account order history, and generated local demo catalog assets.
+- Product imagery remains the hero. Header/footer depth, trust modules, tabs, and badges should support merchandising density without crowding PayPal official surfaces.
+
+Implementation should proceed in this order:
+
+1. Global buyer shell: utility strip, deeper header/nav/actions, supported discovery links, and production-ready footer.
+2. Home: cinematic hero, trust strip, release/calendar plus product shelf, category shelf, promo/event cards, series rail.
+3. PDP: breadcrumb, large gallery, status/vendor/review row, price-linked Pay Later message, primary CTA, secured PayPal express frame, trust strip, detail tabs.
+4. Category: compact filter/sort controls, visible applied filters, dense product cards, mobile filter compression.
+5. Cart, minicart, checkout: item-table/card hierarchy, summary cards, PayPal/Pay Later placement, drawer density, payment pending-state clarity, mobile reachability.
+6. Order confirmation and account/signup: success hierarchy, order detail grid, next actions, split account form layout, benefits list, and terms/social-auth safety.
+7. Responsive visual QA at 375px, 768px, 1024px, and 1440px before closing M16 visual polish.
+
+Generated concept mockup translation:
+
+- Home mockup reinforces the required first-screen rhythm: deep retail shell, image-led drop hero, trust strip, release/product modules visible immediately below, and footer depth. Do not ship a sparse hero-only homepage.
+- Category mockup reinforces the PLP target: compact filters/sidebar on desktop, visible applied state, 4-column product grid where width allows, and image-led cards with short badges.
+- PDP mockup reinforces the highest-priority commerce target: vertical desktop gallery rail, stable main image, dense facts, right purchase rail, trust grid, tabs, and real-data-only review/recommendation rails.
+- Cart mockup reinforces that cart is a full management page: item rows/table on the left, summary/trust/payment on the right, and optional promo/progress banner only when supported.
+- Minicart mockup reinforces drawer separation: overlay, narrow right panel, small item rows, sticky action area, primary checkout, secondary view cart, compact Pay Later/PayPal surfaces, and pickup as text hint only.
+- Checkout mockup reinforces left-step/right-summary structure with secure checkout labeling, item thumbnails in summary, supported payment rows only, and bottom trust strip.
+- Order-confirmation mockup reinforces captured-state hierarchy: success icon, thank-you headline, order number, next-step details, View Order, Continue Shopping, and guest save-order prompt.
+- Account/sign-up mockup reinforces split art/benefits/form composition, visible labels, terms acceptance, and disabled/unavailable social auth unless OAuth is actually wired.
+
+Mobile-friendly rules from `ui-ux-pro-max`:
+
+- Treat mobile as the default layout and progressively enhance for tablet/desktop. Do not rely on desktop-first CSS that needs many max-width overrides.
+- Test at 320px, 375px, 414px, 768px, 1024px, and 1440px. A slice is not closed if only one mobile width was checked.
+- No horizontal page scroll is allowed. Use `max-width: 100%`, responsive grids, wrapped nav/action rows, and vertical card layouts for cart/checkout tables.
+- Touch targets must be at least 44px by 44px for mobile interaction, especially quantity steppers, thumbnail buttons, filter controls, tabs, close buttons, breadcrumbs, footer links, and payment actions. Native radio/checkbox glyphs may stay visually compact only when their enclosing label/card is the actual 44px+ tap target.
+- Category filters collapse into a drawer, sheet, accordion, or compact filter summary before products are pushed below the first mobile browsing pass.
+- PDP mobile stacks gallery, key title/price/status, and primary purchase action before long descriptions, reviews, recommendations, or secondary rails.
+- Cart mobile turns item rows into vertical cards and keeps the primary checkout path reachable without a sticky element covering content.
+- Minicart mobile can become a full-height drawer or bottom sheet, but the primary Checkout action must remain visible and the item list must scroll independently from the action area.
+- Checkout mobile keeps the active step and compact order/payment context reachable while long forms are active. Sticky payment bars must reserve bottom padding and never cover form fields.
+- Account/sign-up mobile stacks art/benefits below or above the form without forcing a two-column layout. Form labels, terms checkbox, password controls, and submit feedback must remain visible.
+- Forms must use explicit labels, correct `type`, `inputmode`, and `autocomplete`, visible required indicators, validation on blur where useful, and loading/success/error feedback after submit.
+- Use controlled React form components and debounced/deferred handling for any future real search/filter text input.
+
 ### POP MART Design Tokens
 
 Use these tokens as the starting point for CSS variables. Add new tokens only when a real component need is not covered.
@@ -169,6 +280,7 @@ Official payment surfaces:
 - Use official PayPal SDK-rendered buttons/messages where promised.
 - Reserve stable layout space before SDK hydration.
 - Do not restyle official buttons in a way that distorts brand shape, color, label, or eligibility behavior.
+- For local sales-demo reliability, PayPal and Pay Later one-time buyer actions use SDK `presentationMode="modal"` instead of popup-dependent auto presentation.
 - For Pay Later, use brief non-amount marketing copy on homepage/category and amount-aware messages on PDP/cart/minicart/checkout.
 
 ### Page-Level Contracts
@@ -199,11 +311,14 @@ Cart and minicart:
 - Pickup is communicated as text hint only: buyer chooses Pickup during checkout.
 - Quantity controls must be obvious, stable, and connected to server-backed cart state.
 - PayPal/Pay Later express actions are delivery-only and must be official SDK surfaces.
+- Cart page visual accents live on merchant-owned hero, item-card, and order-summary surfaces only: warm panel gradients, thin rails, focus-within outlines, and summary chips are allowed; PayPal frame/button/message surfaces must not inherit decorative gradients or brand rails.
+- Minicart opens as a true right-side drawer, not a floating card over active content: use a distinct shadcn Sheet overlay, visible panel edge/elevation, and one restrained brand accent rail while leaving PayPal-rendered buttons/messages visually undistorted.
 
 Checkout:
 
 - Use playful accents only for orientation: step badges, selected summaries, store tickets, promo/status callouts.
 - Payment method rows and official PayPal surfaces must remain calm, stable, and readable.
+- Checkout accents stay on merchant-owned hero, step cards, order summary, and trust strip through thin rails, warm summary panels, and text-backed state badges. Do not decorate `checkout-summary__slot` or any provider-rendered payment action/message.
 - Only one accordion section is expanded at a time.
 - Every collapsed saved section needs a concise buyer-readable summary and Edit action.
 - Order Summary must update immediately for buyer-selected options when possible, then reconcile with backend totals.
@@ -243,60 +358,101 @@ These specs turn the page contracts above into implementation guidance. When a p
 
 Global app shell:
 
-- Header uses a clean retail layout: logo left, primary nav centered or left-aligned by viewport, account/cart actions right.
+- Header uses a production retail layout: compact utility strip, logo/brand, supported discovery links, primary nav, account/wishlist/cart actions, and live cart count.
 - Header should not expose admin or demo labels in buyer mode.
+- Header may visually reserve room for richer discovery, but must not render an inert keyword search input. Add real search only with API and route support.
 - Cart button shows a live count from the active server-backed cart.
 - Active route state is visible through coral underline/fill, not only text weight.
 - Mobile header may collapse nav, but cart and account entry remain reachable in one tap.
+- Mobile header must stay compact: show a simplified POP logo mark, a supported browse/discovery entry, icon-only account, wishlist, cart, and menu controls with accessible names, then move product categories and utility links into a hamburger drawer. Do not render the desktop product-nav grid in the mobile header.
+- Mobile header controls must keep at least 44px touch targets, 8px minimum gaps, no horizontal overflow at 320px, and `aria-expanded`/`aria-controls` on the menu button.
+- Footer is part of the production-quality buyer shell: newsletter/account prompt, shop/help/about links, order/account recovery links, and restrained social/action area.
+- Footer copy must not duplicate unsupported trust claims or PayPal claims.
 - Global status messages use a polite live region or toast area and should read like buyer support copy, not logs.
 
 Homepage:
 
 - First viewport includes a collectible drop hero with real product/collection imagery, short launch copy, and one primary shopping action.
 - Hero should hint at the next section on desktop and mobile so the page feels browsable, not like a static landing page.
-- Hot sales use product cards with image, title, current/regular price, release status, and one dominant action.
+- Mobile hero must be image-led: the hero image fills the card, the hero title/subtitle and compact CTAs sit over contrast-safe overlay text, and the hero image itself links to the featured drop route. Keep the buttons small enough that the toy image remains the primary first-view signal.
+- Desktop can keep the trust strip high, but mobile must move the utility/trust strip below higher-value shopping content such as release calendar and product shelves. The first mobile viewport should prioritize toy imagery, release activity, or product discovery rather than utility cards.
+- Home module order for this polish slice is hero, trust strip, release/calendar plus product shelf, category shelf, promo/event cards, popular series rail, then footer in DOM/desktop reading order. Mobile visual order may move release/calendar before the trust strip to protect first-view merchandising.
+- Hot sales or product shelves use product cards with image, title, current/regular price when available, release status, and one dominant action.
 - Category shelf uses tactile category modules with image, short category label, and item count or short description.
 - Release calendar uses outlined circles for release dates, selected-date details, PDP links, and a text legend.
+- Promo banners should behave like event/collection cards: clear title, short copy, optional CTA link, strong product image or accent, and stable height.
 - Brief Pay Later message is amount-free and should not compete with merchandise modules.
-- Loading state uses skeleton hero/cards; empty curated sections show fallback curated copy and keep layout stable.
+- Loading state uses shadcn-style skeleton hero/cards for non-image surfaces; image surfaces should use eager hero loading, lazy non-hero loading, and a future low-resolution placeholder/high-resolution replacement path when final image derivatives exist. Empty curated sections show fallback curated copy and keep layout stable.
 
 Category page:
 
 - Top area shows current category/all-products context, category switcher with `All options`, sort control, and applied-filter count.
 - Filter controls use chips or a compact drawer; selected filters remain visible after apply.
+- Mobile sort/filter controls must compress without clipping at 320-375px. Prefer one current-sort control plus a shadcn Sheet or select-style control over a crowded horizontal strip; sheet options should read as clear 44px tap rows or selected chips.
 - Product grid keeps consistent image ratio and stable card height for sale/current price, release status, and unavailable states.
+- Discounted product cards must show a short text `Sale` badge in the top-right corner in addition to the current/regular price pair.
+- Mobile category must show products in the first browsing pass. Do not render a long full filter sidebar above the grid at 375px.
 - Pickup availability filter stays disabled until location context exists and includes a concise reason.
+- Disabled product-card actions such as wishlist must either show a buyer-readable disabled reason/tooltip or be hidden until implemented; do not leave inert icon controls unexplained.
 - Empty filtered state shows the applied filters, a reset action, and a link back to all products.
-- Pay Later copy is brief and amount-free.
+- API-down fallback mode must use the same generated slug/image set as PDP fallback data so product cards remain navigable and old fixture media never returns during Vite-only QA.
+- Pay Later copy is brief and amount-free. Render official PayPal Pay Later messages directly in the page flow without a decorative outer card or nested wrapper chrome; the PayPal message itself is the visual artifact.
 
 Product detail page:
 
-- Desktop layout is gallery left and purchase panel right; mobile places gallery first, then purchase panel.
-- Gallery includes one large image, 3-4 thumbnails, keyboard-selectable thumbnails, and image alt text based on product/series.
-- Purchase panel order is title, category/status chips, short intro, current/regular price, product facts, Pay Later message, add-to-cart, official express actions.
+- Desktop layout is breadcrumb, gallery left, purchase panel right, then details/reviews below; mobile places gallery first, then purchase panel and purchase actions before long descriptions.
+- Gallery includes one large image, 3-4 thumbnails, keyboard-selectable thumbnails, and image alt text based on product/series. Desktop should prefer a vertical thumbnail rail beside the main image when space allows; mobile can keep thumbnails below.
+- Gallery controls such as previous/next, zoom/enlarge, or 360-degree labels render only when implemented and accessible. Do not show inactive decorative controls.
+- Product summary order is series eyebrow, title, a real status/vendor/review row, then truthful series/category chips. API-loaded vendor copy comes from the active storefront profile display name; fallback POP MART PDPs use the same profile-level vendor label rather than inventing product manufacturers. Purchase panel order is current/regular price, official Pay Later message directly under the price, supported purchase options, demo-safe scarcity where available, add-to-cart, secured PayPal express frame, and trust strip. A separate purchase-status/release-facts card should stay omitted until real product fields require it.
+- Mobile PDP must keep the collectible gallery image-led, but the purchase rail should be density-aware: cap the gallery height, shrink thumbnail and purchase-option chrome, and keep the primary action reachable before lower story/review/recommendation content. If later polish needs the primary CTA visible in the first viewport without shrinking media further, use a reserved sticky purchase bar that does not cover PayPal messages, detail tabs, footer controls, or form content.
+- Blind-box PDPs must present the price as the single-box price, then offer wired purchase options for `Random 1PC` and `Whole Box - 12PC no duplicates` when the cart can accept the selected quantity. Whole-box pricing can show a demo bundle saving only when the option updates the rendered amount, Pay Later amount, add-to-cart selection, and cart quantity together.
+- Purchase panels can show scarcity/viewing prompts only as demo merchandising signals or real inventory/viewer data. Do not imply live stock telemetry unless implemented.
+- If review data is absent, omit rating score rather than inventing one.
+- If preorder economics data is absent, do not derive fake deposit or remaining balance from price and do not add redundant status panels to fill space.
+- Right-side purchase rail should include price, quantity/action controls where supported, official Pay Later and delivery express surfaces where eligible, and trust grid. Quantity controls must be wired to real add-to-cart behavior before becoming editable.
+- PayPal and Pay Later express buttons should sit inside an unclosed rounded frame labeled `Secured by PayPal`. If Pay Later is not eligible, the PayPal button fills the frame; if eligible, the frame uses available width to choose a two-column or stacked layout, with mobile stacking the two actions.
+- Tabbed detail area should use semantic tabs for description/collector details, product facts, gallery, reviews, shipping/returns, and Q&A if useful. Empty states must not pretend to contain real buyer content.
+- Collector details for blind-box products should include a concise story, a series-lineup panel, secret odds when they are demo-supported or data-backed, and icon-style spec highlights such as material/height/age/box type. Media goals such as front view, size comparison, package exterior, hidden silhouette, and material video stay in tracking/design until real assets exist; the PDP must not render text-only media placeholder cards that consume mobile viewport space.
+- Lower commerce rails such as customer-review histogram, You may also like, and Recently viewed render only when backed by real review/catalog/recently-viewed data or existing demo state. Omit them rather than hardcoding unrelated fake products.
 - PDP does not show pickup hint or store selection.
 - Future/unreleased PDP shows status and release date, blocks add-to-cart and express actions with clear reason, and hides reviews.
 - Reviews render only for released products and stay below the purchase decision area.
 
 Cart page:
 
+- Cart should match the reference table/card hybrid: breadcrumb, title with live item count, item rows with image/title/status/detail, price, quantity stepper, line total, remove action, and save-for-later only if implemented.
 - Cart items use row cards: image, title, variant/status, quantity stepper, current/regular line price, remove action, and inline item error when needed.
+- Quantity steppers must keep at least 44px touch targets and enough spacing at 320px mobile width.
 - Quantity changes are optimistic only while the server request is in flight; failed updates roll back or preserve input with retry copy.
-- Order summary shows merchandise subtotal, promo, tax, shipping placeholder or selected shipping, and total.
+- Order summary shows merchandise subtotal, promo, tax, shipping placeholder or selected shipping, and total. It should read as a complete checkout summary, not a thin subtotal-only sidebar.
+- Cart summary can include a free-shipping/progress banner only when backed by a real threshold or clearly demo-owned promo data.
+- Summary card may include official PayPal delivery express checkout beneath the primary checkout action, preserving official button styling.
+- Official PayPal and Pay Later delivery express actions sit inside the shared unclosed rounded frame labeled `Secured by PayPal`; the frame uses available width to choose two columns when both buttons fit and stacks on narrow cart/minicart widths.
+- Trust badges should sit below the summary and use implemented capabilities only.
+- Mobile cart keeps the primary checkout action reachable in the first cart-summary pass; if item rows push the summary down, use a compact summary/sticky action that does not cover content.
 - Pay Later amount message uses current cart amount and updates when quantity changes.
+- Official Pay Later messages render directly below the relevant amount/summary row without an additional decorative box around the PayPal message.
 - Express PayPal/Pay Later buttons are official delivery-only SDK surfaces.
+- Express loading or unavailable states must be labeled by payment method or visually consolidated so two pending SDK surfaces do not read as duplicated broken copy.
 - Pickup appears only as a text hint: `Prefer pickup? Choose store pickup during checkout.`
+- Empty cart suppresses checkout, Pay Later message, PayPal express, and Pay Later express controls; show one return-to-shopping action instead of `$0.00` payment prompts.
 
 Minicart:
 
 - Drawer is anchored inside the viewport on desktop and mobile; open drawer should not mount offscreen.
+- Open drawer needs enough backdrop, panel edge, or elevation to separate it from underlying cart content and prevent background actions from visually competing with drawer actions.
 - Each item row includes thumbnail, title, quantity stepper, line amount, and remove/decrement behavior.
 - Action area contains View cart, Checkout, official PayPal delivery express, official Pay Later delivery express, amount-aware Pay Later message, and pickup hint.
+- Official Pay Later messages render as direct PayPal message surfaces, not as boxed cards inside the drawer.
+- Official PayPal and Pay Later delivery express actions use the same `Secured by PayPal` frame as PDP/cart, with minicart stacking when the drawer width is narrow.
 - Keep button density under control: no pickup button and no duplicate checkout action labels.
-- Empty state shows a friendly message and one return-to-shopping action.
+- Mobile minicart should prioritize item confirmation, one primary Checkout action, secondary View cart, then compact delivery express surfaces; repeated loading copy should collapse into one clear pending state when SDK readiness is not available.
+- On XS/S mobile drawers, item rows and the checkout/payment panel must scroll independently. Keep the item list large enough to confirm multiple items, and cap the checkout/payment panel height so Pay Later/PayPal/pickup copy stays reachable without crowding the item confirmation area.
+- Empty state shows a friendly message and one return-to-shopping action, with checkout and payment controls hidden.
 
 Checkout Delivery:
 
+- Checkout should match the reference left/right rhythm: breadcrumb and secure-checkout label, left-side step cards, right-side order summary with item thumbnails and totals, and bottom trust strip.
 - Initial state expands Shipping address only.
 - Shipping address form shows saved/default address when available, otherwise editable fields.
 - Submit disables the button immediately, shows saving/recalculating copy, saves through backend, collapses to summary, and expands Billing.
@@ -306,6 +462,8 @@ Checkout Delivery:
 - Changing a shipping option updates Order Summary immediately, then backend reconciliation is reflected after submit.
 - Payment method section opens only after required delivery steps are saved.
 - Official payment action appears only when Payment is active and a method radio is selected.
+- Payment method icons or rows must come from supported eligibility data. Do not add fake Visa/Mastercard/Apple Pay visuals beyond implemented payment rows.
+- Place Order / payment action belongs in the order-summary/payment area only when the payment section is unlocked and a method is selected.
 
 Checkout Pickup:
 
@@ -325,6 +483,9 @@ Express Review and Confirm:
 - Confirm button is the only action that triggers capture.
 - If amount guard fails, keep capture blocked and show buyer-safe retry/support copy plus merchant debug reference.
 - Success state shows buyer-facing order number and next-step delivery message, not raw provider IDs.
+- Captured state should visually shift into an order-confirmation page: success icon, `Thank you` hierarchy, buyer-safe order number, confirmation email/status note, order details grid, product recommendations only if backed by real product data, and View Order / Continue Shopping actions.
+- Captured state must not keep the disabled `Confirm and pay` button as a dominant visual element.
+- Confirmation copy must not expose internal database IDs, raw payment-session IDs, or raw debug fields. PayPal capture ID may remain in a clearly secondary receipt row when useful for demo evidence.
 
 Account settings:
 
@@ -332,8 +493,13 @@ Account settings:
 - Profile panel shows email and lightweight account info without admin/internal IDs.
 - Address cards show label, recipient, formatted address, default shipping/billing badges, Edit, Delete, and Make default actions.
 - Add/edit address uses inline validation and a checked-by-default `Save to address book` behavior where relevant checkout flows later hand off to account.
+- Guest lookup, address, and review forms use shadcn field primitives with visible labels, CSS-rendered required markers, mobile keyboard hints, `autocomplete`, and touch-friendly submit/cancel buttons.
 - Deleting a default-only address is disabled with reason; destructive delete asks for confirmation.
 - Saved payment cards show method type, display name/last digits where available, status, and delete with confirmation.
+- Account/sign-up surfaces should match the reference split composition when shown outside a small modal: product/character art and buyer benefits on one side, tabbed sign-up/login form on the other.
+- Benefits copy should use implemented or demo-safe capabilities only: faster checkout, order updates, wishlist/account recovery where those surfaces exist.
+- Terms checkbox must be visible before account creation.
+- Social auth options must be omitted, disabled, or explicitly marked unavailable unless OAuth is wired.
 
 Order history:
 
@@ -460,15 +626,19 @@ Before any frontend slice is closed:
 Homepage:
 
 - Hero should feel like a blind-box drop or collection launch, not a generic ecommerce banner.
+- Header should feel like a real retailer: a compact utility strip, visible search, account/wishlist/cart actions, and active category navigation.
+- The first viewport should combine a cinematic hero with a trust strip and a visible hint of release/product modules below.
 - Hot sales and popular series should use vivid but controlled labels such as `Trending`, `Limited`, `Last chance`, and `New drop`.
 - Category cards should feel like capsule/toy-shelf entries with strong images, short labels, and soft colored backgrounds.
 - New arrivals calendar should read as a drop calendar; outlined release dates can use small sticker-like markers with text labels.
 - Promo banners should feel like collectible event cards rather than plain information panels.
+- Footer should feel production-ready: newsletter, key shop/help/about links, social/action area, and brand/collection credibility where appropriate.
 
 Category and PDP:
 
 - Product cards should show clear current/regular price, release status, sale labels, and pickup availability without turning the whole grid into a dense table.
-- PDP should feel like inspecting a collectible: large gallery, thumbnails, concise story/details, status badge, and strong add-to-cart/payment hierarchy.
+- PDP should feel like inspecting a collectible: large gallery, thumbnails, concise story/details, status/vendor/rating row, price, trust strip, tabbed details, status badge, and strong add-to-cart/payment hierarchy.
+- Pre-order or unreleased products should expose buyer-relevant economics in a structured panel when data is available: deposit, remaining balance, and estimated release. If data is unavailable, do not fake financial terms.
 - Unreleased products should stay visually exciting but have unmistakable disabled purchase states and no reviews.
 
 Cart, minicart, and checkout:
@@ -476,6 +646,7 @@ Cart, minicart, and checkout:
 - Cart/minicart can carry small pickup and Pay Later callouts, but should not become visually crowded with buttons.
 - Checkout should inherit the playful brand through accents, step badges, and selected summaries, but payment rows and official PayPal surfaces must remain stable and readable.
 - Pickup store cards can feel like store tickets: address, phone, distance, available/unavailable counts, and partial-inventory note in a compact, scannable block.
+- Pickup store tickets must use a real Card-like surface, a visible availability rail, a distance/status badge, phone number, address, two-count availability grid, and explicit partial-inventory note when unavailable quantities remain in the cart. Use the same anatomy for the inline Store selection step and the selectable store-picker modal.
 
 ## Accessibility And Form Rules
 
@@ -510,6 +681,7 @@ Hot sales and popular series use curated seed flags.
 - Future release products are viewable but not purchasable.
 - Include a compact legend for release status markers so outlined circles and color dots are not the only explanation.
 - Keyboard users can move between dates and open the selected date's product list.
+- Mobile release calendars must remain inside the viewport at 320px and 375px. If rendered through shadcn `Calendar`, constrain the month grid to seven `minmax(0, 1fr)` columns and avoid table cell minimums that create horizontal page scroll.
 
 Future-release PDP:
 
@@ -527,7 +699,7 @@ Filters:
 
 - price
 - availability
-- category/series
+- category
 - release status
 - pickup availability
 
@@ -562,22 +734,26 @@ PDP/cart/minicart PayPal and Pay Later buttons are delivery express only.
 Cart:
 
 - cart items and quantities
+- table/card hybrid row layout with product thumbnail, title/detail, price, quantity, total, remove action, and optional implemented save-for-later action
+- full order-summary card with subtotal, shipping, tax, total, primary checkout action, official PayPal delivery express surface, and implemented trust badges
+- free-shipping or promo progress only when backed by real threshold/demo promo data
 - amount-aware Pay Later message
 - checkout button
-- PayPal button
-- Pay Later button
+- secured PayPal delivery express frame containing the official PayPal button and eligible official Pay Later button, with SDK custom elements given stable 44px+ render boxes
+- desktop and tablet cart summary layouts should give the secured PayPal frame enough width for PayPal and eligible Pay Later to sit side by side; mobile and narrow containers stack the official buttons
 - text hint that Pickup can be selected on checkout page before payment
+- empty-cart state hides checkout/payment actions and points the buyer back to products
 
 Minicart:
 
 - compact item summary
-- quantity controls for each editable line item
+- quantity controls for each editable line item, with 44px minimum touch targets
 - amount-aware Pay Later message
 - view cart / checkout
-- PayPal button
-- Pay Later button
+- secured PayPal delivery express frame containing official PayPal/Pay Later buttons when the cart has items; drawer/narrow layouts stack the official buttons
 - short pickup hint
 - no store selector
+- empty-minicart state hides checkout/payment actions and points the buyer back to products
 - no pickup button
 
 ## Checkout
@@ -589,6 +765,19 @@ Checkout is one `/checkout` page with top-level tabs:
 
 Each tab has its own accordion flow. Order Summary stays visible and reflects active tab draft totals/context.
 
+Reference-level checkout layout:
+
+- breadcrumb and secure-checkout label above the page title
+- left column contains step cards for shipping/pickup address, shipping/pickup method/date, and payment method
+- right column contains order summary with product thumbnails, quantity, item amount, promo entry when supported, subtotal, shipping, tax, total, and selected payment action
+- bottom trust strip uses implemented capabilities only
+- mobile keeps order context reachable while long forms are active and does not cover fields with sticky payment actions
+- before the payment step is active, Order Summary shows a compact explanatory placeholder instead of an empty PayPal reserve; card-selected and ineligible-wallet states explain where the buyer should act next
+- checkout form controls use the shadcn `FieldGroup`/`Field`/`FieldLabel`/`Input`/`Checkbox` pattern, visible required markers, correct `autocomplete`/`inputMode`/`type` metadata, and inline validation/status copy rather than browser-tooltip-only form state
+- Runtime checkout summary itemizes active cart items when available and caps the visible list before `+N more` copy so mobile order context stays compact.
+- Promo UI must not fake manual code entry. Until manual promo application is wired, checkout shows the implemented auto-offer status and explanation only.
+- Trust-strip labels are limited to implemented demo capabilities: official provider-owned payment surfaces, recalculated totals, delivery/pickup selection, and order recovery.
+
 Accordion interaction contract:
 
 - Only one checkout section is expanded in the active tab at a time.
@@ -597,6 +786,7 @@ Accordion interaction contract:
 - Initial Pickup logged-in state shows the preselected store summary in Store selection and lets the buyer change it from a store picker modal.
 - Pickup guest state must not show a selected store, default-address checkbox, or store summary before the buyer submits ZIP/postcode and confirms a store from the modal.
 - Pickup seeded defaults must match the active market; US checkout must not show GB postcode/store defaults, and GB checkout must not show US ZIP/store defaults.
+- Pickup store selection must show nearby stores only after ZIP/postcode or saved-address lookup succeeds. Inline and modal cards must expose `data-pickup-store-ticket`, `data-inventory-state`, and an accessible `Pickup inventory for {store}` label so visual QA can verify full and partial inventory states without relying on color alone.
 - Submitting a section saves and collapses that section, then expands the next actionable section.
 - Editing a submitted section expands only that section, collapses the others, and marks downstream totals as needing recalculation where applicable.
 - Collapsed submitted sections show a compact buyer-readable summary plus an Edit action.
@@ -738,6 +928,16 @@ Flow:
 
 Full checkout does not add a separate Review and Confirm page.
 
+Captured-state reference layout:
+
+- success icon/check and `Thank you` headline
+- buyer-safe order number card and confirmation email/status note
+- order details grid with order number, payment method/status, shipping method, estimated delivery or pickup details where available
+- recommended products only if real catalog product data is available
+- View Order and Continue Shopping actions
+- guest Save Order prompt stays reachable and may open account creation/sign-in
+- no dominant disabled Confirm and Pay button after capture
+
 ## Promo, Tax, Shipping
 
 ### Calculation Order
@@ -793,6 +993,13 @@ Email-first modal:
 - existing account shows password
 - new account shows password registration
 - registration collects email and password only
+- full-page or expanded account creation should follow the reference split layout: product/character art and buyer benefits on one side, sign-up/login form on the other
+- the email-first auth modal uses shadcn `Dialog`, `Tabs`, `Field`, `Input`, `Checkbox`, and `Button` primitives for the new-account state
+- desktop registration in the modal shows the product/character art plus benefits beside the form; mobile stacks form controls first and moves art/benefits below, with optional art hidden when space is tight
+- benefits may mention faster checkout, order updates, wishlist/account recovery, and saved details only where implemented or clearly demo-safe
+- social-auth buttons are omitted, disabled, or marked unavailable unless OAuth is wired
+- account creation requires visible terms acceptance before submit
+- password visibility controls are explicit and reversible; submitting registration without terms acceptance shows inline buyer-readable error copy before any auth request is made
 
 ### Guest Checkout
 

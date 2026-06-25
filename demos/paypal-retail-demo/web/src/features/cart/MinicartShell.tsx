@@ -1,6 +1,21 @@
 import type { StorefrontShellPanels } from "../../state/storefrontState.js";
-import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
 import { type MouseEvent, type ReactNode } from "react";
+import { XIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+import { type DeliveryExpressPaymentMethod } from "../payments/deliveryExpress.js";
+import { PayPalPaymentFrame } from "../payments/PayPalPaymentFrame.js";
 import {
   buildCartPayLaterMessage,
   calculateCartItemCount,
@@ -12,6 +27,7 @@ import {
   type CartData,
   type CartItem,
 } from "./cartModel.js";
+import { CartSummaryBreakdown } from "./CartSummaryBreakdown.js";
 import { DeliveryExpressActions } from "./CartPage.js";
 
 export interface MinicartShellProps {
@@ -32,6 +48,10 @@ export interface MinicartShellProps {
     method: DeliveryExpressPaymentMethod,
     totalLabel: string,
   ) => ReactNode;
+  readonly renderPayLaterMessage?: (
+    totalLabel: string,
+    fallbackMessage: string,
+  ) => ReactNode;
 }
 
 export function MinicartShell({
@@ -43,126 +63,211 @@ export function MinicartShell({
   onDeliveryExpressStart,
   onQuantityChange,
   renderDeliveryExpressAction,
+  renderPayLaterMessage,
 }: MinicartShellProps) {
   const itemCount = calculateCartItemCount(cart);
+  const hasCheckoutItems = itemCount > 0;
   const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
   const subtotalLabel = formatCartAmount(
     calculateCartMerchandiseTotalCents(cart),
     cart,
   );
+  const payLaterMessage = buildCartPayLaterMessage(cart);
 
   function updateQuantity(item: CartItem, nextQuantity: number) {
     onQuantityChange?.(item.slug, nextQuantity, resolveCartItemServerId(item));
   }
 
   return (
-    <aside
-      className="minicart-shell"
-      aria-label="Minicart"
-      aria-hidden={state === "closed"}
-      data-panel-state={state}
-      {...(state === "closed" ? { inert: true } : {})}
+    <Sheet
+      open={state === "open"}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onClose?.();
+        }
+      }}
     >
-      <header className="minicart-shell__header">
-        <h2>Cart</h2>
-        <span>{itemCountLabel}</span>
-        {onClose ? (
-          <button type="button" aria-label="Close minicart" onClick={onClose}>
-            Close
-          </button>
-        ) : null}
-      </header>
-      <div className="minicart-shell__body">
-        <ul className="minicart-items">
-          {cart.items.map((item) => {
-            const quantity = resolveCartItemQuantity(item);
+      <SheetContent
+        forceMount
+        side="right"
+        className="minicart-shell"
+        overlayClassName="minicart-shell__overlay"
+        aria-label="Minicart"
+        aria-hidden={state === "closed"}
+        data-panel-state={state}
+        data-visual-separation="minicart-drawer"
+        showCloseButton={false}
+        {...(state === "closed" ? { inert: true } : {})}
+      >
+        <SheetHeader className="minicart-shell__header">
+          <SheetTitle>Cart</SheetTitle>
+          <SheetDescription>{itemCountLabel}</SheetDescription>
+          {onClose ? (
+            <SheetClose asChild>
+              <Button
+                type="button"
+                aria-label="Close minicart"
+                className="minicart-shell__close"
+                variant="outline"
+                onClick={onClose}
+              >
+                <XIcon aria-hidden="true" />
+              </Button>
+            </SheetClose>
+          ) : null}
+        </SheetHeader>
+        <div className="minicart-shell__body">
+          <ScrollArea
+            className="minicart-items-panel"
+            aria-label="Minicart items"
+          >
+            {cart.items.length > 0 ? (
+              <ul className="minicart-items">
+                {cart.items.map((item) => {
+                  const quantity = resolveCartItemQuantity(item);
 
-            return (
-              <li className="minicart-item" key={item.slug}>
-                <a href={item.href}>
-                  <img src={item.imagePath} alt={item.imageAlt} />
-                </a>
-                <div className="minicart-item__details">
-                  <a href={item.href}>{item.name}</a>
-                  <small>
-                    Qty {quantity} · {item.currentPriceLabel}
-                  </small>
-                  {item.unavailableReason ? (
-                    <small>{item.unavailableReason}</small>
-                  ) : null}
-                  <div className="cart-quantity minicart-item__quantity">
-                    <button
-                      type="button"
-                      aria-label={`Decrease ${item.name} quantity`}
-                      disabled={!onQuantityChange || quantity <= 0}
-                      onClick={() => updateQuantity(item, quantity - 1)}
-                    >
-                      -
-                    </button>
-                    <input
-                      aria-label={`${item.name} quantity`}
-                      inputMode="numeric"
-                      min={0}
-                      max={item.maxQuantity}
-                      readOnly
-                      type="number"
-                      value={quantity}
-                    />
-                    <button
-                      type="button"
-                      aria-label={`Increase ${item.name} quantity`}
-                      disabled={
-                        !onQuantityChange || quantity >= item.maxQuantity
-                      }
-                      onClick={() => updateQuantity(item, quantity + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        <section
-          className="minicart-paylater"
-          aria-labelledby="minicart-paylater-title"
-        >
-          <h3 id="minicart-paylater-title">Pay Later with PayPal</h3>
-          <p>{buildCartPayLaterMessage(cart)}</p>
-        </section>
-        <div className="minicart-actions">
-          <a
-            className="button button--secondary"
-            href={cart.cartHref}
-            onClick={(event) => handleOptionalNavigation(event, onCartNavigate)}
-          >
-            View cart
-          </a>
-          <a
-            className="button button--primary"
-            href={cart.checkoutHref}
-            onClick={(event) =>
-              handleOptionalNavigation(event, onCheckoutNavigate)
-            }
-          >
-            Checkout
-          </a>
+                  return (
+                    <li className="minicart-item" key={item.slug}>
+                      <a href={item.href}>
+                        <img
+                          src={item.imagePath}
+                          alt={item.imageAlt}
+                          loading="lazy"
+                        />
+                      </a>
+                      <div className="minicart-item__details">
+                        <a href={item.href}>{item.name}</a>
+                        <Badge
+                          className="minicart-item__category"
+                          variant="secondary"
+                        >
+                          {item.categoryName}
+                        </Badge>
+                        <small>
+                          Qty {quantity} · {item.currentPriceLabel}
+                        </small>
+                        {item.unavailableReason ? (
+                          <small>{item.unavailableReason}</small>
+                        ) : null}
+                        <div className="cart-quantity minicart-item__quantity">
+                          <button
+                            type="button"
+                            aria-label={`Decrease ${item.name} quantity`}
+                            disabled={!onQuantityChange || quantity <= 0}
+                            onClick={() => updateQuantity(item, quantity - 1)}
+                          >
+                            -
+                          </button>
+                          <input
+                            aria-label={`${item.name} quantity`}
+                            inputMode="numeric"
+                            min={0}
+                            max={item.maxQuantity}
+                            readOnly
+                            type="number"
+                            value={quantity}
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Increase ${item.name} quantity`}
+                            disabled={
+                              !onQuantityChange || quantity >= item.maxQuantity
+                            }
+                            onClick={() => updateQuantity(item, quantity + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <section className="minicart-empty-state">
+                <strong>Your cart is empty</strong>
+                <p>Add a collectible to unlock checkout and PayPal options.</p>
+                <Button
+                  asChild
+                  className="button button--secondary"
+                  variant="outline"
+                >
+                  <a href="/products">Browse drops</a>
+                </Button>
+              </section>
+            )}
+          </ScrollArea>
+          {hasCheckoutItems ? (
+            <section
+              className="minicart-checkout-panel"
+              aria-label="Minicart checkout"
+            >
+              <section
+                className="minicart-summary"
+                aria-label="Minicart summary"
+              >
+                <CartSummaryBreakdown
+                  density="compact"
+                  subtotalLabel={subtotalLabel}
+                />
+              </section>
+              <div className="minicart-actions">
+                <Button asChild className="button button--primary">
+                  <a
+                    href={cart.checkoutHref}
+                    onClick={(event) =>
+                      handleOptionalNavigation(event, onCheckoutNavigate)
+                    }
+                  >
+                    Checkout
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  className="button button--secondary"
+                  variant="outline"
+                >
+                  <a
+                    href={cart.cartHref}
+                    onClick={(event) =>
+                      handleOptionalNavigation(event, onCartNavigate)
+                    }
+                  >
+                    View cart
+                  </a>
+                </Button>
+              </div>
+              <section
+                className="minicart-paylater"
+                aria-labelledby="minicart-paylater-title"
+              >
+                <h3 id="minicart-paylater-title">Pay Later with PayPal</h3>
+                {state === "open" && renderPayLaterMessage ? (
+                  renderPayLaterMessage(subtotalLabel, payLaterMessage)
+                ) : (
+                  <p>{payLaterMessage}</p>
+                )}
+              </section>
+              {state === "open" ? (
+                <PayPalPaymentFrame className="cart-paypal-frame cart-paypal-frame--mini">
+                  <DeliveryExpressActions
+                    className="cart-express-actions--stacked"
+                    totalLabel={subtotalLabel}
+                    {...(onDeliveryExpressStart
+                      ? { onExpressStart: onDeliveryExpressStart }
+                      : {})}
+                    {...(renderDeliveryExpressAction
+                      ? { renderAction: renderDeliveryExpressAction }
+                      : {})}
+                  />
+                </PayPalPaymentFrame>
+              ) : null}
+              <p className="cart-pickup-hint">{cart.pickupHint}</p>
+            </section>
+          ) : null}
         </div>
-        {state === "open" ? (
-          <DeliveryExpressActions
-            totalLabel={subtotalLabel}
-            {...(onDeliveryExpressStart
-              ? { onExpressStart: onDeliveryExpressStart }
-              : {})}
-            {...(renderDeliveryExpressAction
-              ? { renderAction: renderDeliveryExpressAction }
-              : {})}
-          />
-        ) : null}
-        <p className="cart-pickup-hint">{cart.pickupHint}</p>
-      </div>
-    </aside>
+      </SheetContent>
+    </Sheet>
   );
 }
 

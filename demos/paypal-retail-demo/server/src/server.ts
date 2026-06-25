@@ -10,7 +10,14 @@ import {
   createSupabaseAccountRepository,
   type SupabaseAccountClient,
 } from "./repositories/accountRepository.js";
-import { createSupabaseAdminProfileMarketRepository } from "./repositories/adminRepository.js";
+import {
+  createSupabaseAdminInventoryRepository,
+  createSupabaseAdminOrderRepository,
+  createSupabaseAdminPaymentDebugRepository,
+  createSupabaseAdminProfileMarketRepository,
+  createSupabaseAdminWebhookRepository,
+  type SupabaseAdminClient,
+} from "./repositories/adminRepository.js";
 import {
   createSupabaseCartDataSource,
   createSupabaseCartRepository,
@@ -44,6 +51,7 @@ import {
 import { createInMemoryActiveStorefrontContextStore } from "./state/storefrontContext.js";
 
 type SupabaseRuntimeClient = SupabaseCatalogClient &
+  SupabaseAdminClient &
   SupabaseCartClient &
   SupabaseCheckoutClient &
   SupabaseOrderClient &
@@ -95,6 +103,10 @@ export function startServer(env: RawServerEnv = process.env) {
       adminPasscode: config.adminPasscode,
       profileMarketRepository:
         createSupabaseAdminProfileMarketRepository(supabase),
+      orderRepository: createSupabaseAdminOrderRepository(supabase),
+      inventoryRepository: createSupabaseAdminInventoryRepository(supabase),
+      webhookRepository: createSupabaseAdminWebhookRepository(supabase),
+      debugRepository: createSupabaseAdminPaymentDebugRepository(supabase),
       activeStorefrontContextStore,
     },
     cart: {

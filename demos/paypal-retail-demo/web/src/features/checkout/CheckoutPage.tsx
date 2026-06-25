@@ -2,12 +2,37 @@ import {
   useEffect,
   useRef,
   useState,
+  type HTMLInputTypeAttribute,
+  type InputHTMLAttributes,
   type ReactNode,
   type RefObject,
 } from "react";
+import { XIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldDescription,
+  FieldError as FormFieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import {
-  FieldError,
   StatusRegion,
   mergeDescribedByIds,
 } from "../../components/accessibility.js";
@@ -67,12 +92,25 @@ export interface CheckoutStoreCard {
   readonly selected?: boolean;
 }
 
+export interface CheckoutSummaryItem {
+  readonly id: string;
+  readonly name: string;
+  readonly detailLabel: string;
+  readonly imagePath: string;
+  readonly imageAlt: string;
+  readonly quantity: number;
+  readonly amountLabel: string;
+}
+
 export interface CheckoutOrderSummary {
   readonly title: string;
   readonly contextLabel: string;
+  readonly items?: readonly CheckoutSummaryItem[];
   readonly subtotalLabel: string;
   readonly promoLabel: string;
+  readonly promoHelpLabel?: string;
   readonly shippingLabel?: string;
+  readonly taxLabel?: string;
   readonly totalLabel: string;
   readonly selectedPaymentLabel: string;
   readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
@@ -746,10 +784,21 @@ export function CheckoutPage({
   }
 
   return (
-    <div className="checkout-page">
+    <div className="checkout-page" data-visual-accent-scope="checkout">
       <header className="checkout-hero">
-        <p className="homepage-eyebrow">Checkout</p>
-        <h1>Delivery or Pickup</h1>
+        <nav aria-label="Checkout breadcrumb" className="checkout-breadcrumb">
+          <a href="/">Home</a>
+          <span aria-hidden="true">/</span>
+          <span>Secure checkout</span>
+        </nav>
+        <p className="homepage-eyebrow">Secure checkout</p>
+        <div className="checkout-hero__headline">
+          <h1>Delivery or Pickup</h1>
+          <p>
+            Confirm fulfillment, review totals, then continue with the eligible
+            PayPal payment surface.
+          </p>
+        </div>
         {pageData.modeLocked ? (
           <p className="checkout-lock-notice">
             <strong>Payment session started.</strong> {pageData.lockedReason}
@@ -768,81 +817,79 @@ export function CheckoutPage({
 
       <div className="checkout-layout">
         <section className="checkout-workflow" aria-label="Checkout flow">
-          <div
-            className="checkout-tabs"
-            role="tablist"
-            aria-label="Fulfillment mode"
+          <Tabs
+            value={activeMode}
+            onValueChange={(value) =>
+              selectMode(value as CheckoutFulfillmentMode)
+            }
+            className="checkout-fulfillment-tabs"
           >
-            <button
-              id="checkout-tab-delivery"
-              type="button"
-              role="tab"
-              aria-controls="checkout-panel-delivery"
-              aria-selected={activeMode === "delivery"}
-              aria-disabled={pageData.modeLocked && activeMode !== "delivery"}
-              onClick={() => selectMode("delivery")}
-            >
-              {data.delivery.label}
-            </button>
-            <button
-              id="checkout-tab-pickup"
-              type="button"
-              role="tab"
-              aria-controls="checkout-panel-pickup"
-              aria-selected={activeMode === "pickup"}
-              aria-disabled={pageData.modeLocked && activeMode !== "pickup"}
-              onClick={() => selectMode("pickup")}
-            >
-              {data.pickup.label}
-            </button>
-          </div>
+            <TabsList className="checkout-tabs" aria-label="Fulfillment mode">
+              <TabsTrigger
+                id="checkout-tab-delivery"
+                value="delivery"
+                aria-disabled={pageData.modeLocked && activeMode !== "delivery"}
+                disabled={pageData.modeLocked && activeMode !== "delivery"}
+              >
+                {data.delivery.label}
+              </TabsTrigger>
+              <TabsTrigger
+                id="checkout-tab-pickup"
+                value="pickup"
+                aria-disabled={pageData.modeLocked && activeMode !== "pickup"}
+                disabled={pageData.modeLocked && activeMode !== "pickup"}
+              >
+                {data.pickup.label}
+              </TabsTrigger>
+            </TabsList>
 
-          <CheckoutModePanel
-            draft={pageData.delivery}
-            mode="delivery"
-            active={activeMode === "delivery"}
-            validation={pageData.validation}
-            focusTargetRef={focusTargetRef}
-            fieldValues={fieldValues}
-            submitErrorMessages={submitErrorMessages}
-            stepStateOverrides={stepStateOverrides}
-            expandedStepId={expandedStepIds.delivery}
-            collapsedStepIds={collapsedStepIds}
-            choiceSelections={choiceSelections}
-            selectedPickupStoreName={selectedPickupStoreName}
-            selectedPaymentMethod={deliverySelectedPaymentMethod}
-            onFieldChange={updateFieldValue}
-            onChoiceChange={updateChoiceSelection}
-            onStepEdit={editStep}
-            onStepSubmit={submitStep}
-            payLaterRowMessage={
-              activeMode === "delivery" ? payLaterRowMessage : null
-            }
-            cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
-          />
-          <CheckoutModePanel
-            draft={pageData.pickup}
-            mode="pickup"
-            active={activeMode === "pickup"}
-            validation={pageData.validation}
-            focusTargetRef={focusTargetRef}
-            fieldValues={fieldValues}
-            submitErrorMessages={submitErrorMessages}
-            stepStateOverrides={stepStateOverrides}
-            expandedStepId={expandedStepIds.pickup}
-            collapsedStepIds={collapsedStepIds}
-            choiceSelections={choiceSelections}
-            selectedPickupStoreName={selectedPickupStoreName}
-            selectedPaymentMethod={pickupSelectedPaymentMethod}
-            onFieldChange={updateFieldValue}
-            onChoiceChange={updateChoiceSelection}
-            onStepEdit={editStep}
-            onStepSubmit={submitStep}
-            payLaterRowMessage={
-              activeMode === "pickup" ? payLaterRowMessage : null
-            }
-            cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
-          />
+            <CheckoutModePanel
+              draft={pageData.delivery}
+              mode="delivery"
+              active={activeMode === "delivery"}
+              validation={pageData.validation}
+              focusTargetRef={focusTargetRef}
+              fieldValues={fieldValues}
+              submitErrorMessages={submitErrorMessages}
+              stepStateOverrides={stepStateOverrides}
+              expandedStepId={expandedStepIds.delivery}
+              collapsedStepIds={collapsedStepIds}
+              choiceSelections={choiceSelections}
+              selectedPickupStoreName={selectedPickupStoreName}
+              selectedPaymentMethod={deliverySelectedPaymentMethod}
+              onFieldChange={updateFieldValue}
+              onChoiceChange={updateChoiceSelection}
+              onStepEdit={editStep}
+              onStepSubmit={submitStep}
+              payLaterRowMessage={
+                activeMode === "delivery" ? payLaterRowMessage : null
+              }
+              cardPaymentBox={activeMode === "delivery" ? cardPaymentBox : null}
+            />
+            <CheckoutModePanel
+              draft={pageData.pickup}
+              mode="pickup"
+              active={activeMode === "pickup"}
+              validation={pageData.validation}
+              focusTargetRef={focusTargetRef}
+              fieldValues={fieldValues}
+              submitErrorMessages={submitErrorMessages}
+              stepStateOverrides={stepStateOverrides}
+              expandedStepId={expandedStepIds.pickup}
+              collapsedStepIds={collapsedStepIds}
+              choiceSelections={choiceSelections}
+              selectedPickupStoreName={selectedPickupStoreName}
+              selectedPaymentMethod={pickupSelectedPaymentMethod}
+              onFieldChange={updateFieldValue}
+              onChoiceChange={updateChoiceSelection}
+              onStepEdit={editStep}
+              onStepSubmit={submitStep}
+              payLaterRowMessage={
+                activeMode === "pickup" ? payLaterRowMessage : null
+              }
+              cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
+            />
+          </Tabs>
         </section>
 
         <CheckoutSummary
@@ -850,6 +897,8 @@ export function CheckoutPage({
           paymentAction={paymentAction}
         />
       </div>
+
+      <CheckoutTrustStrip />
 
       {pickupStoreModalOpen ? (
         <PickupStoreModal
@@ -935,12 +984,12 @@ function CheckoutModePanel({
   readonly cardPaymentBox?: ReactNode;
 }) {
   return (
-    <section
+    <TabsContent
       className="checkout-panel"
-      id={`checkout-panel-${mode}`}
-      role="tabpanel"
-      aria-labelledby={`checkout-tab-${mode}`}
+      value={mode}
+      forceMount
       hidden={!active}
+      aria-hidden={!active}
     >
       <div className="checkout-steps">
         {draft.steps.map((step) => {
@@ -983,43 +1032,59 @@ function CheckoutModePanel({
           return (
             <article
               aria-describedby={describedById}
-              className="checkout-step"
               data-focus-target={isFocusTarget ? "true" : undefined}
               data-step-state={stepState}
               key={step.id}
               ref={isFocusTarget ? focusTargetRef : undefined}
               tabIndex={isFocusTarget ? -1 : undefined}
             >
-              <header>
-                <h2>{step.title}</h2>
-                <span>{stepStateLabels[stepState]}</span>
-              </header>
-              <p>{step.body}</p>
-              {isExpanded ? (
-                <CheckoutStepDetails
-                  step={stepWithDetails}
-                  payLaterRowMessage={payLaterRowMessage}
-                  cardPaymentBox={cardPaymentBox}
-                  submitErrorMessage={submitErrorMessage}
-                  submitErrorId={submitErrorId}
-                  validationMessages={validationMessages}
-                  onFieldChange={onFieldChange}
-                  onChoiceChange={onChoiceChange}
-                  onStepSubmit={onStepSubmit}
-                />
-              ) : isSubmitted ? (
-                <CheckoutStepSummary
-                  step={stepWithDetails}
-                  mode={mode}
-                  onStepEdit={onStepEdit}
-                  onStepSubmit={onStepSubmit}
-                />
-              ) : null}
+              <Card
+                className="checkout-step"
+                data-visual-accent="checkout-step"
+                data-focus-target={isFocusTarget ? "true" : undefined}
+                data-step-state={stepState}
+              >
+                <CardHeader className="checkout-step__header">
+                  <CardTitle className="checkout-step__title">
+                    <h2>{step.title}</h2>
+                  </CardTitle>
+                  <CardAction>
+                    <span className="checkout-step__state">
+                      {stepStateLabels[stepState]}
+                    </span>
+                  </CardAction>
+                  <CardDescription className="checkout-step__description">
+                    {step.body}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="checkout-step__content">
+                  {isExpanded ? (
+                    <CheckoutStepDetails
+                      step={stepWithDetails}
+                      payLaterRowMessage={payLaterRowMessage}
+                      cardPaymentBox={cardPaymentBox}
+                      submitErrorMessage={submitErrorMessage}
+                      submitErrorId={submitErrorId}
+                      validationMessages={validationMessages}
+                      onFieldChange={onFieldChange}
+                      onChoiceChange={onChoiceChange}
+                      onStepSubmit={onStepSubmit}
+                    />
+                  ) : isSubmitted ? (
+                    <CheckoutStepSummary
+                      step={stepWithDetails}
+                      mode={mode}
+                      onStepEdit={onStepEdit}
+                      onStepSubmit={onStepSubmit}
+                    />
+                  ) : null}
+                </CardContent>
+              </Card>
             </article>
           );
         })}
       </div>
-    </section>
+    </TabsContent>
   );
 }
 
@@ -1319,6 +1384,19 @@ function parseInventoryCount(label: string): number {
   return Number(label.match(/\d+/)?.[0] ?? 0);
 }
 
+function getPickupStoreInventoryState(
+  store: CheckoutStoreCard,
+): "empty" | "full" | "partial" {
+  const availableCount = parseInventoryCount(store.availableItemsLabel);
+  const unavailableCount = parseInventoryCount(store.unavailableItemsLabel);
+
+  if (availableCount <= 0) {
+    return "empty";
+  }
+
+  return unavailableCount > 0 ? "partial" : "full";
+}
+
 function isPaymentStepId(stepId: string): boolean {
   return stepId === "payment-method" || stepId === "pickup-payment-method";
 }
@@ -1423,6 +1501,56 @@ function CheckoutStepSummary({
   );
 }
 
+function PickupStoreTicketDetails({
+  store,
+}: {
+  readonly store: CheckoutStoreCard;
+}) {
+  const availableCount = parseInventoryCount(store.availableItemsLabel);
+  const unavailableCount = parseInventoryCount(store.unavailableItemsLabel);
+  const inventoryState = getPickupStoreInventoryState(store);
+
+  return (
+    <>
+      <div className="checkout-store-card__route">
+        <span className="checkout-store-card__address">{store.address}</span>
+        <span className="checkout-store-card__phone">{store.phoneLabel}</span>
+      </div>
+      <div
+        aria-label={`Pickup inventory for ${store.name}`}
+        className="checkout-store-card__availability"
+        data-inventory-state={inventoryState}
+      >
+        <span data-inventory-kind="available">
+          <strong>{availableCount}</strong>
+          <small>{store.availableItemsLabel}</small>
+        </span>
+        <span data-inventory-kind="unavailable">
+          <strong>{unavailableCount}</strong>
+          <small>{store.unavailableItemsLabel}</small>
+        </span>
+      </div>
+      {store.statusLabel || store.partialInventoryNote ? (
+        <div className="checkout-store-card__footer">
+          {store.statusLabel ? (
+            <Badge
+              className="checkout-store-card__badge"
+              variant={inventoryState === "partial" ? "outline" : "secondary"}
+            >
+              {store.statusLabel}
+            </Badge>
+          ) : null}
+          {store.partialInventoryNote ? (
+            <p className="checkout-store-card__note">
+              {store.partialInventoryNote}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function PickupStoreModal({
   stores,
   selectedStoreName,
@@ -1461,40 +1589,53 @@ function PickupStoreModal({
             <p className="homepage-eyebrow">Pickup nearby</p>
             <h2 id="pickup-store-modal-title">Choose pickup store</h2>
           </div>
-          <button type="button" onClick={onClose}>
-            Close
+          <button
+            type="button"
+            aria-label="Close pickup store picker"
+            className="checkout-modal__close"
+            onClick={onClose}
+          >
+            <XIcon aria-hidden="true" />
           </button>
         </header>
         <div className="checkout-store-grid checkout-store-grid--modal">
-          {stores.map((store) => (
-            <label
-              className="checkout-store-card checkout-store-card--selectable"
-              data-selected={
-                store.name === selectedStoreName ? "true" : "false"
-              }
-              key={store.name}
-            >
-              <input
-                checked={store.name === selectedStoreName}
-                name="pickup-store-options"
-                onChange={() => onSelect(store.name)}
-                ref={store.name === selectedStoreName ? selectedStoreRef : null}
-                type="radio"
-              />
-              <span className="checkout-store-card__body">
-                <span className="checkout-store-card__heading">
-                  <strong>{store.name}</strong>
-                  <small>{store.distanceLabel}</small>
+          {stores.map((store) => {
+            const inventoryState = getPickupStoreInventoryState(store);
+
+            return (
+              <label
+                className="checkout-store-card checkout-store-card--ticket checkout-store-card--selectable"
+                data-inventory-state={inventoryState}
+                data-pickup-store-ticket="true"
+                data-selected={
+                  store.name === selectedStoreName ? "true" : "false"
+                }
+                key={store.name}
+              >
+                <input
+                  checked={store.name === selectedStoreName}
+                  name="pickup-store-options"
+                  onChange={() => onSelect(store.name)}
+                  ref={
+                    store.name === selectedStoreName ? selectedStoreRef : null
+                  }
+                  type="radio"
+                />
+                <span className="checkout-store-card__body">
+                  <span className="checkout-store-card__heading">
+                    <strong>{store.name}</strong>
+                    <Badge
+                      className="checkout-store-card__distance"
+                      variant="outline"
+                    >
+                      {store.distanceLabel}
+                    </Badge>
+                  </span>
+                  <PickupStoreTicketDetails store={store} />
                 </span>
-                <span>{store.address}</span>
-                <span>{store.phoneLabel}</span>
-                <span>
-                  {store.availableItemsLabel} / {store.unavailableItemsLabel}
-                </span>
-                {store.statusLabel ? <em>{store.statusLabel}</em> : null}
-              </span>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
         <footer className="checkout-modal__actions">
           <button type="button" onClick={onClose}>
@@ -1507,6 +1648,127 @@ function PickupStoreModal({
       </div>
     </div>
   );
+}
+
+function getCheckoutFieldInputId(stepId: string, label: string): string {
+  const labelSlug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return `${stepId}-${labelSlug}`.replace(/-+$/g, "");
+}
+
+function isCheckoutFieldRequired(
+  stepId: string,
+  field: CheckoutField,
+): boolean {
+  if (field.type === "checkbox") {
+    return false;
+  }
+
+  if (
+    stepId === "billing-address" &&
+    (field.label === "Same as shipping" ||
+      field.label === "Billing street address" ||
+      field.label === "Billing city" ||
+      field.label === "Billing ZIP code")
+  ) {
+    return field.label !== "Same as shipping";
+  }
+
+  return !/address line 2|apt|suite/i.test(field.label);
+}
+
+function getCheckoutFieldAutocomplete(label: string): string | undefined {
+  const normalizedLabel = label.toLowerCase();
+
+  if (normalizedLabel.includes("full name")) {
+    return "name";
+  }
+
+  if (normalizedLabel.includes("street") || normalizedLabel.includes("apt")) {
+    return normalizedLabel.includes("apt") ? "address-line2" : "address-line1";
+  }
+
+  if (normalizedLabel.includes("city")) {
+    return "address-level2";
+  }
+
+  if (normalizedLabel.includes("state")) {
+    return "address-level1";
+  }
+
+  if (
+    normalizedLabel.includes("zip") ||
+    normalizedLabel.includes("postal") ||
+    normalizedLabel.includes("postcode")
+  ) {
+    return "postal-code";
+  }
+
+  if (normalizedLabel.includes("email")) {
+    return "email";
+  }
+
+  if (normalizedLabel.includes("phone")) {
+    return "tel";
+  }
+
+  return undefined;
+}
+
+function getCheckoutFieldInputMode(
+  label: string,
+): InputHTMLAttributes<HTMLInputElement>["inputMode"] {
+  const normalizedLabel = label.toLowerCase();
+
+  if (normalizedLabel.includes("email")) {
+    return "email";
+  }
+
+  if (normalizedLabel.includes("phone")) {
+    return "tel";
+  }
+
+  if (
+    normalizedLabel.includes("zip") ||
+    normalizedLabel.includes("postal") ||
+    normalizedLabel.includes("postcode")
+  ) {
+    return "text";
+  }
+
+  return "text";
+}
+
+function getCheckoutFieldType(label: string): HTMLInputTypeAttribute {
+  const normalizedLabel = label.toLowerCase();
+
+  if (normalizedLabel.includes("email")) {
+    return "email";
+  }
+
+  if (normalizedLabel.includes("phone")) {
+    return "tel";
+  }
+
+  return "text";
+}
+
+function getCheckoutFieldDescription(
+  stepId: string,
+  field: CheckoutField,
+): string | null {
+  if (field.type === "checkbox") {
+    return null;
+  }
+
+  if (stepId === "pickup-location" && /zip|postcode/i.test(field.label)) {
+    return "Used only to rank nearby pickup stores.";
+  }
+
+  if (isCheckoutFieldRequired(stepId, field)) {
+    return "Required to continue this checkout step.";
+  }
+
+  return null;
 }
 
 function CheckoutStepDetails({
@@ -1553,52 +1815,83 @@ function CheckoutStepDetails({
   return (
     <div className="checkout-step__details">
       {step.fields?.length ? (
-        <div className="checkout-fields">
+        <FieldGroup className="checkout-fields">
           {step.fields.map((field) => {
             const validationMessage = validationMessages.find(
               (message) => message.fieldLabel === field.label,
             );
+            const fieldId = getCheckoutFieldInputId(step.id, field.label);
+            const fieldRequired = isCheckoutFieldRequired(step.id, field);
+            const fieldDescription = getCheckoutFieldDescription(
+              step.id,
+              field,
+            );
+
+            if (field.type === "checkbox") {
+              return (
+                <Field
+                  className="checkout-field checkout-field--checkbox"
+                  key={field.label}
+                  orientation="horizontal"
+                >
+                  <Checkbox
+                    id={fieldId}
+                    checked={field.checked ?? false}
+                    onCheckedChange={(checked) => {
+                      onFieldChange(step.id, field.label, checked === true);
+                    }}
+                  />
+                  <FieldLabel htmlFor={fieldId}>{field.label}</FieldLabel>
+                </Field>
+              );
+            }
 
             return (
-              <label
-                className={
-                  field.type === "checkbox"
-                    ? "checkout-field checkout-field--checkbox"
-                    : "checkout-field"
-                }
+              <Field
+                className="checkout-field"
+                data-invalid={validationMessage ? "true" : undefined}
                 key={field.label}
               >
-                <span>{field.label}</span>
-                <input
+                <FieldLabel
+                  className={
+                    fieldRequired
+                      ? "checkout-field-label checkout-field-label--required"
+                      : "checkout-field-label"
+                  }
+                  htmlFor={fieldId}
+                >
+                  {field.label}
+                </FieldLabel>
+                <Input
+                  id={fieldId}
                   aria-describedby={validationMessage?.id}
                   aria-invalid={validationMessage ? true : undefined}
-                  checked={
-                    field.type === "checkbox" ? field.checked : undefined
-                  }
+                  autoComplete={getCheckoutFieldAutocomplete(field.label)}
+                  inputMode={getCheckoutFieldInputMode(field.label)}
                   onChange={(event) => {
                     onFieldChange(
                       step.id,
                       field.label,
-                      field.type === "checkbox"
-                        ? event.currentTarget.checked
-                        : event.currentTarget.value,
+                      event.currentTarget.value,
                     );
                   }}
                   placeholder={field.placeholder}
-                  type={field.type}
-                  value={
-                    field.type === "text" ? (field.value ?? "") : undefined
-                  }
+                  required={fieldRequired}
+                  type={getCheckoutFieldType(field.label)}
+                  value={field.value ?? ""}
                 />
-                {validationMessage ? (
-                  <FieldError id={validationMessage.id}>
-                    {validationMessage.message}
-                  </FieldError>
+                {fieldDescription ? (
+                  <FieldDescription>{fieldDescription}</FieldDescription>
                 ) : null}
-              </label>
+                {validationMessage ? (
+                  <FormFieldError id={validationMessage.id}>
+                    {validationMessage.message}
+                  </FormFieldError>
+                ) : null}
+              </Field>
             );
           })}
-        </div>
+        </FieldGroup>
       ) : null}
 
       {validationMessages.some((message) => !message.fieldLabel) ? (
@@ -1606,15 +1899,15 @@ function CheckoutStepDetails({
           {validationMessages
             .filter((message) => !message.fieldLabel)
             .map((message) => (
-              <FieldError id={message.id} key={message.id}>
+              <FormFieldError id={message.id} key={message.id}>
                 {message.message}
-              </FieldError>
+              </FormFieldError>
             ))}
         </div>
       ) : null}
 
       {submitErrorMessage && submitErrorId ? (
-        <FieldError id={submitErrorId}>{submitErrorMessage}</FieldError>
+        <FormFieldError id={submitErrorId}>{submitErrorMessage}</FormFieldError>
       ) : null}
 
       {step.choices?.length ? (
@@ -1658,48 +1951,58 @@ function CheckoutStepDetails({
 
       {step.storeCards?.length ? (
         <div className="checkout-store-grid">
-          {step.storeCards.map((store) => (
-            <article
-              className="checkout-store-card"
-              data-selected={store.selected ? "true" : "false"}
-              key={store.name}
-            >
-              <header>
-                <h3>{store.name}</h3>
-                <span>{store.distanceLabel}</span>
-              </header>
-              <p>{store.address}</p>
-              <dl>
-                <div>
-                  <dt>Store phone</dt>
-                  <dd>{store.phoneLabel}</dd>
-                </div>
-                <div>
-                  <dt>Available</dt>
-                  <dd>{store.availableItemsLabel}</dd>
-                </div>
-                <div>
-                  <dt>Unavailable</dt>
-                  <dd>{store.unavailableItemsLabel}</dd>
-                </div>
-              </dl>
-              {store.statusLabel ? <strong>{store.statusLabel}</strong> : null}
-              {store.partialInventoryNote ? (
-                <p>{store.partialInventoryNote}</p>
-              ) : null}
-            </article>
-          ))}
+          {step.storeCards.map((store) => {
+            const inventoryState = getPickupStoreInventoryState(store);
+
+            return (
+              <Card
+                aria-label={`Pickup store ticket for ${store.name}`}
+                className="checkout-store-card checkout-store-card--ticket"
+                data-inventory-state={inventoryState}
+                data-pickup-store-ticket="true"
+                data-selected={store.selected ? "true" : "false"}
+                key={store.name}
+              >
+                <CardHeader className="checkout-store-card__header">
+                  <CardTitle>
+                    <span className="checkout-store-card__title">
+                      <h3>{store.name}</h3>
+                      {store.selected ? (
+                        <Badge
+                          className="checkout-store-card__badge"
+                          variant="secondary"
+                        >
+                          Selected
+                        </Badge>
+                      ) : null}
+                    </span>
+                  </CardTitle>
+                  <CardAction>
+                    <Badge
+                      className="checkout-store-card__distance"
+                      variant="outline"
+                    >
+                      {store.distanceLabel}
+                    </Badge>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="checkout-store-card__content">
+                  <PickupStoreTicketDetails store={store} />
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : null}
 
       {step.primaryActionLabel ? (
-        <button
+        <Button
           className="checkout-step__action"
           type="button"
           onClick={() => onStepSubmit(step)}
         >
           {step.primaryActionLabel}
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -1712,40 +2015,94 @@ function CheckoutSummary({
   readonly summary: CheckoutOrderSummary;
   readonly paymentAction?: ReactNode;
 }) {
+  const visibleItems = summary.items?.slice(0, 3) ?? [];
+  const hiddenItemCount = Math.max((summary.items?.length ?? 0) - 3, 0);
+
   return (
-    <aside className="checkout-summary" aria-label="Order summary">
-      <h2>{summary.title}</h2>
-      <p>{summary.contextLabel}</p>
-      {summary.readyItemsLabel ? (
-        <div className="checkout-summary__split">
-          <strong>{summary.readyItemsLabel}</strong>
-          <span>{summary.unavailableItemsLabel}</span>
-          {summary.partialInventoryNote ? (
-            <p>{summary.partialInventoryNote}</p>
-          ) : null}
-        </div>
-      ) : null}
-      <dl>
-        <div>
-          <dt>Merchandise subtotal</dt>
-          <dd>{summary.subtotalLabel}</dd>
-        </div>
-        <div>
-          <dt>Promo</dt>
-          <dd>{summary.promoLabel}</dd>
-        </div>
-        {summary.shippingLabel ? (
-          <div>
-            <dt>Shipping</dt>
-            <dd>{summary.shippingLabel}</dd>
+    <Card
+      className="checkout-summary"
+      data-visual-accent="commerce-summary"
+      aria-label="Order summary"
+      role="complementary"
+    >
+      <CardHeader>
+        <CardTitle>
+          <h2>{summary.title}</h2>
+        </CardTitle>
+        <CardDescription className="checkout-summary__description">
+          {summary.contextLabel}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="checkout-summary__content">
+        {visibleItems.length ? (
+          <div className="checkout-summary__items" aria-label="Checkout items">
+            {visibleItems.map((item) => (
+              <div className="checkout-summary__item" key={item.id}>
+                <img src={item.imagePath} alt={item.imageAlt} loading="lazy" />
+                <div>
+                  <strong>{item.name}</strong>
+                  <span>{item.detailLabel}</span>
+                  <Badge variant="secondary">Qty {item.quantity}</Badge>
+                </div>
+                <b>{item.amountLabel}</b>
+              </div>
+            ))}
+            {hiddenItemCount > 0 ? (
+              <p className="checkout-summary__more-items">
+                +{hiddenItemCount} more checkout item
+                {hiddenItemCount === 1 ? "" : "s"}
+              </p>
+            ) : null}
           </div>
         ) : null}
-        <div>
-          <dt>Total</dt>
-          <dd>{summary.totalLabel}</dd>
+        {summary.readyItemsLabel ? (
+          <div className="checkout-summary__split">
+            <strong>{summary.readyItemsLabel}</strong>
+            <span>{summary.unavailableItemsLabel}</span>
+            {summary.partialInventoryNote ? (
+              <p>{summary.partialInventoryNote}</p>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="checkout-summary__promo-panel">
+          <div>
+            <Badge variant="outline">Offer status</Badge>
+            <strong>{summary.promoLabel}</strong>
+          </div>
+          <p>
+            {summary.promoHelpLabel ??
+              "Offers are checked against saved fulfillment details before payment."}
+          </p>
         </div>
-      </dl>
-      <section
+        <Separator className="checkout-summary__separator" />
+        <dl>
+          <div>
+            <dt>Merchandise subtotal</dt>
+            <dd>{summary.subtotalLabel}</dd>
+          </div>
+          <div>
+            <dt>Promo</dt>
+            <dd>{summary.promoLabel}</dd>
+          </div>
+          {summary.shippingLabel ? (
+            <div>
+              <dt>Shipping</dt>
+              <dd>{summary.shippingLabel}</dd>
+            </div>
+          ) : null}
+          {summary.taxLabel ? (
+            <div>
+              <dt>Estimated tax</dt>
+              <dd>{summary.taxLabel}</dd>
+            </div>
+          ) : null}
+          <div className="checkout-summary__total-row">
+            <dt>Total</dt>
+            <dd>{summary.totalLabel}</dd>
+          </div>
+        </dl>
+      </CardContent>
+      <CardFooter
         className="checkout-summary__payment"
         aria-label="Selected payment method"
       >
@@ -1754,11 +2111,93 @@ function CheckoutSummary({
           className="checkout-summary__slot"
           data-payment-action-reserved-space="true"
         >
-          {paymentAction}
+          {paymentAction ?? <CheckoutPaymentPlaceholder summary={summary} />}
         </div>
-      </section>
-    </aside>
+      </CardFooter>
+    </Card>
   );
+}
+
+function CheckoutTrustStrip() {
+  const highlights = [
+    {
+      label: "Official payment surfaces",
+      body: "PayPal, Pay Later, card, and wallets render only from eligible provider flows.",
+    },
+    {
+      label: "Totals reconciled",
+      body: "Shipping, promo, and tax-sensitive totals update before payment.",
+    },
+    {
+      label: "Delivery or pickup",
+      body: "Choose fulfillment first; pickup-unavailable items stay in cart.",
+    },
+    {
+      label: "Order recovery",
+      body: "Started payment sessions can be reviewed or recovered.",
+    },
+  ];
+
+  return (
+    <section
+      className="checkout-trust-strip"
+      data-visual-accent="trust-strip"
+      aria-label="Checkout safeguards"
+    >
+      {highlights.map((highlight) => (
+        <div className="checkout-trust-strip__item" key={highlight.label}>
+          <Badge variant="secondary">{highlight.label}</Badge>
+          <p>{highlight.body}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function CheckoutPaymentPlaceholder({
+  summary,
+}: {
+  readonly summary: CheckoutOrderSummary;
+}) {
+  const placeholder = getCheckoutPaymentPlaceholder(summary);
+
+  return (
+    <div
+      className="checkout-summary__payment-placeholder"
+      data-payment-placeholder-state={placeholder.state}
+    >
+      <strong>{placeholder.title}</strong>
+      <p>{placeholder.body}</p>
+    </div>
+  );
+}
+
+function getCheckoutPaymentPlaceholder(summary: CheckoutOrderSummary): {
+  readonly body: string;
+  readonly state: "card" | "locked" | "unavailable";
+  readonly title: string;
+} {
+  if (summary.selectedPaymentMethod === "card") {
+    return {
+      state: "card",
+      title: "Card fields are active in the payment step.",
+      body: "Complete the secure card form in the expanded payment row before placing the order.",
+    };
+  }
+
+  if (!summary.selectedPaymentMethod) {
+    return {
+      state: "locked",
+      title: "Payment methods unlock after required steps.",
+      body: "Save shipping, billing, fulfillment, and delivery choices to choose PayPal, Pay Later, card, or wallet options.",
+    };
+  }
+
+  return {
+    state: "unavailable",
+    title: "This payment method is not ready yet.",
+    body: "Choose another eligible method in the payment step or wait for this wallet to become available.",
+  };
 }
 
 function withDefaultStepDetails(
@@ -2129,8 +2568,30 @@ export const defaultCheckoutPageData: CheckoutPageData = {
     summary: {
       title: "Delivery order",
       contextLabel: "Ground delivery",
+      items: [
+        {
+          id: "checkout-item-labubu",
+          name: "Labubu Have a Seat",
+          detailLabel: "Blind Boxes",
+          imagePath: "/assets/popmart/products/blind-boxes-1-1.png",
+          imageAlt: "Labubu Have a Seat collectible",
+          quantity: 1,
+          amountLabel: "$12.99",
+        },
+        {
+          id: "checkout-item-hirono",
+          name: "Hirono Little Mischief",
+          detailLabel: "Plush",
+          imagePath: "/assets/popmart/products/plush-11-1.png",
+          imageAlt: "Hirono Little Mischief collectible",
+          quantity: 1,
+          amountLabel: "$12.99",
+        },
+      ],
       subtotalLabel: "$25.98",
       promoLabel: "Auto promo calculating",
+      promoHelpLabel: "Automatic demo offers refresh after address changes.",
+      taxLabel: "Calculated before payment",
       totalLabel: "$25.98",
       selectedPaymentLabel: "PayPal selected",
       selectedPaymentMethod: "paypal",
@@ -2168,8 +2629,21 @@ export const defaultCheckoutPageData: CheckoutPageData = {
     summary: {
       title: "Pickup order",
       contextLabel: "Choose a pickup store",
+      items: [
+        {
+          id: "checkout-pickup-item-labubu",
+          name: "Labubu Have a Seat",
+          detailLabel: "Blind Boxes",
+          imagePath: "/assets/popmart/products/blind-boxes-1-1.png",
+          imageAlt: "Labubu Have a Seat collectible",
+          quantity: 1,
+          amountLabel: "$12.99",
+        },
+      ],
       subtotalLabel: "$12.99",
       promoLabel: "Pickup promo recalculating",
+      promoHelpLabel: "Pickup offers refresh after store selection.",
+      taxLabel: "Calculated before payment",
       totalLabel: "$12.99",
       selectedPaymentLabel: "PayPal selected",
       selectedPaymentMethod: "paypal",

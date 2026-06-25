@@ -1,5 +1,5 @@
 import { PayPalOneTimePaymentButton } from "@paypal/react-paypal-js/sdk-v6";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type {
   OnApproveDataOneTimePayments,
   OnCancelDataOneTimePayments,
@@ -17,6 +17,7 @@ import {
   PaymentActionFailureNotice,
   usePaymentActionFailure,
 } from "./paymentActionFailure.js";
+import { PAYPAL_DEMO_PRESENTATION_MODE } from "./paymentPresentation.js";
 
 export interface PayPalCreateOrderResponse {
   readonly paypal_order_id: string;
@@ -32,7 +33,17 @@ export interface PayPalStandaloneActionProps {
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly onApproved?: (
+    context: PayPalStandaloneApprovedContext,
+  ) => Promise<void> | void;
   readonly requestOptions?: ApiRequestOptions | undefined;
+}
+
+export interface PayPalStandaloneApprovedContext {
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly method: "paypal";
+  readonly paypalOrderId: string;
+  readonly paymentSessionId?: string;
 }
 
 export interface PayPalCreateOrderRequest {
@@ -51,12 +62,15 @@ export function PayPalStandaloneAction({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  onApproved,
   requestOptions,
 }: PayPalStandaloneActionProps) {
   const apiClient = useApiClient();
   const [vaultRequested, setVaultRequested] = useState(false);
+  const lastCreatedOrder = useRef<PayPalCreateOrderResponse | null>(null);
   const effectiveVaultRequested = canSavePaymentMethod && vaultRequested;
   const {
+    captureApprovalFailure,
     captureCreateOrderFailure,
     captureSdkFailure,
     clearFailure,
@@ -89,6 +103,7 @@ export function PayPalStandaloneAction({
       throw error;
     }
 
+    lastCreatedOrder.current = order;
     console.info("[paypal-retail-demo] PayPal order created", {
       paypalOrderId: order.paypal_order_id,
       paymentSessionId: order.payment_session_id ?? null,
@@ -116,8 +131,27 @@ export function PayPalStandaloneAction({
         paypalOrderId: data.orderId,
         payerId: data.payerId ?? null,
       });
+
+      try {
+        await onApproved?.({
+          fulfillmentMode,
+          method: "paypal",
+          paypalOrderId: data.orderId,
+          ...(lastCreatedOrder.current?.payment_session_id
+            ? { paymentSessionId: lastCreatedOrder.current.payment_session_id }
+            : {}),
+        });
+      } catch (error) {
+        const actionFailure = captureApprovalFailure(error);
+        console.error("[paypal-retail-demo] PayPal approval handling failed", {
+          code: actionFailure.code,
+          debugId: actionFailure.debugId ?? null,
+          paypalOrderId: data.orderId,
+        });
+        throw error;
+      }
     },
-    [],
+    [captureApprovalFailure, fulfillmentMode, onApproved],
   );
 
   return (
@@ -142,7 +176,7 @@ export function PayPalStandaloneAction({
           captureSdkFailure(error);
           handleError(error);
         }}
-        presentationMode="auto"
+        presentationMode={PAYPAL_DEMO_PRESENTATION_MODE}
         type="pay"
       />
       <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />

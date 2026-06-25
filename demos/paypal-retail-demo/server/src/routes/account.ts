@@ -1,7 +1,7 @@
 import { Router, type Request, type RequestHandler } from "express";
 
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
-import type { BuyerRequest } from "../middleware/auth.js";
+import type { BuyerContext, BuyerRequest } from "../middleware/auth.js";
 import type { PayPalPaymentTokenDeleteGateway } from "../paypal/client.js";
 
 export interface AccountSavedPaymentMethod {
@@ -71,6 +71,13 @@ export interface AccountOrderItem {
   readonly line_total_minor: number;
   readonly review_eligible: boolean;
   readonly review_submitted: boolean;
+  readonly review: AccountOrderItemReview | null;
+}
+
+export interface AccountOrderItemReview {
+  readonly rating: number;
+  readonly title: string | null;
+  readonly body: string | null;
 }
 
 export interface AccountOrderTimelineEvent {
@@ -104,6 +111,12 @@ export interface AccountOrder {
   readonly addresses: readonly AccountOrderAddress[];
 }
 
+export interface AccountReviewInput {
+  readonly rating: number;
+  readonly title: string | null;
+  readonly body: string;
+}
+
 export type AccountAddressDeleteResult =
   | {
       readonly status: "deleted";
@@ -122,10 +135,27 @@ export interface AccountAuthEmailLookupResult {
   readonly status: AccountAuthEmailLookupStatus;
 }
 
+export interface AccountGuestOrderLinkResult {
+  readonly linked_order_count: number;
+}
+
 export interface PreparedSavedPaymentDelete {
   readonly savedPaymentId: string;
   readonly vaultId: string | null;
 }
+
+export type AccountReviewMutationResult =
+  | {
+      readonly status: "updated";
+      readonly order: AccountOrder;
+    }
+  | {
+      readonly status: "not_found";
+    }
+  | {
+      readonly status: "not_eligible";
+      readonly reason: string;
+    };
 
 export interface AccountRepository {
   readonly lookupAuthEmail: (
@@ -142,6 +172,10 @@ export interface AccountRepository {
     readonly authUserId: string;
     readonly orderNumber: string;
   }) => Promise<AccountOrder | null>;
+  readonly linkGuestOrders: (input: {
+    readonly authUserId: string;
+    readonly email: string;
+  }) => Promise<AccountGuestOrderLinkResult>;
   readonly createAddress: (input: {
     readonly authUserId: string;
     readonly address: AccountAddressInput;
@@ -163,6 +197,23 @@ export interface AccountRepository {
     readonly authUserId: string;
     readonly savedPaymentId: string;
   }) => Promise<readonly AccountSavedPaymentMethod[]>;
+  readonly submitOrderItemReview: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+    readonly review: AccountReviewInput;
+  }) => Promise<AccountReviewMutationResult>;
+  readonly updateOrderItemReview: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+    readonly review: AccountReviewInput;
+  }) => Promise<AccountReviewMutationResult>;
+  readonly deleteOrderItemReview: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+  }) => Promise<AccountReviewMutationResult>;
 }
 
 export interface CreateAccountRouterInput {
@@ -352,6 +403,121 @@ export function createAccountRouter(input: CreateAccountRouterInput): Router {
     }),
   );
 
+  router.post(
+    "/account/orders/:orderNumber/items/:itemId/review",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orderNumber = firstRouteParamValue(request, "orderNumber");
+      const itemId = firstRouteParamValue(request, "itemId");
+      const review = parseReviewInputBody(request.body);
+      if (!orderNumber || !itemId || !review) {
+        sendApiError(response, 400, {
+          code: "INVALID_REVIEW_REQUEST",
+          message: "A rating and review body are required.",
+        });
+        return;
+      }
+
+      sendReviewMutationResult(
+        response,
+        await input.accountRepository.submitOrderItemReview({
+          authUserId,
+          orderNumber,
+          itemId,
+          review,
+        }),
+      );
+    }),
+  );
+
+  router.patch(
+    "/account/orders/:orderNumber/items/:itemId/review",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orderNumber = firstRouteParamValue(request, "orderNumber");
+      const itemId = firstRouteParamValue(request, "itemId");
+      const review = parseReviewInputBody(request.body);
+      if (!orderNumber || !itemId || !review) {
+        sendApiError(response, 400, {
+          code: "INVALID_REVIEW_REQUEST",
+          message: "A rating and review body are required.",
+        });
+        return;
+      }
+
+      sendReviewMutationResult(
+        response,
+        await input.accountRepository.updateOrderItemReview({
+          authUserId,
+          orderNumber,
+          itemId,
+          review,
+        }),
+      );
+    }),
+  );
+
+  router.delete(
+    "/account/orders/:orderNumber/items/:itemId/review",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orderNumber = firstRouteParamValue(request, "orderNumber");
+      const itemId = firstRouteParamValue(request, "itemId");
+      if (!orderNumber || !itemId) {
+        sendApiError(response, 400, {
+          code: "INVALID_REVIEW_REQUEST",
+          message: "An order number and item ID are required.",
+        });
+        return;
+      }
+
+      sendReviewMutationResult(
+        response,
+        await input.accountRepository.deleteOrderItemReview({
+          authUserId,
+          orderNumber,
+          itemId,
+        }),
+      );
+    }),
+  );
+
+  router.post(
+    "/account/guest-orders/link",
+    asyncRoute(async (request, response) => {
+      const buyer = requireAuthenticatedBuyer(request, response);
+      if (!buyer) {
+        return;
+      }
+
+      if (!buyer.email) {
+        sendApiError(response, 400, {
+          code: "ACCOUNT_EMAIL_REQUIRED",
+          message: "An account email is required to link guest orders.",
+        });
+        return;
+      }
+
+      const result = await input.accountRepository.linkGuestOrders({
+        authUserId: buyer.userId,
+        email: buyer.email,
+      });
+      sendApiSuccess(response, result);
+    }),
+  );
+
   router.get(
     "/account/saved-payments",
     asyncRoute(async (request, response) => {
@@ -418,10 +584,43 @@ export function createAccountRouter(input: CreateAccountRouterInput): Router {
   return router;
 }
 
+function sendReviewMutationResult(
+  response: Parameters<typeof sendApiError>[0],
+  result: AccountReviewMutationResult,
+): void {
+  if (result.status === "updated") {
+    sendApiSuccess(response, {
+      order: result.order,
+    });
+    return;
+  }
+
+  if (result.status === "not_eligible") {
+    sendApiError(response, 409, {
+      code: "REVIEW_NOT_ELIGIBLE",
+      message: result.reason,
+    });
+    return;
+  }
+
+  sendApiError(response, 404, {
+    code: "REVIEW_TARGET_NOT_FOUND",
+    message: "No reviewable order item matched the current buyer.",
+  });
+}
+
 function requireAuthenticatedBuyerId(
   request: Request,
   response: Parameters<typeof sendApiError>[0],
 ): string | null {
+  const buyer = requireAuthenticatedBuyer(request, response);
+  return buyer?.userId ?? null;
+}
+
+function requireAuthenticatedBuyer(
+  request: Request,
+  response: Parameters<typeof sendApiError>[0],
+): Extract<BuyerContext, { readonly kind: "authenticated" }> | null {
   const buyer = (request as BuyerRequest).buyer;
   if (!buyer || buyer.kind !== "authenticated") {
     sendApiError(response, 401, {
@@ -431,7 +630,7 @@ function requireAuthenticatedBuyerId(
     return null;
   }
 
-  return buyer.userId;
+  return buyer;
 }
 
 function firstRouteParamValue(request: Request, key: string): string | null {
@@ -547,6 +746,33 @@ function parseAddressPatchBody(body: unknown): AccountAddressPatch | null {
   }
 
   return Object.keys(patch).length ? (patch as AccountAddressPatch) : null;
+}
+
+function parseReviewInputBody(body: unknown): AccountReviewInput | null {
+  const bodyRecord = getBodyRecord(body);
+  if (!bodyRecord) {
+    return null;
+  }
+
+  const rating = normalizeReviewRating(bodyRecord.rating);
+  const bodyText = normalizeBodyString(bodyRecord.body);
+  if (!rating || !bodyText) {
+    return null;
+  }
+
+  return {
+    rating,
+    title: normalizeOptionalBodyString(bodyRecord.title),
+    body: bodyText,
+  };
+}
+
+function normalizeReviewRating(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return null;
+  }
+
+  return value >= 1 && value <= 5 ? value : null;
 }
 
 function getBodyRecord(body: unknown): Record<string, unknown> | null {

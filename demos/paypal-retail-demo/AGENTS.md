@@ -21,6 +21,8 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 - Checkout/payment milestones require buyer-flow interaction evidence: editable fields, submit/collapse behavior, option selection, payment-method switching, and selected payment surface rendering.
 - Payment SDK surfaces require live browser evidence of the hydrated official provider/button/message on each promised placement; static labels or local HTML buttons do not count.
 - API-backed checkout steps require tested loading, success, and failure states against the real backend contract; a route transition alone does not prove payment or recalculation behavior.
+- Treat `IMPLEMENTATION_TASKS.md` as canonical for milestone completion. Before saying a milestone is done or moving to the next milestone, list unchecked items in the current and previous milestone and mark each as complete, deferred, blocked, or removed.
+- Search for implementation placeholders before closing a milestone: unchecked tasks, disabled action buttons, shell-only routes, and copy/code containing `deferred`, `placeholder`, `handled in`, or similar later-slice language. Any match must be fixed or explicitly listed as deferred backlog with a reason and next trigger.
 - Before moving to the next milestone, confirm `IMPLEMENTATION_TASKS.md`, `PLAN.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` agree on what is done versus still shell-only.
 
 ## Payment Rules

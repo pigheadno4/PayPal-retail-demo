@@ -96,16 +96,19 @@ Optional local testing variables:
 
 For PayPal SDK v6 client-token flows, prefer setting `PUBLIC_HTTPS_ORIGIN` to the browser-facing HTTPS preview or tunnel origin. Client tokens are domain-bound, and sandbox may reject localhost origins for vaulting/token authentication.
 
+Delivery express can create local sandbox orders without `PUBLIC_HTTPS_ORIGIN`, but the backend omits PayPal shipping callback config and line-item product/image URLs when the resolved public origin is local HTTP. Set `PUBLIC_HTTPS_ORIGIN` for callback-enabled express shipping updates and provider-visible item links/images.
+
 ## Local Asset Convention
 POP MART assets are customer-specific and stay local to this demo.
 
 POP MART target paths:
-- `web/public/assets/popmart/products/{product-slug}/01.webp`
-- `web/public/assets/popmart/products/{product-slug}/02.webp`
-- `web/public/assets/popmart/products/{product-slug}/03.webp`
-- `web/public/assets/popmart/products/{product-slug}/04.webp`
-- `web/public/assets/popmart/categories/{category-slug}.webp`
-- `web/public/assets/popmart/homepage/{section-slug}.webp`
+- `web/public/assets/popmart/products/{product-slug}-1.png` for the current generated primary product image.
+- `web/public/assets/popmart/products/{product-slug}-{image-index}.png` when generated gallery coverage expands beyond the current one-image runtime MVP.
+- `web/public/assets/popmart/categories/{category-slug}.svg`
+- `web/public/assets/popmart/homepage/{section-slug}.svg`
+- `web/public/assets/popmart/series/{series-slug}.svg`
+
+The current POP MART runtime catalog intentionally seeds one product image per toy so API-backed PDP/gallery data does not point to missing second/third images. Generate additional local PNG gallery images before re-expanding seeded POP MART `product_images` rows to 3-4 images per product.
 
 Generic profile target paths:
 - `web/public/assets/generic/products/{product-slug}/01.webp`

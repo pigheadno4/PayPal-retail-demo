@@ -73,15 +73,49 @@ describe("App shell", () => {
     expect(html).toContain('href="#main-content"');
     expect(html).toContain('id="main-content"');
     expect(html).toContain('role="status"');
+    expect(html).toContain("Free delivery and pickup options");
+    expect(html).toContain('aria-label="Product categories"');
+    expect(html).toContain("Browse figures, series, and characters");
+    expect(html).toContain('class="site-header__brand-text"');
+    expect(html).toContain('aria-label="Open mobile menu"');
+    expect(html).toContain('aria-controls="mobile-menu"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('id="mobile-menu"');
+    expect(html).toContain('aria-label="Mobile menu"');
+    expect(html).toContain("NEW");
+    expect(html).toContain("COLLECTIONS");
+    expect(html).toContain("PRE-ORDERS");
+    expect(html).toContain("BLIND BOXES");
+    expect(html).toContain("FIGURES");
+    expect(html).toContain("ACCESSORIES");
+    expect(html).toContain("BRANDS");
+    expect(html).toContain("SALE");
+    expect(html).toContain("ABOUT");
+    expect(html).toContain('aria-label="Buyer actions"');
+    expect(html).toContain('data-slot="avatar"');
+    expect(html).toContain("site-header__lucide-icon--wishlist");
+    expect(html).toContain("site-header__lucide-icon--cart");
+    expect(html).toContain("site-header__lucide-icon--search");
+    expect(html).toContain("Wishlist");
+    expect(html).toContain('aria-label="Wishlist unavailable"');
+    expect(html).toContain('id="site-header-wishlist-disabled-reason"');
+    expect(html).toContain("Coming soon");
+    expect(html).toContain("Cart (");
+    expect(html).toContain("Stay in the loop");
     expect(html).toContain('aria-label="Open minicart"');
     expect(html).not.toContain('class="paypal-provider-scope"');
+    expect(html).not.toContain("Search products");
+    expect(extractProductNavigation(html)).not.toContain("Checkout");
+    expect(extractProductNavigation(html)).not.toContain('href="/checkout"');
     expect(html).not.toContain('href="/admin"');
   });
 
-  it("renders the admin shell only for manual admin routes", () => {
+  it("renders the protected admin entry form for manual admin routes", () => {
     const html = renderToStaticMarkup(<App initialPathname="/admin/orders" />);
 
-    expect(html).toContain("Admin Portal");
+    expect(html).toContain("Protected Portal");
+    expect(html).toContain("Admin passcode");
+    expect(html).not.toContain("Session ");
     expect(html).toContain('data-route-scope="admin"');
     expect(html).not.toContain('aria-label="Open minicart"');
   });
@@ -279,6 +313,14 @@ describe("App shell", () => {
   });
 });
 
+function extractProductNavigation(html: string): string {
+  return (
+    html.match(
+      /<nav class="site-header__nav" aria-label="Product categories">[\s\S]*?<\/nav>/,
+    )?.[0] ?? ""
+  );
+}
+
 function categoryPageData(): CategoryPageData {
   return {
     title: "All products",
@@ -298,6 +340,23 @@ function categoryPageData(): CategoryPageData {
       ],
     },
     filters: [],
+    sortOptions: [
+      {
+        label: "Featured",
+        href: "/products",
+        active: true,
+      },
+      {
+        label: "Price low to high",
+        href: "/products?sort=price_asc",
+        active: false,
+      },
+      {
+        label: "Price high to low",
+        href: "/products?sort=price_desc",
+        active: false,
+      },
+    ],
     payLaterPromo: {
       title: "Pay Later with PayPal",
       body: "Flexible payment options may be available at checkout.",
@@ -326,6 +385,7 @@ function productPages(): Readonly<Record<string, ProductDetailPageData>> {
       name: "Labubu Have a Seat",
       categoryName: "Blind Boxes",
       seriesName: "THE MONSTERS",
+      vendorName: "POP MART",
       statusLabel: "Released",
       purchasable: true,
       currentPriceLabel: "$13.99",
@@ -366,6 +426,7 @@ function productPages(): Readonly<Record<string, ProductDetailPageData>> {
       name: "Skullpanda Future Drop",
       categoryName: "Figures",
       seriesName: "Skullpanda",
+      vendorName: "POP MART",
       statusLabel: "Not released",
       purchasable: false,
       unavailableReason: "Checkout opens after release.",

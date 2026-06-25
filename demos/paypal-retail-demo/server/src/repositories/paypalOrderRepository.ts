@@ -730,6 +730,7 @@ export function createSupabasePayPalOrderRepository(
           method: draft.method,
           currencyCode: toPayPalCurrencyCode(draft.order.currency_code),
           items: mapPayPalLineItems(
+            dependencies,
             storefrontRows.profile,
             draft.lines,
             draft.totals.taxMinor,
@@ -760,6 +761,7 @@ export function createSupabasePayPalOrderRepository(
           method: draft.method,
           currencyCode: toPayPalCurrencyCode(draft.order.currency_code),
           items: mapPayPalLineItems(
+            dependencies,
             storefrontRows.profile,
             draft.lines,
             draft.totals.taxMinor,
@@ -785,6 +787,7 @@ export function createSupabasePayPalOrderRepository(
         method: draft.method,
         currencyCode: toPayPalCurrencyCode(draft.order.currency_code),
         items: mapPayPalLineItems(
+          dependencies,
           storefrontRows.profile,
           draft.lines,
           draft.totals.taxMinor,
@@ -792,7 +795,10 @@ export function createSupabasePayPalOrderRepository(
         shippingAmountMinor: draft.totals.shippingMinor,
         taxAmountMinor: draft.totals.taxMinor,
         discountAmountMinor: draft.totals.discountMinor,
-        shippingCallbackUrl: `${dependencies.publicApiBaseUrl}/api/paypal/orders/${draft.order.id}/shipping-callback`,
+        shippingCallbackUrl: buildHttpsShippingCallbackUrl(
+          dependencies.publicApiBaseUrl,
+          draft.order.id,
+        ),
       };
     },
     async recordCreateOrderResult(_context, resultInput) {
@@ -920,15 +926,10 @@ async function getPayPalExpressReviewSnapshot(
     return null;
   }
 
-  const synchronizedSnapshot = (
-    await input.dataSource.listTotalSnapshots(order.id)
-  )
-    .filter(
-      (snapshot) =>
-        snapshot.payment_session_id === paymentSession.id &&
-        snapshot.calculation_stage === "paypal_shipping_update",
-    )
-    .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+  const synchronizedSnapshot = selectExpressReviewTotalSnapshot(
+    await input.dataSource.listTotalSnapshots(order.id),
+    paymentSession.id,
+  );
 
   if (!synchronizedSnapshot) {
     return null;
@@ -996,6 +997,31 @@ async function getPayPalExpressReviewSnapshot(
     },
     amount_guard: amountGuard,
   };
+}
+
+function selectExpressReviewTotalSnapshot(
+  snapshots: readonly PayPalOrderTotalSnapshotRow[],
+  paymentSessionId: string,
+): PayPalOrderTotalSnapshotRow | undefined {
+  return snapshots
+    .filter(
+      (snapshot) =>
+        snapshot.payment_session_id === paymentSessionId &&
+        (snapshot.calculation_stage === "paypal_shipping_update" ||
+          snapshot.calculation_stage === "review_confirm"),
+    )
+    .sort(
+      (left, right) =>
+        expressReviewSnapshotStageRank(left.calculation_stage) -
+          expressReviewSnapshotStageRank(right.calculation_stage) ||
+        right.created_at.localeCompare(left.created_at),
+    )[0];
+}
+
+function expressReviewSnapshotStageRank(
+  stage: PayPalOrderTotalSnapshotRow["calculation_stage"],
+): number {
+  return stage === "paypal_shipping_update" ? 0 : 1;
 }
 
 async function recordPayPalCaptureResult(
@@ -2881,6 +2907,7 @@ function mapStoreAddressWrite(
 }
 
 function mapPayPalLineItems(
+  input: PayPalOrderRepositoryDependencies,
   profile: PayPalOrderProfileRow,
   lines: readonly MerchantOrderLine[],
   taxAmountMinor: number,
@@ -2892,8 +2919,14 @@ function mapPayPalLineItems(
     lineTaxAmountMinor: taxAmountMinor > 0 ? line.lineTaxMinor : null,
     sku: line.snapshot.sku,
     description: line.snapshot.description,
-    url: `/${profile.slug}/products/${line.snapshot.slug}`,
-    imageUrl: line.snapshot.image_path,
+    url: resolveHttpsPublicUrl(
+      input.publicApiBaseUrl,
+      `/${profile.slug}/products/${line.snapshot.slug}`,
+    ),
+    imageUrl: resolveHttpsPublicUrl(
+      input.publicApiBaseUrl,
+      line.snapshot.image_path,
+    ),
   }));
 }
 
@@ -3099,7 +3132,10 @@ function latestPreviousRequest(
   sessions: readonly PayPalOrderPaymentSessionRow[],
 ): PreviousPayPalRequestMetadata | null {
   const previous = sessions.find(
-    (session) => session.paypal_invoice_id && session.paypal_request_id,
+    (session) =>
+      session.paypal_order_id === null &&
+      session.paypal_invoice_id &&
+      session.paypal_request_id,
   );
   const payloadFingerprint = previous
     ? sourceFingerprintFromSession(previous)
@@ -3190,6 +3226,26 @@ function normalizeBaseUrl(value: string): string {
   return url.toString().replace(/\/$/, "");
 }
 
+function resolvePublicUrl(
+  baseUrl: string,
+  value: string | null,
+): string | null {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+  return new URL(trimmedValue, `${baseUrl}/`).toString();
+}
+
+function resolveHttpsPublicUrl(
+  baseUrl: string,
+  value: string | null,
+): string | null {
+  const publicUrl = resolvePublicUrl(baseUrl, value);
+
+  return publicUrl?.startsWith("https://") ? publicUrl : null;
+}
+
 function requireString(
   value: string | null | undefined,
   label: string,
@@ -3206,9 +3262,16 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
 }
 
 function defaultCartClientSecretHash(secret: string): string {
-  return `sha256:${createHash("sha256")
-    .update(`paypal-retail-demo-v1:${secret}`)
-    .digest("hex")}`;
+  return createHash("sha256").update(secret).digest("hex");
+}
+
+function buildHttpsShippingCallbackUrl(
+  publicApiBaseUrl: string,
+  orderId: string,
+): string | null {
+  const callbackUrl = `${publicApiBaseUrl}/api/paypal/orders/${orderId}/shipping-callback`;
+
+  return callbackUrl.startsWith("https://") ? callbackUrl : null;
 }
 
 type SupabasePrimitive = string | number | boolean | null;
@@ -3227,6 +3290,10 @@ interface SupabasePayPalOrderQuery extends PromiseLike<
 > {
   readonly select: (columns: string) => SupabasePayPalOrderQuery;
   readonly eq: (
+    column: string,
+    value: SupabasePrimitive,
+  ) => SupabasePayPalOrderQuery;
+  readonly is: (
     column: string,
     value: SupabasePrimitive,
   ) => SupabasePayPalOrderQuery;
@@ -3738,8 +3805,11 @@ export function createSupabasePayPalOrderDataSource(
           .from("orders")
           .select(orderColumns)
           .eq("cart_id", cartId)
+          .is("checkout_draft_id", null)
           .eq("fulfillment_mode", fulfillmentMode)
           .eq("status", "pending")
+          .order("order_number_sequence", { ascending: false })
+          .limit(1)
           .maybeSingle(),
         `Load pending order for cart ${cartId}`,
       );

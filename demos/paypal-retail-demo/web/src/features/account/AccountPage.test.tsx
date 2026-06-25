@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AccountPage,
@@ -11,6 +11,10 @@ import {
   type AccountOrderView,
   type AccountSavedPaymentMethodView,
 } from "./AccountPage.js";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("AccountPage", () => {
   it("renders the buyer account hub with navigation, profile, address, and payment cards", () => {
@@ -26,6 +30,11 @@ describe("AccountPage", () => {
     );
 
     expect(html).toContain("Account settings");
+    expect(html).toContain('data-slot="card"');
+    expect(html).toContain('data-slot="card-header"');
+    expect(html).toContain('data-slot="card-title"');
+    expect(html).toContain('data-slot="card-content"');
+    expect(html).toContain('data-slot="card-footer"');
     expect(html).toContain("Orders");
     expect(html).toContain("Addresses");
     expect(html).toContain("Payments");
@@ -53,6 +62,45 @@ describe("AccountPage", () => {
     expect(html).toContain("Finding your saved addresses");
     expect(html).toContain("Saved payments could not be loaded.");
     expect(html).toContain("Try refreshing this page before checkout.");
+  });
+
+  it("renders account edit forms with shadcn fields and mobile-friendly metadata", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="settings"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add address" }));
+
+    const recipientInput = screen.getByLabelText(
+      "Recipient name",
+    ) as HTMLInputElement;
+    const phoneInput = screen.getByLabelText("Phone") as HTMLInputElement;
+    const postalInput = screen.getByLabelText(
+      "ZIP/postal code",
+    ) as HTMLInputElement;
+    const countryInput = screen.getByLabelText(
+      "Country code",
+    ) as HTMLInputElement;
+
+    expect(recipientInput.closest('[data-slot="field"]')).toBeTruthy();
+    expect(recipientInput.getAttribute("data-slot")).toBe("input");
+    expect(recipientInput.getAttribute("autocomplete")).toBe("name");
+    expect(recipientInput.required).toBe(true);
+    expect(phoneInput.getAttribute("autocomplete")).toBe("tel");
+    expect(phoneInput.getAttribute("inputmode")).toBe("tel");
+    expect(postalInput.getAttribute("autocomplete")).toBe("postal-code");
+    expect(postalInput.required).toBe(true);
+    expect(countryInput.getAttribute("autocomplete")).toBe("country");
+    expect(countryInput.getAttribute("maxlength")).toBe("2");
   });
 
   it("renders retail order-history cards with pending resume and completed review affordances", () => {
@@ -106,10 +154,106 @@ describe("AccountPage", () => {
     expect(html).toContain("Skullpanda Future Drop");
     expect(html).toContain("Review item");
     expect(html).toContain("Already reviewed");
+    expect(html).not.toContain("Review form is handled in the review slice.");
     expect(html).toContain("Totals");
     expect(html).toContain("$28.16");
     expect(html).not.toContain("paypal_order_id");
     expect(html).not.toContain("payment_session");
+  });
+
+  it("submits a completed-order item review from order detail", async () => {
+    const user = userEvent.setup();
+    const onSubmitReview = vi.fn();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="PO-20260602-000118"
+        onSubmitReview={onSubmitReview}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Review item Skullpanda Future Drop",
+      }),
+    );
+    await user.selectOptions(screen.getByLabelText("Rating"), "5");
+    await user.type(screen.getByLabelText("Review title"), "Tiny shelf star");
+    await user.type(
+      screen.getByLabelText("Review body"),
+      "The paint details look great beside my other figures.",
+    );
+    await user.click(screen.getByRole("button", { name: "Submit review" }));
+
+    expect(onSubmitReview).toHaveBeenCalledWith(
+      "PO-20260602-000118",
+      "line_1",
+      {
+        rating: 5,
+        title: "Tiny shelf star",
+        body: "The paint details look great beside my other figures.",
+      },
+    );
+  });
+
+  it("edits and deletes an existing order item review", async () => {
+    const user = userEvent.setup();
+    const onUpdateReview = vi.fn();
+    const onDeleteReview = vi.fn();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="PO-20260602-000118"
+        onDeleteReview={onDeleteReview}
+        onUpdateReview={onUpdateReview}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Edit review Labubu Have a Seat",
+      }),
+    );
+    await user.clear(screen.getByLabelText("Review title"));
+    await user.type(screen.getByLabelText("Review title"), "Still a favorite");
+    await user.clear(screen.getByLabelText("Review body"));
+    await user.type(
+      screen.getByLabelText("Review body"),
+      "Updated after unboxing the stand accessories.",
+    );
+    await user.click(screen.getByRole("button", { name: "Save review" }));
+
+    expect(onUpdateReview).toHaveBeenCalledWith(
+      "PO-20260602-000118",
+      "line_2",
+      {
+        rating: 5,
+        title: "Still a favorite",
+        body: "Updated after unboxing the stand accessories.",
+      },
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete review Labubu Have a Seat",
+      }),
+    );
+
+    expect(onDeleteReview).toHaveBeenCalledWith("PO-20260602-000118", "line_2");
   });
 
   it("confirms saved-payment deletion inline before calling the delete handler", async () => {
@@ -202,6 +346,7 @@ function accountOrders(): readonly AccountOrderView[] {
           quantity: 1,
           reviewEligible: false,
           reviewSubmitted: false,
+          review: null,
         },
       ],
       timeline: [
@@ -243,6 +388,7 @@ function accountOrders(): readonly AccountOrderView[] {
           quantity: 1,
           reviewEligible: true,
           reviewSubmitted: false,
+          review: null,
         },
         {
           id: "line_2",
@@ -253,6 +399,11 @@ function accountOrders(): readonly AccountOrderView[] {
           quantity: 1,
           reviewEligible: true,
           reviewSubmitted: true,
+          review: {
+            rating: 5,
+            title: "Unboxed beautifully",
+            body: "The tiny chair accessory made this one worth keeping on display.",
+          },
         },
       ],
       timeline: [

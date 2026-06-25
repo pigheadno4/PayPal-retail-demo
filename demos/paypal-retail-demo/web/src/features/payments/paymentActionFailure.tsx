@@ -35,7 +35,17 @@ export function usePaymentActionFailure(methodLabel: string) {
     [methodLabel],
   );
 
+  const captureApprovalFailure = useCallback(
+    (error: unknown) => {
+      const nextFailure = formatPaymentApprovalFailure(error, methodLabel);
+      setFailure(nextFailure);
+      return nextFailure;
+    },
+    [methodLabel],
+  );
+
   return {
+    captureApprovalFailure,
     captureCreateOrderFailure,
     captureSdkFailure,
     clearFailure,
@@ -105,5 +115,27 @@ function formatPayPalSdkFailure(
     message:
       "PayPal reported a payment window error. Your cart is unchanged. Try again.",
     title: `We could not start ${methodLabel}.`,
+  };
+}
+
+function formatPaymentApprovalFailure(
+  error: unknown,
+  methodLabel: string,
+): PaymentActionFailure {
+  if (error instanceof ApiClientError) {
+    return {
+      code: error.code,
+      debugId: error.debugId,
+      message:
+        "PayPal approved the buyer session, but the order could not be confirmed. Try again, or share the reference with the demo operator.",
+      title: `We could not confirm ${methodLabel}.`,
+    };
+  }
+
+  return {
+    code: "PAYMENT_ACTION_APPROVAL_FAILED",
+    message:
+      "PayPal approved the buyer session, but the order could not be confirmed. Try again.",
+    title: `We could not confirm ${methodLabel}.`,
   };
 }

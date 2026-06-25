@@ -113,6 +113,8 @@ interface PayPalCreateOrderResponseBody {
   readonly status?: unknown;
   readonly name?: unknown;
   readonly error?: unknown;
+  readonly debug_id?: unknown;
+  readonly details?: unknown;
   readonly links?: unknown;
 }
 
@@ -198,6 +200,15 @@ export function createPayPalClientTokenGateway(
         (await response.json()) as PayPalCreateOrderResponseBody;
 
       if (!response.ok) {
+        console.error(
+          "[paypal-retail-demo] PayPal create order gateway rejected",
+          {
+            details: extractPayPalErrorDetails(responseBody),
+            paypalDebugId: extractPayPalDebugId(responseBody),
+            paypalErrorName: extractPayPalErrorName(responseBody),
+            status: response.status,
+          },
+        );
         throw new Error(
           `PayPal create order request failed: ${extractPayPalErrorName(
             responseBody,
@@ -406,6 +417,18 @@ function extractPayPalErrorName(body: {
     return body.error.trim();
   }
   return "unknown";
+}
+
+function extractPayPalDebugId(body: { readonly debug_id?: unknown }) {
+  return typeof body.debug_id === "string" && body.debug_id.trim()
+    ? body.debug_id.trim()
+    : null;
+}
+
+function extractPayPalErrorDetails(body: { readonly details?: unknown }) {
+  return Array.isArray(body.details)
+    ? sanitizeJsonCompatible(body.details)
+    : null;
 }
 
 function extractFirstCapture(

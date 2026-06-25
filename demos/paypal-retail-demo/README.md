@@ -4,7 +4,7 @@ TypeScript scaffold for the POP MART-style PayPal retail demo.
 
 ## Status
 
-Milestone 1 scaffold is complete. Milestone 2 has the private Supabase `app` schema and deterministic seed data applied to the linked remote project. Payment APIs and buyer/admin UI flows are implemented in later milestones from `PLAN.md` and `IMPLEMENTATION_TASKS.md`.
+Current stage: Milestone 16 QA, UX Review, and Demo Polish is mostly complete for buyer-facing POP MART storefront surfaces. The shadcn component foundation, responsive page polish, API-backed PayPal SDK render checks, full cart PayPal sandbox approval/capture, and local test suite are passing. Earlier backlog remains open for M15 Admin Portal, local Supabase migration verification until Docker is available, final media/LQIP assets, generic-profile asset safety, and broader wallet/card sandbox capture coverage.
 
 ## Local Setup
 
@@ -30,6 +30,12 @@ npm run format:check
 ```
 
 Supabase local database commands require Docker Desktop or another compatible Docker daemon.
+
+For API-backed browser QA, use `http://localhost:5173` rather than `127.0.0.1` unless CORS settings are changed. If the server environment is loaded from `.env`, the verified local server command is:
+
+```bash
+node --env-file=.env node_modules/tsx/dist/cli.mjs watch server/src/server.ts
+```
 
 ## Environment
 

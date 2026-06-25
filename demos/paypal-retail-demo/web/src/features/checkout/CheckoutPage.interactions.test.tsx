@@ -25,6 +25,42 @@ afterEach(() => {
 });
 
 describe("CheckoutPage interactions", () => {
+  it("keeps only one fulfillment panel visible in the accessibility tree", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage />);
+
+    const deliveryTab = screen.getByRole("tab", { name: "Delivery" });
+    const pickupTab = screen.getByRole("tab", { name: "Pickup" });
+    const deliveryPanelId = deliveryTab.getAttribute("aria-controls");
+    const pickupPanelId = pickupTab.getAttribute("aria-controls");
+
+    expect(deliveryPanelId).toBeTruthy();
+    expect(pickupPanelId).toBeTruthy();
+    expect(deliveryPanelId).not.toBe(pickupPanelId);
+
+    const deliveryPanel = deliveryPanelId
+      ? document.getElementById(deliveryPanelId)
+      : null;
+    const pickupPanel = pickupPanelId
+      ? document.getElementById(pickupPanelId)
+      : null;
+    expect(deliveryPanel).not.toBeNull();
+    expect(pickupPanel).not.toBeNull();
+    expect(pickupPanel?.hasAttribute("hidden")).toBe(true);
+    expect(pickupPanel?.getAttribute("aria-hidden")).toBe("true");
+    expect(deliveryPanel?.hasAttribute("hidden")).toBe(false);
+    expect(deliveryPanel?.getAttribute("aria-hidden")).toBe("false");
+
+    await user.click(pickupTab);
+    expect(deliveryPanel?.hasAttribute("hidden")).toBe(true);
+    expect(deliveryPanel?.getAttribute("aria-hidden")).toBe("true");
+    expect(pickupPanel?.hasAttribute("hidden")).toBe(false);
+    expect(pickupPanel?.getAttribute("aria-hidden")).toBe("false");
+    expect(pickupTab.getAttribute("aria-selected")).toBe("true");
+    expect(deliveryTab.getAttribute("aria-selected")).toBe("false");
+  });
+
   it("applies returned delivery draft recalculation data before moving to the next section", async () => {
     const user = userEvent.setup();
     const draftUpdates: TestDraftUpdateRequest[] = [];
@@ -74,7 +110,7 @@ describe("CheckoutPage interactions", () => {
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
     });
-    expect(within(orderSummary).getByText("SAVE10 applied")).toBeTruthy();
+    expect(within(orderSummary).getAllByText("SAVE10 applied")).toHaveLength(2);
     expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
   });
 
@@ -121,7 +157,9 @@ describe("CheckoutPage interactions", () => {
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
     });
-    expect(within(orderSummary).getByText("Pickup promo applied")).toBeTruthy();
+    expect(
+      within(orderSummary).getAllByText("Pickup promo applied"),
+    ).toHaveLength(2);
     expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
   });
 

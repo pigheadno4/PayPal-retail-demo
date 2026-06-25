@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 import { buildSeedDataset, stableUuid } from "./seed-data.js";
 import { buildSeedSql } from "./seed-sql.js";
@@ -11,7 +13,7 @@ describe("retail demo seed data", () => {
     expect(dataset.summary.categories).toBe(10);
     expect(dataset.summary.products).toBe(50);
     expect(dataset.summary.productPrices).toBe(100);
-    expect(dataset.summary.productImages).toBe(150);
+    expect(dataset.summary.productImages).toBe(100);
     expect(dataset.summary.stores).toBe(18);
     expect(dataset.summary.storePickupDates).toBe(126);
     expect(dataset.summary.centralInventory).toBe(100);
@@ -78,6 +80,93 @@ describe("retail demo seed data", () => {
     expect(stableUuid("profile:popmart")).not.toBe(
       stableUuid("profile:generic"),
     );
+  });
+
+  it("points POP MART primary product images at generated local PNG assets", () => {
+    const dataset = buildSeedDataset();
+    const productTable = dataset.tables.find(
+      (table) => table.name === "app.products",
+    );
+    const productImageTable = dataset.tables.find(
+      (table) => table.name === "app.product_images",
+    );
+    const popmartProductIds = new Set(
+      productTable?.rows
+        .filter((row) => row.profile_id === stableUuid("profile:popmart"))
+        .map((row) => row.id),
+    );
+
+    const popmartImages =
+      productImageTable?.rows.filter((row) =>
+        popmartProductIds.has(String(row.product_id)),
+      ) ?? [];
+
+    expect(popmartImages).toHaveLength(25);
+    for (const image of popmartImages) {
+      expect(image.sort_order).toBe(1);
+      expect(image.image_path).toMatch(
+        /^\/assets\/popmart\/products\/[a-z0-9-]+-1\.png$/,
+      );
+      expect(
+        existsSync(
+          new URL(`../../web/public${image.image_path}`, import.meta.url),
+        ),
+        String(image.image_path),
+      ).toBe(true);
+    }
+  });
+
+  it("uses descriptive POP MART product image alt text instead of generic view labels", () => {
+    const dataset = buildSeedDataset();
+    const productTable = dataset.tables.find(
+      (table) => table.name === "app.products",
+    );
+    const productImageTable = dataset.tables.find(
+      (table) => table.name === "app.product_images",
+    );
+    const popmartProducts = new Map(
+      productTable?.rows
+        .filter((row) => row.profile_id === stableUuid("profile:popmart"))
+        .map((row) => [String(row.id), row]) ?? [],
+    );
+
+    const popmartImages =
+      productImageTable?.rows.filter((row) =>
+        popmartProducts.has(String(row.product_id)),
+      ) ?? [];
+
+    expect(popmartImages).toHaveLength(25);
+    for (const image of popmartImages) {
+      const product = popmartProducts.get(String(image.product_id));
+      expect(image.alt_text).toContain(String(product?.name));
+      expect(image.alt_text).toContain("pastel display");
+      expect(String(image.alt_text)).not.toMatch(/\bview\s+\d+\b/i);
+    }
+  });
+
+  it("uses generated POP MART PNGs in seeded order item image snapshots", () => {
+    const dataset = buildSeedDataset();
+    const orderItems = dataset.tables.find(
+      (table) => table.name === "app.order_items",
+    );
+
+    const popmartImageSnapshots =
+      orderItems?.rows
+        .filter((row) =>
+          String(row.product_url_snapshot).startsWith("/popmart/products/"),
+        )
+        .map((row) => row.product_image_url_snapshot) ?? [];
+
+    expect(popmartImageSnapshots.length).toBeGreaterThan(0);
+    for (const imagePath of popmartImageSnapshots) {
+      expect(imagePath).toMatch(
+        /^\/assets\/popmart\/products\/[a-z0-9-]+-1\.png$/,
+      );
+      expect(
+        existsSync(new URL(`../../web/public${imagePath}`, import.meta.url)),
+        String(imagePath),
+      ).toBe(true);
+    }
   });
 
   it("does not generate duplicate row IDs within a table", () => {

@@ -1,0 +1,591 @@
+// @vitest-environment jsdom
+
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import type {
+  ApiClient,
+  ApiQueryParams,
+  ApiRequestOptions,
+} from "../api/client.js";
+import type { BuyerAuthClient } from "../features/account/authClient.js";
+import type { CartData } from "../features/cart/cartModel.js";
+import { App } from "./App.js";
+
+vi.mock("@paypal/react-paypal-js/sdk-v6", () => {
+  function MockPayPalButton({
+    createOrder,
+    onApprove,
+    presentationMode,
+  }: {
+    readonly createOrder: () => Promise<{ readonly orderId: string }>;
+    readonly onApprove?: (data: {
+      readonly orderId: string;
+      readonly payerId: string;
+    }) => Promise<void> | void;
+    readonly presentationMode?: string;
+  }) {
+    return (
+      <button
+        data-presentation-mode={presentationMode}
+        onClick={() => {
+          void createOrder().then(async ({ orderId }) => {
+            await onApprove?.({
+              orderId,
+              payerId: "PAYER-CHECKOUT",
+            });
+          });
+        }}
+        type="button"
+      >
+        Mock PayPal
+      </button>
+    );
+  }
+
+  return {
+    INSTANCE_LOADING_STATE: {
+      PENDING: "pending",
+      REJECTED: "rejected",
+    },
+    PayLaterOneTimePaymentButton: MockPayPalButton,
+    PayPalOneTimePaymentButton: MockPayPalButton,
+    PayPalProvider: ({ children }: { readonly children: ReactNode }) => (
+      <div data-testid="mock-paypal-provider">{children}</div>
+    ),
+    useEligibleMethods: () => ({
+      eligiblePaymentMethods: {
+        getDetails: () => ({
+          countryCode: "US",
+          productCode: "PAY_LATER",
+        }),
+        isEligible: (method: string) => method === "paylater",
+      },
+      error: null,
+      isLoading: false,
+    }),
+    usePayPal: () => ({
+      loadingStatus: "resolved",
+    }),
+    usePayPalMessages: () => ({
+      error: null,
+    }),
+  };
+});
+
+class TestResizeObserver {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+beforeAll(() => {
+  globalThis.ResizeObserver =
+    TestResizeObserver as unknown as typeof ResizeObserver;
+});
+
+beforeEach(() => {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: createMemoryStorage(),
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+  cleanup();
+});
+
+describe("App checkout PayPal capture", () => {
+  it("captures approved checkout PayPal orders and shows confirmation", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse(),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_after_capture",
+          cartPublicId: "cart_public_after_capture",
+        }),
+      ],
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000009",
+          payment_session_id: "payment_session_checkout",
+          paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_CHECKOUT/capture":
+          captureApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    const paypalButton = await within(orderSummary).findByRole("button", {
+      name: "Mock PayPal",
+    });
+
+    await user.click(paypalButton);
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/paypal/orders/express-review",
+          query: expect.objectContaining({
+            market: "US",
+            paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+            payment_session_id: "payment_session_checkout",
+          }),
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_CHECKOUT/capture",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByRole("heading", { name: "Thank you!" })).toBeTruthy();
+    expect(screen.getByText("PAYPAL_CAPTURE_CHECKOUT")).toBeTruthy();
+    expect(globalThis.location.pathname).toBe("/checkout/express-review");
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("0");
+  });
+});
+
+async function advanceDeliveryCheckoutToPayment(
+  user: ReturnType<typeof userEvent.setup>,
+) {
+  const shippingStep = getStep("Shipping address");
+  await user.click(
+    within(shippingStep).getByRole("button", {
+      name: "Submit shipping address",
+    }),
+  );
+  await waitForStepState(shippingStep, "saved");
+
+  const billingStep = getStep("Billing address");
+  await user.click(
+    within(billingStep).getByRole("button", {
+      name: "Save billing address",
+    }),
+  );
+  await waitForStepState(billingStep, "saved");
+
+  const shippingOptionsStep = getStep("Shipping options");
+  await user.click(
+    within(shippingOptionsStep).getByRole("button", {
+      name: "Submit shipping option",
+    }),
+  );
+  await waitForStepState(shippingOptionsStep, "saved");
+}
+
+function getStep(title: string): HTMLElement {
+  const heading = screen.getByRole("heading", { name: title });
+  const step = heading.closest("article");
+
+  if (!step) {
+    throw new Error(`Could not find checkout step for ${title}`);
+  }
+
+  return step;
+}
+
+async function waitForStepState(step: HTMLElement, state: string) {
+  await waitFor(() => {
+    expect(step.getAttribute("data-step-state")).toBe(state);
+  });
+}
+
+function createRecordingApiClient(
+  input: RecordingApiClientInput = {},
+): ApiClient & { readonly calls: RecordingApiCall[] } {
+  const calls: RecordingApiCall[] = [];
+  let getResponseIndex = 0;
+
+  return {
+    calls,
+    async delete<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "delete", path, query, options });
+      return {} as TData;
+    },
+    async get<TData = unknown>(
+      path: string,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "get", path, query, options });
+      if (path === "/api/paypal/sdk-config") {
+        return sdkConfigApiResponse(query) as TData;
+      }
+      if (input.getResponseByPath && path in input.getResponseByPath) {
+        return input.getResponseByPath[path] as TData;
+      }
+      if (input.getResponses?.length) {
+        const response =
+          input.getResponses[
+            Math.min(getResponseIndex, input.getResponses.length - 1)
+          ];
+        getResponseIndex += 1;
+        return response as TData;
+      }
+      return {} as TData;
+    },
+    async patch<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "patch", path, body, query, options });
+      return (input.patchResponse ?? {}) as TData;
+    },
+    async post<TData = unknown>(
+      path: string,
+      body?: unknown,
+      query?: ApiQueryParams,
+      options?: ApiRequestOptions,
+    ) {
+      calls.push({ method: "post", path, body, query, options });
+      if (input.postResponseByPath && path in input.postResponseByPath) {
+        return input.postResponseByPath[path] as TData;
+      }
+      return (input.postResponse ?? {}) as TData;
+    },
+  };
+}
+
+interface RecordingApiCall {
+  readonly method: "delete" | "get" | "patch" | "post";
+  readonly path: string;
+  readonly body?: unknown;
+  readonly query?: ApiQueryParams | undefined;
+  readonly options?: ApiRequestOptions | undefined;
+}
+
+interface RecordingApiClientInput {
+  readonly getResponseByPath?: Readonly<Record<string, unknown>>;
+  readonly getResponses?: readonly unknown[];
+  readonly patchResponse?: unknown;
+  readonly postResponse?: unknown;
+  readonly postResponseByPath?: Readonly<Record<string, unknown>>;
+}
+
+function createNullAuthClient(): BuyerAuthClient {
+  return {
+    async getSession() {
+      return null;
+    },
+    async signInWithPassword() {
+      throw new Error("sign-in not used in this test");
+    },
+    async signUpWithPassword() {
+      throw new Error("sign-up not used in this test");
+    },
+  };
+}
+
+function singleItemCart({
+  cartClientSecret = "cart_secret_existing",
+  quantity,
+}: {
+  readonly cartClientSecret?: string | null;
+  readonly quantity: number;
+}): CartData {
+  return {
+    cartPublicId: "cart_public_existing",
+    ...(cartClientSecret ? { cartClientSecret } : {}),
+    title: "Shopping cart",
+    checkoutHref: "/checkout",
+    cartHref: "/cart",
+    currencyCode: "USD",
+    locale: "en-US",
+    pickupHint: "Prefer pickup? Choose store pickup during checkout.",
+    items: [
+      {
+        id: "cart_item_labubu",
+        slug: "labubu-have-a-seat",
+        name: "Labubu Have a Seat",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+        imageAlt: "Labubu Have a Seat collectible",
+        unitPriceCents: 1399,
+        currentPriceLabel: "$13.99",
+        regularPriceLabel: "$15.99",
+        quantity,
+        maxQuantity: 5,
+        href: "/products/labubu-have-a-seat",
+      },
+    ],
+  };
+}
+
+function sdkConfigApiResponse(query?: ApiQueryParams) {
+  const method = String(query?.method ?? "paypal");
+  const components =
+    method === "paylater"
+      ? ["paypal-payments", "paypal-messages"]
+      : ["paypal-payments"];
+
+  return {
+    client_id: "PAYPAL_PUBLIC_CLIENT_ID",
+    environment: "sandbox",
+    sdk_url: "https://www.sandbox.paypal.com/web-sdk/v6/core",
+    currency_code: "USD",
+    locale: "en-US",
+    buyer_country: "US",
+    paylater_buyer_country: "US",
+    sandbox_test_buyer_country: "US",
+    components,
+    page_type: "checkout",
+    provider_key: `paypal:sandbox:PAYPAL_PUBLIC_CLIENT_ID:US:USD:en-US:US:US:US:1:${components.join(",")}`,
+    needs_client_token: false,
+  };
+}
+
+function cartApiResponse({ quantity }: { readonly quantity: number }) {
+  return {
+    cart: {
+      id: "cart_guest_us",
+      cart_public_id: "cart_public_existing",
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      buyer_kind: "guest",
+      status: "active",
+      currency_code: "USD",
+      items: [
+        {
+          id: "cart_item_labubu",
+          product_id: "product_labubu",
+          slug: "labubu-have-a-seat",
+          name: "Labubu Have a Seat",
+          image_path: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+          quantity,
+          unit_price_minor: 1399,
+          line_subtotal_minor: 1399 * quantity,
+          checkout_eligible: true,
+        },
+      ],
+      totals: {
+        item_count: quantity,
+        subtotal_minor: 1399 * quantity,
+        currency_code: "USD",
+      },
+      binding: {
+        cart_public_id: "cart_public_existing",
+        cart_client_secret: "cart_secret_existing",
+      },
+    },
+    adjustments: [],
+  };
+}
+
+function emptyCartApiResponse({
+  cartClientSecret,
+  cartPublicId,
+}: {
+  readonly cartClientSecret: string;
+  readonly cartPublicId: string;
+}) {
+  return {
+    cart: {
+      id: "cart_guest_us",
+      cart_public_id: cartPublicId,
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      buyer_kind: "guest",
+      status: "active",
+      currency_code: "USD",
+      items: [],
+      totals: {
+        item_count: 0,
+        subtotal_minor: 0,
+        currency_code: "USD",
+      },
+      binding: {
+        cart_public_id: cartPublicId,
+        cart_client_secret: cartClientSecret,
+      },
+    },
+    adjustments: [],
+  };
+}
+
+function checkoutDraftApiResponse() {
+  return {
+    draft: {
+      id: "11111111-1111-4111-8111-111111111111",
+      cart_id: "cart_guest_us",
+      fulfillment_mode: "delivery",
+      status: "draft",
+      active_step: "shipping_option",
+      delivery: {
+        shipping_address: null,
+        billing_address: null,
+        same_as_shipping: true,
+        shipping_options: [
+          {
+            id: "ship_standard",
+            service_code: "standard",
+            display_name: "Standard shipping",
+            amount_minor: 500,
+            estimated_days_min: 4,
+            estimated_days_max: 6,
+          },
+        ],
+        selected_shipping_option_id: "ship_standard",
+      },
+      summary: {
+        item_count: 1,
+        merchandise_subtotal_minor: 1399,
+        discount_minor: 0,
+        tax_minor: 115,
+        shipping_minor: 500,
+        total_minor: 2014,
+        currency_code: "USD",
+      },
+      promo: {
+        status: "none",
+        recommended_codes: [],
+        selected_codes: [],
+      },
+    },
+  };
+}
+
+function expressReviewApiResponse() {
+  return {
+    source_label: "Delivery checkout",
+    order_number: "DO-20260624-000009",
+    payment_session_id: "payment_session_checkout",
+    paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+    payment_method_label: "PayPal",
+    status_label: "Payment session synchronized",
+    shipping_address: {
+      name: "Taylor Chen",
+      address_line1: "100 Market St",
+      address_line2: "Unit 8, San Francisco, CA 94105",
+      country_code: "US",
+    },
+    shipping_option: {
+      label: "Standard shipping",
+      detail: "Arrives in 4-6 business days",
+      amount_minor: 500,
+      currency_code: "USD",
+    },
+    items: [
+      {
+        id: "order_item_checkout_1",
+        name: "Labubu Have a Seat",
+        detail: "POP-LABUBU-001 - Qty 1",
+        amount_minor: 1399,
+        currency_code: "USD",
+      },
+    ],
+    totals: {
+      merchandise_subtotal_minor: 1399,
+      shipping_minor: 500,
+      promo_discount_minor: 0,
+      tax_minor: 115,
+      total_minor: 2014,
+      currency_code: "USD",
+    },
+    amount_guard: {
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 0,
+      mismatches: [],
+    },
+  };
+}
+
+function captureApiResponse() {
+  return {
+    order_number: "DO-20260624-000009",
+    payment_session_id: "payment_session_checkout",
+    paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+    paypal_capture_id: "PAYPAL_CAPTURE_CHECKOUT",
+    paypal_order_status: "COMPLETED",
+    paypal_capture_status: "COMPLETED",
+    paypal_request_id: "request-capture-checkout",
+    amount_guard: {
+      action: "allow_capture",
+      status: "matched",
+      can_capture: true,
+      tolerance_minor: 0,
+      mismatches: [],
+    },
+  };
+}
+
+function createMemoryStorage(): Storage {
+  const map = new Map<string, string>();
+
+  return {
+    get length() {
+      return map.size;
+    },
+    clear() {
+      map.clear();
+    },
+    getItem(key: string) {
+      return map.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(map.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      map.delete(key);
+    },
+    setItem(key: string, value: string) {
+      map.set(key, value);
+    },
+  };
+}

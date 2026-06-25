@@ -29,11 +29,13 @@ The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start ther
 - For customer-facing or sales-facing UI, `DESIGN.md` must be implementation-grade before coding: tokens, component contracts, detailed page specs, UX-flow contracts, state contracts, responsive rules, and visual QA gates.
 - Before closing a frontend slice, verify the touched UI against `DESIGN.md`; if the implementation only follows generic styling or shell layout, keep the item open.
 - Before checking a milestone item as done, every visible user action must be wired to real state/API behavior, disabled with a clear reason, or explicitly recorded as deferred.
+- Before moving phases, list every unchecked item in the active and previous milestone and give each one a disposition: complete, deferred, blocked, or removed.
+- Deferred milestone items need a reason and next trigger in the active plan or tracking files; they must not disappear just because a later milestone becomes active.
 - Verify the promised user journey with interaction tests or a manual verification note; render/snapshot tests only prove the shell exists.
 - For PSP or wallet UI, verify the hydrated official SDK/provider surface in a browser for each promised placement; branded local buttons or static text are shell progress only.
 - For API-backed UI, verify loading, success, and failure states against the backend contract before marking the interaction complete.
 - Broad task labels such as "checkout UI", "cart sync", or "payment integration" do not satisfy user-visible promises unless those promises are decomposed into explicit tasks, tests, and evidence.
-- Before moving phases, reconcile `IMPLEMENTATION_TASKS.md` or the active implementation plan with `tracking/test-cases.md`, `tracking/todos.md`, and `tracking/progress.md`.
+- Before moving phases, reconcile `IMPLEMENTATION_TASKS.md` or the active implementation plan with `PLAN.md`, `tracking/test-cases.md`, `tracking/todos.md`, and `tracking/progress.md`.
 - If only the visual shell is complete, record it as shell progress and keep the behavior item open.
 
 ## Tracking Rules

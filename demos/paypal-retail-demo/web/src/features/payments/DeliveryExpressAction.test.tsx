@@ -64,6 +64,7 @@ describe("DeliveryExpressAction", () => {
     expect(html).toContain('data-delivery-express-method="paylater"');
     expect(html).toContain('data-delivery-express-source="cart"');
     expect(html).toContain('data-delivery-express-cart-id="cart_public_guest"');
+    expect(html).toContain('data-paylater-button-eligibility="pending"');
     expect(html).toContain("Pay Later eligibility pending.");
     expect(html).not.toContain("Pay Later delivery express button ready.");
     expect(html).not.toContain("data-payment-checkout-draft-id");

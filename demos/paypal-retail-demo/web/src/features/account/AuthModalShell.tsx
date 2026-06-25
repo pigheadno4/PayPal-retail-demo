@@ -1,5 +1,25 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import type { StorefrontShellPanels } from "../../state/storefrontState.js";
 
 type AuthModalState = StorefrontShellPanels["authModal"];
@@ -36,12 +56,18 @@ export function AuthModalShell({
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     setLocalError(null);
     setIsSubmitting(false);
+    setIsPasswordVisible(false);
     if (state === "email") {
       setPassword("");
+    }
+    if (state !== "register") {
+      setTermsAccepted(false);
     }
   }, [state]);
 
@@ -54,8 +80,18 @@ export function AuthModalShell({
     password: "Enter password",
     register: "Create account",
   } as const;
-  const titleId = `auth-modal-title-${state}`;
-  const messageId = `auth-modal-message-${state}`;
+  const emailInputId = `auth-modal-email-${state}`;
+  const passwordInputId = `auth-modal-password-${state}`;
+  const termsInputId = `auth-modal-terms-${state}`;
+  const termsError = "Accept the terms before creating an account.";
+  const isEmailInvalid = localError === "Enter a valid email address.";
+  const isPasswordInvalid = localError === "Enter your password.";
+  const isTermsInvalid = localError === termsError;
+  const formStatusMessage =
+    localError && !isEmailInvalid && !isPasswordInvalid && !isTermsInvalid
+      ? localError
+      : statusMessage;
+  const isRegisterState = state === "register";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,6 +105,11 @@ export function AuthModalShell({
 
     if (state !== "email" && !trimmedPassword) {
       setLocalError("Enter your password.");
+      return;
+    }
+
+    if (state === "register" && !termsAccepted) {
+      setLocalError(termsError);
       return;
     }
 
@@ -100,84 +141,226 @@ export function AuthModalShell({
   }
 
   return (
-    <section
-      className="auth-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
+    <Dialog
+      open={true}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onClose?.();
+        }
+      }}
     >
-      <div className="auth-modal__panel">
-        <div className="auth-modal__header">
-          <h2 id={titleId}>{titleByState[state]}</h2>
-          {onClose ? (
-            <button type="button" className="link-button" onClick={onClose}>
-              Close
-            </button>
-          ) : null}
-        </div>
-        {statusMessage || localError ? (
-          <p
-            className={localError ? "auth-modal__error" : "auth-modal__status"}
-            id={messageId}
+      <DialogContent
+        className={
+          isRegisterState
+            ? "auth-modal__panel auth-modal__panel--register"
+            : "auth-modal__panel"
+        }
+        showCloseButton={Boolean(onClose)}
+      >
+        <DialogHeader className="auth-modal__header">
+          <DialogTitle>{titleByState[state]}</DialogTitle>
+          <DialogDescription
+            className={formStatusMessage ? "auth-modal__status" : undefined}
           >
-            {localError ?? statusMessage}
-          </p>
-        ) : null}
-        <form
-          className="auth-modal__form"
-          onSubmit={(event) => {
-            void handleSubmit(event);
-          }}
-        >
-          <label>
-            Email
-            <input
+            {formStatusMessage ?? resolveDescription(state)}
+          </DialogDescription>
+        </DialogHeader>
+        {isRegisterState ? (
+          <div className="auth-modal__register-layout">
+            <aside
+              aria-label="Account benefits"
+              className="auth-modal__benefits"
+            >
+              <div className="auth-modal__media">
+                <img
+                  alt="POP MART account benefits collectible"
+                  src="/assets/popmart/products/blind-boxes-2-1.png"
+                />
+              </div>
+              <div className="auth-modal__benefit-copy">
+                <span>Collector perks</span>
+                <h3>Keep your drops and orders easy to find.</h3>
+              </div>
+              <ul className="auth-modal__benefit-list">
+                <li>
+                  <strong>Faster checkout</strong>
+                  <span>Keep your buyer email ready for checkout flows.</span>
+                </li>
+                <li>
+                  <strong>Order updates</strong>
+                  <span>Review paid, pending, and recovered orders.</span>
+                </li>
+                <li>
+                  <strong>Wishlist readiness</strong>
+                  <span>
+                    Wishlist remains demo-disabled until the later slice.
+                  </span>
+                </li>
+              </ul>
+            </aside>
+            <section
+              aria-label="Account creation form"
+              className="auth-modal__form-card"
+            >
+              <Tabs value="register" className="auth-modal__tabs">
+                <TabsList
+                  aria-label="Account access mode"
+                  className="auth-modal__tabs-list"
+                  variant="line"
+                >
+                  <TabsTrigger
+                    type="button"
+                    value="signin"
+                    onClick={() => {
+                      setPassword("");
+                      setLocalError(null);
+                      onChangeEmail?.();
+                    }}
+                  >
+                    Sign in
+                  </TabsTrigger>
+                  <TabsTrigger type="button" value="register">
+                    Create account
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {renderAuthForm()}
+            </section>
+          </div>
+        ) : (
+          renderAuthForm()
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  function renderAuthForm() {
+    return (
+      <form
+        className="auth-modal__form"
+        noValidate
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+      >
+        <FieldGroup>
+          <Field data-invalid={isEmailInvalid ? "true" : undefined}>
+            <FieldLabel htmlFor={emailInputId}>Email</FieldLabel>
+            <Input
+              id={emailInputId}
               type="email"
               autoComplete="email"
               value={email}
               readOnly={state !== "email"}
+              aria-invalid={isEmailInvalid ? true : undefined}
               onChange={(event) => {
                 setEmail(event.target.value);
               }}
             />
-          </label>
+            {isEmailInvalid ? <FieldError>{localError}</FieldError> : null}
+          </Field>
           {state !== "email" ? (
-            <label>
-              Password
-              <input
-                type="password"
+            <Field data-invalid={isPasswordInvalid ? "true" : undefined}>
+              <FieldLabel htmlFor={passwordInputId}>Password</FieldLabel>
+              <Input
+                id={passwordInputId}
+                type={isPasswordVisible ? "text" : "password"}
                 autoComplete={
                   state === "password" ? "current-password" : "new-password"
                 }
                 value={password}
+                aria-invalid={isPasswordInvalid ? true : undefined}
                 onChange={(event) => {
                   setPassword(event.target.value);
                 }}
               />
-            </label>
-          ) : null}
-          <div className="auth-modal__actions">
-            {state !== "email" ? (
-              <button
+              <Button
+                className="auth-modal__password-toggle"
                 type="button"
-                className="button button--secondary"
+                variant="outline"
                 onClick={() => {
-                  setPassword("");
-                  setLocalError(null);
-                  onChangeEmail?.();
+                  setIsPasswordVisible((currentValue) => !currentValue);
                 }}
               >
-                Change email
-              </button>
-            ) : null}
-            <button type="submit" disabled={isSubmitting}>
-              {resolveSubmitLabel(state, isSubmitting)}
-            </button>
+                {isPasswordVisible ? "Hide password" : "Show password"}
+              </Button>
+              {isPasswordInvalid ? <FieldError>{localError}</FieldError> : null}
+            </Field>
+          ) : null}
+          {state === "register" ? (
+            <Field
+              className="auth-modal__terms"
+              data-invalid={isTermsInvalid ? "true" : undefined}
+              orientation="horizontal"
+            >
+              <Checkbox
+                id={termsInputId}
+                aria-invalid={isTermsInvalid ? true : undefined}
+                checked={termsAccepted}
+                onCheckedChange={(checked) => {
+                  setTermsAccepted(checked === true);
+                  if (localError === termsError) {
+                    setLocalError(null);
+                  }
+                }}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor={termsInputId}>
+                  I agree to the Terms of Service and Privacy Policy.
+                </FieldLabel>
+                <FieldDescription>
+                  Required before creating a demo account.
+                </FieldDescription>
+                {isTermsInvalid ? <FieldError>{localError}</FieldError> : null}
+              </FieldContent>
+            </Field>
+          ) : null}
+        </FieldGroup>
+        {state === "register" ? (
+          <div
+            className="auth-modal__social"
+            aria-label="Social sign-up options"
+          >
+            <Button
+              aria-label="Google sign-up unavailable"
+              disabled
+              type="button"
+              variant="outline"
+            >
+              Google unavailable
+            </Button>
+            <Button
+              aria-label="Apple sign-up unavailable"
+              disabled
+              type="button"
+              variant="outline"
+            >
+              Apple unavailable
+            </Button>
+            <p>Social sign-up is not wired in this demo.</p>
           </div>
-        </form>
-      </div>
-    </section>
-  );
+        ) : null}
+        <div className="auth-modal__actions">
+          {state !== "email" ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPassword("");
+                setLocalError(null);
+                onChangeEmail?.();
+              }}
+            >
+              Change email
+            </Button>
+          ) : null}
+          <Button type="submit" disabled={isSubmitting}>
+            {resolveSubmitLabel(state, isSubmitting)}
+          </Button>
+        </div>
+      </form>
+    );
+  }
 }
 
 function isValidEmail(email: string): boolean {
@@ -205,4 +388,16 @@ function resolveSubmitLabel(state: AuthModalState, isSubmitting: boolean) {
   }
 
   return "Continue";
+}
+
+function resolveDescription(state: AuthModalState) {
+  if (state === "register") {
+    return "Create a collector account with email and password.";
+  }
+
+  if (state === "password") {
+    return "Enter your password to continue.";
+  }
+
+  return "Use your account email to continue.";
 }

@@ -611,6 +611,21 @@ describe("PayPal express delivery Create Order builder", () => {
         "https://demo.example/api/paypal/orders/paypal_order_456/shipping-callback",
     });
 
+    const localPayload = buildPayPalExpressDeliveryCreateOrderPayload({
+      orderNumber: "DO-20260530-000006",
+      currencyCode: "USD",
+      items: deliveryItems,
+      shippingAmountMinor: 0,
+      taxAmountMinor: 0,
+      discountAmountMinor: 0,
+      shippingCallbackUrl: null,
+    });
+
+    expect(
+      localPayload.payment_source.paypal.experience_context
+        .order_update_callback_config,
+    ).toBeUndefined();
+
     expect(() =>
       buildPayPalExpressDeliveryCreateOrderPayload({
         orderNumber: "DO-20260530-000007",

@@ -24,6 +24,12 @@ export interface CreateAdminSessionGuardInput {
   readonly now?: Date | string;
 }
 
+export interface AdminSessionLookupInput {
+  readonly request: Request;
+  readonly adminPasscode: string;
+  readonly now?: Date | string;
+}
+
 interface AdminSessionPayload {
   readonly sid: string;
   readonly exp: string;
@@ -51,22 +57,39 @@ export function createAdminSessionGuard(
 
   return (request, response, next) => {
     const adminRequest = request as AdminRequest;
-    const token = normalizeHeaderValue(request, "x-admin-session");
-    const payload = token
-      ? verifyAdminSessionToken(token, adminPasscode, now ?? new Date())
-      : null;
+    const resolvedSession = resolveAdminSessionFromRequest({
+      request,
+      adminPasscode,
+      ...(now ? { now } : {}),
+    });
 
-    if (!payload) {
+    if (!resolvedSession) {
       sendAdminSessionRequired(response);
       return;
     }
 
-    adminRequest.admin = {
-      sessionId: payload.sid,
-      expiresAt: payload.exp,
-    };
+    adminRequest.admin = resolvedSession;
     next();
   };
+}
+
+export function resolveAdminSessionFromRequest(
+  input: AdminSessionLookupInput,
+): AdminContext | null {
+  const adminPasscode = assertNonEmpty(input.adminPasscode, "admin passcode");
+  const now = input.now ? toDate(input.now) : new Date();
+  const token = normalizeHeaderValue(input.request, "x-admin-session");
+
+  const payload = token
+    ? verifyAdminSessionToken(token, adminPasscode, now)
+    : null;
+
+  return payload
+    ? {
+        sessionId: payload.sid,
+        expiresAt: payload.exp,
+      }
+    : null;
 }
 
 function verifyAdminSessionToken(

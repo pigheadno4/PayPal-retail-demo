@@ -1,13 +1,21 @@
+// @vitest-environment jsdom
+
+import { cleanup, render, waitFor } from "@testing-library/react";
 import type { CreateInstanceOptions } from "@paypal/paypal-js/sdk-v6";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import type { ApiClient, ApiQueryParams } from "../../api/client.js";
 import {
   PayPalSdkProviderScope,
   buildPayPalProviderOptions,
   buildPayPalSdkConfigQuery,
   type PayPalSdkConfigResponse,
 } from "./PayPalSdkProviderScope.js";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("PayPalSdkProviderScope", () => {
   it("builds the backend SDK config query from the active payment surface", () => {
@@ -86,8 +94,29 @@ describe("PayPalSdkProviderScope", () => {
     expect(html).toContain('class="paypal-provider-scope"');
     expect(html).toContain('data-paypal-provider-key="paypal:sandbox:pending"');
     expect(html).toContain('data-paypal-sdk-status="loading"');
-    expect(html).toContain("Loading PayPal payment options.");
+    expect(html).toContain("Loading PayPal payment option.");
     expect(html).not.toContain("Payment subtree");
+  });
+
+  it("labels SDK loading status by payment method so adjacent scopes do not repeat generic copy", () => {
+    const html = renderToStaticMarkup(
+      <PayPalSdkProviderScope
+        providerKey="paypal:sandbox:pending"
+        configRequest={{
+          market: "US",
+          pageType: "checkout",
+          flow: "standard",
+          method: "paylater",
+        }}
+      >
+        <span>Payment subtree</span>
+      </PayPalSdkProviderScope>,
+    );
+
+    expect(html).toContain("Loading Pay Later payment option.");
+    expect(html).toContain(
+      'id="paypal-sdk-paypal-sandbox-pending-checkout-standard-paylater-config-status"',
+    );
   });
 
   it("renders ready metadata when initial backend SDK config is supplied", () => {
@@ -112,6 +141,49 @@ describe("PayPalSdkProviderScope", () => {
     expect(html).toContain('data-paypal-paylater-buyer-country="GB"');
     expect(html).toContain('data-paypal-test-buyer-country="GB"');
     expect(html).toContain("Payment subtree");
+  });
+
+  it("does not refetch SDK config when an equivalent config request object is rerendered", async () => {
+    const requests: Array<ApiQueryParams | undefined> = [];
+    const apiClient: ApiClient = {
+      delete: async () => {
+        throw new Error("Unexpected API delete in SDK config test.");
+      },
+      get: async <TData = unknown,>(_path: string, query?: ApiQueryParams) => {
+        requests.push(query);
+        return new Promise<PayPalSdkConfigResponse>(
+          () => undefined,
+        ) as Promise<TData>;
+      },
+      patch: async () => {
+        throw new Error("Unexpected API patch in SDK config test.");
+      },
+      post: async () => {
+        throw new Error("Unexpected API post in SDK config test.");
+      },
+    };
+    const renderScope = () => (
+      <PayPalSdkProviderScope
+        apiClient={apiClient}
+        providerKey="paypal:sandbox:pending"
+        configRequest={{
+          market: "US",
+          pageType: "checkout",
+          flow: "standard",
+          method: "paypal",
+        }}
+      >
+        <span>Payment subtree</span>
+      </PayPalSdkProviderScope>
+    );
+
+    const { rerender } = render(renderScope());
+    await waitFor(() => expect(requests).toHaveLength(1));
+
+    rerender(renderScope());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(requests).toHaveLength(1);
   });
 });
 

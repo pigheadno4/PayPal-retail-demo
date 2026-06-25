@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiClientError, createApiClient } from "../../api/client.js";
 import { AppProviders } from "../../state/appProviders.js";
@@ -29,11 +29,118 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
   }),
 }));
 
+beforeEach(() => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.spyOn(console, "info").mockImplementation(() => undefined);
+});
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 describe("payment action failure handling", () => {
+  it("logs structured delivery express diagnostics when create-order fails", async () => {
+    const user = userEvent.setup();
+    const infoSpy = vi.spyOn(console, "info");
+    const errorSpy = vi.spyOn(console, "error");
+
+    render(
+      <AppProviders apiClient={createFailingApiClient()}>
+        <DeliveryExpressAction
+          cartClientSecret="cart_secret_guest"
+          cartPublicId="cart_public_guest"
+          currencyCode="USD"
+          market="US"
+          method="paypal"
+          source="cart"
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mock PayPal" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] Delivery express create-order starting",
+      {
+        cartPublicId: "cart_public_guest",
+        currencyCode: "USD",
+        hasAuthHeader: false,
+        hasCartClientSecret: true,
+        market: "US",
+        method: "paypal",
+        source: "cart",
+        totalLabel: "$25.98",
+      },
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] Delivery express create-order failed",
+      expect.objectContaining({
+        cartPublicId: "cart_public_guest",
+        code: "PAYPAL_ORDER_CREATE_UNAVAILABLE",
+        debugId: "dbg_paypal_down",
+        method: "paypal",
+        source: "cart",
+        stage: "api_create_order",
+      }),
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain(
+      "cart_secret_guest",
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(
+      "cart_secret_guest",
+    );
+  });
+
+  it("uses modal presentation for PayPal and Pay Later buyer actions so demo flows do not depend on popups", () => {
+    render(
+      <AppProviders apiClient={createSuccessfulApiClient()}>
+        <PayPalStandaloneAction
+          checkoutDraftId="draft_delivery_123"
+          fulfillmentMode="delivery"
+          market="US"
+        />
+        <PayLaterStandaloneAction
+          buyerCountry="US"
+          checkoutDraftId="draft_delivery_123"
+          currencyCode="USD"
+          fulfillmentMode="delivery"
+          market="US"
+          totalLabel="$25.98"
+        />
+        <DeliveryExpressAction
+          cartClientSecret="cart_secret_guest"
+          cartPublicId="cart_public_guest"
+          currencyCode="USD"
+          market="US"
+          method="paypal"
+          source="cart"
+          totalLabel="$25.98"
+        />
+        <DeliveryExpressAction
+          cartClientSecret="cart_secret_guest"
+          cartPublicId="cart_public_guest"
+          currencyCode="USD"
+          market="US"
+          method="paylater"
+          source="cart"
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    const paymentButtons = screen.getAllByRole("button", {
+      name: "Mock PayPal",
+    });
+
+    expect(paymentButtons).toHaveLength(4);
+    paymentButtons.forEach((button) => {
+      expect(button.getAttribute("data-presentation-mode")).toBe("modal");
+    });
+  });
+
   it("keeps checkout PayPal create-order failures visible with a debug reference and retry affordance", async () => {
     const user = userEvent.setup();
 
@@ -140,6 +247,49 @@ describe("payment action failure handling", () => {
     expect(alert.textContent).toContain("Reference ID: dbg_cart_refresh");
   });
 
+  it("uses refreshed cart binding returned before delivery express create-order", async () => {
+    const user = userEvent.setup();
+    const requests: Array<{
+      readonly body: unknown;
+      readonly headers: Record<string, string>;
+    }> = [];
+
+    render(
+      <AppProviders apiClient={createRecordingCreateOrderApiClient(requests)}>
+        <DeliveryExpressAction
+          cartClientSecret="cart_secret_stale"
+          cartPublicId="cart_public_stale"
+          currencyCode="USD"
+          market="US"
+          method="paypal"
+          onBeforeCreateOrder={async () => ({
+            cartClientSecret: "cart_secret_fresh",
+            cartPublicId: "cart_public_fresh",
+          })}
+          source="cart"
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mock PayPal" }));
+
+    expect(requests).toEqual([
+      {
+        body: {
+          cart_id: "cart_public_fresh",
+          method: "paypal",
+        },
+        headers: {
+          "content-type": "application/json",
+          "x-cart-id": "cart_public_fresh",
+          "x-cart-secret": "cart_secret_fresh",
+        },
+      },
+    ]);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("clears the failure notice when the buyer retries", async () => {
     const user = userEvent.setup();
 
@@ -160,29 +310,99 @@ describe("payment action failure handling", () => {
 
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("notifies the checkout PayPal approval handler with the created payment session", async () => {
+    const user = userEvent.setup();
+    const onApproved = vi.fn();
+
+    render(
+      <AppProviders apiClient={createSuccessfulApiClient()}>
+        <PayPalStandaloneAction
+          checkoutDraftId="draft_delivery_123"
+          fulfillmentMode="delivery"
+          market="US"
+          onApproved={onApproved}
+        />
+      </AppProviders>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mock PayPal" }));
+    await waitFor(() => {
+      expect(onApproved).toHaveBeenCalledWith({
+        fulfillmentMode: "delivery",
+        method: "paypal",
+        paypalOrderId: "PAYPAL-ORDER-123",
+        paymentSessionId: "payment_session_123",
+      });
+    });
+  });
+
+  it("notifies the checkout Pay Later approval handler with the created payment session", async () => {
+    const user = userEvent.setup();
+    const onApproved = vi.fn();
+
+    render(
+      <AppProviders apiClient={createSuccessfulApiClient()}>
+        <PayLaterStandaloneAction
+          buyerCountry="US"
+          checkoutDraftId="draft_delivery_123"
+          currencyCode="USD"
+          fulfillmentMode="delivery"
+          market="US"
+          onApproved={onApproved}
+          totalLabel="$25.98"
+        />
+      </AppProviders>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Mock PayPal" }));
+    await waitFor(() => {
+      expect(onApproved).toHaveBeenCalledWith({
+        fulfillmentMode: "delivery",
+        method: "paylater",
+        paypalOrderId: "PAYPAL-ORDER-123",
+        paymentSessionId: "payment_session_123",
+      });
+    });
+  });
 });
 
 function MockPayPalButton({
   createOrder,
+  onApprove,
   onError,
+  presentationMode,
 }: {
   readonly createOrder: () => Promise<{ readonly orderId: string }>;
+  readonly onApprove?: (data: {
+    readonly orderId: string;
+    readonly payerId: string;
+  }) => Promise<void> | void;
   readonly onError?: (error: {
     readonly code: string;
     readonly isRecoverable: boolean;
     readonly message: string;
   }) => void;
+  readonly presentationMode?: string;
 }) {
   return (
     <button
+      data-presentation-mode={presentationMode}
       onClick={() => {
-        void createOrder().catch((error: unknown) => {
-          onError?.({
-            code: "CREATE_ORDER_FAILED",
-            isRecoverable: true,
-            message: error instanceof Error ? error.message : "Unknown error",
+        void createOrder()
+          .then(async ({ orderId }) => {
+            await onApprove?.({
+              orderId,
+              payerId: "PAYER-123",
+            });
+          })
+          .catch((error: unknown) => {
+            onError?.({
+              code: "CREATE_ORDER_FAILED",
+              isRecoverable: true,
+              message: error instanceof Error ? error.message : "Unknown error",
+            });
           });
-        });
       }}
       type="button"
     >
@@ -219,9 +439,39 @@ function createSuccessfulApiClient() {
           ok: true,
           data: {
             paypal_order_id: "PAYPAL-ORDER-123",
+            payment_session_id: "payment_session_123",
           },
           debug_id: "dbg_success",
         }),
       }) as Response,
+  });
+}
+
+function createRecordingCreateOrderApiClient(
+  requests: Array<{
+    readonly body: unknown;
+    readonly headers: Record<string, string>;
+  }>,
+) {
+  return createApiClient({
+    baseUrl: "https://demo.example.test",
+    fetch: async (_url, init) => {
+      requests.push({
+        body:
+          typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+        headers: Object.fromEntries(new Headers(init?.headers).entries()),
+      });
+
+      return {
+        status: 200,
+        json: async () => ({
+          ok: true,
+          data: {
+            paypal_order_id: "PAYPAL-ORDER-123",
+          },
+          debug_id: "dbg_success",
+        }),
+      } as Response;
+    },
   });
 }

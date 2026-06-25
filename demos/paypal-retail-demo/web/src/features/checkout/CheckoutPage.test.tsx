@@ -29,6 +29,17 @@ describe("CheckoutPage", () => {
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 
+    expect(html).toContain('data-slot="tabs"');
+    expect(html).toContain('data-visual-accent-scope="checkout"');
+    expect(html).toContain('data-slot="tabs-list"');
+    expect(html).toContain('data-slot="tabs-trigger"');
+    expect(html).toContain('data-slot="tabs-content"');
+    expect(html).toContain('data-slot="card"');
+    expect(html).toContain('data-slot="card-header"');
+    expect(html).toContain('data-slot="card-title"');
+    expect(html).toContain('data-slot="card-content"');
+    expect(html).toContain('data-slot="card-footer"');
+    expect(html).toContain('data-visual-accent="checkout-step"');
     expect(html).toContain('role="tablist"');
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain("Delivery");
@@ -63,6 +74,31 @@ describe("CheckoutPage", () => {
     expect(pickupHtml).not.toContain(
       "Unavailable items stay in the original cart.",
     );
+  });
+
+  it("renders reference-level checkout summary, promo status, and trust strip", () => {
+    const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
+
+    expect(html).toContain('aria-label="Checkout breadcrumb"');
+    expect(html).toContain("Secure checkout");
+    expect(html).toContain("Confirm fulfillment, review totals");
+    expect(html).toContain("Labubu Have a Seat");
+    expect(html).toContain("Hirono Little Mischief");
+    expect(html).toContain("Qty 1");
+    expect(html).toContain("Offer status");
+    expect(html).toContain(
+      "Automatic demo offers refresh after address changes.",
+    );
+    expect(html).toContain("Estimated tax");
+    expect(html).toContain("Calculated before payment");
+    expect(html).toContain("Official payment surfaces");
+    expect(html).toContain("Totals reconciled");
+    expect(html).toContain("Delivery or pickup");
+    expect(html).toContain("Order recovery");
+    expect(html).toContain('data-visual-accent="commerce-summary"');
+    expect(html).toContain('data-visual-accent="trust-strip"');
+    expect(html).toContain('data-slot="badge"');
+    expect(html).toContain('data-slot="separator"');
   });
 
   it("keeps logged-in Pickup summary preselected when the page data requests it", () => {
@@ -152,9 +188,20 @@ describe("CheckoutPage", () => {
 
     expect(html).toContain("POP MART Soho");
     expect(html).toContain("1.2 mi");
+    expect(html).toContain('data-pickup-store-ticket="true"');
+    expect(html).toContain(
+      'aria-label="Pickup store ticket for POP MART Soho"',
+    );
+    expect(html).toContain("checkout-store-card--ticket");
+    expect(html).toContain("checkout-store-card__badge");
+    expect(html).toContain('data-inventory-state="partial"');
+    expect(html).toContain('data-inventory-state="full"');
+    expect(html).toContain("checkout-store-card__availability");
+    expect(html).toContain('aria-label="Pickup inventory for POP MART Soho"');
     expect(html).toContain("Available: 1 item");
     expect(html).toContain("Unavailable: 1 item");
     expect(html).toContain("Partial inventory");
+    expect(html).toContain("Full inventory");
     expect(html).toContain("Submit pickup store");
   });
 
@@ -204,10 +251,25 @@ describe("CheckoutPage", () => {
     );
 
     expect(html).toContain('data-payment-action-reserved-space="true"');
+    expect(html).toContain('data-payment-placeholder-state="locked"');
     expect(html).toContain("Choose payment method");
+    expect(html).toContain("Payment methods unlock after required steps.");
     expect(html).not.toContain("PayPal selected");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
+  });
+
+  it("renders checkout form fields through shadcn field slots with mobile metadata", () => {
+    const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
+
+    expect(html).toContain('data-slot="field-group"');
+    expect(html).toContain('data-slot="field"');
+    expect(html).toContain('data-slot="field-label"');
+    expect(html).toContain('data-slot="input"');
+    expect(html).toContain('autoComplete="name"');
+    expect(html).toContain('autoComplete="postal-code"');
+    expect(html).toContain('required=""');
+    expect(html).toContain("Required to continue this checkout step.");
   });
 
   it("renders the selected payment action inside Order Summary with active draft context", () => {
@@ -299,6 +361,8 @@ describe("CheckoutPage", () => {
     );
     expect(html).toContain('data-payment-fulfillment-mode="delivery"');
     expect(html).toContain('data-payment-method="card"');
+    expect(html).toContain('data-payment-placeholder-state="card"');
+    expect(html).toContain("Card fields are active in the payment step.");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
   });
@@ -598,11 +662,33 @@ function checkoutData(
       summary: {
         title: "Delivery order",
         contextLabel: "Ground delivery",
+        items: [
+          {
+            id: "checkout-test-item-labubu",
+            name: "Labubu Have a Seat",
+            detailLabel: "Blind Boxes",
+            imagePath: "/assets/popmart/products/blind-boxes-1-1.png",
+            imageAlt: "Labubu Have a Seat collectible",
+            quantity: 1,
+            amountLabel: "$12.99",
+          },
+          {
+            id: "checkout-test-item-hirono",
+            name: "Hirono Little Mischief",
+            detailLabel: "Plush",
+            imagePath: "/assets/popmart/products/plush-11-1.png",
+            imageAlt: "Hirono Little Mischief collectible",
+            quantity: 1,
+            amountLabel: "$12.99",
+          },
+        ],
         subtotalLabel: "$25.98",
         promoLabel: "Auto promo calculating",
+        promoHelpLabel: "Automatic demo offers refresh after address changes.",
         ...(overrides.deliveryShippingLabel
           ? { shippingLabel: overrides.deliveryShippingLabel }
           : {}),
+        taxLabel: "Calculated before payment",
         totalLabel: overrides.deliveryTotalLabel ?? "$25.98",
         selectedPaymentLabel,
         selectedPaymentMethod,
@@ -621,8 +707,21 @@ function checkoutData(
           overrides.pickupStoreMode === "preselected"
             ? "POP MART Soho"
             : "Choose a pickup store",
+        items: [
+          {
+            id: "checkout-test-pickup-item-labubu",
+            name: "Labubu Have a Seat",
+            detailLabel: "Blind Boxes",
+            imagePath: "/assets/popmart/products/blind-boxes-1-1.png",
+            imageAlt: "Labubu Have a Seat collectible",
+            quantity: 1,
+            amountLabel: "$12.99",
+          },
+        ],
         subtotalLabel: "$12.99",
         promoLabel: "Pickup promo recalculating",
+        promoHelpLabel: "Pickup offers refresh after store selection.",
+        taxLabel: "Calculated before payment",
         totalLabel: "$12.99",
         selectedPaymentLabel,
         selectedPaymentMethod,

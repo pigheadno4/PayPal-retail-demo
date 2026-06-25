@@ -1266,14 +1266,19 @@ function createRows() {
         });
       }
 
-      for (let imageIndex = 1; imageIndex <= 3; imageIndex += 1) {
+      const productImageCount = profile.slug === "popmart" ? 1 : 3;
+      for (
+        let imageIndex = 1;
+        imageIndex <= productImageCount;
+        imageIndex += 1
+      ) {
         productImageRows.push({
           id: stableUuid(
             `product-image:${profile.slug}:${product.slug}:${imageIndex}`,
           ),
           product_id: product.id,
-          image_path: `/${profile.slug}/products/${product.slug}-${imageIndex}.webp`,
-          alt_text: `${product.name} view ${imageIndex}`,
+          image_path: productImagePath(profile, product.slug, imageIndex),
+          alt_text: productImageAltText(profile, product, imageIndex),
           sort_order: imageIndex,
         });
       }
@@ -1655,7 +1660,11 @@ function createGuardedRows(productRows: readonly ProductSeedRow[]) {
         product_name_snapshot: line.product.name,
         product_description_snapshot: line.product.short_description,
         product_url_snapshot: `/${scenario.profileSlug}/products/${line.product.slug}`,
-        product_image_url_snapshot: `/${scenario.profileSlug}/products/${line.product.slug}-1.webp`,
+        product_image_url_snapshot: productImagePath(
+          profileForSlug(scenario.profileSlug),
+          line.product.slug,
+          1,
+        ),
         unit_price_minor: line.unitPriceMinor,
         quantity: line.quantity,
         fulfillable_quantity: line.fulfillableQuantity,
@@ -2593,6 +2602,59 @@ function categoryId(profileSlug: string, categorySlug: string): string {
 
 function productId(profileSlug: string, productSlug: string): string {
   return stableUuid(`product:${profileSlug}:${productSlug}`);
+}
+
+function productImagePath(
+  profile: ProfileSeed,
+  productSlug: string,
+  imageIndex: number,
+): string {
+  if (profile.slug === "popmart") {
+    return `/assets/popmart/products/${productSlug}-${imageIndex}.png`;
+  }
+
+  return `/${profile.slug}/products/${productSlug}-${imageIndex}.webp`;
+}
+
+function productImageAltText(
+  profile: ProfileSeed,
+  product: ProductSeedRow,
+  imageIndex: number,
+): string {
+  if (profile.slug !== "popmart") {
+    return `${product.name} view ${imageIndex}`;
+  }
+
+  const categorySlug = categorySlugForProduct(product);
+  const collectibleType =
+    categorySlug === "blind-boxes"
+      ? "surprise collectible figure"
+      : categorySlug === "vinyl-figures"
+        ? "designer vinyl figure"
+        : categorySlug === "plush"
+          ? "soft plush collectible"
+          : categorySlug === "mega-collection"
+            ? "large-format display collectible"
+            : "collector accessory set";
+
+  return `${product.name} ${collectibleType} on a pastel display.`;
+}
+
+function categorySlugForProduct(product: ProductSeedRow): string {
+  const category = categorySeeds.find((candidate) =>
+    product.slug.startsWith(`${candidate.slug}-`),
+  );
+
+  return category?.slug ?? "accessories";
+}
+
+function profileForSlug(profileSlug: ProfileSeed["slug"]): ProfileSeed {
+  const profile = profiles.find((candidate) => candidate.slug === profileSlug);
+  if (!profile) {
+    throw new Error(`Unknown profile slug: ${profileSlug}`);
+  }
+
+  return profile;
 }
 
 function productPriceId(

@@ -4,6 +4,10 @@
     "composite": true,
     "rootDir": "src",
     "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",

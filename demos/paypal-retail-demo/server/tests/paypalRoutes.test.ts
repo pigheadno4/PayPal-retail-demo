@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
 import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
@@ -29,6 +29,16 @@ import type {
 import { requestApp } from "./helpers/requestApp.js";
 
 describe("PayPal routes", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns browser-safe SDK config for the active market", async () => {
     const gateway = createClientTokenGateway();
     const app = createPayPalApp(gateway);
@@ -297,6 +307,69 @@ describe("PayPal routes", () => {
         },
       },
     });
+  });
+
+  it("logs structured create-order diagnostics without secrets", async () => {
+    const infoSpy = vi.spyOn(console, "info");
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/express-delivery?market=us",
+      {
+        headers: {
+          "x-cart-id": "cart_public_guest",
+          "x-cart-secret": "cart_secret_guest",
+        },
+        json: {
+          cart_id: "cart_public_guest",
+          method: "paypal",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] PayPal create-order route starting",
+      expect.objectContaining({
+        cartId: "cart_public_guest",
+        checkoutDraftId: null,
+        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+        kind: "express_delivery",
+        market: "US",
+        method: "paypal",
+        buyerKind: "guest",
+        hasGuestCartSecret: true,
+      }),
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] PayPal create-order route prepared",
+      expect.objectContaining({
+        amountTotalMinor: 2999,
+        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+        kind: "express_delivery",
+        orderNumber: "DO-20260601-000002",
+        paypalInvoiceId: "DO-20260601-000002-A2",
+        paypalRequestId: "request-express",
+        paymentSessionId: "payment_session_express",
+      }),
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] PayPal create-order route gateway created",
+      expect.objectContaining({
+        debugId: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+        kind: "express_delivery",
+        paypalOrderId: "PAYPAL_ORDER_EXPRESS",
+        paypalOrderStatus: "CREATED",
+        paymentSessionId: "payment_session_express",
+      }),
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain(
+      "cart_secret_guest",
+    );
   });
 
   it("creates a BOPIS PayPal order with pickup-in-store shipping semantics", async () => {

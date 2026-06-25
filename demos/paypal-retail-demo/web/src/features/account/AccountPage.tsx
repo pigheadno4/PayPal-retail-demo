@@ -1,5 +1,24 @@
 import { useState, type FormEvent } from "react";
 
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
 export interface AccountAddressMutationInput {
   readonly label: string | null;
   readonly recipient_name: string;
@@ -55,8 +74,21 @@ export interface AccountOrderItemView {
   readonly lineTotalLabel: string;
   readonly name: string;
   readonly quantity: number;
+  readonly review: AccountOrderItemReviewView | null;
   readonly reviewEligible: boolean;
   readonly reviewSubmitted: boolean;
+}
+
+export interface AccountOrderItemReviewView {
+  readonly rating: number;
+  readonly title: string | null;
+  readonly body: string | null;
+}
+
+export interface AccountReviewInput {
+  readonly rating: number;
+  readonly title: string | null;
+  readonly body: string;
 }
 
 export interface AccountOrderTimelineStepView {
@@ -84,6 +116,47 @@ export interface AccountOrderView {
   readonly totals: readonly AccountOrderTotalLineView[];
 }
 
+export interface GuestOrderLookupInput {
+  readonly email: string;
+  readonly orderNumber: string;
+}
+
+export interface GuestOrderAddressView {
+  readonly addressType: string;
+  readonly city: string;
+  readonly countryCode: string;
+  readonly postalCode: string | null;
+  readonly recipientName: string;
+  readonly state: string | null;
+}
+
+export interface GuestOrderItemView {
+  readonly imageAlt: string;
+  readonly imagePath: string;
+  readonly lineTotalLabel: string;
+  readonly name: string;
+  readonly quantity: number;
+}
+
+export interface GuestOrderView {
+  readonly orderNumber: string;
+  readonly fulfillmentMode: AccountOrderFulfillmentMode;
+  readonly status: AccountOrderStatus;
+  readonly paymentStatusLabel: string;
+  readonly totalLabel: string;
+  readonly note: string;
+  readonly addresses: readonly GuestOrderAddressView[];
+  readonly items: readonly GuestOrderItemView[];
+  readonly totals: readonly AccountOrderTotalLineView[];
+}
+
+export interface GuestOrderLookupPageProps {
+  readonly lookupError?: string | null;
+  readonly lookupStatus: "error" | "idle" | "loading" | "ready";
+  readonly order: GuestOrderView | null;
+  readonly onLookup: (input: GuestOrderLookupInput) => Promise<void> | void;
+}
+
 export interface AccountPageProps {
   readonly addresses: readonly AccountAddressView[];
   readonly addressesStatus: "error" | "idle" | "loading" | "ready";
@@ -98,6 +171,10 @@ export interface AccountPageProps {
     address: AccountAddressMutationInput,
   ) => Promise<void> | void;
   readonly onDeleteAddress?: (addressId: string) => Promise<void> | void;
+  readonly onDeleteReview?: (
+    orderNumber: string,
+    itemId: string,
+  ) => Promise<void> | void;
   readonly onDeleteSavedPayment?: (
     savedPaymentId: string,
   ) => Promise<void> | void;
@@ -106,6 +183,163 @@ export interface AccountPageProps {
     addressId: string,
     address: AccountAddressMutationInput,
   ) => Promise<void> | void;
+  readonly onSubmitReview?: (
+    orderNumber: string,
+    itemId: string,
+    review: AccountReviewInput,
+  ) => Promise<void> | void;
+  readonly onUpdateReview?: (
+    orderNumber: string,
+    itemId: string,
+    review: AccountReviewInput,
+  ) => Promise<void> | void;
+}
+
+export function GuestOrderLookupPage({
+  lookupError = null,
+  lookupStatus,
+  order,
+  onLookup,
+}: GuestOrderLookupPageProps) {
+  const [orderNumber, setOrderNumber] = useState("");
+  const [email, setEmail] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onLookup({
+      email: email.trim(),
+      orderNumber: orderNumber.trim().toUpperCase(),
+    });
+  }
+
+  return (
+    <section className="route-stage route-stage--account account-page">
+      <header className="account-page__hero">
+        <div>
+          <p className="route-stage__eyebrow">Guest orders</p>
+          <h1>Guest order lookup</h1>
+          <p>
+            Find a checkout placed without signing in using the order number and
+            email from the receipt.
+          </p>
+        </div>
+        <nav className="account-page__nav" aria-label="Guest order links">
+          <a href="/products">Browse products</a>
+          <a href="/account/orders">Account orders</a>
+        </nav>
+      </header>
+      <div className="account-page__grid account-page__grid--lookup">
+        <Card
+          className="account-page__panel account-page__panel--feature"
+          aria-labelledby="guest-order-form-title"
+          role="region"
+        >
+          <CardHeader>
+            <p className="account-page__panel-kicker">Receipt lookup</p>
+            <CardTitle>
+              <h2 id="guest-order-form-title">Find your order</h2>
+            </CardTitle>
+            <CardDescription className="account-page__panel-note">
+              We use the same generic response when an order cannot be matched.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="account-page__lookup-form"
+              onSubmit={(event) => {
+                void handleSubmit(event);
+              }}
+            >
+              <FieldGroup className="account-page__form-fields">
+                <Field>
+                  <FieldLabel
+                    className="account-page__field-label--required"
+                    htmlFor="guest-order-number"
+                  >
+                    Order number
+                  </FieldLabel>
+                  <Input
+                    id="guest-order-number"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    inputMode="text"
+                    placeholder="DO-20260526-000003"
+                    required
+                    value={orderNumber}
+                    onChange={(event) => {
+                      setOrderNumber(event.target.value);
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel
+                    className="account-page__field-label--required"
+                    htmlFor="guest-order-email"
+                  >
+                    Email used at checkout
+                  </FieldLabel>
+                  <Input
+                    id="guest-order-email"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="collector@example.com"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                    }}
+                  />
+                </Field>
+              </FieldGroup>
+              <Button
+                type="submit"
+                className="account-page__submit-button"
+                disabled={lookupStatus === "loading"}
+              >
+                {lookupStatus === "loading"
+                  ? "Looking up..."
+                  : "Find guest order"}
+              </Button>
+            </form>
+            {lookupStatus === "error" ? (
+              <StatusCard
+                tone="error"
+                title="Guest order could not be found."
+                body={
+                  lookupError ??
+                  "Check the order number and email from your receipt, then try again."
+                }
+              />
+            ) : null}
+          </CardContent>
+        </Card>
+        <Card
+          className="account-page__panel"
+          aria-labelledby="guest-order-result-title"
+          role="region"
+        >
+          <CardHeader>
+            <p className="account-page__panel-kicker">Order detail</p>
+            <CardTitle>
+              <h2 id="guest-order-result-title">Read-only order detail</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lookupStatus === "ready" && order ? (
+              <GuestOrderResult order={order} />
+            ) : (
+              <StatusCard
+                tone="empty"
+                title="No guest order loaded yet."
+                body="Matched orders appear here without exposing internal payment or database IDs."
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
 }
 
 export function AccountPage({
@@ -120,9 +354,12 @@ export function AccountPage({
   section,
   onCreateAddress,
   onDeleteAddress,
+  onDeleteReview,
   onDeleteSavedPayment,
   onMakeDefaultAddress,
+  onSubmitReview,
   onUpdateAddress,
+  onUpdateReview,
 }: AccountPageProps) {
   const [addressForm, setAddressForm] = useState<AddressFormState>(null);
   const [confirmingAddressId, setConfirmingAddressId] = useState<string | null>(
@@ -137,6 +374,9 @@ export function AccountPage({
       <section className="route-stage route-stage--account account-page">
         <AccountHubHeader section={section} />
         <OrderHistoryView
+          onDeleteReview={onDeleteReview}
+          onSubmitReview={onSubmitReview}
+          onUpdateReview={onUpdateReview}
           orders={orders}
           selectedOrderNumber={selectedOrderNumber}
           status={ordersStatus}
@@ -157,314 +397,423 @@ export function AccountPage({
     <section className="route-stage route-stage--account account-page">
       <AccountHubHeader section={section} />
       <div className="account-page__summary" aria-label="Account overview">
-        <div>
-          <span>Saved addresses</span>
-          <strong>{addresses.length}</strong>
-        </div>
-        <div>
-          <span>Payment methods</span>
-          <strong>{visibleSavedPayments.length}</strong>
-        </div>
-        <div>
-          <span>Default checkout</span>
-          <strong>
-            {addresses.some((address) => address.is_default_shipping)
-              ? "Ready"
-              : "Needs address"}
-          </strong>
-        </div>
+        <Card size="sm">
+          <CardContent>
+            <span>Saved addresses</span>
+            <strong>{addresses.length}</strong>
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardContent>
+            <span>Payment methods</span>
+            <strong>{visibleSavedPayments.length}</strong>
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardContent>
+            <span>Default checkout</span>
+            <strong>
+              {addresses.some((address) => address.is_default_shipping)
+                ? "Ready"
+                : "Needs address"}
+            </strong>
+          </CardContent>
+        </Card>
       </div>
       <div className="account-page__grid">
-        <section
+        <Card
           className="account-page__panel account-page__panel--profile"
           aria-labelledby="profile-title"
+          role="region"
         >
-          <div className="account-page__panel-kicker">Profile</div>
-          <h2 id="profile-title">Collector profile</h2>
-          <dl className="account-page__definition-list">
-            <div>
-              <dt>Email</dt>
-              <dd>{email ?? "Signed-in buyer"}</dd>
-            </div>
-          </dl>
-          <p className="account-page__panel-note">
+          <CardHeader>
+            <p className="account-page__panel-kicker">Profile</p>
+            <CardTitle>
+              <h2 id="profile-title">Collector profile</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="account-page__definition-list">
+              <div>
+                <dt>Email</dt>
+                <dd>{email ?? "Signed-in buyer"}</dd>
+              </div>
+            </dl>
+          </CardContent>
+          <CardFooter>
             This account keeps saved checkout details and completed-order review
             access together.
-          </p>
-        </section>
-        <section
+          </CardFooter>
+        </Card>
+        <Card
           className="account-page__panel"
           aria-labelledby="addresses-title"
+          role="region"
         >
-          <div className="account-page__panel-header">
-            <h2 id="addresses-title">Address book</h2>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={() => {
-                setAddressForm({ mode: "add" });
-              }}
-            >
-              Add address
-            </button>
-          </div>
-          {addressesStatus === "loading" ? (
-            <StatusCard
-              tone="loading"
-              title="Finding your saved addresses..."
-              body="We keep this section stable while your address book loads."
-            />
-          ) : null}
-          {addressesStatus === "error" ? (
-            <StatusCard
-              tone="error"
-              title="Addresses could not be loaded."
-              body="Try refreshing this page before checkout."
-            />
-          ) : null}
-          {addressesStatus === "ready" && addresses.length === 0 ? (
-            <StatusCard
-              tone="empty"
-              title="No saved addresses yet."
-              body="Add a shipping or billing address to make checkout faster."
-            />
-          ) : null}
-          {addressForm ? (
-            <AddressForm
-              initialValue={addressFormInput}
-              submitLabel={
-                addressForm.mode === "edit" ? "Save changes" : "Save address"
-              }
-              onCancel={() => {
-                setAddressForm(null);
-              }}
-              onSubmit={async (address) => {
-                if (addressForm.mode === "edit") {
-                  await onUpdateAddress?.(addressForm.address.id, address);
-                } else {
-                  await onCreateAddress?.(address);
+          <CardHeader className="account-page__panel-header">
+            <CardTitle>
+              <h2 id="addresses-title">Address book</h2>
+            </CardTitle>
+            <CardAction>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => {
+                  setAddressForm({ mode: "add" });
+                }}
+              >
+                Add address
+              </button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            {addressesStatus === "loading" ? (
+              <StatusCard
+                tone="loading"
+                title="Finding your saved addresses..."
+                body="We keep this section stable while your address book loads."
+              />
+            ) : null}
+            {addressesStatus === "error" ? (
+              <StatusCard
+                tone="error"
+                title="Addresses could not be loaded."
+                body="Try refreshing this page before checkout."
+              />
+            ) : null}
+            {addressesStatus === "ready" && addresses.length === 0 ? (
+              <StatusCard
+                tone="empty"
+                title="No saved addresses yet."
+                body="Add a shipping or billing address to make checkout faster."
+              />
+            ) : null}
+            {addressForm ? (
+              <AddressForm
+                initialValue={addressFormInput}
+                submitLabel={
+                  addressForm.mode === "edit" ? "Save changes" : "Save address"
                 }
-                setAddressForm(null);
-              }}
-            />
-          ) : null}
-          {addresses.length > 0 ? (
-            <ul className="account-page__addresses">
-              {addresses.map((address) => {
-                const label = formatAddressLabel(address);
-                const deleteBlocked =
-                  address.is_default_shipping || address.is_default_billing;
-                const reasonId = `address-${address.id}-delete-reason`;
-                const isConfirmingDelete = confirmingAddressId === address.id;
+                onCancel={() => {
+                  setAddressForm(null);
+                }}
+                onSubmit={async (address) => {
+                  if (addressForm.mode === "edit") {
+                    await onUpdateAddress?.(addressForm.address.id, address);
+                  } else {
+                    await onCreateAddress?.(address);
+                  }
+                  setAddressForm(null);
+                }}
+              />
+            ) : null}
+            {addresses.length > 0 ? (
+              <ul className="account-page__addresses">
+                {addresses.map((address) => {
+                  const label = formatAddressLabel(address);
+                  const deleteBlocked =
+                    address.is_default_shipping || address.is_default_billing;
+                  const reasonId = `address-${address.id}-delete-reason`;
+                  const isConfirmingDelete = confirmingAddressId === address.id;
 
-                return (
-                  <li key={address.id} className="account-page__address-card">
-                    <div className="account-page__address-copy">
-                      <strong>{label}</strong>
-                      <span>{address.recipient_name}</span>
-                      <span>{address.address_line1}</span>
-                      {address.address_line2 ? (
-                        <span>{address.address_line2}</span>
-                      ) : null}
-                      <span>{formatAddressCityLine(address)}</span>
-                      <div className="account-page__badges">
-                        {address.is_default_shipping ? (
-                          <span>Default shipping</span>
-                        ) : null}
-                        {address.is_default_billing ? (
-                          <span>Default billing</span>
-                        ) : null}
-                      </div>
-                      {deleteBlocked ? (
-                        <p
-                          className="account-page__disabled-reason"
-                          id={reasonId}
-                        >
-                          Cannot delete until another default is set.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="account-page__address-actions">
-                      {!address.is_default_shipping ||
-                      !address.is_default_billing ? (
-                        <button
-                          type="button"
-                          className="link-button"
-                          aria-label={`Make default address ${label}`}
-                          onClick={() => {
-                            void onMakeDefaultAddress?.(address.id);
-                          }}
-                        >
-                          Make default
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="link-button"
-                        aria-label={`Edit address ${label}`}
-                        onClick={() => {
-                          setAddressForm({
-                            mode: "edit",
-                            address,
-                          });
-                        }}
-                      >
-                        Edit
-                      </button>
-                      {isConfirmingDelete ? (
-                        <div
-                          className="account-page__confirm"
-                          role="group"
-                          aria-label={`Confirm delete address ${label}`}
-                        >
-                          <span>Delete this address?</span>
+                  return (
+                    <li key={address.id}>
+                      <Card className="account-page__address-card">
+                        <CardContent className="account-page__address-copy">
+                          <strong>{label}</strong>
+                          <span>{address.recipient_name}</span>
+                          <span>{address.address_line1}</span>
+                          {address.address_line2 ? (
+                            <span>{address.address_line2}</span>
+                          ) : null}
+                          <span>{formatAddressCityLine(address)}</span>
+                          <div className="account-page__badges">
+                            {address.is_default_shipping ? (
+                              <span>Default shipping</span>
+                            ) : null}
+                            {address.is_default_billing ? (
+                              <span>Default billing</span>
+                            ) : null}
+                          </div>
+                          {deleteBlocked ? (
+                            <p
+                              className="account-page__disabled-reason"
+                              id={reasonId}
+                            >
+                              Cannot delete until another default is set.
+                            </p>
+                          ) : null}
+                        </CardContent>
+                        <CardFooter className="account-page__address-actions">
+                          {!address.is_default_shipping ||
+                          !address.is_default_billing ? (
+                            <button
+                              type="button"
+                              className="link-button"
+                              aria-label={`Make default address ${label}`}
+                              onClick={() => {
+                                void onMakeDefaultAddress?.(address.id);
+                              }}
+                            >
+                              Make default
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="link-button"
-                            aria-label={`Confirm delete address ${label}`}
+                            aria-label={`Edit address ${label}`}
                             onClick={() => {
-                              setConfirmingAddressId(null);
-                              void onDeleteAddress?.(address.id);
+                              setAddressForm({
+                                mode: "edit",
+                                address,
+                              });
                             }}
                           >
-                            Confirm
+                            Edit
                           </button>
-                          <button
-                            type="button"
-                            className="link-button"
-                            onClick={() => {
-                              setConfirmingAddressId(null);
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="link-button"
-                          aria-describedby={
-                            deleteBlocked ? reasonId : undefined
-                          }
-                          aria-label={`Delete address ${label}`}
-                          disabled={deleteBlocked}
-                          onClick={() => {
-                            setConfirmingAddressId(address.id);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </section>
-        <section
+                          {isConfirmingDelete ? (
+                            <div
+                              className="account-page__confirm"
+                              role="group"
+                              aria-label={`Confirm delete address ${label}`}
+                            >
+                              <span>Delete this address?</span>
+                              <button
+                                type="button"
+                                className="link-button"
+                                aria-label={`Confirm delete address ${label}`}
+                                onClick={() => {
+                                  setConfirmingAddressId(null);
+                                  void onDeleteAddress?.(address.id);
+                                }}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                className="link-button"
+                                onClick={() => {
+                                  setConfirmingAddressId(null);
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="link-button"
+                              aria-describedby={
+                                deleteBlocked ? reasonId : undefined
+                              }
+                              aria-label={`Delete address ${label}`}
+                              disabled={deleteBlocked}
+                              onClick={() => {
+                                setConfirmingAddressId(address.id);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </CardContent>
+        </Card>
+        <Card
           className="account-page__panel"
           aria-labelledby="saved-payments-title"
+          role="region"
         >
-          <div className="account-page__panel-kicker">Payments</div>
-          <h2 id="saved-payments-title">Saved payments</h2>
-          {savedPaymentsStatus === "loading" ? (
-            <StatusCard
-              tone="loading"
-              title="Checking saved payments..."
-              body="Payment methods will appear here after the account sync finishes."
-            />
-          ) : null}
-          {savedPaymentsStatus === "error" ? (
-            <StatusCard
-              tone="error"
-              title="Saved payments could not be loaded."
-              body="Try refreshing this page before checkout."
-            />
-          ) : null}
-          {savedPaymentsStatus === "ready" &&
-          visibleSavedPayments.length === 0 ? (
-            <StatusCard
-              tone="empty"
-              title="No saved payments yet."
-              body="Logged-in buyers can save eligible PayPal or card methods during checkout."
-            />
-          ) : null}
-          {visibleSavedPayments.length > 0 ? (
-            <ul className="account-page__saved-payments">
-              {visibleSavedPayments.map((savedPayment) => {
-                const label = formatSavedPaymentLabel(savedPayment);
-                const isConfirmingDelete =
-                  confirmingSavedPaymentId === savedPayment.id;
+          <CardHeader>
+            <p className="account-page__panel-kicker">Payments</p>
+            <CardTitle>
+              <h2 id="saved-payments-title">Saved payments</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {savedPaymentsStatus === "loading" ? (
+              <StatusCard
+                tone="loading"
+                title="Checking saved payments..."
+                body="Payment methods will appear here after the account sync finishes."
+              />
+            ) : null}
+            {savedPaymentsStatus === "error" ? (
+              <StatusCard
+                tone="error"
+                title="Saved payments could not be loaded."
+                body="Try refreshing this page before checkout."
+              />
+            ) : null}
+            {savedPaymentsStatus === "ready" &&
+            visibleSavedPayments.length === 0 ? (
+              <StatusCard
+                tone="empty"
+                title="No saved payments yet."
+                body="Logged-in buyers can save eligible PayPal or card methods during checkout."
+              />
+            ) : null}
+            {visibleSavedPayments.length > 0 ? (
+              <ul className="account-page__saved-payments">
+                {visibleSavedPayments.map((savedPayment) => {
+                  const label = formatSavedPaymentLabel(savedPayment);
+                  const isConfirmingDelete =
+                    confirmingSavedPaymentId === savedPayment.id;
 
-                return (
-                  <li
-                    key={savedPayment.id}
-                    className="account-page__saved-payment-card"
-                  >
-                    <div>
-                      <strong>{label}</strong>
-                      <span>{formatSavedPaymentMeta(savedPayment)}</span>
-                      <span className="account-page__status-chip">
-                        {formatStatusLabel(savedPayment.status)}
-                      </span>
-                    </div>
-                    {isConfirmingDelete ? (
-                      <div
-                        className="account-page__confirm"
-                        role="group"
-                        aria-label={`Confirm delete saved payment ${label}`}
-                      >
-                        <span>Remove this saved payment?</span>
-                        <button
-                          type="button"
-                          className="link-button"
-                          aria-label={`Confirm delete saved payment ${label}`}
-                          onClick={() => {
-                            setConfirmingSavedPaymentId(null);
-                            void onDeleteSavedPayment?.(savedPayment.id);
-                          }}
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          className="link-button"
-                          onClick={() => {
-                            setConfirmingSavedPaymentId(null);
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="link-button"
-                        aria-label={`Delete saved payment ${label}`}
-                        onClick={() => {
-                          setConfirmingSavedPaymentId(savedPayment.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </section>
+                  return (
+                    <li key={savedPayment.id}>
+                      <Card className="account-page__saved-payment-card">
+                        <CardContent>
+                          <strong>{label}</strong>
+                          <span>{formatSavedPaymentMeta(savedPayment)}</span>
+                          <span className="account-page__status-chip">
+                            {formatStatusLabel(savedPayment.status)}
+                          </span>
+                        </CardContent>
+                        <CardFooter>
+                          {isConfirmingDelete ? (
+                            <div
+                              className="account-page__confirm"
+                              role="group"
+                              aria-label={`Confirm delete saved payment ${label}`}
+                            >
+                              <span>Remove this saved payment?</span>
+                              <button
+                                type="button"
+                                className="link-button"
+                                aria-label={`Confirm delete saved payment ${label}`}
+                                onClick={() => {
+                                  setConfirmingSavedPaymentId(null);
+                                  void onDeleteSavedPayment?.(savedPayment.id);
+                                }}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                className="link-button"
+                                onClick={() => {
+                                  setConfirmingSavedPaymentId(null);
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="link-button"
+                              aria-label={`Delete saved payment ${label}`}
+                              onClick={() => {
+                                setConfirmingSavedPaymentId(savedPayment.id);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
     </section>
   );
 }
 
+function GuestOrderResult({ order }: { readonly order: GuestOrderView }) {
+  const firstAddress = order.addresses[0] ?? null;
+
+  return (
+    <Card className="account-page__guest-result">
+      <CardHeader className="account-page__section-heading">
+        <div>
+          <p className="account-page__order-number">{order.orderNumber}</p>
+          <CardTitle>
+            <h3>{formatFulfillmentModeLabel(order.fulfillmentMode)} order</h3>
+          </CardTitle>
+        </div>
+        <CardAction>
+          <span
+            className={`account-page__status-chip account-page__status-chip--${getOrderStatusTone(
+              order.status,
+            )}`}
+          >
+            {formatOrderStatusLabel(order.status)}
+          </span>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <dl className="account-page__definition-list account-page__definition-list--inline">
+          <div>
+            <dt>Payment</dt>
+            <dd>{order.paymentStatusLabel}</dd>
+          </div>
+          <div>
+            <dt>Total</dt>
+            <dd>{order.totalLabel}</dd>
+          </div>
+        </dl>
+        {firstAddress ? (
+          <div className="account-page__guest-address">
+            <strong>{firstAddress.recipientName}</strong>
+            <span>{formatGuestAddress(firstAddress)}</span>
+          </div>
+        ) : null}
+        <p className="account-page__panel-note">{order.note}</p>
+        <ul className="account-page__detail-items">
+          {order.items.map((item) => (
+            <li key={`${order.orderNumber}-${item.name}`}>
+              <img
+                alt={item.imageAlt}
+                height="64"
+                src={item.imagePath}
+                width="64"
+              />
+              <div>
+                <strong>{item.name}</strong>
+                <span>
+                  Qty {item.quantity} · {item.lineTotalLabel}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+      <CardFooter>
+        <dl className="account-page__totals">
+          {order.totals.map((line) => (
+            <div key={line.label}>
+              <dt>{line.label}</dt>
+              <dd>{line.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </CardFooter>
+    </Card>
+  );
+}
+
 function OrderHistoryView({
+  onDeleteReview,
+  onSubmitReview,
+  onUpdateReview,
   orders,
   selectedOrderNumber,
   status,
 }: {
+  readonly onDeleteReview: AccountPageProps["onDeleteReview"];
+  readonly onSubmitReview: AccountPageProps["onSubmitReview"];
+  readonly onUpdateReview: AccountPageProps["onUpdateReview"];
   readonly orders: readonly AccountOrderView[];
   readonly selectedOrderNumber: string | null;
   readonly status: NonNullable<AccountPageProps["ordersStatus"]>;
@@ -491,19 +840,26 @@ function OrderHistoryView({
 
   if (status === "empty" || orders.length === 0) {
     return (
-      <section
+      <Card
         className="account-page__panel account-page__panel--feature"
         aria-labelledby="order-history-title"
+        role="region"
       >
-        <h2 id="order-history-title">Order history</h2>
-        <p className="account-page__panel-note">
-          No account orders yet. Browse products or use guest order lookup if
-          you checked out without signing in.
-        </p>
-        <a className="button button--secondary" href="/products">
-          Browse products
-        </a>
-      </section>
+        <CardHeader>
+          <CardTitle>
+            <h2 id="order-history-title">Order history</h2>
+          </CardTitle>
+          <CardDescription className="account-page__panel-note">
+            No account orders yet. Browse products or use guest order lookup if
+            you checked out without signing in.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <a className="button button--secondary" href="/products">
+            Browse products
+          </a>
+        </CardFooter>
+      </Card>
     );
   }
 
@@ -514,24 +870,38 @@ function OrderHistoryView({
 
   if (selectedOrderNumber !== null && !selectedOrder) {
     return (
-      <section
+      <Card
         className="account-page__panel account-page__panel--feature"
         aria-labelledby="order-history-title"
+        role="region"
       >
-        <h2 id="order-history-title">Order not found</h2>
-        <p className="account-page__panel-note">
-          This account order was not found. Return to order history or use guest
-          lookup if the order was placed without signing in.
-        </p>
-        <a className="button button--secondary" href="/account/orders">
-          Back to orders
-        </a>
-      </section>
+        <CardHeader>
+          <CardTitle>
+            <h2 id="order-history-title">Order not found</h2>
+          </CardTitle>
+          <CardDescription className="account-page__panel-note">
+            This account order was not found. Return to order history or use
+            guest lookup if the order was placed without signing in.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <a className="button button--secondary" href="/account/orders">
+            Back to orders
+          </a>
+        </CardFooter>
+      </Card>
     );
   }
 
   if (selectedOrder) {
-    return <OrderDetailView order={selectedOrder} />;
+    return (
+      <OrderDetailView
+        onDeleteReview={onDeleteReview}
+        onSubmitReview={onSubmitReview}
+        onUpdateReview={onUpdateReview}
+        order={selectedOrder}
+      />
+    );
   }
 
   return (
@@ -554,7 +924,19 @@ function OrderHistoryView({
   );
 }
 
-function OrderDetailView({ order }: { readonly order: AccountOrderView }) {
+function OrderDetailView({
+  onDeleteReview,
+  onSubmitReview,
+  onUpdateReview,
+  order,
+}: {
+  readonly onDeleteReview: AccountPageProps["onDeleteReview"];
+  readonly onSubmitReview: AccountPageProps["onSubmitReview"];
+  readonly onUpdateReview: AccountPageProps["onUpdateReview"];
+  readonly order: AccountOrderView;
+}) {
+  const [reviewFormState, setReviewFormState] = useState<ReviewFormState>(null);
+
   return (
     <section
       className="account-page__order-detail"
@@ -577,105 +959,210 @@ function OrderDetailView({ order }: { readonly order: AccountOrderView }) {
         </span>
       </div>
       <div className="account-page__order-detail-grid">
-        <section
+        <Card
           className="account-page__panel"
           aria-labelledby="order-fulfillment-title"
+          role="region"
         >
-          <p className="account-page__panel-kicker">
-            {formatFulfillmentModeLabel(order.fulfillmentMode)}
-          </p>
-          <h3 id="order-fulfillment-title">{order.fulfillmentLabel}</h3>
-          <p className="account-page__panel-note">{order.note}</p>
-          <dl className="account-page__definition-list">
-            <div>
-              <dt>Placed</dt>
-              <dd>{formatOrderDetailDate(order.placedDateLabel)}</dd>
-            </div>
-            <div>
-              <dt>Payment</dt>
-              <dd>{order.paymentStatusLabel}</dd>
-            </div>
-          </dl>
-        </section>
-        <section
+          <CardHeader>
+            <p className="account-page__panel-kicker">
+              {formatFulfillmentModeLabel(order.fulfillmentMode)}
+            </p>
+            <CardTitle>
+              <h3 id="order-fulfillment-title">{order.fulfillmentLabel}</h3>
+            </CardTitle>
+            <CardDescription className="account-page__panel-note">
+              {order.note}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="account-page__definition-list">
+              <div>
+                <dt>Placed</dt>
+                <dd>{formatOrderDetailDate(order.placedDateLabel)}</dd>
+              </div>
+              <div>
+                <dt>Payment</dt>
+                <dd>{order.paymentStatusLabel}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+        <Card
           className="account-page__panel"
           aria-labelledby="order-timeline-title"
+          role="region"
         >
-          <h3 id="order-timeline-title">Timeline</h3>
-          <ol className="account-page__timeline">
-            {order.timeline.map((step) => (
-              <li
-                key={step.label}
-                className={`account-page__timeline-step account-page__timeline-step--${step.status}`}
-              >
-                <strong>{step.label}</strong>
-                <span>{step.description}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+          <CardHeader>
+            <CardTitle>
+              <h3 id="order-timeline-title">Timeline</h3>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="account-page__timeline">
+              {order.timeline.map((step) => (
+                <li
+                  key={step.label}
+                  className={`account-page__timeline-step account-page__timeline-step--${step.status}`}
+                >
+                  <strong>{step.label}</strong>
+                  <span>{step.description}</span>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
       </div>
-      <section
+      <Card
         className="account-page__panel"
         id="review-items"
         aria-labelledby="order-items-title"
+        role="region"
       >
-        <div className="account-page__panel-header">
-          <h3 id="order-items-title">Items in this order</h3>
-          <span className="account-page__status-chip">
-            {order.items.length} items
-          </span>
-        </div>
-        <ul className="account-page__detail-items">
-          {order.items.map((item) => (
-            <li key={item.id}>
-              <img
-                alt={item.imageAlt}
-                height="64"
-                src={item.imagePath}
-                width="64"
-              />
-              <div>
-                <strong>{item.name}</strong>
-                <span>
-                  Qty {item.quantity} · {item.lineTotalLabel}
-                </span>
+        <CardHeader className="account-page__panel-header">
+          <CardTitle>
+            <h3 id="order-items-title">Items in this order</h3>
+          </CardTitle>
+          <CardAction>
+            <span className="account-page__status-chip">
+              {order.items.length} items
+            </span>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <ul className="account-page__detail-items">
+            {order.items.map((item) => {
+              const activeForm =
+                reviewFormState?.itemId === item.id ? reviewFormState : null;
+
+              return (
+                <li key={item.id}>
+                  <img
+                    alt={item.imageAlt}
+                    height="64"
+                    src={item.imagePath}
+                    width="64"
+                  />
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>
+                      Qty {item.quantity} · {item.lineTotalLabel}
+                    </span>
+                  </div>
+                  {item.reviewEligible && !item.reviewSubmitted ? (
+                    <div className="account-page__review-actions">
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        aria-label={`Review item ${item.name}`}
+                        onClick={() => {
+                          setReviewFormState({
+                            itemId: item.id,
+                            mode: "submit",
+                          });
+                        }}
+                      >
+                        Review item
+                      </button>
+                    </div>
+                  ) : null}
+                  {item.reviewSubmitted ? (
+                    <div className="account-page__review-summary">
+                      <span className="account-page__status-chip">
+                        Already reviewed
+                      </span>
+                      {item.review ? (
+                        <div>
+                          <strong>
+                            {item.review.title ?? "Collector review"}
+                          </strong>
+                          <span>{item.review.rating} out of 5</span>
+                          {item.review.body ? <p>{item.review.body}</p> : null}
+                        </div>
+                      ) : null}
+                      <div className="account-page__review-actions">
+                        <button
+                          type="button"
+                          className="link-button"
+                          aria-label={`Edit review ${item.name}`}
+                          onClick={() => {
+                            setReviewFormState({
+                              itemId: item.id,
+                              mode: "edit",
+                            });
+                          }}
+                        >
+                          Edit review
+                        </button>
+                        <button
+                          type="button"
+                          className="link-button"
+                          aria-label={`Delete review ${item.name}`}
+                          onClick={() => {
+                            void onDeleteReview?.(order.orderNumber, item.id);
+                          }}
+                        >
+                          Delete review
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {activeForm ? (
+                    <ReviewForm
+                      initialValue={reviewToFormInput(item.review)}
+                      submitLabel={
+                        activeForm.mode === "edit"
+                          ? "Save review"
+                          : "Submit review"
+                      }
+                      onCancel={() => {
+                        setReviewFormState(null);
+                      }}
+                      onSubmit={async (review) => {
+                        if (activeForm.mode === "edit") {
+                          await onUpdateReview?.(
+                            order.orderNumber,
+                            item.id,
+                            review,
+                          );
+                        } else {
+                          await onSubmitReview?.(
+                            order.orderNumber,
+                            item.id,
+                            review,
+                          );
+                        }
+                        setReviewFormState(null);
+                      }}
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </CardContent>
+      </Card>
+      <Card
+        className="account-page__panel"
+        aria-labelledby="totals-title"
+        role="region"
+      >
+        <CardHeader>
+          <CardTitle>
+            <h3 id="totals-title">Totals</h3>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="account-page__totals">
+            {order.totals.map((line) => (
+              <div key={line.label}>
+                <dt>{line.label}</dt>
+                <dd>{line.value}</dd>
               </div>
-              {item.reviewEligible && !item.reviewSubmitted ? (
-                <div className="account-page__deferred-action">
-                  <button
-                    type="button"
-                    className="button button--secondary"
-                    disabled
-                    aria-describedby={`${item.id}-review-note`}
-                  >
-                    Review item
-                  </button>
-                  <span id={`${item.id}-review-note`}>
-                    Review form is handled in the review slice.
-                  </span>
-                </div>
-              ) : null}
-              {item.reviewSubmitted ? (
-                <span className="account-page__status-chip">
-                  Already reviewed
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section className="account-page__panel" aria-labelledby="totals-title">
-        <h3 id="totals-title">Totals</h3>
-        <dl className="account-page__totals">
-          {order.totals.map((line) => (
-            <div key={line.label}>
-              <dt>{line.label}</dt>
-              <dd>{line.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -688,28 +1175,34 @@ function OrderHistoryCard({ order }: { readonly order: AccountOrderView }) {
   const detailHref = `/account/orders/${encodeURIComponent(order.orderNumber)}`;
 
   return (
-    <article className="account-page__order-card">
-      <div className="account-page__order-card-main">
+    <Card className="account-page__order-card">
+      <CardHeader className="account-page__order-card-main">
         <div>
           <p className="account-page__order-number">{order.orderNumber}</p>
-          <h3>{order.fulfillmentLabel}</h3>
-          <p>{order.note}</p>
+          <CardTitle>
+            <h3>{order.fulfillmentLabel}</h3>
+          </CardTitle>
+          <CardDescription>{order.note}</CardDescription>
         </div>
-        <span
-          className={`account-page__status-chip account-page__status-chip--${getOrderStatusTone(
-            order.status,
-          )}`}
-        >
-          {statusLabel}
-        </span>
-      </div>
-      <div className="account-page__order-meta" aria-label="Order summary">
-        <span>{order.placedDateLabel}</span>
-        <span>{formatFulfillmentModeLabel(order.fulfillmentMode)}</span>
-        <span>{order.paymentStatusLabel}</span>
-        <strong>{order.totalLabel}</strong>
-      </div>
-      <div className="account-page__order-footer">
+        <CardAction>
+          <span
+            className={`account-page__status-chip account-page__status-chip--${getOrderStatusTone(
+              order.status,
+            )}`}
+          >
+            {statusLabel}
+          </span>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="account-page__order-meta" aria-label="Order summary">
+          <span>{order.placedDateLabel}</span>
+          <span>{formatFulfillmentModeLabel(order.fulfillmentMode)}</span>
+          <span>{order.paymentStatusLabel}</span>
+          <strong>{order.totalLabel}</strong>
+        </div>
+      </CardContent>
+      <CardFooter className="account-page__order-footer">
         <div className="account-page__order-thumbnails" aria-label="Items">
           {order.items.slice(0, 4).map((item) => (
             <img
@@ -747,8 +1240,8 @@ function OrderHistoryCard({ order }: { readonly order: AccountOrderView }) {
             </a>
           ) : null}
         </div>
-      </div>
-    </article>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -795,10 +1288,16 @@ function StatusCard({
   readonly tone: "empty" | "error" | "loading";
 }) {
   return (
-    <div className={`account-page__status account-page__status--${tone}`}>
-      <strong>{title}</strong>
-      <p>{body}</p>
-    </div>
+    <Card className={`account-page__status account-page__status--${tone}`}>
+      <CardHeader>
+        <CardTitle>
+          <strong>{title}</strong>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>{body}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -811,6 +1310,128 @@ type AddressFormState =
       readonly mode: "edit";
     }
   | null;
+
+type ReviewFormState = {
+  readonly itemId: string;
+  readonly mode: "edit" | "submit";
+} | null;
+
+function ReviewForm({
+  initialValue,
+  onCancel,
+  onSubmit,
+  submitLabel,
+}: {
+  readonly initialValue: AccountReviewInput;
+  readonly onCancel: () => void;
+  readonly onSubmit: (review: AccountReviewInput) => Promise<void> | void;
+  readonly submitLabel: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSubmit(normalizeReviewFormInput(value));
+  }
+
+  return (
+    <form
+      className="account-page__review-form"
+      onSubmit={(event) => {
+        void handleSubmit(event);
+      }}
+    >
+      <FieldGroup className="account-page__review-fields">
+        <Field>
+          <FieldLabel htmlFor="account-review-rating">Rating</FieldLabel>
+          <select
+            id="account-review-rating"
+            className="account-page__select"
+            required
+            value={String(value.rating)}
+            onChange={(event) => {
+              setValue((currentValue) => ({
+                ...currentValue,
+                rating: Number(event.target.value),
+              }));
+            }}
+          >
+            <option value="5">5 - Loved it</option>
+            <option value="4">4 - Really liked it</option>
+            <option value="3">3 - Good</option>
+            <option value="2">2 - Not quite right</option>
+            <option value="1">1 - Needs help</option>
+          </select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="account-review-title">Review title</FieldLabel>
+          <Input
+            id="account-review-title"
+            autoComplete="off"
+            value={value.title ?? ""}
+            onChange={(event) => {
+              setValue((currentValue) => ({
+                ...currentValue,
+                title: event.target.value,
+              }));
+            }}
+          />
+        </Field>
+        <Field className="account-page__review-body-field">
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-review-body"
+          >
+            Review body
+          </FieldLabel>
+          <Textarea
+            id="account-review-body"
+            required
+            rows={3}
+            value={value.body}
+            onChange={(event) => {
+              setValue((currentValue) => ({
+                ...currentValue,
+                body: event.target.value,
+              }));
+            }}
+          />
+          <FieldDescription>
+            Share what changed after unboxing or display.
+          </FieldDescription>
+        </Field>
+      </FieldGroup>
+      <div className="account-page__form-actions">
+        <Button type="submit" className="account-page__submit-button">
+          {submitLabel}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function reviewToFormInput(
+  review: AccountOrderItemReviewView | null,
+): AccountReviewInput {
+  return {
+    rating: review?.rating ?? 5,
+    title: review?.title ?? "",
+    body: review?.body ?? "",
+  };
+}
+
+function normalizeReviewFormInput(
+  review: AccountReviewInput,
+): AccountReviewInput {
+  return {
+    rating: review.rating,
+    title: review.title?.trim() || null,
+    body: review.body.trim(),
+  };
+}
 
 function AddressForm({
   initialValue,
@@ -849,102 +1470,154 @@ function AddressForm({
         void handleSubmit(event);
       }}
     >
-      <label>
-        Address label
-        <input
-          value={value.label ?? ""}
-          onChange={(event) => {
-            updateValue("label", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Recipient name
-        <input
-          required
-          value={value.recipient_name}
-          onChange={(event) => {
-            updateValue("recipient_name", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Phone
-        <input
-          value={value.phone ?? ""}
-          onChange={(event) => {
-            updateValue("phone", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Street address
-        <input
-          required
-          value={value.address_line1}
-          onChange={(event) => {
-            updateValue("address_line1", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Apt, suite, etc.
-        <input
-          value={value.address_line2 ?? ""}
-          onChange={(event) => {
-            updateValue("address_line2", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        City
-        <input
-          required
-          value={value.city}
-          onChange={(event) => {
-            updateValue("city", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        State
-        <input
-          value={value.state ?? ""}
-          onChange={(event) => {
-            updateValue("state", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        ZIP/postal code
-        <input
-          required
-          value={value.postal_code}
-          onChange={(event) => {
-            updateValue("postal_code", event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Country code
-        <input
-          required
-          maxLength={2}
-          value={value.country_code}
-          onChange={(event) => {
-            updateValue("country_code", event.target.value);
-          }}
-        />
-      </label>
+      <FieldGroup className="account-page__address-fields">
+        <Field>
+          <FieldLabel htmlFor="account-address-label">Address label</FieldLabel>
+          <Input
+            id="account-address-label"
+            autoComplete="off"
+            placeholder="Home, office, pickup helper..."
+            value={value.label ?? ""}
+            onChange={(event) => {
+              updateValue("label", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-address-recipient"
+          >
+            Recipient name
+          </FieldLabel>
+          <Input
+            id="account-address-recipient"
+            autoComplete="name"
+            required
+            value={value.recipient_name}
+            onChange={(event) => {
+              updateValue("recipient_name", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="account-address-phone">Phone</FieldLabel>
+          <Input
+            id="account-address-phone"
+            autoComplete="tel"
+            inputMode="tel"
+            type="tel"
+            value={value.phone ?? ""}
+            onChange={(event) => {
+              updateValue("phone", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-address-line-1"
+          >
+            Street address
+          </FieldLabel>
+          <Input
+            id="account-address-line-1"
+            autoComplete="address-line1"
+            required
+            value={value.address_line1}
+            onChange={(event) => {
+              updateValue("address_line1", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="account-address-line-2">
+            Apt, suite, etc.
+          </FieldLabel>
+          <Input
+            id="account-address-line-2"
+            autoComplete="address-line2"
+            value={value.address_line2 ?? ""}
+            onChange={(event) => {
+              updateValue("address_line2", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-address-city"
+          >
+            City
+          </FieldLabel>
+          <Input
+            id="account-address-city"
+            autoComplete="address-level2"
+            required
+            value={value.city}
+            onChange={(event) => {
+              updateValue("city", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="account-address-state">State</FieldLabel>
+          <Input
+            id="account-address-state"
+            autoComplete="address-level1"
+            value={value.state ?? ""}
+            onChange={(event) => {
+              updateValue("state", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-address-postal-code"
+          >
+            ZIP/postal code
+          </FieldLabel>
+          <Input
+            id="account-address-postal-code"
+            autoComplete="postal-code"
+            inputMode="text"
+            required
+            value={value.postal_code}
+            onChange={(event) => {
+              updateValue("postal_code", event.target.value);
+            }}
+          />
+        </Field>
+        <Field>
+          <FieldLabel
+            className="account-page__field-label--required"
+            htmlFor="account-address-country-code"
+          >
+            Country code
+          </FieldLabel>
+          <Input
+            id="account-address-country-code"
+            autoCapitalize="characters"
+            autoComplete="country"
+            inputMode="text"
+            maxLength={2}
+            required
+            value={value.country_code}
+            onChange={(event) => {
+              updateValue("country_code", event.target.value);
+            }}
+          />
+          <FieldDescription>Use the 2-letter country code.</FieldDescription>
+        </Field>
+      </FieldGroup>
       <div className="account-page__form-actions">
-        <button type="submit">{submitLabel}</button>
-        <button
-          type="button"
-          className="button button--secondary"
-          onClick={onCancel}
-        >
+        <Button type="submit" className="account-page__submit-button">
+          {submitLabel}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -1018,6 +1691,12 @@ function formatAddressCityLine(address: AccountAddressView): string {
     address.postal_code,
     address.country_code,
   ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatGuestAddress(address: GuestOrderAddressView): string {
+  return [address.city, address.state, address.postalCode, address.countryCode]
     .filter(Boolean)
     .join(", ");
 }

@@ -11,6 +11,7 @@ import {
   type AccountOrderRow,
   type AccountSavedPaymentMethodRow,
   type AccountUserProfileRow,
+  type GuestOrderAccessRow,
 } from "../src/repositories/accountRepository.js";
 
 describe("Account repository", () => {
@@ -139,34 +140,238 @@ describe("Account repository", () => {
       }),
     ).resolves.toBeNull();
   });
+
+  it("links unowned guest orders with a matching authenticated email hash", async () => {
+    const dataSource = createAccountDataSource({
+      addresses: [defaultAddressRow()],
+      guestOrderAccess: [
+        {
+          id: "guest_access_1",
+          order_id: "order_guest_match",
+          guest_email_hash: "hash:buyer@example.test",
+        },
+        {
+          id: "guest_access_2",
+          order_id: "order_guest_other",
+          guest_email_hash: "hash:other@example.test",
+        },
+      ],
+      orders: [
+        {
+          ...pickedUpOrderRow(),
+          auth_user_id: null,
+          id: "order_guest_match",
+          order_number: "DO-20260612-000221",
+        },
+        {
+          ...pendingOrderRow(),
+          auth_user_id: null,
+          id: "order_guest_other",
+          order_number: "DO-20260612-000222",
+        },
+      ],
+    });
+    const repository = createSupabaseAccountRepository({
+      dataSource,
+      hashGuestEmail: (email) => `hash:${email.trim().toLowerCase()}`,
+      now: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await repository.linkGuestOrders({
+      authUserId: "user_123",
+      email: " Buyer@Example.Test ",
+    });
+
+    expect(result).toEqual({
+      linked_order_count: 1,
+    });
+    expect(dataSource.linkedOrderIds).toEqual(["order_guest_match"]);
+    await expect(dataSource.listOrders("user_123")).resolves.toEqual([
+      expect.objectContaining({
+        id: "order_guest_match",
+        auth_user_id: "user_123",
+      }),
+    ]);
+  });
+
+  it("submits one active review for a completed order item", async () => {
+    const dataSource = createAccountDataSource({
+      addresses: [defaultAddressRow()],
+      orders: [pickedUpOrderRow()],
+      reviews: [],
+    });
+    const repository = createSupabaseAccountRepository({
+      dataSource,
+      now: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await repository.submitOrderItemReview({
+      authUserId: "user_123",
+      orderNumber: "PO-20260602-000118",
+      itemId: "line_1",
+      review: {
+        rating: 5,
+        title: "Tiny display shelf star",
+        body: "The paint details look great beside my other figures.",
+      },
+    });
+
+    expect(result).toEqual({
+      status: "updated",
+      order: reviewedPickedUpOrderDto(),
+    });
+    expect(dataSource.createdReviews).toEqual([
+      {
+        profile_id: "profile_popmart",
+        product_id: "product_skullpanda",
+        order_id: "order_internal_pickup",
+        order_item_id: "order_item_internal_skullpanda",
+        auth_user_id: "user_123",
+        rating: 5,
+        title: "Tiny display shelf star",
+        body: "The paint details look great beside my other figures.",
+        status: "active",
+      },
+    ]);
+  });
+
+  it("blocks review submission for pending orders", async () => {
+    const dataSource = createAccountDataSource({
+      addresses: [defaultAddressRow()],
+      orders: [pendingOrderRow()],
+      reviews: [],
+    });
+    const repository = createSupabaseAccountRepository({
+      dataSource,
+      now: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await repository.submitOrderItemReview({
+      authUserId: "user_123",
+      orderNumber: "DO-20260607-000123",
+      itemId: "line_1",
+      review: {
+        rating: 5,
+        title: "Too early",
+        body: "This should not be accepted before fulfillment completes.",
+      },
+    });
+
+    expect(result).toEqual({
+      status: "not_eligible",
+      reason: "Reviews open after delivery or pickup is complete.",
+    });
+    expect(dataSource.createdReviews).toEqual([]);
+  });
+
+  it("edits and deletes the active review for an owned completed order item", async () => {
+    const dataSource = createAccountDataSource({
+      addresses: [defaultAddressRow()],
+      orders: [pickedUpOrderRow()],
+      reviews: [activeOrderReviewRow()],
+    });
+    const repository = createSupabaseAccountRepository({
+      dataSource,
+      now: "2026-06-16T00:00:00.000Z",
+    });
+
+    const updateResult = await repository.updateOrderItemReview({
+      authUserId: "user_123",
+      orderNumber: "PO-20260602-000118",
+      itemId: "line_1",
+      review: {
+        rating: 4,
+        title: "Still a favorite",
+        body: "Updated after unboxing the stand accessories.",
+      },
+    });
+    const deleteResult = await repository.deleteOrderItemReview({
+      authUserId: "user_123",
+      orderNumber: "PO-20260602-000118",
+      itemId: "line_1",
+    });
+
+    expect(updateResult).toEqual({
+      status: "updated",
+      order: updatedReviewPickedUpOrderDto(),
+    });
+    expect(deleteResult).toEqual({
+      status: "updated",
+      order: pickedUpOrderDto(),
+    });
+    expect(dataSource.updatedReviews).toEqual([
+      {
+        id: "review_internal_active",
+        patch: {
+          rating: 4,
+          title: "Still a favorite",
+          body: "Updated after unboxing the stand accessories.",
+          updated_at: "2026-06-16T00:00:00.000Z",
+        },
+      },
+      {
+        id: "review_internal_active",
+        patch: {
+          status: "deleted",
+          updated_at: "2026-06-16T00:00:00.000Z",
+        },
+      },
+    ]);
+  });
 });
 
 interface FakeAccountDataSource extends AccountDataSource {
   readonly clearDefaultBillingCalls: string[];
   readonly clearDefaultShippingCalls: string[];
+  readonly createdReviews: Array<{
+    readonly profile_id: string;
+    readonly product_id: string;
+    readonly order_id: string;
+    readonly order_item_id: string;
+    readonly auth_user_id: string;
+    readonly rating: number;
+    readonly title: string | null;
+    readonly body: string;
+    readonly status: "active";
+  }>;
   readonly deletedAddressIds: string[];
+  readonly linkedOrderIds: string[];
   readonly updatedAddresses: Array<{
     readonly id: string;
     readonly patch: Partial<AccountAddressRow>;
+  }>;
+  readonly updatedReviews: Array<{
+    readonly id: string;
+    readonly patch: Partial<AccountOrderReviewRow>;
   }>;
 }
 
 function createAccountDataSource(input: {
   readonly addresses: readonly AccountAddressRow[];
+  readonly guestOrderAccess?: readonly GuestOrderAccessRow[];
   readonly orders?: readonly AccountOrderRow[];
+  readonly reviews?: readonly AccountOrderReviewRow[];
 }): FakeAccountDataSource {
   let addresses = [...input.addresses];
-  const orders = [...(input.orders ?? [])];
+  let orders = [...(input.orders ?? [])];
+  let reviews = [...(input.reviews ?? orderReviews())];
+  const guestOrderAccess = [...(input.guestOrderAccess ?? [])];
   const clearDefaultBillingCalls: string[] = [];
   const clearDefaultShippingCalls: string[] = [];
+  const createdReviews: FakeAccountDataSource["createdReviews"] = [];
   const deletedAddressIds: string[] = [];
+  const linkedOrderIds: string[] = [];
   const updatedAddresses: FakeAccountDataSource["updatedAddresses"] = [];
+  const updatedReviews: FakeAccountDataSource["updatedReviews"] = [];
 
   return {
     clearDefaultBillingCalls,
     clearDefaultShippingCalls,
+    createdReviews,
     deletedAddressIds,
+    linkedOrderIds,
     updatedAddresses,
+    updatedReviews,
     async findUserProfileByEmail(): Promise<AccountUserProfileRow | null> {
       return null;
     },
@@ -196,6 +401,30 @@ function createAccountDataSource(input: {
         ) ?? null
       );
     },
+    async listGuestOrderAccessByEmailHash(guestEmailHash) {
+      return guestOrderAccess.filter(
+        (access) => access.guest_email_hash === guestEmailHash,
+      );
+    },
+    async claimGuestOrderForUser(input) {
+      const order = orders.find(
+        (candidate) =>
+          candidate.id === input.orderId && candidate.auth_user_id === null,
+      );
+      if (!order) {
+        return null;
+      }
+      linkedOrderIds.push(input.orderId);
+      orders = orders.map((candidate) =>
+        candidate.id === input.orderId
+          ? {
+              ...candidate,
+              auth_user_id: input.authUserId,
+            }
+          : candidate,
+      );
+      return orders.find((candidate) => candidate.id === input.orderId) ?? null;
+    },
     async listOrderItems(orderId) {
       return orderItems().filter((item) => item.order_id === orderId);
     },
@@ -208,7 +437,47 @@ function createAccountDataSource(input: {
       );
     },
     async listOrderReviews(orderId) {
-      return orderReviews().filter((review) => review.order_id === orderId);
+      return reviews.filter((review) => review.order_id === orderId);
+    },
+    async createOrderReview(review) {
+      createdReviews.push(review);
+      const row = {
+        ...review,
+        id: "review_created",
+        created_at: "2026-06-16T00:00:00.000Z",
+        updated_at: "2026-06-16T00:00:00.000Z",
+      } satisfies AccountOrderReviewRow;
+      reviews = [...reviews, row];
+      return row;
+    },
+    async getActiveReviewForOrderItem(input) {
+      return (
+        reviews.find(
+          (review) =>
+            review.auth_user_id === input.authUserId &&
+            review.order_id === input.orderId &&
+            review.order_item_id === input.orderItemId &&
+            review.status === "active",
+        ) ?? null
+      );
+    },
+    async updateOrderReview(id, patch) {
+      updatedReviews.push({ id, patch });
+      let updatedReview: AccountOrderReviewRow | null = null;
+      reviews = reviews.map((review) => {
+        if (review.id !== id) {
+          return review;
+        }
+        updatedReview = {
+          ...review,
+          ...patch,
+        };
+        return updatedReview;
+      });
+      if (!updatedReview) {
+        throw new Error(`Review ${id} not found`);
+      }
+      return updatedReview;
     },
     async createAddress(address) {
       const row = {
@@ -336,6 +605,7 @@ function secondaryAddressDto() {
 function pickedUpOrderRow(): AccountOrderRow {
   return {
     id: "order_internal_pickup",
+    profile_id: "profile_popmart",
     order_number: "PO-20260602-000118",
     auth_user_id: "user_123",
     fulfillment_mode: "pickup",
@@ -354,6 +624,7 @@ function pickedUpOrderRow(): AccountOrderRow {
 function pendingOrderRow(): AccountOrderRow {
   return {
     id: "order_internal_pending",
+    profile_id: "profile_popmart",
     order_number: "DO-20260607-000123",
     auth_user_id: "user_123",
     fulfillment_mode: "delivery",
@@ -374,6 +645,7 @@ function orderItems(): readonly AccountOrderItemRow[] {
     {
       id: "order_item_internal_skullpanda",
       order_id: "order_internal_pickup",
+      product_id: "product_skullpanda",
       product_name_snapshot: "Skullpanda Future Drop",
       product_url_snapshot: "/products/skullpanda-future-drop",
       product_image_url_snapshot:
@@ -385,6 +657,7 @@ function orderItems(): readonly AccountOrderItemRow[] {
     {
       id: "order_item_internal_labubu",
       order_id: "order_internal_pending",
+      product_id: "product_labubu",
       product_name_snapshot: "Labubu Have a Seat",
       product_url_snapshot: "/products/labubu-have-a-seat",
       product_image_url_snapshot:
@@ -462,11 +735,36 @@ function orderReviews(): readonly AccountOrderReviewRow[] {
   return [
     {
       id: "review_internal_deleted",
+      profile_id: "profile_popmart",
+      product_id: "product_skullpanda",
       order_id: "order_internal_pickup",
       order_item_id: "order_item_internal_skullpanda",
+      auth_user_id: "user_123",
+      rating: 3,
+      title: "Archived review",
+      body: "This deleted review should not block a new one.",
       status: "deleted",
+      created_at: "2026-06-05T16:00:00.000Z",
+      updated_at: "2026-06-05T16:00:00.000Z",
     },
   ];
+}
+
+function activeOrderReviewRow(): AccountOrderReviewRow {
+  return {
+    id: "review_internal_active",
+    profile_id: "profile_popmart",
+    product_id: "product_skullpanda",
+    order_id: "order_internal_pickup",
+    order_item_id: "order_item_internal_skullpanda",
+    auth_user_id: "user_123",
+    rating: 5,
+    title: "Tiny display shelf star",
+    body: "The paint details look great beside my other figures.",
+    status: "active",
+    created_at: "2026-06-05T16:00:00.000Z",
+    updated_at: "2026-06-05T16:00:00.000Z",
+  };
 }
 
 function pickedUpOrderDto() {
@@ -498,6 +796,7 @@ function pickedUpOrderDto() {
         line_total_minor: 1599,
         review_eligible: true,
         review_submitted: false,
+        review: null,
       },
     ],
     timeline: [
@@ -533,6 +832,40 @@ function pickedUpOrderDto() {
   };
 }
 
+function reviewedPickedUpOrderDto() {
+  const order = pickedUpOrderDto();
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      review_eligible: false,
+      review_submitted: true,
+      review: {
+        rating: 5,
+        title: "Tiny display shelf star",
+        body: "The paint details look great beside my other figures.",
+      },
+    })),
+  };
+}
+
+function updatedReviewPickedUpOrderDto() {
+  const order = pickedUpOrderDto();
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      review_eligible: false,
+      review_submitted: true,
+      review: {
+        rating: 4,
+        title: "Still a favorite",
+        body: "Updated after unboxing the stand accessories.",
+      },
+    })),
+  };
+}
+
 function pendingOrderDto() {
   return {
     order_number: "DO-20260607-000123",
@@ -561,6 +894,7 @@ function pendingOrderDto() {
         line_total_minor: 1399,
         review_eligible: false,
         review_submitted: false,
+        review: null,
       },
     ],
     timeline: [

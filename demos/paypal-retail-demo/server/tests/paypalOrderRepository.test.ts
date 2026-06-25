@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -85,8 +87,9 @@ describe("Supabase-backed PayPal order repository", () => {
           lineTaxAmountMinor: 219,
           sku: "POP-LABUBU-009",
           description: "A smiling vinyl face blind box.",
-          url: "/popmart/products/labubu-macaron-vinyl-face",
-          imageUrl: "/popmart/products/labubu-macaron-vinyl-face-1.webp",
+          url: "https://api.example.test/popmart/products/labubu-macaron-vinyl-face",
+          imageUrl:
+            "https://api.example.test/popmart/products/labubu-macaron-vinyl-face-1.webp",
         },
       ],
     });
@@ -374,6 +377,109 @@ describe("Supabase-backed PayPal order repository", () => {
     );
   });
 
+  it("reuses the latest cart-scoped express pending order when previous attempts exist", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const expressOrder = dataSource.orders.find(
+      (order) => order.id === "order_express",
+    );
+    if (!expressOrder) {
+      throw new Error("Missing express order fixture");
+    }
+    dataSource.orders.push(
+      {
+        ...expressOrder,
+        id: "order_guest_express_older",
+        order_number: "DO-20260601-000008",
+        order_number_sequence: 8,
+        cart_id: "cart_guest",
+        checkout_draft_id: null,
+        total_minor: 2999,
+      },
+      {
+        ...expressOrder,
+        id: "order_guest_express_latest",
+        order_number: "DO-20260601-000009",
+        order_number_sequence: 9,
+        cart_id: "cart_guest",
+        checkout_draft_id: null,
+        total_minor: 2999,
+      },
+    );
+    const repository = createRepository(dataSource);
+
+    const preparedOrder = await repository.prepareCreateOrder(guestContext(), {
+      kind: "express_delivery",
+      method: "paypal",
+      cartId: "cart_public_guest",
+    });
+
+    expect(preparedOrder).toMatchObject({
+      kind: "express_delivery",
+      orderNumber: "DO-20260601-000009",
+      paymentSessionId: "payment_session_new_1",
+      paypalInvoiceId: "DO-20260601-000009",
+      paypalRequestId: "request_new_1",
+    });
+    expect(dataSource.paymentSessions).toContainEqual(
+      expect.objectContaining({
+        id: "payment_session_new_1",
+        order_id: "order_guest_express_latest",
+        attempt_number: 1,
+      }),
+    );
+  });
+
+  it("creates a new express payment-session attempt after a provider order was already created", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const repository = createRepository(dataSource);
+
+    const firstPreparedOrder = await repository.prepareCreateOrder(
+      guestContext(),
+      {
+        kind: "express_delivery",
+        method: "paypal",
+        cartId: "cart_public_guest",
+      },
+    );
+    const firstSessionIndex = dataSource.paymentSessions.findIndex(
+      (session) => session.id === firstPreparedOrder.paymentSessionId,
+    );
+    if (firstSessionIndex < 0) {
+      throw new Error("Missing first payment session");
+    }
+    dataSource.paymentSessions[firstSessionIndex] = {
+      ...dataSource.paymentSessions[firstSessionIndex]!,
+      paypal_order_id: "PAYPAL_ORDER_CREATED_1",
+      provider_total_minor: 2999,
+      amount_consistency_status: "matched",
+    };
+
+    const secondPreparedOrder = await repository.prepareCreateOrder(
+      guestContext(),
+      {
+        kind: "express_delivery",
+        method: "paypal",
+        cartId: "cart_public_guest",
+      },
+    );
+
+    expect(secondPreparedOrder).toMatchObject({
+      kind: "express_delivery",
+      orderNumber: firstPreparedOrder.orderNumber,
+      paymentSessionId: "payment_session_new_2",
+      paypalInvoiceId: `${firstPreparedOrder.orderNumber}-A2`,
+      paypalRequestId: "request_new_2",
+    });
+    expect(dataSource.paymentSessions).toContainEqual(
+      expect.objectContaining({
+        id: "payment_session_new_2",
+        attempt_number: 2,
+        paypal_invoice_id: `${firstPreparedOrder.orderNumber}-A2`,
+        paypal_request_id: "request_new_2",
+      }),
+    );
+  });
+
   it("recalculates and persists express shipping callback totals", async () => {
     const dataSource = createPayPalOrderDataSource();
     const repository = createRepository(dataSource);
@@ -587,6 +693,163 @@ describe("Supabase-backed PayPal order repository", () => {
         mismatches: [],
       },
     });
+  });
+
+  it("prepares express delivery with the shared default guest cart secret hash", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const guestCart = await dataSource.findActiveGuestCart("cart_public_guest");
+    if (!guestCart) {
+      throw new Error("Guest test cart was not found");
+    }
+    (guestCart as { cart_secret_hash: string }).cart_secret_hash = createHash(
+      "sha256",
+    )
+      .update("cart_secret_guest")
+      .digest("hex");
+    const repository = createRepository(dataSource, {
+      useDefaultCartSecretHash: true,
+    });
+
+    const preparedOrder = await repository.prepareCreateOrder(guestContext(), {
+      kind: "express_delivery",
+      method: "paypal",
+      cartId: "cart_public_guest",
+    });
+
+    expect(preparedOrder).toMatchObject({
+      kind: "express_delivery",
+      orderNumber: "DO-20260601-000007",
+      paymentSessionId: "payment_session_new_1",
+      method: "paypal",
+    });
+  });
+
+  it("prepares local express delivery without an HTTPS shipping callback URL", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const repository = createRepository(dataSource, {
+      publicApiBaseUrl: "http://127.0.0.1:3000",
+    });
+
+    const preparedOrder = await repository.prepareCreateOrder(guestContext(), {
+      kind: "express_delivery",
+      method: "paypal",
+      cartId: "cart_public_guest",
+    });
+
+    expect(preparedOrder).toMatchObject({
+      kind: "express_delivery",
+      shippingCallbackUrl: null,
+    });
+    expect(preparedOrder.items[0]).toEqual(
+      expect.objectContaining({
+        imageUrl: null,
+        url: null,
+      }),
+    );
+  });
+
+  it("builds an express review snapshot from local review-confirm totals when no PayPal shipping callback exists", async () => {
+    const dataSource = createPayPalOrderDataSource();
+    const repository = createRepository(dataSource, {
+      publicApiBaseUrl: "http://127.0.0.1:3000",
+    });
+
+    const preparedOrder = await repository.prepareCreateOrder(guestContext(), {
+      kind: "express_delivery",
+      method: "paypal",
+      cartId: "cart_public_guest",
+    });
+
+    await repository.recordCreateOrderResult(guestContext(), {
+      paymentSessionId: preparedOrder.paymentSessionId,
+      paypalOrderId: "PAYPAL_ORDER_LOCAL_EXPRESS",
+      paypalOrderStatus: "PAYER_ACTION_REQUIRED",
+      paypalInvoiceId: preparedOrder.paypalInvoiceId,
+      paypalRequestId: preparedOrder.paypalRequestId,
+      requestPayload: {
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            invoice_id: preparedOrder.paypalInvoiceId,
+            items: [],
+            amount: {
+              currency_code: "USD",
+              value: "29.99",
+              breakdown: {
+                item_total: { currency_code: "USD", value: "29.99" },
+                shipping: { currency_code: "USD", value: "0.00" },
+                tax_total: { currency_code: "USD", value: "0.00" },
+              },
+            },
+          },
+        ],
+        payment_source: {
+          paypal: {
+            experience_context: {
+              shipping_preference: "GET_FROM_FILE",
+            },
+          },
+        },
+      },
+      response: {
+        paypalOrderId: "PAYPAL_ORDER_LOCAL_EXPRESS",
+        status: "PAYER_ACTION_REQUIRED",
+        approvalUrl: "https://www.sandbox.paypal.com/checkoutnow?token=abc",
+        rawResponse: {
+          id: "PAYPAL_ORDER_LOCAL_EXPRESS",
+          status: "PAYER_ACTION_REQUIRED",
+        },
+      },
+      merchantSnapshot: {
+        currencyCode: preparedOrder.currencyCode,
+        itemTotalMinor: 2999,
+        shippingMinor: 0,
+        taxMinor: 0,
+        discountMinor: 0,
+        totalMinor: 2999,
+      },
+    });
+
+    const reviewSnapshot = await repository.getExpressReviewSnapshot({
+      paypalOrderId: "PAYPAL_ORDER_LOCAL_EXPRESS",
+      paymentSessionId: null,
+    });
+
+    expect(reviewSnapshot).toEqual(
+      expect.objectContaining({
+        source_label: "Delivery express",
+        order_number: preparedOrder.orderNumber,
+        payment_session_id: preparedOrder.paymentSessionId,
+        paypal_order_id: "PAYPAL_ORDER_LOCAL_EXPRESS",
+        shipping_address: {
+          name: "PayPal buyer",
+          address_line1: "Address supplied by PayPal",
+          address_line2: "",
+          country_code: "US",
+        },
+        shipping_option: {
+          label: "Selected shipping",
+          detail: "Shipping option selected in PayPal",
+          amount_minor: 0,
+          currency_code: "USD",
+        },
+        totals: {
+          merchandise_subtotal_minor: 2999,
+          shipping_minor: 0,
+          promo_discount_minor: 0,
+          tax_minor: 0,
+          total_minor: 2999,
+          currency_code: "USD",
+        },
+        amount_guard: {
+          action: "allow_capture",
+          status: "matched",
+          can_capture: true,
+          tolerance_minor: 0,
+          mismatches: [],
+        },
+      }),
+    );
   });
 
   it("auto-applies promos during express shipping callback recalculation", async () => {
@@ -1266,7 +1529,13 @@ describe("Supabase-backed PayPal order repository", () => {
   });
 });
 
-function createRepository(dataSource: FakePayPalOrderDataSource) {
+function createRepository(
+  dataSource: FakePayPalOrderDataSource,
+  options: {
+    readonly publicApiBaseUrl?: string;
+    readonly useDefaultCartSecretHash?: boolean;
+  } = {},
+) {
   let orderId = 0;
   let paymentSessionId = 0;
   let orderItemId = 0;
@@ -1281,7 +1550,7 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
   return createSupabasePayPalOrderRepository({
     dataSource,
     now: "2026-06-01T10:00:00.000Z",
-    publicApiBaseUrl: "https://api.example.test",
+    publicApiBaseUrl: options.publicApiBaseUrl ?? "https://api.example.test",
     createOrderId: () => `order_new_${++orderId}`,
     createPaymentSessionId: () => `payment_session_new_${++paymentSessionId}`,
     createOrderItemId: () => `order_item_new_${++orderItemId}`,
@@ -1295,7 +1564,11 @@ function createRepository(dataSource: FakePayPalOrderDataSource) {
     createPayPalRequestId: () => `request_new_${++requestId}`,
     createSavedPaymentMethodId: () =>
       `saved_payment_new_${++savedPaymentMethodId}`,
-    hashCartClientSecret: (secret) => `hash:${secret}`,
+    ...(options.useDefaultCartSecretHash
+      ? {}
+      : {
+          hashCartClientSecret: (secret: string) => `hash:${secret}`,
+        }),
   });
 }
 
@@ -1848,12 +2121,18 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     },
     async findPendingOrderByCartId(cartId, fulfillmentMode) {
       return (
-        orders.find(
-          (order) =>
-            order.cart_id === cartId &&
-            order.fulfillment_mode === fulfillmentMode &&
-            order.status === "pending",
-        ) ?? null
+        [...orders]
+          .filter(
+            (order) =>
+              order.cart_id === cartId &&
+              order.checkout_draft_id === null &&
+              order.fulfillment_mode === fulfillmentMode &&
+              order.status === "pending",
+          )
+          .sort(
+            (left, right) =>
+              right.order_number_sequence - left.order_number_sequence,
+          )[0] ?? null
       );
     },
     async getNextOrderSequence(input) {
@@ -1942,8 +2221,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
         savedPaymentMethods.find(
           (savedPaymentMethod) =>
             savedPaymentMethod.auth_user_id === input.authUserId &&
-            savedPaymentMethod.paypal_customer_id ===
-              input.paypalCustomerId &&
+            savedPaymentMethod.paypal_customer_id === input.paypalCustomerId &&
             savedPaymentMethod.method_type === input.methodType &&
             savedPaymentMethod.status === "pending",
         ) ?? null

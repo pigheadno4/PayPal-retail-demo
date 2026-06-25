@@ -2,7 +2,7 @@ import {
   PayLaterOneTimePaymentButton,
   usePayPalMessages,
 } from "@paypal/react-paypal-js/sdk-v6";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type {
   OnApproveDataOneTimePayments,
   OnCancelDataOneTimePayments,
@@ -25,6 +25,7 @@ import {
   PaymentActionFailureNotice,
   usePaymentActionFailure,
 } from "./paymentActionFailure.js";
+import { PAYPAL_DEMO_PRESENTATION_MODE } from "./paymentPresentation.js";
 
 export interface PayLaterStandaloneActionProps {
   readonly buyerCountry: string;
@@ -32,15 +33,31 @@ export interface PayLaterStandaloneActionProps {
   readonly currencyCode: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly onApproved?: (
+    context: PayLaterStandaloneApprovedContext,
+  ) => Promise<void> | void;
   readonly requestOptions?: ApiRequestOptions | undefined;
   readonly totalLabel: string;
 }
 
+export interface PayLaterStandaloneApprovedContext {
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly method: "paylater";
+  readonly paypalOrderId: string;
+  readonly paymentSessionId?: string;
+}
+
 export interface PayLaterAmountMessageProps {
-  readonly amountLabel: string;
+  readonly amountLabel?: string;
   readonly buyerCountry: string;
   readonly currencyCode: string;
-  readonly placement: "payment-row" | "order-summary";
+  readonly placement:
+    | "cart-summary"
+    | "catalog-promo"
+    | "minicart-summary"
+    | "order-summary"
+    | "payment-row"
+    | "product-detail";
 }
 
 export interface PayLaterCreateOrderRequest {
@@ -59,15 +76,18 @@ export function PayLaterStandaloneAction({
   currencyCode,
   fulfillmentMode,
   market,
+  onApproved,
   requestOptions,
   totalLabel,
 }: PayLaterStandaloneActionProps) {
   const apiClient = useApiClient();
+  const lastCreatedOrder = useRef<PayPalCreateOrderResponse | null>(null);
   const eligibility = usePayLaterButtonEligibility({
     currencyCode,
     totalLabel,
   });
   const {
+    captureApprovalFailure,
     captureCreateOrderFailure,
     captureSdkFailure,
     clearFailure,
@@ -99,6 +119,7 @@ export function PayLaterStandaloneAction({
       throw error;
     }
 
+    lastCreatedOrder.current = order;
     console.info("[paypal-retail-demo] Pay Later order created", {
       paypalOrderId: order.paypal_order_id,
       paymentSessionId: order.payment_session_id ?? null,
@@ -124,8 +145,30 @@ export function PayLaterStandaloneAction({
         paypalOrderId: data.orderId,
         payerId: data.payerId ?? null,
       });
+
+      try {
+        await onApproved?.({
+          fulfillmentMode,
+          method: "paylater",
+          paypalOrderId: data.orderId,
+          ...(lastCreatedOrder.current?.payment_session_id
+            ? { paymentSessionId: lastCreatedOrder.current.payment_session_id }
+            : {}),
+        });
+      } catch (error) {
+        const actionFailure = captureApprovalFailure(error);
+        console.error(
+          "[paypal-retail-demo] Pay Later approval handling failed",
+          {
+            code: actionFailure.code,
+            debugId: actionFailure.debugId ?? null,
+            paypalOrderId: data.orderId,
+          },
+        );
+        throw error;
+      }
     },
-    [],
+    [captureApprovalFailure, fulfillmentMode, onApproved],
   );
 
   return (
@@ -157,7 +200,7 @@ export function PayLaterStandaloneAction({
             captureSdkFailure(error);
             handleError(error);
           }}
-          presentationMode="auto"
+          presentationMode={PAYPAL_DEMO_PRESENTATION_MODE}
         />
       ) : null}
       <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
@@ -171,7 +214,9 @@ export function PayLaterAmountMessage({
   currencyCode,
   placement,
 }: PayLaterAmountMessageProps) {
-  const amount = normalizePayLaterMessageAmount(amountLabel);
+  const amount = amountLabel
+    ? normalizePayLaterMessageAmount(amountLabel)
+    : undefined;
   const { error } = usePayPalMessages({
     buyerCountry,
     currencyCode,
@@ -197,10 +242,12 @@ export function PayLaterAmountMessage({
         id={`paylater-${placement}-message-status`}
         className="sr-only"
       >
-        Pay Later message ready for {amountLabel}.
+        {amountLabel
+          ? `Pay Later message ready for ${amountLabel}.`
+          : "Pay Later message ready."}
       </StatusRegion>
       <paypal-message
-        amount={amount}
+        {...(amount ? { amount } : {})}
         auto-bootstrap={true}
         buyer-country={buyerCountry}
         currency-code={currencyCode}

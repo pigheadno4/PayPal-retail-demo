@@ -9,6 +9,7 @@ import type {
   AccountAddressDeleteResult,
   AccountOrder,
   AccountRepository,
+  AccountReviewInput,
   AccountSavedPaymentMethod,
   PreparedSavedPaymentDelete,
 } from "../src/routes/account.js";
@@ -162,6 +163,159 @@ describe("Account routes", () => {
       {
         authUserId: "user_123",
         orderNumber: "PO-20260602-000118",
+      },
+    ]);
+  });
+
+  it("links matching guest orders to the authenticated buyer email", async () => {
+    const accountRepository = createAccountRepository();
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/account/guest-orders/link",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        linked_order_count: 1,
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.linkGuestOrderCalls).toEqual([
+      {
+        authUserId: "user_123",
+        email: "buyer@example.test",
+      },
+    ]);
+  });
+
+  it("submits a review for a completed account order item", async () => {
+    const accountRepository = createAccountRepository({
+      refreshedReviewOrder: reviewedAccountOrder(),
+    });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/account/orders/PO-20260602-000118/items/line_1/review",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+        json: {
+          rating: 5,
+          title: "Tiny display shelf star",
+          body: "The paint details look great beside my other figures.",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order: reviewedAccountOrder(),
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.submitReviewCalls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "PO-20260602-000118",
+        itemId: "line_1",
+        review: {
+          rating: 5,
+          title: "Tiny display shelf star",
+          body: "The paint details look great beside my other figures.",
+        },
+      },
+    ]);
+  });
+
+  it("edits an existing review for a completed account order item", async () => {
+    const accountRepository = createAccountRepository({
+      refreshedReviewOrder: updatedReviewAccountOrder(),
+    });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "PATCH",
+      "/api/account/orders/PO-20260602-000118/items/line_1/review",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+        json: {
+          rating: 4,
+          title: "Still a favorite",
+          body: "Updated after unboxing the stand accessories.",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order: updatedReviewAccountOrder(),
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.updateReviewCalls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "PO-20260602-000118",
+        itemId: "line_1",
+        review: {
+          rating: 4,
+          title: "Still a favorite",
+          body: "Updated after unboxing the stand accessories.",
+        },
+      },
+    ]);
+  });
+
+  it("deletes an existing review and reopens item eligibility", async () => {
+    const accountRepository = createAccountRepository({
+      refreshedReviewOrder: accountOrder(),
+    });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "DELETE",
+      "/api/account/orders/PO-20260602-000118/items/line_1/review",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: true,
+      data: {
+        order: accountOrder(),
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(accountRepository.deleteReviewCalls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "PO-20260602-000118",
+        itemId: "line_1",
       },
     ]);
   });
@@ -377,6 +531,10 @@ interface FakeAccountRepository extends AccountRepository {
     readonly authUserId: string;
     readonly orderNumber: string;
   }[];
+  readonly linkGuestOrderCalls: {
+    readonly authUserId: string;
+    readonly email: string;
+  }[];
   readonly createAddressCalls: {
     readonly authUserId: string;
     readonly address: AccountAddressInput;
@@ -398,12 +556,30 @@ interface FakeAccountRepository extends AccountRepository {
     readonly authUserId: string;
     readonly savedPaymentId: string;
   }[];
+  readonly submitReviewCalls: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+    readonly review: AccountReviewInput;
+  }[];
+  readonly updateReviewCalls: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+    readonly review: AccountReviewInput;
+  }[];
+  readonly deleteReviewCalls: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+    readonly itemId: string;
+  }[];
 }
 
 function createAccountRepository(
   options: {
     readonly deleteAddressResult?: AccountAddressDeleteResult;
     readonly refreshedAddresses?: readonly AccountAddress[];
+    readonly refreshedReviewOrder?: AccountOrder;
     readonly refreshedSavedPayments?: readonly AccountSavedPaymentMethod[];
   } = {},
 ): FakeAccountRepository {
@@ -412,11 +588,15 @@ function createAccountRepository(
   const listAddressCalls: string[] = [];
   const listOrderCalls: string[] = [];
   const getOrderCalls: FakeAccountRepository["getOrderCalls"] = [];
+  const linkGuestOrderCalls: FakeAccountRepository["linkGuestOrderCalls"] = [];
   const createAddressCalls: FakeAccountRepository["createAddressCalls"] = [];
   const updateAddressCalls: FakeAccountRepository["updateAddressCalls"] = [];
   const deleteAddressCalls: FakeAccountRepository["deleteAddressCalls"] = [];
   const prepareDeleteCalls: FakeAccountRepository["prepareDeleteCalls"] = [];
   const completeDeleteCalls: FakeAccountRepository["completeDeleteCalls"] = [];
+  const submitReviewCalls: FakeAccountRepository["submitReviewCalls"] = [];
+  const updateReviewCalls: FakeAccountRepository["updateReviewCalls"] = [];
+  const deleteReviewCalls: FakeAccountRepository["deleteReviewCalls"] = [];
 
   return {
     lookupCalls,
@@ -424,11 +604,15 @@ function createAccountRepository(
     listAddressCalls,
     listOrderCalls,
     getOrderCalls,
+    linkGuestOrderCalls,
     createAddressCalls,
     updateAddressCalls,
     deleteAddressCalls,
     prepareDeleteCalls,
     completeDeleteCalls,
+    submitReviewCalls,
+    updateReviewCalls,
+    deleteReviewCalls,
     async lookupAuthEmail(email) {
       lookupCalls.push(email);
       return email === "alice.la@example.test"
@@ -456,6 +640,12 @@ function createAccountRepository(
     async getOrder(input) {
       getOrderCalls.push(input);
       return input.orderNumber === "PO-20260602-000118" ? accountOrder() : null;
+    },
+    async linkGuestOrders(input) {
+      linkGuestOrderCalls.push(input);
+      return {
+        linked_order_count: 1,
+      };
     },
     async createAddress(input) {
       createAddressCalls.push(input);
@@ -488,6 +678,27 @@ function createAccountRepository(
     async completeSavedPaymentDelete(input) {
       completeDeleteCalls.push(input);
       return options.refreshedSavedPayments ?? [deletedSavedPayment()];
+    },
+    async submitOrderItemReview(input) {
+      submitReviewCalls.push(input);
+      return {
+        status: "updated",
+        order: options.refreshedReviewOrder ?? reviewedAccountOrder(),
+      };
+    },
+    async updateOrderItemReview(input) {
+      updateReviewCalls.push(input);
+      return {
+        status: "updated",
+        order: options.refreshedReviewOrder ?? updatedReviewAccountOrder(),
+      };
+    },
+    async deleteOrderItemReview(input) {
+      deleteReviewCalls.push(input);
+      return {
+        status: "updated",
+        order: options.refreshedReviewOrder ?? accountOrder(),
+      };
     },
   };
 }
@@ -627,6 +838,7 @@ function accountOrder(): AccountOrder {
         line_total_minor: 1599,
         review_eligible: true,
         review_submitted: false,
+        review: null,
       },
     ],
     timeline: [
@@ -653,6 +865,48 @@ function accountOrder(): AccountOrder {
         country_code: "US",
       },
     ],
+  };
+}
+
+function reviewedAccountOrder(): AccountOrder {
+  const order = accountOrder();
+  return {
+    ...order,
+    items: order.items.map((item) =>
+      item.id === "order_item_skullpanda"
+        ? {
+            ...item,
+            review_eligible: false,
+            review_submitted: true,
+            review: {
+              rating: 5,
+              title: "Tiny display shelf star",
+              body: "The paint details look great beside my other figures.",
+            },
+          }
+        : item,
+    ),
+  };
+}
+
+function updatedReviewAccountOrder(): AccountOrder {
+  const order = accountOrder();
+  return {
+    ...order,
+    items: order.items.map((item) =>
+      item.id === "order_item_skullpanda"
+        ? {
+            ...item,
+            review_eligible: false,
+            review_submitted: true,
+            review: {
+              rating: 4,
+              title: "Still a favorite",
+              body: "Updated after unboxing the stand accessories.",
+            },
+          }
+        : item,
+    ),
   };
 }
 

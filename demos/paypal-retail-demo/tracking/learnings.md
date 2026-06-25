@@ -14,12 +14,17 @@ Reusable implementation lessons from this demo should be added here during miles
 ## Milestone Completion Gates
 
 - Treat `IMPLEMENTATION_TASKS.md` as the canonical milestone checklist, and use `PLAN.md` only as the current execution router.
+- Runbook closure should cite the exact verified commands, including the env-loading server command when `npm run dev:server` depends on exported secrets, and should keep manual sandbox buyer approval/capture as a separate open gate instead of implying it is covered by local tests.
+- API-backed browser QA should use the configured app origin, currently `http://localhost:5173`; switching to `127.0.0.1` can fail CORS even when Vite renders the same app.
+- When the active execution stage moves into demo polish while earlier backlog remains open, label the active stage and deferred backlog explicitly in `PLAN.md`, `tracking/todos.md`, `tracking/test-cases.md`, `tracking/progress.md`, and `tracking/debug.md` so future sessions do not regress to stale phase text.
 - A buyer-facing UI milestone is not complete just because the screen renders. Visible actions must be wired, disabled with a reason, or explicitly deferred in tracking.
 - Milestone close evidence should include interaction tests or manual verification notes for the promised buyer journey, not only render tests.
 - If a milestone is discovered to have shell-level gaps after being checked, add a corrective milestone instead of silently moving the plan forward.
 - Multi-step UI should have a state contract or mockup that stays aligned with implementation, tests, and tracking.
 - PSP or wallet UI close evidence must include browser verification of the hydrated official SDK/provider surface in every promised placement; local branded buttons and static labels are shell progress only.
 - API-backed UI close evidence should include loading, success, and failure-state coverage against the backend contract, because route transitions alone do not prove recalculation or payment readiness.
+- API-backed UI filters must only advertise query params backed by the route contract and count metadata. If a merchandising concept such as series is present in product data but not in `GET /api/catalog/products`, keep it off filter chrome until the API supports filtering and counts for it.
+- Profile visual refreshes should get a stylesheet contract test at the token layer before page-level polish. It catches palette/typography drift without overfitting the final Home, Category, PDP, Cart, Minicart, or Checkout composition.
 - API-bound buyer UI must prove browser credential propagation end to end. For guest cart flows, repository tests and middleware tests are not enough unless browser QA or interaction tests show the raw cart client secret is persisted, paired `x-cart-id`/`x-cart-secret` headers are attached, and missing bindings are blocked with buyer-safe copy.
 
 ## PayPal Express Delivery Shipping Callbacks
@@ -135,6 +140,21 @@ Reusable implementation lessons from this demo should be added here during miles
 - Return a generic not-found response for any mismatch to avoid revealing whether an order number exists or which email belongs to it.
 - Buyer-facing guest order detail should omit internal order, item, address, and guest-access IDs; keep those for Admin Portal only.
 
+## Account Reviews
+
+- Public account review routes should use buyer-facing order numbers plus stable line-item IDs, then resolve owned database IDs in the repository so buyer UI never needs internal order item UUIDs.
+- Review mutations affect both account order detail and product detail review lists. After a successful mutation, update the account order from the API response and invalidate affected product-detail cache entries so the next PDP load reads active `reviews` rows.
+
+## Guest Confirmation UX
+
+- After capture, replace primary payment actions with receipt facts and the next useful account action. A disabled payment button competes with the completion state; focus/scroll should land on the guest save-order prompt so the buyer can continue without hunting below the summary.
+
+## Generated Product Media
+
+- When using customer brand references for generated demo media, prompt away from named character silhouettes and signature motifs. A coherent collectible catalog can still be unusable for final presentation if monster ears, panda/moon styling, oversized tears, logos, packaging, or other series-specific visual cues make the asset feel like a replica instead of an original demo product.
+- Do not replace rendered toy product shots with flat/vector placeholders. Public-safe replacement media still has to match the existing 900x900 catalog-render quality, lighting, depth, and merchandising feel, or the safer asset becomes a customer-demo quality regression.
+- Visual QA for generated media must cover both API-backed hydration and API-unavailable/default fallback states. A clean API-backed route does not prove Vite-only screenshots, failed API responses, or component fallback data are free of stale mock assets.
+
 ## PayPal API Routes
 
 - The SDK config route should stay browser-safe: return client ID, market, component, provider-key, and token-required flags, but never client secret or OAuth/token internals.
@@ -144,6 +164,8 @@ Reusable implementation lessons from this demo should be added here during miles
 - The installed `@paypal/react-paypal-js` v9.2.0 SDK v6 provider accepts `environment`, `components`, `locale`, `pageType`, and `testBuyerCountry`; it does not expose `sdkBaseUrl`, so `sdk_url` should remain backend/debug metadata unless local types change.
 - Client-token generation should be a server-side PayPal OAuth wrapper that maps PayPal's `access_token` field into our buyer-facing `client_token` field.
 - Use `PUBLIC_HTTPS_ORIGIN` as the preferred default client-token domain, falling back to `APP_BASE_URL` only for local/basic development; PayPal may reject localhost domains for domain-bound token flows.
+- PayPal provider-bound line-item `url` and `image_url` values should be resolved to public absolute URLs at the repository boundary. Catalog, cart, and checkout UI DTOs can keep relative `/assets/...` paths, but provider payloads should not.
+- Static Pay Later fallback copy should be tied to SDK config loading/error state, not rendered permanently beside a ready official `paypal-message`; otherwise browser accessibility trees and QA checks can report fallback copy even when the official message is mounted.
 - Keep PayPal order creation split into three layers: route validates buyer/source context, repository prepares merchant-locked order inputs from Supabase, and gateway performs OAuth plus `/v2/checkout/orders`.
 - Full checkout Delivery, express Delivery, and BOPIS should share one route orchestration shape, but the payload builder must stay fulfillment-specific so BOPIS never accidentally receives delivery shipping callbacks or shipping fee breakdown.
 - Create-order preparation should write the merchant order and payment session before calling PayPal so pending orders are visible when payment is abandoned; capture can clear paid cart items later, while pending orders keep cart intent intact.

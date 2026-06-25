@@ -1,5 +1,9 @@
 # Test Cases
 
+## Current Stage
+
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this file are acceptance or regression gates for the current polish stage unless they are explicitly older backlog, such as M15 Admin Portal, local Supabase migration verification, or broader wallet/card sandbox capture coverage.
+
 ## Seed And Database QA
 
 - [x] Storefront/reference seed summary includes 2 profiles, 2 markets, 5 categories/profile, 25 products/profile, 9 stores/market, inventory, tax, shipping, homepage, release, and promo rows.
@@ -80,6 +84,7 @@
 - [x] PayPal item-level tax allocation splits a same-product line when line tax cents cannot divide evenly by quantity.
 - [x] PayPal delivery create-order API uses `SET_PROVIDED_ADDRESS`, merchant shipping address, detailed line items, `PayPal-Request-Id`, and records merchant snapshots.
 - [x] PayPal express delivery create-order API uses `GET_FROM_FILE` and server-side shipping callback config.
+- [x] PayPal frontend delivery express and backend create-order routes emit structured diagnostics for start/prepared/failure stages without logging cart secrets, bearer tokens, or PayPal credentials.
 - [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.
@@ -133,22 +138,61 @@
 
 - [x] Buyer app shell includes skip-to-content navigation and an announced shell status region.
 - [x] `DESIGN.md` defines implementation-grade frontend tokens, component contracts, detailed page specs, UX-flow contracts, and frontend acceptance gates before continuing customer-facing M14/M16 UI slices.
+- [x] M16 reference-level polish follows `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md`, with `DESIGN.md` truth constraints enforced before any page slice is marked complete.
+- [x] M16 shadcn foundation gate is complete before further page polish: project config/aliases exist, selected primitives are added and reviewed, official PayPal SDK surfaces remain SDK-rendered, and page-specific ecommerce layouts are not replaced wholesale by generic shadcn page blocks.
+- [x] M16 shared primitive migration uses the shadcn foundation before page-specific polish: repeated buttons/cards/badges/separators/skeletons/sheets/dialogs/tabs/accordions/forms migrate through shared components without replacing POP MART-specific ecommerce layouts wholesale.
+- [x] Cart/minicart shared action cluster uses shadcn `Button` primitives for local links, empty-state links, and fallback delivery express buttons, and the shared PayPal frame uses shadcn `FieldSet`/`FieldLegend` while official SDK-rendered PayPal actions remain externally rendered.
+- [x] PDP lower-detail sections use shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent` slots with the line variant while preserving role-based tab semantics, active/inactive panel rendering, and the existing collector/product facts/gallery/review/shipping/Q&A content.
+- [x] Checkout Delivery/Pickup fulfillment switching uses shadcn `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent` slots while preserving role-based tab semantics, mode-lock disabling, separate Delivery/Pickup panel rendering, checkout step progression, and active payment context behavior.
+- [x] Category/PLP mobile filters use shadcn `Sheet`, `SheetTrigger`, and `SheetContent` slots with an accessible trigger label and sheet title/description, while preserving product-grid ordering, reset behavior, desktop-only sidebar IDs, opened mobile filter IDs, and no native details/summary fallback.
+- [x] Auth modal sign-in/register and guest save-order account entry use shadcn `Dialog`, `Field`, `Input`, and `Button` slots, preserve dialog naming/close behavior, retain existing App auth/register/save-order interaction coverage, and expose invalid email/password state through `aria-invalid` plus `FieldError` alerts.
+- [x] Cart/minicart presentation uses shadcn slots without breaking payment flow coverage: cart summary renders `Card` header/content/footer plus `Separator`, item categories render `Badge`, minicart renders as controlled `SheetContent` with `SheetTitle`/`SheetDescription`, closed minicarts are unmounted from the accessible drawer surface, and App interactions use in-drawer actions while the modal is open.
+- [x] Express Review/order confirmation uses shadcn slots without breaking payment completion coverage: status, order, delivery, item, summary, capture, and guest save-order surfaces render through `Card` header/content/footer structure, `Badge`, `Separator`, and `Button`, while amount mismatch blocking, captured receipt copy, capture ID display, and save-order focus behavior remain covered.
+- [x] Buyer-shell and release-calendar primitive migration uses shadcn/Lucide slots without breaking shell behavior: account renders through shadcn `Avatar`, wishlist/cart/search/menu/close controls render Lucide icons with accessible button names, visible Close text is replaced by X/icon-only controls, Home release dates render through shadcn `Calendar`, and clicking the minicart sheet overlay calls the controlled close handler.
+- [x] Home and Category/PLP card migration uses shadcn `Card` slot composition without breaking merchandising links: Home trust/product/category/promo/series modules and Category product tiles render `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, and `CardFooter` slots where appropriate, while product/category/promo/series links remain full-tile navigable.
+- [x] PDP non-payment card migration uses shadcn `Card` slot composition without breaking product detail behavior: story, series lineup, lineup items, customer review/social proof, trust badge, and recommendation surfaces render Card slots while lower detail tab semantics, PayPal frame placement, Pay Later hierarchy, and recommendation links remain intact.
+- [x] Checkout and Account card migration uses shadcn `Card` slot composition without breaking buyer workflows: checkout step/store/summary panels and account overview/profile/address/payment/order/status panels render Card slots while form controls, checkout summary landmark, route actions, inline confirmation, review submission/edit/delete, and guest lookup behavior remain intact.
+- [x] Checkout and Account form migration uses shadcn `FieldGroup`, `Field`, `FieldLabel`, `Input`, `Checkbox`, `Textarea`, and `Button` slots without breaking checkout draft updates, validation focus/error wiring, guest lookup, address add/edit, or review submit/edit behavior; required markers stay visual while label text remains stable for assistive/query semantics.
+- [x] Vite-only/API-down Category fallback renders generated POP MART products, never old Labubu/Skullpanda/Hirono fixture products, applies category query filtering, and keeps product card links aligned with generated fallback PDP slugs.
+- [x] Generated fallback category product links remain navigable when product-detail loading fails: known generated fallback slugs render their PDP fallback records instead of the not-found screen.
+- [x] Computer Use GUI pass verifies the shadcn-migrated buyer controls touched by this fallback recovery: category product card navigation, PDP Add to cart, minicart outside-click close, mobile menu X close, sign-in dialog X close, and category filter sheet apply/reset.
+- [x] Mobile Category/PLP control polish after shadcn migration: sort/filter controls do not clip at 320-375px, filter sheet options read as clear 44px tap rows or selected chips, and disabled wishlist has a buyer-readable disabled reason or tooltip.
+- [x] Generated concept mockup hierarchy is reflected in runtime Home, Category/PLP, PDP, Cart, Minicart, Checkout, Order Confirmation, and Account/sign-up before each page slice is marked complete.
+- [x] M16 mobile-friendly global gate passes at 320px, 375px, 414px, 768px, 1024px, and 1440px with no horizontal page scroll, usable touch targets, responsive media, and no sticky header/footer/action overlap.
+- [x] Vite-only responsive Browser sweep covers Home, Category, PDP, Cart, open Minicart, Checkout, Express Review/order confirmation, and Account at 320px, 375px, 414px, 768px, 1024px, and 1440px with no blank pages, no framework overlay, and no horizontal page scroll; merchant-owned mobile controls meet 44px touch sizing except native PDP radio dots that sit inside 124px by 190px clickable purchase-option labels.
+- [x] Buyer shell matches the approved reference-level retail density with utility strip, supported navigation/discovery, buyer actions, live cart count, production-ready footer, no inert keyword search, and no duplicated Checkout link inside the product-category nav.
+- [x] Mobile buyer shell header uses a compact logo/discovery/action row, icon-only account/wishlist/cart/menu controls with accessible names, an `aria-expanded` hamburger drawer for product/support links, and no desktop product-nav grid in the mobile first viewport.
+- [x] Homepage matches the approved reference-level POP MART adaptation: cinematic drop hero, trust strip, release/calendar plus product shelf, category shelf, promo/event cards, popular-series rail, generated product assets, and no old mock image flash.
+- [x] Category page matches the approved reference-level POP MART adaptation: compact filter/sort controls, visible applied filters, image-led product cards, price/status/pickup metadata, amount-free official Pay Later message slot, and mobile products visible before full filters through a drawer/sheet/accordion or compact filter summary.
+- [x] PDP matches the approved detailed reference-level POP MART adaptation for supported V1 data: breadcrumb, vertical desktop thumbnail rail where multiple images exist, large stable gallery image, real status/vendor/review summary, truthful chips, dense product fact grid, right-side purchase/preorder rail, official amount-aware Pay Later message directly under price, secured PayPal express frame, wired action controls only, trust grid, semantic tabs, real-data-only review/recommendation rails, no pickup hint, no duplicate purchase-status panel, and mobile title/price/primary action reachable before lower story/review/recommendation content. Final richer media assets remain tracked separately.
+- [x] Blind-box PDP purchase options update behavior, not only visuals: Random 1PC stays the default single-box price, Whole Box updates displayed amount and Pay Later amount, Add whole box passes quantity 12, and API-loaded PDP products can create cart rows when they were not already in cart state.
+- [x] Regression: PDP Add to cart persists the selected product into the server cart before checkout navigation/reload; 2026-06-24 fix carries API product IDs into PDP data, posts Add to cart to `/api/cart/items`, reconciles/stores the cart binding, and rendered QA verified checkout summary still contains the added PDP item after server refresh.
+- [x] Blind-box PDP merchandising content stays demo-safe: scarcity/viewing copy is labeled as demo merchandising, trust badges avoid unsupported authenticity/free-shipping/return claims, social proof is demo proof content rather than fake ratings, You may also like uses existing generated catalog asset paths instead of purchase-history claims, and media-slot planning does not render text-only placeholder cards in the PDP viewport.
+- [x] Cart, minicart, and checkout polish preserve official PayPal surfaces while improving summary hierarchy, item-row/table clarity, SDK pending-state clarity, drawer separation, mobile reachability, pickup-as-hint-only behavior, and mobile card/sheet layouts without horizontal overflow.
+- [x] Cart and minicart place delivery express PayPal/Pay Later controls inside the shared `Secured by PayPal` frame, size the official SDK custom elements so they visibly render, hide checkout/payment controls when the cart is empty, use side-by-side PayPal/Pay Later controls on desktop/tablet when eligible, stack them on mobile/narrow drawers, and keep cart/minicart quantity controls touch-sized.
+- [x] Shared delivery express missing-cart state renders one consolidated pending status while cart access is restoring instead of duplicating the same pending copy for PayPal and Pay Later.
+- [x] Mobile cart item rows render as vertical cards at 320px and 375px, keep quantity controls touch-sized/full-width, keep the summary and checkout action reachable, and avoid horizontal page overflow.
+- [x] Mobile minicart uses the controlled shadcn Sheet with outside-click and X-button dismissal, a dedicated item `ScrollArea`, a capped independent checkout/payment panel on XS/S, and no horizontal overflow at 320px, 375px, 768px, or 1440px.
+- [x] Checkout matches the approved reference-level POP MART adaptation: secure-checkout breadcrumb/header, left-side step cards, right-side order summary with item thumbnails/totals when an active cart is available, supported auto-offer/payment controls, bottom trust strip, no fake card/wallet methods, and mobile forms with visible labels, correct input types/inputmodes/autocomplete, required indicators, validation, and submit feedback.
+- [x] Captured Express Review/order confirmation matches the approved reference-level POP MART adaptation: success hierarchy, buyer-safe order number, confirmation/status note, order details grid, View Order / Continue Shopping actions, optional real-data recommendations, guest save-order prompt, and no dominant disabled `Confirm and pay` action.
+- [x] Account/sign-up surfaces match the approved reference-level POP MART adaptation: split product-art/benefits and form composition, tabbed sign-up/login where applicable, visible terms acceptance, implemented or disabled social-auth alternatives only, mobile-stacked form-first layout, and mobile-readable form controls.
 - [x] Account settings matches the recovered `DESIGN.md` account page spec: buyer account hub navigation, overview cards, profile/address/payment cards, default-address disabled reason, buyer-friendly loading/error/empty states, and inline destructive confirmation.
-- [ ] Customer-facing Account, Order history/detail, Guest lookup, inline registration, and review slices match their `DESIGN.md` page specs before they are marked complete.
-- [ ] Customer-facing frontend slices include Computer Use or browser/Playwright visual evidence at mobile and desktop sizes before completion.
+- [x] Customer-facing Account, Order history/detail, Guest lookup, inline registration, and review slices match their `DESIGN.md` page specs before they are marked complete.
+- [x] Customer-facing frontend slices include Computer Use or browser/Playwright visual evidence at mobile and desktop sizes before completion.
 - [x] PayPal provider scope is limited to payment UI when `provider_key` changes.
 - [x] Homepage calendar marks release dates with outlined circles.
 - [x] Homepage calendar includes a legend and does not rely on color alone.
 - [x] Homepage Pay Later promo uses brief amount-free copy.
-- [ ] Unreleased PDP blocks checkout buttons and hides reviews.
-- [ ] Cart and minicart show pickup hints without pickup buttons.
+- [x] Unreleased PDP blocks checkout buttons and hides reviews.
+- [x] Cart and minicart show pickup hints without pickup buttons.
 - [x] Delivery checkout completes all accordion steps.
 - [x] Pickup checkout completes store, billing, pickup date, payment.
 - [x] Checkout accordion steps expose saving, recalculating, error, saved, and locked states.
-- [ ] Checkout form errors are announced and focus moves to the first invalid field.
-- [ ] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
+- [x] Checkout form errors are announced and focus moves to the first invalid field.
+- [x] Mobile checkout sticky payment bar shows only the selected non-card action and does not cover content.
 - [x] Card payment button remains inside the card fields box on mobile and desktop.
-- [ ] Partial pickup store cards show available and unavailable counts before store submit.
+- [x] Partial pickup store cards show available and unavailable counts before store submit.
+- [x] M16 Pickup store-ticket cards expose address, phone, distance/status badge, accessible inventory labels, available/unavailable counts, and `data-inventory-state` for full and partial inventory in both inline Store selection and store-picker modal surfaces.
 - [x] M11.5 PDP add-to-cart mutates app cart state and refreshes minicart/cart totals.
 - [x] M11.5 PDP delivery express actions are wired to the intended express flow or explicitly disabled/deferred with buyer-safe copy.
 - [x] M11.5 PDP/cart/minicart delivery express UI entry is wired beyond a silent placeholder; M13 replaces the local route jump with official SDK approval return.
@@ -205,18 +249,25 @@
 - [x] M14 signed-in Account opens account settings, shows the buyer profile email, loads saved payment methods with bearer auth, and deletes a saved payment through the account API.
 - [x] M14 signed-in Order history loads `GET /api/account/orders` with bearer auth, renders retail order cards, keeps technical PayPal/payment-session/internal IDs hidden, and visually verifies the recovered account order page.
 - [x] M14 signed-in Order detail loads `GET /api/account/orders/:orderNumber` with bearer auth, renders fulfillment summary, lifecycle timeline, item review eligibility, totals, and visually verifies the recovered account order detail page.
-- [ ] Guest checkout completes and offers inline account creation.
+- [x] Guest checkout completes and offers inline account creation.
+- [x] Guest account creation/sign-in after capture links matching guest orders by authenticated email.
+- [x] Guest account modal from the post-capture CTA opens with contextual checkout-email copy, a labeled email input, and a mobile-readable layout.
+- [x] Guest post-capture account CTA is visible in the first desktop post-capture viewport, or focus/scroll brings it into view after capture.
+- [x] Guest captured state de-emphasizes the disabled `Confirm and pay` action and separates `Payment captured` from the PayPal capture ID.
+- [x] Guest account-link CTA copy fits the desktop summary column and 390px mobile width without awkward wrapping.
 - [x] Guest order lookup requires order number and email.
 - [x] Guest order lookup uses normalized email matching and does not expose internal order IDs.
 - [x] Guest order lookup returns the same not-found response for wrong email or missing guest access.
 - [x] Guest order lookup updates attempt metadata without exposing whether order number or email failed.
+- [x] Guest order lookup frontend renders a POP MART receipt lookup form, calls `/api/guest-orders/:orderNumber` with the provided email, and shows read-only order detail without technical IDs.
 - [x] Guest buyer cannot enable save-for-future/vaulting in shared PayPal vault planning.
-- [ ] Completed order allows review submission per item.
-- [ ] Review edit/delete updates PDP display.
+- [x] Completed order allows review submission per item.
+- [x] Review edit/delete updates account order detail and invalidates cached PDP review data so the next PDP load reads active reviews.
 
 ## PayPal Sandbox
 
-- [ ] PayPal renders and captures in delivery checkout.
+- [x] PayPal renders and captures in delivery checkout. 2026-06-24 Playwright GUI verified PDP Add to cart -> minicart Checkout -> Delivery checkout shipping/billing/shipping-option submit -> official PayPal modal login/approval -> app-side express review/capture -> confirmation for order `DO-20260624-000004`, PayPal order `6GK84058A01890038`, capture `5VE76310HS283401C`, and empty cart after capture.
+- [x] Checkout PayPal/Pay Later approval callbacks pass the created PayPal order/session into App-level review loading, capture, confirmation rendering, and cart reload handlers.
 - [x] Pay Later radio-row message and selected Order Summary button/message surfaces render in checkout UI.
 - [ ] Pay Later message/button renders and completes where eligible in sandbox.
 - [x] JS SDK v6 sandbox configuration uses the configured test buyer country to simulate buyer environment.
@@ -252,6 +303,13 @@
 - [ ] Checkout/express create-order is blocked with buyer-safe copy when server cart/draft binding is missing or not server-ready.
 - [ ] Guest checkout/express create-order does not call backend PayPal endpoints unless paired cart headers are present.
 - [ ] PayPal button click creates a PayPal order through the backend; if backend/Supabase/PayPal fails, the merchant UI shows a buyer-safe error and debug ID instead of silently closing the popup.
+- [x] Cart PayPal delivery express create-order refreshes the active cart binding before provider order creation and uses the refreshed `cart_public_id`/`cart_client_secret` pair in the PayPal API request.
+- [x] Stale persisted guest cart bindings are cleared and reacquired on app restore instead of leaving cart PayPal checkout attached to a mismatched secret.
+- [x] PayPal order preparation uses the same default guest-cart secret hash as cart and checkout repositories.
+- [x] Local HTTP sandbox PayPal delivery express omits shipping callback config and line-item `url`/`image_url` fields, while `/cart` PayPal still opens the sandbox approval modal and records a `PAYER_ACTION_REQUIRED` PayPal order.
+- [x] Repeated cart PayPal delivery express attempts reuse the latest pending express order for the cart, ignore checkout-draft orders during cart-scoped lookup, and create a new suffixed PayPal invoice attempt when a prior provider order ID already exists.
+- [x] Full cart PayPal approval/capture sandbox pass signs in with a sandbox buyer, returns to Express Review, confirms capture, records paid/captured order/payment-session state, writes a capture snapshot, and clears paid cart items.
+- [x] PayPal and Pay Later one-time buyer actions use modal presentation on checkout and delivery express surfaces so local demos do not depend on browser popup allowance.
 - [x] Pay Later SDK v6 calls eligibility with current amount/currency before rendering official Pay Later button.
 - [ ] Pay Later button stays hidden or buyer-safely unavailable while eligibility is loading, errors, or returns ineligible.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
@@ -268,14 +326,25 @@
 ## Admin Portal
 
 - [x] `/admin` is hidden from buyer UI.
-- [ ] Admin passcode gate works independently from buyer auth.
+- [x] Admin passcode gate works independently from buyer auth.
+- [x] Admin profile/market global controls submit the signed admin session, send seeded profile/market IDs, and reflect the returned active context.
+- [x] Admin order list/detail routes require the signed admin session and return recent order summaries, items, totals, addresses, timeline, and allowed next statuses.
+- [x] Admin order list/detail UI loads with `x-admin-session`, opens order detail on selection, and posts one-step lifecycle updates through `/api/admin/orders/:id/lifecycle`.
 - [x] Profile/market switch resets active carts only.
 - [x] Profile/market switch does not reset orders, inventory, users, saved payments, reviews, or webhooks.
 - [x] Profile/market switch forces config, catalog, cart, and PayPal SDK config refresh.
 - [x] Manual delivery lifecycle updates order timeline.
 - [x] Manual pickup lifecycle updates order timeline.
+- [x] Admin inventory routes require the signed admin session and list central/store inventory with opaque patch IDs.
+- [x] Admin inventory routes patch central/store non-negative available quantities and reject malformed updates.
+- [x] Admin pickup-date routes require the signed admin session and patch capacity/availability with non-negative capacity validation.
+- [x] Admin inventory/pickup UI loads with `x-admin-session` and submits signed PATCH updates for stock and pickup-date controls.
 - [ ] Admin inventory changes affect subsequent checkout/pending resume validation.
-- [ ] Admin order detail shows timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
+- [x] Admin order detail shows timeline, PayPal snapshots, total snapshots, promo evaluation lines, inventory effect, and linked webhooks.
+- [x] Admin webhook routes require the signed admin session and list recent sanitized valid/invalid webhook events without mutation.
+- [x] Admin webhook UI loads with `x-admin-session` and renders event ID/type, verification status, processing status, linked order/payment session IDs, and timestamps.
+- [x] Admin payment-debug route requires the signed admin session and lists recent payment sessions with linked order summary, amount comparison, total snapshots, PayPal snapshots, and webhook evidence.
+- [x] Admin payment-debug UI loads with `x-admin-session` and renders order number, PayPal order/capture IDs, amount comparison, latest total stage, and linked webhook evidence.
 - [ ] Runtime debug logs are visible without exposing secrets.
 
 ## Visual QA
@@ -288,8 +357,10 @@
 - [x] PDP route renders released product gallery, details, current/regular price, amount-aware Pay Later message, delivery express actions, and reviews.
 - [x] PDP route keeps unreleased products viewable while disabling checkout actions, hiding Pay Later amount message, and hiding reviews.
 - [x] PDP has no pickup hint.
-- [x] Minicart renders item summary, amount-aware Pay Later message, view-cart/checkout actions, PayPal/Pay Later delivery express controls, and pickup hint text.
-- [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, PayPal/Pay Later delivery express controls, and pickup hint text.
+- [x] Minicart renders item summary, amount-aware Pay Later message, view-cart/checkout actions, framed PayPal/Pay Later delivery express controls, and pickup hint text when items are present.
+- [x] Full cart route renders item quantity controls, amount-aware Pay Later message, checkout action, framed PayPal/Pay Later delivery express controls, and pickup hint text when items are present.
+- [x] Empty cart and minicart states suppress checkout, Pay Later, PayPal, and Pay Later express controls instead of showing `$0.00` payment prompts.
+- [x] Homepage default/Vite-only fallback uses generated POP MART PNG product assets and category-backed links, with no old Labubu/Hirono/Skullpanda/THE MONSTERS fixture text or unsupported `series=` links.
 - [x] Cart Pay Later amount message recalculates from merchandise quantity totals and excludes shipping.
 - [x] Cart/minicart pickup hints stay as text only with no pickup button.
 - [x] Checkout route renders Delivery/Pickup tabs with separately preserved step state shells.
@@ -310,15 +381,46 @@
 - [x] Buyer can move from PDP add-to-cart to minicart checkout and continue through Delivery checkout into payment selection.
 - [x] Buyer can move from full cart checkout through Pickup store selection, billing, pickup date, and payment selection.
 - [x] Account settings lists saved addresses, supports add/edit/delete/make-default actions, disables deleting default shipping/billing addresses until another address is promoted, and blocks cross-buyer address updates.
-- [ ] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
-- [ ] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
-- [ ] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.
-- [ ] POP MART profile no longer reads as a generic white/red ecommerce shell across homepage, category, PDP, cart, minicart, and checkout screenshots.
-- [ ] Homepage hero, hot sales, category cards, release calendar, and promo cards communicate blind-box drop, collectible shelf, and limited-release energy without childish clutter.
+- [x] Responsive screenshots pass at 375px, 768px, 1024px, and 1440px.
+- [x] POP MART profile stays image-led and retail-first without generic profile colors or heavy glass effects.
+- [x] POP MART profile uses a playful premium collectible visual system with controlled coral, candy pink, lemon yellow, mint green, sky blue, warm white, and deep ink accents.
+- [x] POP MART profile no longer reads as a generic white/red ecommerce shell across homepage, category, PDP, cart, minicart, and checkout screenshots.
+- [x] PDP renders the supported detailed reference structure: breadcrumb, status/review row, desktop-capable gallery stage, purchase/trust grid, direct official Pay Later message under price, secured PayPal express frame, and semantic detail tabs while omitting duplicate purchase-status panels, unsupported recommendation rails, deposit/remaining economics, fake rewards, and unsupported wishlist/quantity controls.
+- [x] PDP semantic detail tabs respond to clicks and keep only the selected force-mounted tab panel visible; inactive panels expose `hidden`/`aria-hidden="true"` while Radix `aria-controls` still resolves to the mounted panel.
+- [x] Browser-comment target `#product-detail-blind-boxes-2-facts-tab` activates Product facts specifically, updates the visible panel heading to `Product facts`, and leaves Collector/Q&A inactive.
+- [x] Generated POP MART-profile product image batch includes one local primary PNG for each of the 25 seeded toys and sampled files verify at 900x900.
+- [x] Seeded POP MART product image rows and order item image snapshots resolve to generated local PNG assets with no missing files.
+- [x] Computer Use browser QA verifies API-backed category, direct PDP, cart, and minicart render generated PNG product images with corrected product names, links, and image alt text after the active database image refresh.
+- [x] App interaction coverage verifies homepage merchandising uses API-backed generated catalog imagery, falls back cleanly when the catalog payload is unavailable, and direct checkout summaries reconcile from the restored active cart total.
+- [x] Direct API-backed PDP route shows a loading state instead of a transient not-found screen while product detail data is pending.
+- [x] API-backed category route queries apply visible filter state and request filtered catalog products from the backend.
+- [x] Mini-cart PayPal/Pay Later express actions stack without overlap or drawer overflow on desktop and 375px mobile.
+- [x] Seeded POP MART product image rows use category-aware descriptive alt text instead of generic `view 1` labels.
+- [x] API-backed homepage and checkout image URLs render without broken images in live browser QA, and PayPal line-item product/image URLs resolve to public absolute URLs in repository coverage.
+- [x] Cold-loading Home, Category, PDP, Cart, Checkout, and hidden Minicart does not render old fixture product names or SVG mock images before generated API-backed data resolves.
+- [x] Category Pay Later promo renders an official PayPal Pay Later message component when Pay Later is enabled, with static copy only while SDK config is loading or errored.
+- [x] PDP, Cart, and Minicart Pay Later messaging render official PayPal message components for eligible/generated live states, not static-only local copy.
+- [x] Category sidebar secondary filters are fully backed by supported API query params and live count metadata.
+- [x] Current generated POP MART-leaning primary images are accepted for this Popmart-specific demo version, while generic/non-Popmart audience demos remain responsible for separate safer media.
+- [ ] Product image assets remain optimized enough for responsive storefront loading after final gallery coverage is generated.
+- [x] Homepage hero, hot sales, category cards, release calendar, and promo cards communicate blind-box drop, collectible shelf, and limited-release energy without childish clutter.
+- [x] Home desktop/mobile visual refresh uses richer collectible/drop modules instead of a sparse red/white commerce shell.
+- [x] Mobile Home first viewport uses an image-led hero with overlaid contrast-safe copy/compact CTAs, a clickable featured-drop image, and mobile visual ordering that places release/product content before utility trust cards.
+- [x] Mobile category page shows a compact filter/sort entry and at least one product card within the first browsing pass, instead of the full filter taxonomy consuming the first viewport.
+- [x] Category runtime removes the explanatory `All products` subtitle, shows top-right text `Sale` badges for discounted cards, and keeps product-card images lazy-loaded.
+- [x] Category, PDP, Cart, and Minicart official Pay Later messages render directly without decorative wrapper-card chrome.
+- [x] Initial Home loading state uses a skeleton-style hero treatment, while secondary storefront product imagery is lazy-loaded.
 - [ ] Product/category cards use tactile rounded surfaces, soft hover/focus feedback, and sticker-like text badges without relying on color alone.
-- [ ] Checkout, cart, and minicart use playful accents sparingly while keeping PayPal official buttons/messages stable, readable, and visually undistorted.
-- [ ] Pickup store cards read as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory note.
-- [ ] Meaningful product, category, and banner images have descriptive alt text.
-- [ ] PayPal buttons and Pay Later messages render without major layout shift in responsive browser screenshots.
-- [ ] Sticky header and sticky payment bar do not obscure content.
-- [ ] Text fits inside buttons, cards, accordions, and payment rows.
+- [x] Mobile PDP keeps the gallery immersive but exposes product title, price, and primary purchase action without excessive first-pass scrolling, verified at 320px, 375px, 414px, 768px, 1024px, and 1440px with no horizontal overflow.
+- [x] Checkout initial payment placeholder explains that payment methods unlock after required sections, rather than showing an empty dashed panel.
+- [x] Checkout mobile preserves a compact order-summary/payment context while the buyer works through long address forms.
+- [x] Checkout, cart, and minicart use playful accents sparingly while keeping PayPal official buttons/messages stable, readable, and visually undistorted.
+- [x] Cart desktop/mobile summary shows shipping plus promo/estimated-tax placeholders, cart subtotal, Pay Later messaging, and a reachable primary checkout action without feeling like a thin subtotal-only sidebar.
+- [x] Cart and minicart PayPal/Pay Later loading or unavailable states are method-labeled or consolidated, not repeated as identical "cart is refreshing" copy in adjacent slots.
+- [x] Mobile minicart keeps item confirmation, Checkout, View cart, Pay Later, express, and pickup hint scannable without crowding the first drawer viewport or hiding the primary action.
+- [x] Open minicart panel has enough backdrop, edge, or elevation that underlying cart content and controls do not visually compete with drawer actions.
+- [x] Pickup store cards read as compact store-ticket surfaces with address, phone, distance, available/unavailable counts, and partial-inventory note.
+- [x] Meaningful product, category, and banner images have descriptive alt text.
+- [x] PayPal buttons and Pay Later messages render without major layout shift in API-backed responsive browser screenshots: Category, PDP, Cart, open Minicart, and Checkout payment step render official SDK message/button elements on 375px mobile without horizontal overflow, and the cart PayPal button opens the sandbox approval/login modal.
+- [x] Sticky header and sticky payment bar do not obscure content.
+- [x] Text fits inside buttons, cards, accordions, and payment rows.

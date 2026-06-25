@@ -98,7 +98,7 @@ Backend APIs:
 - Create a delivery PayPal order/session.
 - Use PayPal shipping/order update callbacks for delivery address, shipping option, promo, tax, and amount updates.
 - Return buyer to merchant Review and Confirm page at `/checkout/express-review?paypal_order_id={paypalOrderId}`.
-- Load Review and Confirm from `GET /api/paypal/orders/express-review` so the buyer sees the latest synchronized PayPal shipping-update totals, item rows, selected shipping option, promo, tax, and amount guard.
+- Load Review and Confirm from `GET /api/paypal/orders/express-review` so the buyer sees the latest synchronized PayPal shipping-update totals, item rows, selected shipping option, promo, tax, and amount guard. In local/no-callback sandbox mode, the endpoint can fall back to the same-session `review_confirm` totals and a buyer-safe PayPal-supplied-address placeholder while preserving the amount guard.
 - Capture only after buyer confirms on merchant page.
 - Guard capture using the locked merchant/provider amount snapshot; store the sanitized PayPal capture response for Admin/debug review.
 
@@ -217,7 +217,47 @@ Admin Portal controls active profile and market globally. Switching profile/mark
 
 ## Runbook
 
-Runbook will be completed during implementation planning after the local stack commands are confirmed.
+Install and verify:
+
+```bash
+npm install
+npm run verify
+npm run seed:summary
+```
+
+Local Supabase commands require Docker Desktop or another compatible Docker daemon:
+
+```bash
+npm run db:start
+npm run db:reset
+npm run db:lint
+npm run seed:local
+```
+
+When linked Supabase environment variables are configured, refresh remote seed data with:
+
+```bash
+npm run seed:linked
+```
+
+Start the buyer demo locally:
+
+```bash
+node --env-file=.env node_modules/tsx/dist/cli.mjs watch server/src/server.ts
+npm run dev:web -- --host localhost
+```
+
+Use `http://localhost:5173`, not `127.0.0.1`, for API-backed browser QA unless CORS is updated. Primary buyer routes are `/`, `/products`, `/products/blind-boxes-2`, `/cart`, `/checkout`, and `/account`. The Admin Portal route `/admin` remains M15 backlog until that portal is implemented.
+
+Current verified evidence paths:
+
+- `/private/tmp/paypal-retail-responsive-gate-20260623-final`
+- `/private/tmp/paypal-retail-api-backed-payment-gate-20260623`
+- `/private/tmp/paypal-retail-m16-a11y-visual-gate-20260623`
+- `/Users/tengtao/Development/demo-projects/paypal-sandbox-capture-confirmation.png`
+- `/Users/tengtao/Development/demo-projects/paypal-sandbox-post-capture-empty-cart.png`
+
+Full cart PayPal sandbox capture was completed on 2026-06-24 for order `DO-20260624-000001` / PayPal order `5YR26262S4472494N`. Future reruns remain a manual gate: click the cart PayPal button, sign in with a sandbox buyer account only after explicit user approval, approve, return to `/checkout/express-review`, confirm capture, and verify paid order, inventory, and cart-clearing state.
 
 Expected high-level runbook:
 

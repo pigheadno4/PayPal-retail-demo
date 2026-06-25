@@ -59,6 +59,7 @@ export interface PayPalSdkProviderScopeProps {
   readonly configRequest: PayPalSdkConfigRequest;
   readonly initialSdkConfig?: PayPalSdkConfigResponse;
   readonly apiClient?: ApiClient;
+  readonly fallback?: ReactNode;
   readonly children: ReactNode;
 }
 
@@ -84,6 +85,7 @@ export function PayPalSdkProviderScope({
   configRequest,
   initialSdkConfig,
   apiClient,
+  fallback,
   children,
 }: PayPalSdkProviderScopeProps) {
   const contextApiClient = useOptionalApiClient();
@@ -93,7 +95,12 @@ export function PayPalSdkProviderScope({
   );
   const requestQuery = useMemo(
     () => buildPayPalSdkConfigQuery(configRequest),
-    [configRequest],
+    [
+      configRequest.flow,
+      configRequest.market,
+      configRequest.method,
+      configRequest.pageType,
+    ],
   );
   const requestKey = useMemo(
     () => JSON.stringify(requestQuery),
@@ -112,6 +119,8 @@ export function PayPalSdkProviderScope({
           error: null,
         },
   );
+  const methodLabel = formatPayPalPaymentMethod(configRequest.method);
+  const statusIdBase = buildPayPalStatusIdBase(providerKey, configRequest);
 
   useEffect(() => {
     if (initialSdkConfig?.provider_key === providerKey) {
@@ -181,21 +190,25 @@ export function PayPalSdkProviderScope({
       }
     >
       {loadState.status === "loading" ? (
-        <StatusRegion id="paypal-sdk-config-status" className="sr-only">
-          Loading PayPal payment options.
+        <StatusRegion id={`${statusIdBase}-config-status`} className="sr-only">
+          Loading {methodLabel} payment option.
         </StatusRegion>
       ) : null}
       {loadState.status === "error" ? (
-        <StatusRegion id="paypal-sdk-config-status" tone="assertive">
-          PayPal payment options are temporarily unavailable.
+        <StatusRegion id={`${statusIdBase}-config-status`} tone="assertive">
+          {methodLabel} payment option is temporarily unavailable.
         </StatusRegion>
       ) : null}
+      {loadState.status !== "ready" && fallback ? fallback : null}
       {loadState.status === "ready" ? (
         <PayPalProvider
           key={loadState.config.provider_key}
           {...buildPayPalProviderOptions(loadState.config)}
         >
-          <PayPalSdkStatusRegion />
+          <PayPalSdkStatusRegion
+            methodLabel={methodLabel}
+            statusId={`${statusIdBase}-runtime-status`}
+          />
           {children}
         </PayPalProvider>
       ) : null}
@@ -233,24 +246,61 @@ export function buildPayPalProviderOptions(
     : options;
 }
 
-function PayPalSdkStatusRegion() {
+function PayPalSdkStatusRegion({
+  methodLabel,
+  statusId,
+}: {
+  readonly methodLabel: string;
+  readonly statusId: string;
+}) {
   const paypal = usePayPal();
   const isLoading = paypal.loadingStatus === INSTANCE_LOADING_STATE.PENDING;
   const isRejected = paypal.loadingStatus === INSTANCE_LOADING_STATE.REJECTED;
 
   if (isRejected) {
     return (
-      <StatusRegion id="paypal-sdk-status" tone="assertive">
-        PayPal SDK failed to initialize.
+      <StatusRegion id={statusId} tone="assertive">
+        {methodLabel} payment option failed to initialize.
       </StatusRegion>
     );
   }
 
   return (
-    <StatusRegion id="paypal-sdk-status" className="sr-only">
+    <StatusRegion id={statusId} className="sr-only">
       {isLoading
-        ? "PayPal payment options loading."
-        : "PayPal payment options ready."}
+        ? `${methodLabel} payment option loading.`
+        : `${methodLabel} payment option ready.`}
     </StatusRegion>
   );
+}
+
+function formatPayPalPaymentMethod(method: PayPalPaymentMethod): string {
+  switch (method) {
+    case "apple_pay":
+      return "Apple Pay";
+    case "card":
+      return "card";
+    case "google_pay":
+      return "Google Pay";
+    case "paylater":
+      return "Pay Later";
+    case "paypal":
+      return "PayPal";
+    case "venmo":
+      return "Venmo";
+  }
+}
+
+function buildPayPalStatusIdBase(
+  providerKey: string,
+  request: PayPalSdkConfigRequest,
+): string {
+  const suffix =
+    `${providerKey}-${request.pageType}-${request.flow}-${request.method}`
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 96);
+
+  return `paypal-sdk-${suffix || request.method}`;
 }

@@ -1,15 +1,20 @@
+import { createHash } from "node:crypto";
+
 import type {
   AccountAddress,
   AccountAddressDeleteResult,
   AccountAuthEmailLookupResult,
+  AccountGuestOrderLinkResult,
   AccountOrder,
   AccountOrderAddress,
   AccountOrderFulfillmentMode,
   AccountOrderItem,
+  AccountOrderItemReview,
   AccountOrderPaymentStatus,
   AccountOrderStatus,
   AccountOrderTimelineEvent,
   AccountRepository,
+  AccountReviewMutationResult,
   AccountSavedPaymentMethod,
   PreparedSavedPaymentDelete,
 } from "../routes/account.js";
@@ -57,6 +62,7 @@ export interface AccountUserProfileRow {
 
 export interface AccountOrderRow {
   readonly id: string;
+  readonly profile_id: string;
   readonly order_number: string;
   readonly auth_user_id: string | null;
   readonly fulfillment_mode: AccountOrderFulfillmentMode;
@@ -74,6 +80,7 @@ export interface AccountOrderRow {
 export interface AccountOrderItemRow {
   readonly id: string;
   readonly order_id: string;
+  readonly product_id: string;
   readonly product_name_snapshot: string;
   readonly product_url_snapshot: string | null;
   readonly product_image_url_snapshot: string | null;
@@ -104,9 +111,23 @@ export interface AccountOrderLifecycleEventRow {
 
 export interface AccountOrderReviewRow {
   readonly id: string;
+  readonly profile_id: string;
+  readonly product_id: string;
   readonly order_id: string;
   readonly order_item_id: string;
+  readonly auth_user_id: string;
+  readonly rating: number;
+  readonly title: string | null;
+  readonly body: string | null;
   readonly status: "active" | "deleted";
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface GuestOrderAccessRow {
+  readonly id: string;
+  readonly order_id: string;
+  readonly guest_email_hash: string;
 }
 
 export interface AccountDataSource {
@@ -122,6 +143,13 @@ export interface AccountDataSource {
   readonly listOrders: (
     authUserId: string,
   ) => Promise<readonly AccountOrderRow[]>;
+  readonly listGuestOrderAccessByEmailHash: (
+    guestEmailHash: string,
+  ) => Promise<readonly GuestOrderAccessRow[]>;
+  readonly claimGuestOrderForUser: (input: {
+    readonly orderId: string;
+    readonly authUserId: string;
+  }) => Promise<AccountOrderRow | null>;
   readonly getOrderByNumberForUser: (input: {
     readonly authUserId: string;
     readonly orderNumber: string;
@@ -138,6 +166,18 @@ export interface AccountDataSource {
   readonly listOrderReviews: (
     orderId: string,
   ) => Promise<readonly AccountOrderReviewRow[]>;
+  readonly createOrderReview: (
+    review: Omit<AccountOrderReviewRow, "created_at" | "id" | "updated_at">,
+  ) => Promise<AccountOrderReviewRow>;
+  readonly getActiveReviewForOrderItem: (input: {
+    readonly authUserId: string;
+    readonly orderId: string;
+    readonly orderItemId: string;
+  }) => Promise<AccountOrderReviewRow | null>;
+  readonly updateOrderReview: (
+    id: string,
+    patch: Partial<AccountOrderReviewRow>,
+  ) => Promise<AccountOrderReviewRow>;
   readonly createAddress: (
     address: Omit<AccountAddressRow, "created_at" | "id" | "updated_at">,
   ) => Promise<AccountAddressRow>;
@@ -164,12 +204,15 @@ export interface AccountDataSource {
 
 export interface CreateSupabaseAccountRepositoryInput {
   readonly dataSource: AccountDataSource;
+  readonly hashGuestEmail?: (email: string) => string;
   readonly now?: RepositoryNow;
 }
 
 export function createSupabaseAccountRepository(
   input: CreateSupabaseAccountRepositoryInput,
 ): AccountRepository {
+  const hashGuestEmail = input.hashGuestEmail ?? defaultGuestEmailHash;
+
   return {
     async lookupAuthEmail(email) {
       const normalizedEmail = email.trim().toLowerCase();
@@ -198,6 +241,26 @@ export function createSupabaseAccountRepository(
     async getOrder(getInput) {
       const row = await input.dataSource.getOrderByNumberForUser(getInput);
       return row ? mapAccountOrder(input.dataSource, row) : null;
+    },
+    async linkGuestOrders(linkInput) {
+      const guestEmailHash = hashGuestEmail(linkInput.email);
+      const guestOrderAccessRows =
+        await input.dataSource.listGuestOrderAccessByEmailHash(guestEmailHash);
+      let linkedOrderCount = 0;
+
+      for (const access of guestOrderAccessRows) {
+        const claimedOrder = await input.dataSource.claimGuestOrderForUser({
+          authUserId: linkInput.authUserId,
+          orderId: access.order_id,
+        });
+        if (claimedOrder) {
+          linkedOrderCount += 1;
+        }
+      }
+
+      return {
+        linked_order_count: linkedOrderCount,
+      } satisfies AccountGuestOrderLinkResult;
     },
     async createAddress(createInput) {
       await clearRequestedDefaults(input.dataSource, {
@@ -291,7 +354,140 @@ export function createSupabaseAccountRepository(
       );
       return rows.map(mapSavedPaymentMethod);
     },
+    async submitOrderItemReview(reviewInput) {
+      const target = await resolveReviewTarget(input.dataSource, reviewInput);
+      if (!target) {
+        return {
+          status: "not_found",
+        } satisfies AccountReviewMutationResult;
+      }
+      if (!isOrderReviewEligible(target.order.status)) {
+        return {
+          status: "not_eligible",
+          reason: "Reviews open after delivery or pickup is complete.",
+        } satisfies AccountReviewMutationResult;
+      }
+      if (target.activeReview) {
+        return {
+          status: "not_eligible",
+          reason: "This order item already has an active review.",
+        } satisfies AccountReviewMutationResult;
+      }
+
+      await input.dataSource.createOrderReview({
+        profile_id: target.order.profile_id,
+        product_id: target.item.product_id,
+        order_id: target.order.id,
+        order_item_id: target.item.id,
+        auth_user_id: reviewInput.authUserId,
+        rating: reviewInput.review.rating,
+        title: reviewInput.review.title,
+        body: reviewInput.review.body,
+        status: "active",
+      });
+
+      return {
+        status: "updated",
+        order: await mapAccountOrder(input.dataSource, target.order),
+      } satisfies AccountReviewMutationResult;
+    },
+    async updateOrderItemReview(reviewInput) {
+      const target = await resolveReviewTarget(input.dataSource, reviewInput);
+      if (!target?.activeReview) {
+        return {
+          status: "not_found",
+        } satisfies AccountReviewMutationResult;
+      }
+      if (!isOrderReviewEligible(target.order.status)) {
+        return {
+          status: "not_eligible",
+          reason: "Reviews open after delivery or pickup is complete.",
+        } satisfies AccountReviewMutationResult;
+      }
+
+      await input.dataSource.updateOrderReview(target.activeReview.id, {
+        rating: reviewInput.review.rating,
+        title: reviewInput.review.title,
+        body: reviewInput.review.body,
+        updated_at: resolveNow(input.now),
+      });
+
+      return {
+        status: "updated",
+        order: await mapAccountOrder(input.dataSource, target.order),
+      } satisfies AccountReviewMutationResult;
+    },
+    async deleteOrderItemReview(deleteInput) {
+      const target = await resolveReviewTarget(input.dataSource, deleteInput);
+      if (!target?.activeReview) {
+        return {
+          status: "not_found",
+        } satisfies AccountReviewMutationResult;
+      }
+
+      await input.dataSource.updateOrderReview(target.activeReview.id, {
+        status: "deleted",
+        updated_at: resolveNow(input.now),
+      });
+
+      return {
+        status: "updated",
+        order: await mapAccountOrder(input.dataSource, target.order),
+      } satisfies AccountReviewMutationResult;
+    },
   };
+}
+
+async function resolveReviewTarget(
+  dataSource: AccountDataSource,
+  input: {
+    readonly authUserId: string;
+    readonly itemId: string;
+    readonly orderNumber: string;
+  },
+): Promise<{
+  readonly activeReview: AccountOrderReviewRow | null;
+  readonly item: AccountOrderItemRow;
+  readonly order: AccountOrderRow;
+} | null> {
+  const order = await dataSource.getOrderByNumberForUser({
+    authUserId: input.authUserId,
+    orderNumber: input.orderNumber,
+  });
+  if (!order) {
+    return null;
+  }
+
+  const items = await dataSource.listOrderItems(order.id);
+  const item = resolvePublicOrderItem(items, input.itemId);
+  if (!item) {
+    return null;
+  }
+
+  const activeReview = await dataSource.getActiveReviewForOrderItem({
+    authUserId: input.authUserId,
+    orderId: order.id,
+    orderItemId: item.id,
+  });
+
+  return {
+    activeReview,
+    item,
+    order,
+  };
+}
+
+function resolvePublicOrderItem(
+  items: readonly AccountOrderItemRow[],
+  itemId: string,
+): AccountOrderItemRow | null {
+  const match = /^line_([1-9][0-9]*)$/.exec(itemId);
+  if (!match) {
+    return null;
+  }
+
+  const itemIndex = Number(match[1]) - 1;
+  return items[itemIndex] ?? null;
 }
 
 function mapSavedPaymentMethod(
@@ -336,10 +532,10 @@ async function mapAccountOrder(
     dataSource.listOrderLifecycleEvents(row.id),
     dataSource.listOrderReviews(row.id),
   ]);
-  const activeReviewItemIds = new Set(
+  const activeReviewsByItemId = new Map(
     reviews
       .filter((review) => review.status === "active")
-      .map((review) => review.order_item_id),
+      .map((review) => [review.order_item_id, review]),
   );
   const reviewEligible = isOrderReviewEligible(row.status);
 
@@ -361,7 +557,7 @@ async function mapAccountOrder(
     },
     items: items.map((item, index) =>
       mapAccountOrderItem(item, {
-        activeReviewItemIds,
+        activeReviewsByItemId,
         index,
         reviewEligible,
       }),
@@ -374,12 +570,13 @@ async function mapAccountOrder(
 function mapAccountOrderItem(
   item: AccountOrderItemRow,
   context: {
-    readonly activeReviewItemIds: ReadonlySet<string>;
+    readonly activeReviewsByItemId: ReadonlyMap<string, AccountOrderReviewRow>;
     readonly index: number;
     readonly reviewEligible: boolean;
   },
 ): AccountOrderItem {
-  const reviewSubmitted = context.activeReviewItemIds.has(item.id);
+  const review = context.activeReviewsByItemId.get(item.id) ?? null;
+  const reviewSubmitted = Boolean(review);
 
   return {
     id: `line_${context.index + 1}`,
@@ -391,6 +588,17 @@ function mapAccountOrderItem(
     line_total_minor: item.line_total_minor,
     review_eligible: context.reviewEligible && !reviewSubmitted,
     review_submitted: reviewSubmitted,
+    review: review ? mapAccountOrderItemReview(review) : null,
+  };
+}
+
+function mapAccountOrderItemReview(
+  review: AccountOrderReviewRow,
+): AccountOrderItemReview {
+  return {
+    rating: review.rating,
+    title: review.title,
+    body: review.body,
   };
 }
 
@@ -512,6 +720,12 @@ function defaultDeleteBlockReasons(
   return reasons;
 }
 
+function defaultGuestEmailHash(email: string): string {
+  return `sha256:${createHash("sha256")
+    .update(`paypal-retail-demo-v1:${email.trim().toLowerCase()}`)
+    .digest("hex")}`;
+}
+
 function resolveNow(now: RepositoryNow | undefined): string {
   const value = typeof now === "function" ? now() : now;
   const date =
@@ -535,6 +749,10 @@ interface SupabaseAccountQuery extends PromiseLike<
 > {
   readonly select: (columns: string) => SupabaseAccountQuery;
   readonly eq: (
+    column: string,
+    value: SupabasePrimitive,
+  ) => SupabaseAccountQuery;
+  readonly is: (
     column: string,
     value: SupabasePrimitive,
   ) => SupabaseAccountQuery;
@@ -594,6 +812,7 @@ const addressColumns = [
 
 const orderColumns = [
   "id",
+  "profile_id",
   "order_number",
   "auth_user_id",
   "fulfillment_mode",
@@ -611,6 +830,7 @@ const orderColumns = [
 const orderItemColumns = [
   "id",
   "order_id",
+  "product_id",
   "product_name_snapshot",
   "product_url_snapshot",
   "product_image_url_snapshot",
@@ -639,7 +859,22 @@ const orderLifecycleEventColumns = [
   "created_at",
 ].join(", ");
 
-const orderReviewColumns = ["id", "order_id", "order_item_id", "status"].join(
+const orderReviewColumns = [
+  "id",
+  "profile_id",
+  "product_id",
+  "order_id",
+  "order_item_id",
+  "auth_user_id",
+  "rating",
+  "title",
+  "body",
+  "status",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const guestOrderAccessColumns = ["id", "order_id", "guest_email_hash"].join(
   ", ",
 );
 
@@ -685,6 +920,27 @@ export function createSupabaseAccountDataSource(
           .eq("auth_user_id", authUserId)
           .order("created_at", { ascending: false }),
         `List orders ${authUserId}`,
+      );
+    },
+    async listGuestOrderAccessByEmailHash(guestEmailHash) {
+      return queryMany<GuestOrderAccessRow>(
+        supabase
+          .from("guest_order_access")
+          .select(guestOrderAccessColumns)
+          .eq("guest_email_hash", guestEmailHash),
+        `List guest order access ${guestEmailHash}`,
+      );
+    },
+    async claimGuestOrderForUser(input) {
+      return queryOne<AccountOrderRow>(
+        supabase
+          .from("orders")
+          .update({ auth_user_id: input.authUserId })
+          .eq("id", input.orderId)
+          .is("auth_user_id", null)
+          .select(orderColumns)
+          .maybeSingle(),
+        `Claim guest order ${input.orderId}`,
       );
     },
     async getOrderByNumberForUser(input) {
@@ -734,6 +990,40 @@ export function createSupabaseAccountDataSource(
           .select(orderReviewColumns)
           .eq("order_id", orderId),
         `List order reviews ${orderId}`,
+      );
+    },
+    async createOrderReview(review) {
+      return queryRequired<AccountOrderReviewRow>(
+        supabase
+          .from("reviews")
+          .insert(review as Record<string, unknown>)
+          .select(orderReviewColumns)
+          .single(),
+        `Create order item review ${review.order_item_id}`,
+      );
+    },
+    async getActiveReviewForOrderItem(input) {
+      return queryOne<AccountOrderReviewRow>(
+        supabase
+          .from("reviews")
+          .select(orderReviewColumns)
+          .eq("auth_user_id", input.authUserId)
+          .eq("order_id", input.orderId)
+          .eq("order_item_id", input.orderItemId)
+          .eq("status", "active")
+          .maybeSingle(),
+        `Load active review ${input.orderItemId}`,
+      );
+    },
+    async updateOrderReview(id, patch) {
+      return queryRequired<AccountOrderReviewRow>(
+        supabase
+          .from("reviews")
+          .update(patch as Record<string, unknown>)
+          .eq("id", id)
+          .select(orderReviewColumns)
+          .single(),
+        `Update review ${id}`,
       );
     },
     async createAddress(address) {
