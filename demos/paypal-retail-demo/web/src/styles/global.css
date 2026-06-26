@@ -6184,6 +6184,13 @@ p {
   min-height: 42px;
 }
 
+.minicart-actions .minicart-actions__link--primary {
+  background-color: var(--shell-accent, #f42434) !important;
+  border-color: var(--shell-accent, #f42434) !important;
+  box-shadow: 0 10px 22px rgb(244 36 52 / 0.2);
+  color: #ffffff;
+}
+
 .minicart-actions .minicart-actions__link--secondary {
   background-color: color-mix(
     in srgb,

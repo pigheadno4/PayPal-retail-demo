@@ -242,6 +242,25 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain("@media (max-width: 520px)");
   });
 
+  it("keeps minicart checkout actions visible when the sheet is portaled", () => {
+    const minicartPrimaryActionBlock = cssBlock(
+      ".minicart-actions .minicart-actions__link--primary",
+    );
+    const minicartSecondaryActionBlock = cssBlock(
+      ".minicart-actions .minicart-actions__link--secondary",
+    );
+
+    expect(minicartPrimaryActionBlock).toContain(
+      "background-color: var(--shell-accent, #f42434) !important",
+    );
+    expect(minicartPrimaryActionBlock).toContain(
+      "border-color: var(--shell-accent, #f42434) !important",
+    );
+    expect(minicartPrimaryActionBlock).toContain("color: #ffffff");
+    expect(minicartSecondaryActionBlock).toContain("var(--shell-bg, #fff8f3)");
+    expect(minicartSecondaryActionBlock).toContain("var(--shell-ink, #191919)");
+  });
+
   it("keeps cart and checkout visual accents on merchant-owned surfaces only", () => {
     const cartHeroBlock = cssBlock(".cart-hero");
     const cartHeroAccentBlock = cssBlock(".cart-hero::before");
