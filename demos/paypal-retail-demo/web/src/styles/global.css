@@ -214,7 +214,7 @@ a {
   display: grid;
   gap: 24px;
   grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 520px) minmax(
-      340px,
+      460px,
       0.8fr
     );
   min-height: 70px;

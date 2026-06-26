@@ -397,6 +397,7 @@ describe("global storefront visual tokens", () => {
   });
 
   it("keeps mobile responsive controls at touch-target size without touching PayPal surfaces", () => {
+    const headerInnerBlock = cssBlock(".site-header__inner");
     const discoveryBlock = cssBlock(".site-header__discovery");
     const buttonBlock = cssBlockContaining(".button", "min-height: 44px");
     const calendarNavBlock = cssBlock(
@@ -411,6 +412,9 @@ describe("global storefront visual tokens", () => {
     const cartFrameBlock = cssBlock(".cart-paypal-frame");
     const checkoutSlotBlock = cssBlock(".checkout-summary__slot");
 
+    expect(headerInnerBlock).toContain(
+      "grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 520px) minmax(\n      460px,",
+    );
     expect(discoveryBlock).toContain("min-height: 44px");
     expect(globalCss).toContain(
       "@media (max-width: 1280px) and (min-width: 901px)",
