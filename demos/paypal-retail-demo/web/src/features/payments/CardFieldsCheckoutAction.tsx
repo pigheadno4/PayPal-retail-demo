@@ -5,7 +5,7 @@ import {
   PayPalCardNumberField,
   usePayPalCardFieldsOneTimePaymentSession,
 } from "@paypal/react-paypal-js/sdk-v6";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type ApiQueryParams,
@@ -15,13 +15,27 @@ import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
+import {
+  PaymentActionFailureNotice,
+  usePaymentActionFailure,
+} from "./paymentActionFailure.js";
 
 export interface CardFieldsCheckoutActionProps {
   readonly canSavePaymentMethod?: boolean;
   readonly checkoutDraftId: string;
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
+  readonly onApproved?:
+    | ((context: CardFieldsApprovedContext) => Promise<void> | void)
+    | undefined;
   readonly requestOptions?: ApiRequestOptions | undefined;
+}
+
+export interface CardFieldsApprovedContext {
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly method: "card";
+  readonly paypalOrderId: string;
+  readonly paymentSessionId?: string;
 }
 
 export interface CardFieldsCreateOrderRequest {
@@ -40,6 +54,7 @@ export function CardFieldsCheckoutAction({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  onApproved,
   requestOptions,
 }: CardFieldsCheckoutActionProps) {
   return (
@@ -49,6 +64,7 @@ export function CardFieldsCheckoutAction({
         checkoutDraftId={checkoutDraftId}
         fulfillmentMode={fulfillmentMode}
         market={market}
+        onApproved={onApproved}
         requestOptions={requestOptions}
       />
     </PayPalCardFieldsProvider>
@@ -60,6 +76,7 @@ function CardFieldsCheckoutForm({
   checkoutDraftId,
   fulfillmentMode,
   market,
+  onApproved,
   requestOptions,
 }: CardFieldsCheckoutActionProps) {
   const apiClient = useApiClient();
@@ -67,11 +84,20 @@ function CardFieldsCheckoutForm({
   const [submitStatus, setSubmitStatus] = useState(
     "Card payment fields ready.",
   );
+  const lastCreatedOrder = useRef<PayPalCreateOrderResponse | null>(null);
+  const approvedOrderIds = useRef(new Set<string>());
   const { error, submit, submitResponse } =
     usePayPalCardFieldsOneTimePaymentSession();
   const effectiveVaultRequested = canSavePaymentMethod && vaultRequested;
+  const {
+    captureApprovalFailure,
+    captureCreateOrderFailure,
+    clearFailure,
+    failure,
+  } = usePaymentActionFailure("card payment");
 
   const createOrder = useCallback(async () => {
+    clearFailure();
     const request = buildCardFieldsCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
@@ -79,13 +105,26 @@ function CardFieldsCheckoutForm({
       requestOptions,
       vaultRequested: effectiveVaultRequested,
     });
-    const order = await apiClient.post<PayPalCreateOrderResponse>(
-      request.path,
-      request.body,
-      request.query,
-      request.options,
-    );
+    let order: PayPalCreateOrderResponse;
 
+    try {
+      order = await apiClient.post<PayPalCreateOrderResponse>(
+        request.path,
+        request.body,
+        request.query,
+        request.options,
+      );
+    } catch (error) {
+      const actionFailure = captureCreateOrderFailure(error);
+      console.error("[paypal-retail-demo] Card create-order failed", {
+        code: actionFailure.code,
+        debugId: actionFailure.debugId ?? null,
+      });
+      setSubmitStatus("Card payment could not start. Try again.");
+      throw error;
+    }
+
+    lastCreatedOrder.current = order;
     console.info("[paypal-retail-demo] Card order created", {
       paypalOrderId: order.paypal_order_id,
       paymentSessionId: order.payment_session_id ?? null,
@@ -96,7 +135,9 @@ function CardFieldsCheckoutForm({
     return order.paypal_order_id;
   }, [
     apiClient,
+    captureCreateOrderFailure,
     checkoutDraftId,
+    clearFailure,
     effectiveVaultRequested,
     fulfillmentMode,
     market,
@@ -104,14 +145,35 @@ function CardFieldsCheckoutForm({
   ]);
 
   const handleSubmit = useCallback(async () => {
+    clearFailure();
     setSubmitStatus("Submitting card payment.");
-    const orderId = await createOrder();
-    await submit(orderId);
-  }, [createOrder, submit]);
+    let orderId: string;
+
+    try {
+      orderId = await createOrder();
+    } catch {
+      return;
+    }
+
+    try {
+      await submit(orderId);
+    } catch (error) {
+      const actionFailure = captureApprovalFailure(error);
+      console.error("[paypal-retail-demo] Card fields submit failed", {
+        code: actionFailure.code,
+        debugId: actionFailure.debugId ?? null,
+        paypalOrderId: orderId,
+      });
+      setSubmitStatus("Card payment could not be submitted. Try again.");
+    }
+  }, [captureApprovalFailure, clearFailure, createOrder, submit]);
 
   useEffect(() => {
     if (error) {
+      const actionFailure = captureApprovalFailure(error);
       console.error("[paypal-retail-demo] Card fields error", {
+        code: actionFailure.code,
+        debugId: actionFailure.debugId ?? null,
         message: error.message,
       });
       setSubmitStatus("Card payment could not be submitted. Try again.");
@@ -135,7 +197,40 @@ function CardFieldsCheckoutForm({
         ? "Card payment approved. Confirming order."
         : "Card payment needs attention. Try again.",
     );
-  }, [submitResponse]);
+
+    if (submitResponse.state !== "succeeded") {
+      return;
+    }
+
+    const paypalOrderId = submitResponse.data.orderId;
+    if (approvedOrderIds.current.has(paypalOrderId)) {
+      return;
+    }
+    approvedOrderIds.current.add(paypalOrderId);
+
+    void (async () => {
+      try {
+        await onApproved?.({
+          fulfillmentMode,
+          method: "card",
+          paypalOrderId,
+          ...(lastCreatedOrder.current?.payment_session_id
+            ? { paymentSessionId: lastCreatedOrder.current.payment_session_id }
+            : {}),
+        });
+      } catch (error) {
+        const actionFailure = captureApprovalFailure(error);
+        console.error("[paypal-retail-demo] Card approval handling failed", {
+          code: actionFailure.code,
+          debugId: actionFailure.debugId ?? null,
+          paypalOrderId,
+        });
+        setSubmitStatus(
+          "Card payment was approved but could not be confirmed.",
+        );
+      }
+    })();
+  }, [captureApprovalFailure, fulfillmentMode, onApproved, submitResponse]);
 
   return (
     <form
@@ -194,6 +289,7 @@ function CardFieldsCheckoutForm({
       <button className="card-fields-checkout-action__submit" type="submit">
         Pay by card
       </button>
+      <PaymentActionFailureNotice failure={failure} onRetry={clearFailure} />
     </form>
   );
 }

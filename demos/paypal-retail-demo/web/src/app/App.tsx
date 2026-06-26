@@ -97,7 +97,10 @@ import {
   mapExpressReviewDataFromApiResponse,
   type ExpressReviewApiResponse,
 } from "../features/checkout/expressReviewApi.js";
-import { CardFieldsCheckoutAction } from "../features/payments/CardFieldsCheckoutAction.js";
+import {
+  CardFieldsCheckoutAction,
+  type CardFieldsApprovedContext,
+} from "../features/payments/CardFieldsCheckoutAction.js";
 import {
   DeliveryExpressAction,
   type DeliveryExpressApprovedContext,
@@ -684,7 +687,8 @@ type CartRefreshTrigger = "checkout_start" | "express_payment_start";
 
 type CheckoutApprovedPaymentContext =
   | PayPalStandaloneApprovedContext
-  | PayLaterStandaloneApprovedContext;
+  | PayLaterStandaloneApprovedContext
+  | CardFieldsApprovedContext;
 
 interface CaptureOrderApiResponse {
   readonly order_number: string;
@@ -2526,7 +2530,11 @@ function BuyerShell({
     context: CheckoutApprovedPaymentContext,
   ) {
     const paymentMethodLabel =
-      context.method === "paylater" ? "Pay Later" : "PayPal";
+      context.method === "paylater"
+        ? "Pay Later"
+        : context.method === "card"
+          ? "card payment"
+          : "PayPal";
 
     console.info("[paypal-retail-demo] Checkout payment approved", {
       fulfillmentMode: context.fulfillmentMode,
@@ -2974,6 +2982,7 @@ function BuyerShell({
               cart: currentCart,
               config,
               context,
+              onApproved: handleCheckoutPaymentApproved,
             })
           }
           renderCheckoutPaymentAction={(context) =>
@@ -5305,11 +5314,15 @@ function renderCardPaymentBox({
   cart,
   config,
   context,
+  onApproved,
 }: {
   readonly authSession?: BuyerAuthSession | null | undefined;
   readonly cart: CartData;
   readonly config: StorefrontRuntimeConfig;
   readonly context: CheckoutPaymentActionContext;
+  readonly onApproved: (
+    context: CheckoutApprovedPaymentContext,
+  ) => Promise<void>;
 }) {
   if (context.selectedPaymentMethod !== "card" || !context.checkoutDraftId) {
     return null;
@@ -5331,6 +5344,7 @@ function renderCardPaymentBox({
         checkoutDraftId={context.checkoutDraftId}
         fulfillmentMode={context.fulfillmentMode}
         market={config.market.code}
+        onApproved={onApproved}
         requestOptions={buildCartRequestOptions(cart, authSession)}
       />
     </PayPalSdkProviderScope>

@@ -12,6 +12,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Hosted Render smoke returns 200 app responses for `/api/health`, `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` before hosted PayPal checkout QA continues.
 - [x] Hosted Render checkout completes official PayPal sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, and an empty cart.
 - [x] Hosted Render checkout completes official Pay Later Pay in 4 sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, Pay Later payment method, and an empty cart.
+- [ ] Hosted Render checkout completes official Card Fields sandbox approval and merchant capture over HTTPS after explicit approval to submit public PayPal sandbox card data, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, card payment method, and an empty cart.
 
 ## Seed And Database QA
 
@@ -75,6 +76,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] PayPal payment method mapper returns only runtime-eligible renderable payment rows.
 - [x] PayPal payment method mapper maps PayPal, Pay Later, card, Apple Pay, Google Pay, and Venmo to the expected SDK component/session/UI surface.
 - [x] PayPal payment method mapper keeps card payment action inside the card box and out of the mobile sticky bar.
+- [x] Checkout Card Fields successful submit hands App the created PayPal order/session so the shared checkout approval bridge can review, capture, confirm, and reload cart state instead of stopping at local hosted-card status text.
 - [x] PayPal payment method mapper hides Venmo outside US/USD and records hidden-method reasons for debug/Admin display.
 - [x] PayPal vault attribute planner includes PayPal wallet vault attributes only for logged-in save requests.
 - [x] PayPal vault attribute planner includes card vault, customer, and 3DS verification attributes only for logged-in card save requests.

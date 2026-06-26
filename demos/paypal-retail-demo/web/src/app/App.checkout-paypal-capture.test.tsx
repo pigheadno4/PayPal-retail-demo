@@ -28,7 +28,13 @@ import type { BuyerAuthClient } from "../features/account/authClient.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import { App } from "./App.js";
 
-vi.mock("@paypal/react-paypal-js/sdk-v6", () => {
+const cardFieldsMockState = vi.hoisted(() => ({
+  submit: vi.fn<(orderId: string) => Promise<void>>(() => Promise.resolve()),
+}));
+
+vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+
   function MockPayPalButton({
     createOrder,
     onApprove,
@@ -65,10 +71,55 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => {
       REJECTED: "rejected",
     },
     PayLaterOneTimePaymentButton: MockPayPalButton,
+    PayPalCardCvvField: ({
+      containerClassName,
+    }: {
+      readonly containerClassName?: string;
+    }) => <div className={containerClassName} data-testid="card-cvv" />,
+    PayPalCardExpiryField: ({
+      containerClassName,
+    }: {
+      readonly containerClassName?: string;
+    }) => <div className={containerClassName} data-testid="card-expiry" />,
+    PayPalCardFieldsProvider: ({
+      children,
+    }: {
+      readonly children: ReactNode;
+    }) => <div data-testid="card-fields-provider">{children}</div>,
+    PayPalCardNumberField: ({
+      containerClassName,
+    }: {
+      readonly containerClassName?: string;
+    }) => <div className={containerClassName} data-testid="card-number" />,
     PayPalOneTimePaymentButton: MockPayPalButton,
     PayPalProvider: ({ children }: { readonly children: ReactNode }) => (
       <div data-testid="mock-paypal-provider">{children}</div>
     ),
+    usePayPalCardFieldsOneTimePaymentSession: () => {
+      const [submitResponse, setSubmitResponse] = React.useState<{
+        readonly state: "succeeded";
+        readonly data: {
+          readonly orderId: string;
+          readonly liabilityShift?: string | null;
+          readonly message?: string | null;
+        };
+      } | null>(null);
+
+      return {
+        error: null,
+        submit: async (orderId: string) => {
+          await cardFieldsMockState.submit(orderId);
+          setSubmitResponse({
+            state: "succeeded",
+            data: {
+              orderId,
+              liabilityShift: "NO",
+            },
+          });
+        },
+        submitResponse,
+      };
+    },
     useEligibleMethods: () => ({
       eligiblePaymentMethods: {
         getDetails: () => ({
@@ -101,6 +152,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  cardFieldsMockState.submit.mockReset();
+  cardFieldsMockState.submit.mockResolvedValue(undefined);
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: createMemoryStorage(),
@@ -178,6 +231,98 @@ describe("App checkout PayPal capture", () => {
         expect.objectContaining({
           method: "post",
           path: "/api/paypal/orders/PAYPAL_ORDER_CHECKOUT/capture",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByRole("heading", { name: "Thank you!" })).toBeTruthy();
+    expect(screen.getByText("PAYPAL_CAPTURE_CHECKOUT")).toBeTruthy();
+    expect(globalThis.location.pathname).toBe("/checkout/express-review");
+    expect(
+      screen.getByRole("button", { name: "Open minicart" }).textContent,
+    ).toContain("0");
+  });
+
+  it("captures approved checkout card field orders and shows confirmation", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse({
+          paymentMethodLabel: "card payment",
+          paymentSessionId: "payment_session_card_checkout",
+          paypalOrderId: "PAYPAL_ORDER_CARD_CHECKOUT",
+        }),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_after_card_capture",
+          cartPublicId: "cart_public_after_card_capture",
+        }),
+      ],
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000010",
+          payment_session_id: "payment_session_card_checkout",
+          paypal_order_id: "PAYPAL_ORDER_CARD_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-card-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_CARD_CHECKOUT/capture":
+          captureApiResponse({
+            paymentSessionId: "payment_session_card_checkout",
+            paypalOrderId: "PAYPAL_ORDER_CARD_CHECKOUT",
+          }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /Credit or debit card/,
+      }),
+    );
+    await user.click(
+      await within(paymentStep).findByRole("button", {
+        name: "Pay by card",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(cardFieldsMockState.submit).toHaveBeenCalledWith(
+        "PAYPAL_ORDER_CARD_CHECKOUT",
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/paypal/orders/express-review",
+          query: expect.objectContaining({
+            market: "US",
+            paypal_order_id: "PAYPAL_ORDER_CARD_CHECKOUT",
+            payment_session_id: "payment_session_card_checkout",
+          }),
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_CARD_CHECKOUT/capture",
           query: {
             market: "US",
           },
@@ -371,7 +516,9 @@ function sdkConfigApiResponse(query?: ApiQueryParams) {
   const components =
     method === "paylater"
       ? ["paypal-payments", "paypal-messages"]
-      : ["paypal-payments"];
+      : method === "card"
+        ? ["card-fields"]
+        : ["paypal-payments"];
 
   return {
     client_id: "PAYPAL_PUBLIC_CLIENT_ID",
@@ -499,13 +646,19 @@ function checkoutDraftApiResponse() {
   };
 }
 
-function expressReviewApiResponse() {
+function expressReviewApiResponse(
+  input: {
+    readonly paymentMethodLabel?: string;
+    readonly paymentSessionId?: string;
+    readonly paypalOrderId?: string;
+  } = {},
+) {
   return {
     source_label: "Delivery checkout",
     order_number: "DO-20260624-000009",
-    payment_session_id: "payment_session_checkout",
-    paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
-    payment_method_label: "PayPal",
+    payment_session_id: input.paymentSessionId ?? "payment_session_checkout",
+    paypal_order_id: input.paypalOrderId ?? "PAYPAL_ORDER_CHECKOUT",
+    payment_method_label: input.paymentMethodLabel ?? "PayPal",
     status_label: "Payment session synchronized",
     shipping_address: {
       name: "Taylor Chen",
@@ -546,11 +699,16 @@ function expressReviewApiResponse() {
   };
 }
 
-function captureApiResponse() {
+function captureApiResponse(
+  input: {
+    readonly paymentSessionId?: string;
+    readonly paypalOrderId?: string;
+  } = {},
+) {
   return {
     order_number: "DO-20260624-000009",
-    payment_session_id: "payment_session_checkout",
-    paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+    payment_session_id: input.paymentSessionId ?? "payment_session_checkout",
+    paypal_order_id: input.paypalOrderId ?? "PAYPAL_ORDER_CHECKOUT",
     paypal_capture_id: "PAYPAL_CAPTURE_CHECKOUT",
     paypal_order_status: "COMPLETED",
     paypal_capture_status: "COMPLETED",
