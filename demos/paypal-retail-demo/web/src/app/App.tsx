@@ -5364,6 +5364,7 @@ function renderStorefrontPayLaterMessage({
           {...(amountLabel ? { amountLabel } : {})}
           buyerCountry={resolvePayLaterBuyerCountry(config)}
           currencyCode={config.market.currencyCode}
+          fallbackMessage={fallbackMessage}
           placement={placement}
         />
       </PayPalSdkProviderScope>

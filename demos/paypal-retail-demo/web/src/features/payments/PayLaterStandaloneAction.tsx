@@ -51,6 +51,7 @@ export interface PayLaterAmountMessageProps {
   readonly amountLabel?: string | undefined;
   readonly buyerCountry: string;
   readonly currencyCode: string;
+  readonly fallbackMessage?: string | undefined;
   readonly placement:
     | "cart-summary"
     | "catalog-promo"
@@ -221,65 +222,17 @@ export function PayLaterAmountMessage({
   amountLabel,
   buyerCountry,
   currencyCode,
+  fallbackMessage,
   placement,
 }: PayLaterAmountMessageProps) {
-  if (placement !== "order-summary") {
-    return (
-      <PayLaterAutoAmountMessage
-        amountLabel={amountLabel}
-        buyerCountry={buyerCountry}
-        currencyCode={currencyCode}
-        placement={placement}
-      />
-    );
-  }
-
   return (
     <PayLaterManagedAmountMessage
       amountLabel={amountLabel}
       buyerCountry={buyerCountry}
       currencyCode={currencyCode}
+      fallbackMessage={fallbackMessage}
       placement={placement}
     />
-  );
-}
-
-function PayLaterAutoAmountMessage({
-  amountLabel,
-  buyerCountry,
-  currencyCode,
-  placement,
-}: PayLaterAmountMessageProps) {
-  const amount = amountLabel
-    ? normalizePayLaterMessageAmount(amountLabel)
-    : undefined;
-
-  return (
-    <div
-      className="paylater-amount-message"
-      data-paylater-message-amount={amount}
-      data-paylater-message-buyer-country={buyerCountry}
-      data-paylater-message-currency-code={currencyCode}
-      data-paylater-message-placement={placement}
-    >
-      <StatusRegion
-        id={`paylater-${placement}-message-status`}
-        className="sr-only"
-      >
-        {amountLabel
-          ? `Pay Later message ready for ${amountLabel}.`
-          : "Pay Later message ready."}
-      </StatusRegion>
-      <paypal-message
-        {...(amount ? { amount } : {})}
-        auto-bootstrap={true}
-        buyer-country={buyerCountry}
-        currency-code={currencyCode}
-        logo-position="INLINE"
-        logo-type="WORDMARK"
-        text-color="BLACK"
-      />
-    </div>
   );
 }
 
@@ -287,6 +240,7 @@ function PayLaterManagedAmountMessage({
   amountLabel,
   buyerCountry,
   currencyCode,
+  fallbackMessage: providedFallbackMessage,
   placement,
 }: PayLaterAmountMessageProps) {
   const messageElementRef = useRef<PayPalMessageElement | null>(null);
@@ -301,7 +255,8 @@ function PayLaterManagedAmountMessage({
     currencyCode,
   });
   const fetchContentRef = useRef(handleFetchContent);
-  const fallbackMessage = buildPayLaterMessageFallback(amountLabel);
+  const fallbackMessage =
+    providedFallbackMessage ?? buildPayLaterMessageFallback(amountLabel);
   const shouldShowFallback = Boolean(error) || renderState === "fallback";
   const messageRequestKey = [
     placement,

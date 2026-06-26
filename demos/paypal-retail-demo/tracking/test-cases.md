@@ -413,9 +413,9 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Seeded POP MART product image rows use category-aware descriptive alt text instead of generic `view 1` labels.
 - [x] API-backed homepage and checkout image URLs render without broken images in live browser QA, and PayPal line-item product/image URLs resolve to public absolute URLs in repository coverage.
 - [x] Cold-loading Home, Category, PDP, Cart, Checkout, and hidden Minicart does not render old fixture product names or SVG mock images before generated API-backed data resolves.
-- [x] Category Pay Later promo renders an official PayPal Pay Later message component when Pay Later is enabled, with static copy only while SDK config is loading or errored.
-- [x] PDP, Cart, and Minicart Pay Later messaging render official PayPal message components for eligible/generated live states, not static-only local copy.
-- [x] Storefront Pay Later message placements on Category/PDP/Cart/Minicart use official auto-bootstrap `paypal-message` rendering and do not call the checkout-only managed fetch/fallback path.
+- [x] Category Pay Later promo renders an official PayPal Pay Later message component when Pay Later is enabled, with static copy only while SDK config is loading/errored or PayPal presentment content fails.
+- [x] PDP, Cart, and Minicart Pay Later messaging render official PayPal message components for eligible/generated live states, with buyer-safe fallback only when SDK config or presentment content fails.
+- [x] Storefront Pay Later message placements on Home/Category/PDP/Cart/Minicart use the same managed official content fetch/application path as checkout Order Summary, so a mounted but blank `paypal-message` shell cannot pass regression coverage.
 - [x] Category sidebar secondary filters are fully backed by supported API query params and live count metadata.
 - [x] Current generated POP MART-leaning primary images are accepted for this Popmart-specific demo version, while generic/non-Popmart audience demos remain responsible for separate safer media.
 - [x] Generic MochiToy profile product, homepage, category, and order-snapshot image rows resolve to existing public-safe `/assets/generic/` media with no POP MART/IP terms.

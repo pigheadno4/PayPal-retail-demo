@@ -469,11 +469,16 @@ describe("payment action failure handling", () => {
     ).toBeUndefined();
   });
 
-  it("lets storefront Pay Later messages auto-render without manual content fetch", async () => {
+  it("applies official Pay Later content for storefront message placements", async () => {
     paypalSdkMockState.payLaterMessageReady = true;
     paypalSdkMockState.payLaterMessageContent = {
       message: "official content",
     };
+    const setContent = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "setContent", {
+      configurable: true,
+      value: setContent,
+    });
 
     render(
       <PayLaterAmountMessage
@@ -488,7 +493,10 @@ describe("payment action failure handling", () => {
       await Promise.resolve();
     });
 
-    expect(paypalSdkMockState.payLaterMessageFetchCalls).toBe(0);
+    expect(paypalSdkMockState.payLaterMessageFetchCalls).toBe(1);
+    expect(setContent).toHaveBeenCalledWith({
+      message: "official content",
+    });
     expect(document.querySelector("paypal-message")).toBeTruthy();
     expect(
       document.querySelector(".paylater-amount-message__fallback"),
