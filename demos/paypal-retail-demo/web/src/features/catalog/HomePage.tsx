@@ -1,5 +1,18 @@
 import type { ComponentProps, ReactNode } from "react";
+import {
+  ArrowRight,
+  CalendarDays,
+  CreditCard,
+  Headphones,
+  Heart,
+  ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  Truck,
+  type LucideIcon,
+} from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import {
   Card,
@@ -71,6 +84,7 @@ export interface HomePagePromo {
   readonly title: string;
   readonly body: string;
   readonly href?: string;
+  readonly ctaLabel?: string;
 }
 
 export interface HomePageSeriesCard {
@@ -98,22 +112,30 @@ export interface HomePageProps {
 
 const homeTrustItems = [
   {
-    title: "PayPal checkout",
-    body: "PayPal, Pay Later, and card surfaces render where eligible.",
+    icon: ShieldCheck,
+    title: "Demo-authentic catalog",
+    body: "Original POP MART-profile assets keep the showcase self-contained.",
   },
   {
+    icon: Truck,
     title: "Delivery and pickup",
-    body: "Choose fulfillment during checkout.",
+    body: "Choose shipping or store pickup during checkout.",
   },
   {
-    title: "Order recovery",
-    body: "Resume pending orders and review completed orders.",
+    icon: CreditCard,
+    title: "Secure PayPal checkout",
+    body: "Official PayPal surfaces render where eligible.",
   },
   {
-    title: "Generated demo catalog",
-    body: "Local POP MART-profile assets keep the demo self-contained.",
+    icon: Headphones,
+    title: "Order support",
+    body: "Track, recover, and review demo orders after payment.",
   },
-] as const;
+] as const satisfies readonly {
+  readonly icon: LucideIcon;
+  readonly title: string;
+  readonly body: string;
+}[];
 
 export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
   const calendarDaysByIsoDate = new Map(
@@ -170,6 +192,9 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
         {homeTrustItems.map((item) => (
           <Card className="homepage-trust-card" key={item.title} size="sm">
             <CardHeader className="homepage-trust-card__header">
+              <span className="homepage-trust-card__icon" aria-hidden="true">
+                <item.icon />
+              </span>
               <CardTitle className="homepage-trust-card__title">
                 {item.title}
               </CardTitle>
@@ -186,12 +211,16 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
           className="homepage-calendar"
           aria-labelledby="release-calendar-title"
         >
-          <div>
+          <div className="release-calendar__panel">
             <SectionHeader
               title="New arrivals calendar"
               id="release-calendar-title"
               href="/products?sort=newest"
             />
+            <p className="release-calendar__intro">
+              Follow upcoming drops and jump straight into featured
+              collectibles.
+            </p>
             <Calendar
               aria-label={data.calendar.monthLabel}
               buttonVariant="ghost"
@@ -215,6 +244,9 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
           <Card className="release-calendar__details" role="complementary">
             <CardHeader className="release-calendar__details-header">
               <CardTitle className="release-calendar__details-title">
+                <span aria-hidden="true">
+                  <CalendarDays />
+                </span>
                 <h2>Selected releases</h2>
               </CardTitle>
             </CardHeader>
@@ -247,7 +279,7 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
 
         <section className="homepage-section" aria-labelledby="hot-sales-title">
           <SectionHeader
-            title="Hot sales"
+            title="Pre-order now"
             id="hot-sales-title"
             href="/products"
           />
@@ -256,7 +288,9 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
               <Card className="product-card" key={product.slug} size="sm">
                 <a className="product-card__link" href={product.href}>
                   <CardContent className="product-card__media">
-                    <span className="product-card__tag">{product.eyebrow}</span>
+                    <Badge className="product-card__tag">
+                      {product.eyebrow}
+                    </Badge>
                     <img
                       src={product.imagePath}
                       alt={product.imageAlt}
@@ -274,6 +308,10 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                   <CardFooter className="product-card__footer">
                     <span className="product-card__price">
                       {product.priceLabel}
+                    </span>
+                    <span className="product-card__cta">
+                      <ShoppingCart aria-hidden="true" />
+                      View item
                     </span>
                   </CardFooter>
                 </a>
@@ -320,6 +358,9 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                     {category.description}
                   </CardDescription>
                 </CardHeader>
+                <span className="category-pill__arrow" aria-hidden="true">
+                  <ArrowRight />
+                </span>
               </a>
             </Card>
           ))}
@@ -327,23 +368,51 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
       </section>
 
       <section className="homepage-promo-grid" aria-label="Promotions">
-        {data.promoCards.map((promo) => (
-          <Card className="homepage-promo" key={promo.title}>
-            <a
-              className="homepage-promo__link"
-              href={promo.href ?? "/products"}
+        {data.promoCards.map((promo, index) => {
+          const promoProduct =
+            data.hotSales.length > 0
+              ? data.hotSales[index % data.hotSales.length]
+              : undefined;
+
+          return (
+            <Card
+              className="homepage-promo"
+              data-promo-tone={String(index + 1)}
+              key={promo.title}
             >
-              <CardHeader className="homepage-promo__header">
-                <CardTitle className="homepage-promo__title">
-                  <h2>{promo.title}</h2>
-                </CardTitle>
-                <CardDescription className="homepage-promo__body">
-                  <p>{promo.body}</p>
-                </CardDescription>
-              </CardHeader>
-            </a>
-          </Card>
-        ))}
+              <a
+                className="homepage-promo__link"
+                href={promo.href ?? "/products"}
+              >
+                <CardHeader className="homepage-promo__header">
+                  <Badge className="homepage-promo__badge" variant="outline">
+                    <Sparkles aria-hidden="true" />
+                    Event pick
+                  </Badge>
+                  <CardTitle className="homepage-promo__title">
+                    <h2>{promo.title}</h2>
+                  </CardTitle>
+                  <CardDescription className="homepage-promo__body">
+                    <p>{promo.body}</p>
+                  </CardDescription>
+                  <span className="homepage-promo__cta">
+                    {promo.ctaLabel ?? "Shop now"}
+                    <ArrowRight aria-hidden="true" />
+                  </span>
+                </CardHeader>
+                {promoProduct ? (
+                  <CardContent className="homepage-promo__media">
+                    <img
+                      src={promoProduct.imagePath}
+                      alt={promoProduct.imageAlt}
+                      loading="lazy"
+                    />
+                  </CardContent>
+                ) : null}
+              </a>
+            </Card>
+          );
+        })}
       </section>
 
       <section className="homepage-section" aria-labelledby="series-title">
@@ -364,6 +433,10 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                   />
                 </CardContent>
                 <CardHeader className="series-card__header">
+                  <Badge className="series-card__badge" variant="outline">
+                    <Heart aria-hidden="true" />
+                    Series
+                  </Badge>
                   <CardTitle className="series-card__title">
                     {series.name}
                   </CardTitle>
@@ -588,16 +661,19 @@ export const defaultHomePageData: HomePageData = {
       title: "Limited drops",
       body: "Collector favorites returning this week.",
       href: "/products?sort=newest",
+      ctaLabel: "Shop drops",
     },
     {
       title: "Pickup nearby",
       body: "Choose eligible stores during checkout.",
       href: "/checkout",
+      ctaLabel: "Find pickup",
     },
     {
       title: "Member rewards",
       body: "Sign in to keep orders, reviews, and saved payments together.",
       href: "/account",
+      ctaLabel: "Open account",
     },
   ],
   popularSeries: [

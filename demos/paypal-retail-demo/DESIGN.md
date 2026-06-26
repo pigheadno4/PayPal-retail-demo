@@ -126,6 +126,19 @@ Apply these reference cues:
 - Decorative motifs should be subtle and retail-specific. Use borders, corner accents, sticker labels, and image masks before adding illustrative decoration. Do not add floating orbs, heavy blur, or page-wide gradients.
 - The implementation should match the reference density and polish, not its brand names, anime IP, cherry blossom identity, or exact product art.
 
+#### Homepage Reference Polish V2
+
+Use the latest Sakura Figure Shop homepage reference as the composition benchmark, adapted to POP MART's current data and shadcn foundation.
+
+- First viewport: Home must open with an image-led hero, overlaid high-contrast eyebrow/title/subtitle, compact CTAs, and a clickable hero image. The hero should feel like the featured drop, not a text card beside media.
+- Header relationship: desktop can keep full discovery depth, but the homepage hero must remain the first strong visual signal after the header. Mobile should protect the first viewport by keeping utility/trust/payment-support modules below release/product merchandising.
+- Trust strip: render concise capability cards with Lucide/shadcn icon treatment. Trust copy must stay capability-backed: demo-authentic generated catalog, delivery/pickup choice, secure PayPal checkout surfaces, and order support/recovery.
+- Release/product zone: pair the shadcn `Calendar` with a product shelf in a dense retail board. Calendar cells must remain contained under sticky headers, and product cards should expose sticker badges, image-led media, price, status, and a small action chip without fake preorder economics.
+- Category shelf: use shadcn `Card` composition with product imagery, short descriptions, and a visual arrow affordance. Desktop should show a dense row/grid; mobile should avoid spending the whole viewport on category modules.
+- Promo/event cards: use image-backed bento cards with badge, title/body, and short CTA. They may reuse existing product imagery, but must not imply unsupported discounts, loyalty terms, shipping guarantees, or fake campaigns.
+- Popular series: render a compact image-led rail/card grid with short badges and full-card links. It should feel like a collector navigation surface, not a sparse text list.
+- Responsive rules: at 320-414px, Home merchandising modules may become local horizontal rails to preserve vertical rhythm, but the page itself must not create horizontal scroll.
+
 #### M16 Reference Polish Implementation Guidance
 
 Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.

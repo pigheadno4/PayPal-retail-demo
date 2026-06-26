@@ -12,13 +12,16 @@ describe("HomePage", () => {
     const html = renderToStaticMarkup(<HomePage data={homePageData()} />);
 
     expect(html).toContain("THE MONSTERS Labubu");
-    expect(html).toContain("Hot sales");
+    expect(html).toContain("Pre-order now");
     expect(html).toContain("Shop by category");
     expect(html).toContain("New arrivals calendar");
-    expect(html).toContain("PayPal checkout");
-    expect(html).toContain("Generated demo catalog");
+    expect(html).toContain("Secure PayPal checkout");
+    expect(html).toContain("Demo-authentic catalog");
     expect(html).toContain("Limited drops");
     expect(html).toContain("Popular series");
+    expect(html).toContain("View item");
+    expect(html).toContain("Event pick");
+    expect(html).toContain("Series");
     expect(html).not.toContain("Stay in the loop");
     expect(html).toContain('alt="Labubu character blind box hero"');
     expect(html).toContain('class="homepage-hero__visual-link"');
@@ -30,20 +33,23 @@ describe("HomePage", () => {
     expect(html).toContain('data-slot="card-header"');
     expect(html).toContain('data-slot="card-content"');
     expect(html).toContain('data-slot="card-footer"');
+    expect(html).toContain('data-slot="badge"');
+    expect(html).toContain('class="homepage-trust-card__icon"');
+    expect(html).toContain('class="category-pill__arrow"');
   });
 
   it("renders the reference-level home merchandising modules in order", () => {
     const html = renderToStaticMarkup(<HomePage data={defaultHomePageData} />);
 
     const heroIndex = html.indexOf("Blind-box drops");
-    const trustIndex = html.indexOf("PayPal checkout");
+    const trustIndex = html.indexOf("Secure PayPal checkout");
     const calendarIndex = html.indexOf("New arrivals calendar");
     const categoryIndex = html.indexOf("Shop by category");
     const promoIndex = html.indexOf("Limited drops");
     const seriesIndex = html.indexOf("Popular series");
 
     expect(html).toContain('class="homepage-trust-strip"');
-    expect(html).toContain("Generated demo catalog");
+    expect(html).toContain("Demo-authentic catalog");
     expect(heroIndex).toBeGreaterThan(-1);
     expect(trustIndex).toBeGreaterThan(heroIndex);
     expect(calendarIndex).toBeGreaterThan(trustIndex);

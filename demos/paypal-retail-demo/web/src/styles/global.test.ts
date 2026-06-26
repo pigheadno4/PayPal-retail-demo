@@ -54,17 +54,30 @@ describe("global storefront visual tokens", () => {
 
   it("prioritizes the mobile home hero and release content before utility cards", () => {
     const siteHeaderBlock = cssBlock(".site-header");
+    const heroBlock = cssBlock(".homepage-hero");
+    const heroOverlayBlock = cssBlock(".homepage-hero__visual-link::after");
+    const trustIconBlock = cssBlock(".homepage-trust-card__icon");
+    const productCtaBlock = cssBlock(".product-card__cta");
+    const categoryArrowBlock = cssBlock(".category-pill__arrow");
 
     expect(globalCss).toContain(".homepage-hero__visual-link");
     expect(globalCss).toContain(
       '.homepage[data-loading="true"] .homepage-hero__visual-link::after',
     );
-    expect(globalCss).toContain(".homepage-hero {\n    min-height: 360px;");
+    expect(heroBlock).toContain("min-height: clamp(400px, 38vw, 520px)");
+    expect(heroOverlayBlock).toContain("position: absolute");
+    expect(globalCss).toContain("min-height: clamp(320px, 86vw, 380px);");
     expect(globalCss).toContain(".homepage-hero::after");
     expect(globalCss).toContain(".homepage-drop-board {\n    order: 2;");
     expect(globalCss).toContain(".homepage-trust-strip {\n    order: 3;");
     expect(globalCss).toContain(".homepage-paylater-promo {\n    order: 3;");
+    expect(globalCss).toContain("grid-auto-columns: minmax(214px, 74vw);");
+    expect(globalCss).toContain("grid-auto-columns: minmax(270px, 88vw);");
+    expect(globalCss).toContain("scroll-snap-type: x proximity;");
     expect(siteHeaderBlock).toContain("z-index: 40");
+    expect(trustIconBlock).toContain("border-radius: 999px");
+    expect(productCtaBlock).toContain("display: inline-flex");
+    expect(categoryArrowBlock).toContain("width: 30px");
     expect(globalCss.replace(/\s+/g, "")).toContain(
       ".homepage>:not(.homepage-hero,.homepage-drop-board,.homepage-trust-strip,.homepage-paylater-promo)",
     );
@@ -385,7 +398,7 @@ describe("global storefront visual tokens", () => {
 
   it("keeps mobile responsive controls at touch-target size without touching PayPal surfaces", () => {
     const discoveryBlock = cssBlock(".site-header__discovery");
-    const buttonBlock = cssBlock(".button");
+    const buttonBlock = cssBlockContaining(".button", "min-height: 44px");
     const calendarNavBlock = cssBlock(
       ".release-calendar .rdp-button_previous,\n.release-calendar .rdp-button_next",
     );
@@ -399,6 +412,12 @@ describe("global storefront visual tokens", () => {
     const checkoutSlotBlock = cssBlock(".checkout-summary__slot");
 
     expect(discoveryBlock).toContain("min-height: 44px");
+    expect(globalCss).toContain(
+      "@media (max-width: 1280px) and (min-width: 901px)",
+    );
+    expect(globalCss).toContain(
+      "grid-template-columns: minmax(190px, 0.62fr) minmax(300px, 1fr) auto;",
+    );
     expect(buttonBlock).toContain("min-height: 44px");
     expect(calendarNavBlock).toContain("height: 44px");
     expect(calendarNavBlock).toContain("width: 44px");
