@@ -326,10 +326,12 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Pay Later SDK v6 calls eligibility with current amount/currency before rendering official Pay Later button.
 - [ ] Pay Later button stays hidden or buyer-safely unavailable while eligibility is loading, errors, or returns ineligible.
 - [ ] Pay Later amount-aware message updates when PDP/cart/minicart/checkout total changes.
-- [ ] Card fields render and capture.
-- [ ] Apple Pay renders and captures where eligible.
-- [ ] Google Pay renders and captures where eligible.
-- [ ] Venmo renders and captures where eligible.
+- [x] Hosted checkout Card Fields render in both Delivery and Pickup payment rows with PayPal provider status ready, three hosted card field elements mounted, stable 50px field containers, and the Pay by card action inside the card box.
+- [ ] Card Fields capture with approved PayPal sandbox card test data.
+- [ ] Apple Pay renders and captures where eligible; 2026-06-26 hosted in-app Chromium evidence shows PayPal provider ready but Apple Pay eligibility remains pending and no Apple Pay button mounts in this browser.
+- [ ] Google Pay renders and captures where eligible; 2026-06-26 hosted in-app Chromium evidence shows PayPal provider ready but Google PaymentsClient/runtime is unavailable, so the Google Pay action is disabled/pending.
+- [x] Hosted checkout Venmo renders in both Delivery and Pickup payment rows with PayPal provider status ready and a mounted `venmo-button`.
+- [ ] Venmo captures in an eligible sandbox browser/device flow.
 - [x] Vaulting active/pending states update correctly in backend capture/webhook lifecycle tests.
 - [x] Saved payment deletion calls PayPal Payment Method Tokens delete when a vault ID exists.
 - [x] Webhook signature verification rejects invalid events and stores them as ignored without mutation.
