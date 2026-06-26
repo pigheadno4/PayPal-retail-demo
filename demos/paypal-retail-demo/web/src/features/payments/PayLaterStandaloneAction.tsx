@@ -54,6 +54,7 @@ export interface PayLaterAmountMessageProps {
   readonly placement:
     | "cart-summary"
     | "catalog-promo"
+    | "home-promo"
     | "minicart-summary"
     | "order-summary"
     | "payment-row"

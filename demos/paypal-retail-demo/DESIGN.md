@@ -412,7 +412,7 @@ Product detail page:
 - If preorder economics data is absent, do not derive fake deposit or remaining balance from price and do not add redundant status panels to fill space.
 - Right-side purchase rail should include price, quantity/action controls where supported, official Pay Later and delivery express surfaces where eligible, and trust grid. Quantity controls must be wired to real add-to-cart behavior before becoming editable.
 - PayPal and Pay Later express buttons should sit inside an unclosed rounded frame labeled `Secured by PayPal`. If Pay Later is not eligible, the PayPal button fills the frame; if eligible, the frame uses available width to choose a two-column or stacked layout, with mobile stacking the two actions.
-- Tabbed detail area should use semantic tabs for description/collector details, product facts, gallery, reviews, shipping/returns, and Q&A if useful. Empty states must not pretend to contain real buyer content.
+- Tabbed detail area should use semantic tabs for description/collector details, product facts, gallery, reviews, shipping/returns, and Q&A if useful. On mobile, shadcn/Radix tab roots and tab lists must be constrained to the content-card width, hide vertical overflow and native scrollbars, and allow horizontal tab scrolling inside the rail instead of clipping max-content tabs under the page. Empty states must not pretend to contain real buyer content.
 - Collector details for blind-box products should include a concise story, a series-lineup panel, secret odds when they are demo-supported or data-backed, and icon-style spec highlights such as material/height/age/box type. Media goals such as front view, size comparison, package exterior, hidden silhouette, and material video stay in tracking/design until real assets exist; the PDP must not render text-only media placeholder cards that consume mobile viewport space.
 - Lower commerce rails such as customer-review histogram, You may also like, and Recently viewed render only when backed by real review/catalog/recently-viewed data or existing demo state. Omit them rather than hardcoding unrelated fake products.
 - PDP does not show pickup hint or store selection.
@@ -684,6 +684,8 @@ Hot sales and popular series use curated seed flags.
 - Include a compact legend for release status markers so outlined circles and color dots are not the only explanation.
 - Keyboard users can move between dates and open the selected date's product list.
 - Mobile release calendars must remain inside the viewport at 320px and 375px. If rendered through shadcn `Calendar`, constrain the month grid to seven `minmax(0, 1fr)` columns and avoid table cell minimums that create horizontal page scroll.
+- Sticky headers must remain above release-calendar content in the stacking order; calendar/date cells should not visually cover the header while scrolling.
+- Route and product-loading states should use shadcn `Skeleton` blocks for non-image content while image containers use the progressive/LQIP path when final derivatives exist.
 
 Future-release PDP:
 

@@ -352,7 +352,11 @@ export function ProductDetailPage({
                 <h3>Collector reviews</h3>
                 <div className="product-reviews__list">
                   {data.reviews.map((review) => (
-                    <Card className="product-review" key={review.id}>
+                    <Card
+                      className="product-review"
+                      data-review-card="true"
+                      key={review.id}
+                    >
                       <CardHeader className="product-review__header">
                         <CardTitle className="product-review__title">
                           {review.title}
@@ -370,7 +374,11 @@ export function ProductDetailPage({
                     </Card>
                   ))}
                   {socialProof.map((proof) => (
-                    <Card className="product-review" key={proof.id}>
+                    <Card
+                      className="product-review"
+                      data-review-card="true"
+                      key={proof.id}
+                    >
                       <CardHeader className="product-review__header">
                         <CardTitle className="product-review__title">
                           {proof.title}

@@ -103,7 +103,9 @@ describe("App shell", () => {
     expect(html).toContain("Cart (");
     expect(html).toContain("Stay in the loop");
     expect(html).toContain('aria-label="Open minicart"');
-    expect(html).not.toContain('class="paypal-provider-scope"');
+    expect(html).toContain('class="homepage-paylater-promo"');
+    expect(html).toContain('class="paypal-provider-scope"');
+    expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).not.toContain("Search products");
     expect(extractProductNavigation(html)).not.toContain("Checkout");
     expect(extractProductNavigation(html)).not.toContain('href="/checkout"');

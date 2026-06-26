@@ -28,6 +28,7 @@ describe("ProductDetailPage", () => {
     expect(html).toContain("Pay Later");
     expect(html).toContain("Collector reviews");
     expect(html).toContain("Cute desk companion");
+    expect(html).toContain('data-review-card="true"');
     expect(html).toContain("Random 1PC");
     expect(html).toContain("Whole Box - 12PC no duplicates");
     expect(html).toContain("Only 14 left in this demo drop");

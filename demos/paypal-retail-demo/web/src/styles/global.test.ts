@@ -53,6 +53,8 @@ describe("global storefront visual tokens", () => {
   });
 
   it("prioritizes the mobile home hero and release content before utility cards", () => {
+    const siteHeaderBlock = cssBlock(".site-header");
+
     expect(globalCss).toContain(".homepage-hero__visual-link");
     expect(globalCss).toContain(
       '.homepage[data-loading="true"] .homepage-hero__visual-link::after',
@@ -61,8 +63,10 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".homepage-hero::after");
     expect(globalCss).toContain(".homepage-drop-board {\n    order: 2;");
     expect(globalCss).toContain(".homepage-trust-strip {\n    order: 3;");
+    expect(globalCss).toContain(".homepage-paylater-promo {\n    order: 3;");
+    expect(siteHeaderBlock).toContain("z-index: 40");
     expect(globalCss.replace(/\s+/g, "")).toContain(
-      ".homepage>:not(.homepage-hero,.homepage-drop-board,.homepage-trust-strip)",
+      ".homepage>:not(.homepage-hero,.homepage-drop-board,.homepage-trust-strip,.homepage-paylater-promo)",
     );
   });
 
@@ -82,12 +86,16 @@ describe("global storefront visual tokens", () => {
 
   it("renders Pay Later messages directly without extra wrapper chrome", () => {
     const paylaterMessageBlock = cssBlock(".paylater-amount-message");
+    const homePaylaterBlock = cssBlock(".homepage-paylater-promo");
     const catalogPaylaterBlock = cssBlock(".catalog-paylater");
     const cartPaylaterBlock = cssBlock(".cart-paylater,\n.minicart-paylater");
 
     expect(paylaterMessageBlock).toContain("background: transparent");
     expect(paylaterMessageBlock).toContain("border: 0");
     expect(paylaterMessageBlock).toContain("padding: 0");
+    expect(homePaylaterBlock).toContain("background: transparent");
+    expect(homePaylaterBlock).toContain("border: 0");
+    expect(homePaylaterBlock).toContain("padding: 0");
     expect(catalogPaylaterBlock).not.toContain("background:");
     expect(catalogPaylaterBlock).not.toContain("border:");
     expect(catalogPaylaterBlock).not.toContain("padding:");
@@ -114,6 +122,10 @@ describe("global storefront visual tokens", () => {
   });
 
   it("styles the detailed PDP gallery rail and trust/detail sections", () => {
+    const productDetailTabsBlock = cssBlock(".product-detail-tabs");
+    const productTabsRootBlock = cssBlock(".product-detail-tabs__root");
+    const productTabsNavBlock = cssBlock(".product-detail-tabs__nav");
+
     expect(globalCss).toContain(".product-breadcrumb");
     expect(globalCss).toContain(".product-gallery__stage");
     expect(globalCss).toContain(".product-gallery__viewer");
@@ -124,11 +136,34 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".product-detail-tabs");
     expect(globalCss).toContain(".product-detail-tabs__nav");
     expect(globalCss).toContain(".product-detail-tabs__trigger");
+    expect(productDetailTabsBlock).toContain("min-width: 0");
+    expect(productTabsRootBlock).toContain("max-width: 100%");
+    expect(productTabsRootBlock).toContain("min-width: 0");
+    expect(productTabsRootBlock).toContain("width: 100%");
+    expect(productTabsNavBlock).toContain("max-width: 100%");
+    expect(productTabsNavBlock).toContain("display: flex !important");
+    expect(productTabsNavBlock).toContain("inline-size: 100% !important");
+    expect(productTabsNavBlock).toContain("width: 100% !important");
+    expect(productTabsNavBlock).toContain("overflow-y: hidden");
+    expect(productTabsNavBlock).toContain("scrollbar-width: none");
+    expect(globalCss).toContain(".product-detail-tabs__nav::-webkit-scrollbar");
     expect(globalCss).toContain(
       '.product-detail-tabs__nav .product-detail-tabs__trigger[aria-selected="true"]',
     );
     expect(globalCss).toContain(".product-detail-tabs__panel > h2::before");
     expect(globalCss).toContain(".product-gallery__thumbs {\n  order: -1;");
+  });
+
+  it("uses shadcn skeleton blocks for route loading states", () => {
+    const routeSkeletonBlock = cssBlock(".route-stage__skeleton");
+    const routeSkeletonSlotBlock = cssBlock(
+      '.route-stage__skeleton [data-slot="skeleton"]',
+    );
+
+    expect(routeSkeletonBlock).toContain("display: grid");
+    expect(routeSkeletonSlotBlock).toContain("background: linear-gradient");
+    expect(globalCss).toContain(".route-stage__skeleton-line");
+    expect(globalCss).toContain(".route-stage__skeleton-grid");
   });
 
   it("keeps PDP payment hierarchy conversion-first on mobile", () => {

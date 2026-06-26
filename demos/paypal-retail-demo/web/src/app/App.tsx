@@ -14,6 +14,8 @@ import {
   XIcon,
 } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   ApiClientError,
   createApiClient,
@@ -3321,7 +3323,17 @@ function RouteStage({
     return <NotFoundStage />;
   }
 
-  return <HomePage data={homePageData} />;
+  return (
+    <HomePage
+      data={homePageData}
+      renderPayLaterPromoMessage={(promo) =>
+        renderStorefrontPayLaterMessage({
+          fallbackMessage: promo.body,
+          placement: "home-promo",
+        })
+      }
+    />
+  );
 }
 
 type CartBinding = Pick<CartData, "cartClientSecret" | "cartPublicId">;
@@ -5379,6 +5391,15 @@ function ProductPendingStage() {
     <section className="route-stage route-stage--loading" aria-busy="true">
       <p className="route-stage__eyebrow">Loading</p>
       <h1>Loading product details</h1>
+      <div className="route-stage__skeleton" aria-hidden="true">
+        <Skeleton className="route-stage__skeleton-line route-stage__skeleton-line--short" />
+        <Skeleton className="route-stage__skeleton-line" />
+        <div className="route-stage__skeleton-grid">
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+        </div>
+      </div>
     </section>
   );
 }

@@ -56,14 +56,29 @@ describe("HomePage", () => {
     const html = renderToStaticMarkup(<HomePage data={homePageData()} />);
     const payLaterSection =
       html.match(
-        /<section class="homepage-trust-strip"[\s\S]*?<\/section>/,
+        /<section class="homepage-paylater-promo"[\s\S]*?<\/section>/,
       )?.[0] ?? "";
 
-    expect(payLaterSection).toContain("PayPal checkout");
+    expect(payLaterSection).toContain("Pay Later with PayPal");
     expect(payLaterSection).toContain("Pay Later");
     expect(payLaterSection).not.toContain("$");
     expect(payLaterSection).not.toContain("£");
     expect(payLaterSection).not.toContain("interest-free installments of");
+  });
+
+  it("renders the official Pay Later promo slot when provided", () => {
+    const html = renderToStaticMarkup(
+      <HomePage
+        data={homePageData()}
+        renderPayLaterPromoMessage={(promo) => (
+          <div data-testid="home-paylater-message">{promo.body}</div>
+        )}
+      />,
+    );
+
+    expect(html).toContain('class="homepage-paylater-promo"');
+    expect(html).toContain('data-testid="home-paylater-message"');
+    expect(html).toContain("Flexible payment options may be available");
   });
 
   it("keeps default fallback merchandising on generated assets instead of old mock character fixtures", () => {

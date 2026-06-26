@@ -2201,7 +2201,8 @@ function CheckoutStepDetails({
                 <span className="checkout-choice__label">
                   {paymentLogo ? (
                     <img
-                      alt={paymentLogo.alt}
+                      alt=""
+                      aria-hidden="true"
                       className="checkout-choice__logo"
                       src={paymentLogo.src}
                     />

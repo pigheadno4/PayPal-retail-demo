@@ -462,7 +462,11 @@ describe("CheckoutPage interactions", () => {
     );
 
     expect(screen.getByText("Selected paylater")).toBeTruthy();
-    expect(within(paymentStep).getByAltText("Pay Later")).toBeTruthy();
+    expect(
+      paymentStep.querySelector(
+        'img.checkout-choice__logo[src="/assets/paypal-logos/paylater-rebrand-mark.svg"]',
+      ),
+    ).toBeTruthy();
     expect(within(paymentStep).queryByText("Pay Later row message")).toBeNull();
 
     await user.click(
@@ -763,7 +767,11 @@ describe("CheckoutPage interactions", () => {
     );
 
     expect(screen.getByText("Selected paylater")).toBeTruthy();
-    expect(within(paymentStep).getByAltText("Pay Later")).toBeTruthy();
+    expect(
+      paymentStep.querySelector(
+        'img.checkout-choice__logo[src="/assets/paypal-logos/paylater-rebrand-mark.svg"]',
+      ),
+    ).toBeTruthy();
     expect(within(paymentStep).queryByText("Pay Later row message")).toBeNull();
   });
 

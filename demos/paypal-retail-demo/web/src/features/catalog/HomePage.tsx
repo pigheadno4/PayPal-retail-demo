@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import {
@@ -93,6 +93,7 @@ export interface HomePageData {
 
 export interface HomePageProps {
   readonly data: HomePageData;
+  readonly renderPayLaterPromoMessage?: (promo: HomePagePromo) => ReactNode;
 }
 
 const homeTrustItems = [
@@ -114,7 +115,7 @@ const homeTrustItems = [
   },
 ] as const;
 
-export function HomePage({ data }: HomePageProps) {
+export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
   const calendarDaysByIsoDate = new Map(
     data.calendar.days.map((day) => [day.isoDate, day]),
   );
@@ -281,6 +282,18 @@ export function HomePage({ data }: HomePageProps) {
           </div>
         </section>
       </div>
+
+      <section
+        className="homepage-paylater-promo"
+        aria-label={data.payLaterPromo.title}
+      >
+        <h2>{data.payLaterPromo.title}</h2>
+        {renderPayLaterPromoMessage ? (
+          renderPayLaterPromoMessage(data.payLaterPromo)
+        ) : (
+          <p>{data.payLaterPromo.body}</p>
+        )}
+      </section>
 
       <section className="homepage-section" aria-labelledby="categories-title">
         <SectionHeader

@@ -3365,6 +3365,7 @@ describe("App buyer interactions", () => {
     );
 
     const pickupDateStep = getStep("Pickup date");
+    const selectedPickupDate = new Date().toISOString().slice(0, 10);
     await user.click(
       within(pickupDateStep).getByRole("button", {
         name: "Submit pickup date",
@@ -3375,7 +3376,7 @@ describe("App buyer interactions", () => {
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
           body: {
-            pickup_date: "2026-06-12",
+            pickup_date: selectedPickupDate,
           },
           method: "patch",
           path: `/api/checkout/drafts/${pickupDraftUuid}/pickup-date`,
