@@ -138,6 +138,9 @@ describe("global storefront visual tokens", () => {
     const productDetailTabsBlock = cssBlock(".product-detail-tabs");
     const productTabsRootBlock = cssBlock(".product-detail-tabs__root");
     const productTabsNavBlock = cssBlock(".product-detail-tabs__nav");
+    const productTabsTriggerBlock = cssBlock(
+      ".product-detail-tabs__nav .product-detail-tabs__trigger",
+    );
 
     expect(globalCss).toContain(".product-breadcrumb");
     expect(globalCss).toContain(".product-gallery__stage");
@@ -156,9 +159,13 @@ describe("global storefront visual tokens", () => {
     expect(productTabsNavBlock).toContain("max-width: 100%");
     expect(productTabsNavBlock).toContain("display: flex !important");
     expect(productTabsNavBlock).toContain("inline-size: 100% !important");
+    expect(productTabsNavBlock).toContain("block-size: auto !important");
+    expect(productTabsNavBlock).toContain("min-block-size: 55px");
     expect(productTabsNavBlock).toContain("width: 100% !important");
     expect(productTabsNavBlock).toContain("overflow-y: hidden");
     expect(productTabsNavBlock).toContain("scrollbar-width: none");
+    expect(productTabsTriggerBlock).toContain("height: 44px !important");
+    expect(productTabsTriggerBlock).toContain("flex: 0 0 auto");
     expect(globalCss).toContain(".product-detail-tabs__nav::-webkit-scrollbar");
     expect(globalCss).toContain(
       '.product-detail-tabs__nav .product-detail-tabs__trigger[aria-selected="true"]',

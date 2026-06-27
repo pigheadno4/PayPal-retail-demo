@@ -2182,8 +2182,10 @@ a {
 }
 
 .product-detail-tabs__nav {
+  align-items: stretch;
   background: linear-gradient(180deg, #ffffff 0%, #fff9f3 100%);
   border-bottom: 1px solid var(--shell-border);
+  block-size: auto !important;
   box-sizing: border-box;
   display: flex !important;
   flex-wrap: nowrap;
@@ -2191,6 +2193,7 @@ a {
   inline-size: 100% !important;
   max-width: 100%;
   max-inline-size: 100%;
+  min-block-size: 55px;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -2204,13 +2207,16 @@ a {
 }
 
 .product-detail-tabs__nav .product-detail-tabs__trigger {
+  align-self: stretch;
   background: transparent;
   border: 1px solid transparent;
   border-bottom: 3px solid transparent;
   border-radius: 14px 14px 0 0;
   color: var(--shell-muted);
   cursor: pointer;
+  flex: 0 0 auto;
   font-weight: 900;
+  height: 44px !important;
   min-height: 44px;
   min-width: max-content;
   padding: 0 14px 2px;
