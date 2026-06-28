@@ -55,6 +55,56 @@ afterEach(() => {
 });
 
 describe("App buyer interactions", () => {
+  it("keeps the header search typeable and routes submitted keywords to catalog", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_header_search",
+          cartPublicId: "cart_public_header_search",
+        }),
+        "/api/catalog/products": {
+          products: [],
+        },
+      },
+    });
+
+    render(<App apiClient={apiClient} initialPathname="/" />);
+
+    const searchInput = screen.getByRole("searchbox", {
+      name: "Search products",
+    });
+
+    await user.click(searchInput);
+
+    expect(document.activeElement).toBe(searchInput);
+    expect(
+      screen.getByRole("heading", {
+        name: "Blind-box drops, ready to collect",
+      }),
+    ).toBeTruthy();
+
+    await user.type(searchInput, "molly{enter}");
+
+    await screen.findByRole("heading", { name: "All products" });
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/catalog/products",
+          query: {
+            market: "US",
+            profile: "popmart",
+            q: "molly",
+          },
+        }),
+      );
+    });
+    expect(window.location.pathname + window.location.search).toBe(
+      "/products?q=molly",
+    );
+  });
+
   it("opens and closes the compact mobile menu from the buyer header", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({

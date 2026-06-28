@@ -97,7 +97,7 @@ describe("Supabase-backed catalog repository", () => {
     });
   });
 
-  it("filters product cards by market price, release status, and pickup availability", async () => {
+  it("filters product cards by keyword alongside category filters", async () => {
     const repository = createSupabaseCatalogRepository({
       dataSource: createCatalogDataSource(),
       now: "2026-05-31T00:00:00.000Z",
@@ -108,12 +108,13 @@ describe("Supabase-backed catalog repository", () => {
         { profileSlug: "popmart", marketCode: "US" },
         {
           categorySlug: "blind-boxes",
-          releaseStatus: "released",
-          pickupAvailable: true,
-          priceMinMinor: 1000,
-          priceMaxMinor: 2000,
+          releaseStatus: null,
+          pickupAvailable: null,
+          priceMinMinor: null,
+          priceMaxMinor: null,
           availability: null,
           sort: "price_asc",
+          query: "labubu",
         },
       ),
     ).resolves.toEqual({

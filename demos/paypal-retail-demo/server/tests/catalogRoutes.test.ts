@@ -71,7 +71,8 @@ describe("catalog storefront routes", () => {
           {
             section_key: "hero",
             title: "Small Joy, Big Shelf Energy",
-            subtitle: "Fresh drops, store pickup, and flexible PayPal checkout.",
+            subtitle:
+              "Fresh drops, store pickup, and flexible PayPal checkout.",
             content: {
               image_path: "/generic/homepage/hero.webp",
               cta_primary: "Shop new arrivals",
@@ -127,7 +128,7 @@ describe("catalog storefront routes", () => {
     const response = await requestApp(
       app,
       "GET",
-      "/api/catalog/products?category=blind-boxes&release_status=released&pickup_available=true&price_min=1000&price_max=3000&sort=price_asc&profile=popmart&market=US",
+      "/api/catalog/products?category=blind-boxes&release_status=released&pickup_available=true&price_min=1000&price_max=3000&sort=price_asc&q=labubu&profile=popmart&market=US",
     );
 
     expect(response.status).toBe(200);
@@ -175,6 +176,7 @@ describe("catalog storefront routes", () => {
         priceMaxMinor: 3000,
         availability: null,
         sort: "price_asc",
+        query: "labubu",
       },
     ]);
   });
@@ -337,7 +339,8 @@ function createCatalogRepository(): CatalogRepository & {
               context.profileSlug === "generic"
                 ? "Small Joy, Big Shelf Energy"
                 : "The Monsters Are Back",
-            subtitle: "Fresh drops, store pickup, and flexible PayPal checkout.",
+            subtitle:
+              "Fresh drops, store pickup, and flexible PayPal checkout.",
             content: {
               image_path: `/${context.profileSlug}/homepage/hero.webp`,
               cta_primary: "Shop new arrivals",

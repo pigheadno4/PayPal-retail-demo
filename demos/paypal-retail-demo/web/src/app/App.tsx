@@ -1,5 +1,6 @@
 import {
   type FormEvent,
+  type KeyboardEvent,
   useEffect,
   useMemo,
   useRef,
@@ -143,6 +144,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "../components/ui/field.js";
+import { Input } from "../components/ui/input.js";
 import { AppProviders, useApiClient } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
@@ -1267,6 +1269,11 @@ function BuyerShell({
   const [currentAuthModalState, setCurrentAuthModalState] =
     useState(authModalState);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [headerSearchQuery, setHeaderSearchQuery] = useState(
+    () =>
+      getCatalogQueryValue(getSearchParamsFromLocation(initialLocation), "q") ??
+      "",
+  );
   const [authModalStatus, setAuthModalStatus] = useState<string | undefined>();
   const [currentAuthSession, setCurrentAuthSession] = useState<
     BuyerAuthSession | null | undefined
@@ -1297,6 +1304,13 @@ function BuyerShell({
   const didRunInitialCartRestore = useRef(false);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
+
+  useEffect(() => {
+    setHeaderSearchQuery(
+      getCatalogQueryValue(getSearchParamsFromLocation(currentLocation), "q") ??
+        "",
+    );
+  }, [currentLocation]);
 
   useEffect(() => {
     let active = true;
@@ -2172,6 +2186,31 @@ function BuyerShell({
     });
   }
 
+  function handleHeaderSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitHeaderSearch();
+  }
+
+  function handleHeaderSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    submitHeaderSearch();
+  }
+
+  function submitHeaderSearch() {
+    const normalizedQuery = headerSearchQuery.trim();
+    setHeaderSearchQuery(normalizedQuery);
+    void navigateBuyer({
+      pathname: buildCatalogSearchPath(normalizedQuery),
+      statusMessage: normalizedQuery
+        ? `Showing search results for ${normalizedQuery}.`
+        : "Opened all products.",
+    });
+  }
+
   async function handleDeleteSavedPayment(savedPaymentId: string) {
     if (!currentAuthSession) {
       openAuthModal();
@@ -2768,15 +2807,38 @@ function BuyerShell({
               <small>Collectible checkout studio</small>
             </span>
           </a>
-          <a className="site-header__discovery" href="/products">
-            <span>Browse figures, series, and characters</span>
-            <strong>
+          <form
+            action="/products"
+            aria-label="Product search"
+            className="site-header__discovery"
+            method="get"
+            onSubmit={handleHeaderSearchSubmit}
+            role="search"
+          >
+            <Input
+              aria-label="Search products"
+              autoComplete="off"
+              className="site-header__discovery-input"
+              name="q"
+              onKeyDown={handleHeaderSearchKeyDown}
+              onChange={(event) => setHeaderSearchQuery(event.target.value)}
+              placeholder="Search figures, series, characters..."
+              type="search"
+              value={headerSearchQuery}
+            />
+            <Button
+              aria-label="Search products"
+              className="site-header__discovery-submit"
+              size="icon-sm"
+              type="submit"
+              variant="ghost"
+            >
               <SearchIcon
                 aria-hidden="true"
                 className="site-header__lucide-icon site-header__lucide-icon--search"
               />
-            </strong>
-          </a>
+            </Button>
+          </form>
           <div className="site-header__actions" aria-label="Buyer actions">
             <button
               type="button"
@@ -3718,13 +3780,31 @@ function filterFallbackCatalogProducts(
   searchParams: URLSearchParams,
 ): readonly CategoryPageProduct[] {
   const category = getCatalogQueryValue(searchParams, "category");
-
-  if (!category) {
-    return products;
-  }
+  const query = getCatalogQueryValue(searchParams, "q");
 
   return products.filter(
-    (product) => slugifyCategoryLabel(product.categoryName) === category,
+    (product) =>
+      (!category || slugifyCategoryLabel(product.categoryName) === category) &&
+      (!query || fallbackProductMatchesSearch(product, query)),
+  );
+}
+
+function fallbackProductMatchesSearch(
+  product: CategoryPageProduct,
+  query: string,
+): boolean {
+  return normalizedSearchTerms(query).every((term) =>
+    normalizeSearchText(
+      [
+        product.name,
+        product.slug,
+        product.categoryName,
+        product.statusLabel,
+        product.pickupLabel,
+        product.priceLabel,
+        product.regularPriceLabel,
+      ].join(" "),
+    ).includes(term),
   );
 }
 
@@ -3754,6 +3834,7 @@ function buildCatalogProductsQuery({
   const price = getCatalogQueryValue(searchParams, "price");
   const availability = getCatalogQueryValue(searchParams, "availability");
   const releaseStatus = getCatalogQueryValue(searchParams, "release_status");
+  const searchQuery = getCatalogQueryValue(searchParams, "q");
   const pickupAvailable = getCatalogQueryValue(
     searchParams,
     "pickup_available",
@@ -3789,6 +3870,9 @@ function buildCatalogProductsQuery({
   }
   if (sort === "price_asc" || sort === "price_desc") {
     query.sort = sort;
+  }
+  if (searchQuery) {
+    query.q = searchQuery;
   }
 
   return query;
@@ -3869,6 +3953,26 @@ function getCatalogQueryValue(
 ): string | null {
   const value = searchParams.get(key)?.trim();
   return value ? value : null;
+}
+
+function buildCatalogSearchPath(query: string): string {
+  if (!query) {
+    return "/products";
+  }
+
+  const params = new URLSearchParams({ q: query });
+  return `/products?${params.toString()}`;
+}
+
+function normalizedSearchTerms(query: string): readonly string[] {
+  return normalizeSearchText(query).split(" ").filter(Boolean);
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function parseProductSlugFromUrl(productUrl: string | null): string | null {

@@ -196,6 +196,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. The buyer-facing POP 
 - [x] Continue Milestone 16 with mobile category filter compression so product cards appear before the filter list consumes the whole first viewport.
 - [x] Continue Milestone 16 with mobile Home first-viewport refinement: image-led hero, overlaid contrast-safe title/subtitle/compact CTAs, clickable hero image, and release/product content before utility cards on mobile.
 - [x] Continue Milestone 16 with Sakura-reference homepage module density while preserving POP MART truth constraints: no fake search, preorder economics, ratings, unsupported trust claims, or PayPal surface restyling.
+- [x] Continue Milestone 16 with Homepage Reference Polish V3: replace the fake header discovery anchor with real catalog search, preserve SPA navigation to `/products?q=...`, support live/fallback keyword filtering, and lighten the storefront typography/hero scale so POP MART pages feel premium rather than oversized/heavy.
 - [x] Continue Milestone 16 with category density refinements: remove the `All products` explanatory subtitle, show `Sale` badges on discounted product cards, lazy-load product-card images, and render Category Pay Later directly without wrapper-card chrome.
 - [x] Continue Milestone 16 with direct Pay Later message presentation on Category, PDP, Cart, and Minicart instead of decorative wrapper boxes.
 - [x] Continue Milestone 16 with local shadcn-style skeleton treatment for the initial Home hero placeholder and lazy-loaded secondary product imagery.

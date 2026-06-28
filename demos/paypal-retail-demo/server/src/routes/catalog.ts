@@ -26,6 +26,7 @@ export interface CatalogProductListFilters {
   readonly releaseStatus: string | null;
   readonly pickupAvailable: boolean | null;
   readonly sort: string | null;
+  readonly query: string | null;
 }
 
 export interface CatalogReleaseEventFilters {
@@ -178,6 +179,7 @@ function parseProductListFilters(request: Request): CatalogProductListFilters {
       firstQueryValue(request, "pickup_available"),
     ),
     sort: firstQueryValue(request, "sort"),
+    query: firstQueryValue(request, "q"),
   };
 }
 

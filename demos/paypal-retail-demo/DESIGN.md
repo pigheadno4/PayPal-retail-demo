@@ -139,6 +139,18 @@ Use the latest Sakura Figure Shop homepage reference as the composition benchmar
 - Popular series: render a compact image-led rail/card grid with short badges and full-card links. It should feel like a collector navigation surface, not a sparse text list.
 - Responsive rules: at 320-414px, Home merchandising modules may become local horizontal rails to preserve vertical rhythm, but the page itself must not create horizontal scroll.
 
+#### Homepage Reference Polish V3
+
+V3 resolves the remaining reference-fidelity gaps found after hosted GUI review: the header discovery control must become real search, and the POP MART storefront typography must feel lighter, more premium, and less blocky.
+
+- Header search: the desktop discovery bar must be a real shadcn-backed search form, not an anchor styled like a search input. Clicking the field focuses it and keeps the buyer on the current route. Submitting a non-empty query routes to `/products?q=<encoded keyword>` through the app's buyer navigation. Empty submissions route to `/products`.
+- Search behavior: category/catalog loading must pass `q` through the live catalog request when present. Fallback catalog data must filter by product name, category, status, and price copy so Vite-only/API-down QA still behaves like search. Unsupported suggestions/autocomplete may be deferred, but the visible search field cannot be inert.
+- Mobile search: mobile may keep the compact header, but search must remain typeable. Prefer a compact second-row form or a Sheet/Dialog search surface over a fake pill that redirects immediately.
+- Search affordance: the search icon is a submit button with an accessible name. The placeholder should be buyer-facing, for example `Search figures, series, characters...`.
+- Typography: reduce the storefront weight scale before adding more decorative styling. Body/UI copy should sit around 400-600, product/card titles around 650-750, and nav/buttons/badges around 700-800. Avoid 900/950 except for rare hero accents.
+- Hero type: reduce oversized mobile/desktop hero title scale and use a slightly more open line height so the first viewport feels polished rather than heavy. Keep letter spacing at `0`.
+- Font direction: keep the current Rubik/Nunito stack if the slice must stay dependency-free, but apply lighter weights. If a later asset/font pass is allowed, `Fredoka + Nunito` or `Varela Round + Nunito Sans` are preferred for a playful collectible retail tone.
+
 #### M16 Reference Polish Implementation Guidance
 
 Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.
@@ -156,7 +168,7 @@ Reference design-system takeaways from `sakura_figure_shop_design.md`, adapted t
 
 Implementation must keep these accuracy constraints:
 
-- Do not add fake search. A visible keyword search box is allowed only after `GET /api/storefront/products` and route query handling support real keyword search. Until then, discovery should use supported nav, category, sort, and filter controls.
+- Do not add fake search. A visible keyword search box is allowed only when it is a real input/form and route query handling supports catalog keyword search through `/products?q=...`. Until then, discovery should use supported nav, category, sort, and filter controls.
 - Do not fake pre-order financial terms. Deposit, remaining balance, or estimated release can render only if those fields exist in product data. Otherwise render a release-state facts panel from existing status/detail rows.
 - Do not fake ratings. PDP rating summary must derive from real review data or be omitted.
 - Do not make broad authenticity, shipping-speed, customer-support, or PSP claims unless they are implemented demo capabilities or PSP-confirmed behavior.

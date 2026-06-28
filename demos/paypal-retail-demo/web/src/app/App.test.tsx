@@ -75,7 +75,12 @@ describe("App shell", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain("Free delivery and pickup options");
     expect(html).toContain('aria-label="Product categories"');
-    expect(html).toContain("Browse figures, series, and characters");
+    expect(html).toContain('role="search"');
+    expect(html).toContain('aria-label="Product search"');
+    expect(html).toContain('aria-label="Search products"');
+    expect(html).toContain(
+      'placeholder="Search figures, series, characters..."',
+    );
     expect(html).toContain('class="site-header__brand-text"');
     expect(html).toContain('aria-label="Open mobile menu"');
     expect(html).toContain('aria-controls="mobile-menu"');
@@ -106,7 +111,6 @@ describe("App shell", () => {
     expect(html).toContain('class="homepage-paylater-promo"');
     expect(html).toContain('class="paypal-provider-scope"');
     expect(html).toContain('data-paypal-sdk-method="paylater"');
-    expect(html).not.toContain("Search products");
     expect(extractProductNavigation(html)).not.toContain("Checkout");
     expect(extractProductNavigation(html)).not.toContain('href="/checkout"');
     expect(html).not.toContain('href="/admin"');

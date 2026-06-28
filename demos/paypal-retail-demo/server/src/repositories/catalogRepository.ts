@@ -473,6 +473,9 @@ function productMatchesFilters(
   product: ProductCardDto,
   filters: CatalogProductListFilters,
 ): boolean {
+  if (filters.query && !productMatchesSearch(product, filters.query)) {
+    return false;
+  }
   if (filters.categorySlug && product.category_slug !== filters.categorySlug) {
     return false;
   }
@@ -512,6 +515,30 @@ function productMatchesFilters(
     );
   }
   return true;
+}
+
+function productMatchesSearch(product: ProductCardDto, query: string): boolean {
+  const haystack = normalizeSearchText(
+    [
+      product.name,
+      product.slug,
+      product.category_slug,
+      product.release_status,
+    ].join(" "),
+  );
+
+  return normalizedSearchTerms(query).every((term) => haystack.includes(term));
+}
+
+function normalizedSearchTerms(query: string): readonly string[] {
+  return normalizeSearchText(query).split(" ").filter(Boolean);
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function compareProductCards(
