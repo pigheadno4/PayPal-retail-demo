@@ -75,6 +75,7 @@ describe("HomePage", () => {
     const categoryIndex = html.indexOf("Shop by category");
     const promoIndex = html.indexOf("Limited drops");
     const seriesIndex = html.indexOf("Popular series");
+    const payLaterIndex = html.indexOf("Pay Later with PayPal");
 
     expect(html).toContain('class="homepage-trust-strip"');
     expect(html).toContain("Demo-authentic catalog");
@@ -84,6 +85,28 @@ describe("HomePage", () => {
     expect(categoryIndex).toBeGreaterThan(calendarIndex);
     expect(promoIndex).toBeGreaterThan(categoryIndex);
     expect(seriesIndex).toBeGreaterThan(promoIndex);
+    expect(payLaterIndex).toBeGreaterThan(seriesIndex);
+  });
+
+  it("renders dense V4 merchandise modules without unsupported promo claims", () => {
+    const html = renderToStaticMarkup(<HomePage data={defaultHomePageData} />);
+
+    expect(html).toContain("product-card__series");
+    expect(html).toContain("product-card__status");
+    expect(html).toContain("product-card__pickup");
+    expect(html).toContain("Blind Boxes · Molly");
+    expect(html).toContain("Pickup eligible");
+    expect(html).toContain("category-strip__scroll");
+    expect(html).toContain("series-grid__scroll");
+    expect(
+      (html.match(/data-slot="scroll-area"/g) ?? []).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(html).toContain('alt="New arrivals promo collectible"');
+    expect(html).toContain('alt="Limited drops promo collectible"');
+    expect(html).toContain('alt="Pickup nearby promo collectible"');
+    expect(html).toContain("New arrivals");
+    expect(html).toContain("Pickup nearby");
+    expect(html).not.toContain("Member rewards");
   });
 
   it("uses amount-free Pay Later promotion copy on the homepage", () => {

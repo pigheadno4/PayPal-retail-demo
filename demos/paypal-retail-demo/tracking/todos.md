@@ -204,7 +204,8 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. The buyer-facing POP 
   - [x] V4 desktop/tablet calendar-density follow-up: verify the reduced release/calendar board at 1280, 1024, and 768 widths and tune any remaining tablet footprint after the dynamic date-selection wiring lands.
   - [x] V4 homepage shell/footer slice: lighten the 143-146px sticky header plus dark hero/footer frame, keep one slim nav system, split the 606px mobile footer into a light newsletter band plus shorter navy base, and verify footer/header contrast at desktop and mobile widths.
   - [x] V4 typography/hero-trust slice: reduce remaining 900-weight section/product headings toward the V4 650-800 range, soften the hero chrome/scale, keep compact buyer-facing trust cards, and preserve the V3 search field.
-  - [ ] V4 merchandise-density slice: tighten product cards, category rail, promo banners, popular-series rail, Pay Later placement, and skeleton/loading states without adding unsupported claims or fake data.
+  - [x] V4 merchandise-density slice: tighten product cards, category rail, promo banners, popular-series rail, and Pay Later placement without adding unsupported claims or fake data.
+  - [ ] V4 Pay Later/loading follow-up: verify direct official Pay Later rendering after merchandising on hosted/local flows and finish the remaining shadcn `Skeleton`/image-placeholder loading-state checks.
   - [ ] V4 GUI evidence slice: capture and record Home screenshots/metrics at 1440, 1280, 1024, 768, 390, and 320 widths before marking V4 complete.
 - [x] Continue Milestone 16 with category density refinements: remove the `All products` explanatory subtitle, show `Sale` badges on discounted product cards, lazy-load product-card images, and render Category Pay Later directly without wrapper-card chrome.
 - [x] Continue Milestone 16 with direct Pay Later message presentation on Category, PDP, Cart, and Minicart instead of decorative wrapper boxes.

@@ -34,6 +34,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const fullCalendarDesktopMedia = "(min-width: 1181px)";
 
@@ -56,10 +57,13 @@ export interface HomePageProductCard {
   readonly slug: string;
   readonly name: string;
   readonly eyebrow: string;
+  readonly categoryLabel?: string;
+  readonly seriesLabel?: string;
   readonly imagePath: string;
   readonly imageAlt: string;
   readonly priceLabel: string;
   readonly statusLabel: string;
+  readonly pickupLabel?: string;
   readonly href: string;
 }
 
@@ -96,8 +100,11 @@ export interface HomePageCalendar {
 }
 
 export interface HomePagePromo {
+  readonly badgeLabel?: string;
   readonly title: string;
   readonly body: string;
+  readonly imagePath?: string;
+  readonly imageAlt?: string;
   readonly href?: string;
   readonly ctaLabel?: string;
 }
@@ -459,12 +466,28 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                     />
                   </CardContent>
                   <CardHeader className="product-card__header">
+                    <CardDescription className="product-card__series">
+                      {formatProductSeriesLabel(product)}
+                    </CardDescription>
                     <CardTitle className="product-card__name">
                       {product.name}
                     </CardTitle>
-                    <CardDescription className="product-card__meta">
-                      {product.statusLabel}
-                    </CardDescription>
+                    <div className="product-card__badges">
+                      <Badge
+                        className="product-card__status"
+                        variant="secondary"
+                      >
+                        {product.statusLabel}
+                      </Badge>
+                      {product.pickupLabel ? (
+                        <Badge
+                          className="product-card__pickup"
+                          variant="outline"
+                        >
+                          {product.pickupLabel}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </CardHeader>
                   <CardFooter className="product-card__footer">
                     <span className="product-card__price">
@@ -482,50 +505,43 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
         </section>
       </div>
 
-      <section
-        className="homepage-paylater-promo"
-        aria-label={data.payLaterPromo.title}
-      >
-        <h2>{data.payLaterPromo.title}</h2>
-        {renderPayLaterPromoMessage ? (
-          renderPayLaterPromoMessage(data.payLaterPromo)
-        ) : (
-          <p>{data.payLaterPromo.body}</p>
-        )}
-      </section>
-
       <section className="homepage-section" aria-labelledby="categories-title">
         <SectionHeader
           title="Shop by category"
           id="categories-title"
           href="/products"
         />
-        <div className="category-strip">
-          {data.categories.map((category) => (
-            <Card className="category-pill" key={category.slug} size="sm">
-              <a className="category-pill__link" href={category.href}>
-                <CardContent className="category-pill__media">
-                  <img
-                    src={category.imagePath}
-                    alt={category.imageAlt}
-                    loading="lazy"
-                  />
-                </CardContent>
-                <CardHeader className="category-pill__copy">
-                  <CardTitle className="category-pill__title">
-                    {category.name}
-                  </CardTitle>
-                  <CardDescription className="category-pill__description">
-                    {category.description}
-                  </CardDescription>
-                </CardHeader>
-                <span className="category-pill__arrow" aria-hidden="true">
-                  <ArrowRight />
-                </span>
-              </a>
-            </Card>
-          ))}
-        </div>
+        <ScrollArea
+          className="category-strip__scroll"
+          aria-label="Shop by category"
+        >
+          <div className="category-strip">
+            {data.categories.map((category) => (
+              <Card className="category-pill" key={category.slug} size="sm">
+                <a className="category-pill__link" href={category.href}>
+                  <CardContent className="category-pill__media">
+                    <img
+                      src={category.imagePath}
+                      alt={category.imageAlt}
+                      loading="lazy"
+                    />
+                  </CardContent>
+                  <CardHeader className="category-pill__copy">
+                    <CardTitle className="category-pill__title">
+                      {category.name}
+                    </CardTitle>
+                    <CardDescription className="category-pill__description">
+                      {category.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <span className="category-pill__arrow" aria-hidden="true">
+                    <ArrowRight />
+                  </span>
+                </a>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
       </section>
 
       <section className="homepage-promo-grid" aria-label="Promotions">
@@ -534,6 +550,8 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
             data.hotSales.length > 0
               ? data.hotSales[index % data.hotSales.length]
               : undefined;
+          const promoImagePath = promo.imagePath ?? promoProduct?.imagePath;
+          const promoImageAlt = promo.imageAlt ?? promoProduct?.imageAlt;
 
           return (
             <Card
@@ -548,7 +566,7 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                 <CardHeader className="homepage-promo__header">
                   <Badge className="homepage-promo__badge" variant="outline">
                     <Sparkles aria-hidden="true" />
-                    Event pick
+                    {promo.badgeLabel ?? "Event pick"}
                   </Badge>
                   <CardTitle className="homepage-promo__title">
                     <h2>{promo.title}</h2>
@@ -561,11 +579,11 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                     <ArrowRight aria-hidden="true" />
                   </span>
                 </CardHeader>
-                {promoProduct ? (
+                {promoImagePath && promoImageAlt ? (
                   <CardContent className="homepage-promo__media">
                     <img
-                      src={promoProduct.imagePath}
-                      alt={promoProduct.imageAlt}
+                      src={promoImagePath}
+                      alt={promoImageAlt}
                       loading="lazy"
                     />
                   </CardContent>
@@ -582,30 +600,44 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
           id="series-title"
           href="/products"
         />
-        <div className="series-grid">
-          {data.popularSeries.map((series) => (
-            <Card className="series-card" key={series.name} size="sm">
-              <a className="series-card__link" href={series.href}>
-                <CardContent className="series-card__media">
-                  <img
-                    src={series.imagePath}
-                    alt={series.imageAlt}
-                    loading="lazy"
-                  />
-                </CardContent>
-                <CardHeader className="series-card__header">
-                  <Badge className="series-card__badge" variant="outline">
-                    <Heart aria-hidden="true" />
-                    Series
-                  </Badge>
-                  <CardTitle className="series-card__title">
-                    {series.name}
-                  </CardTitle>
-                </CardHeader>
-              </a>
-            </Card>
-          ))}
-        </div>
+        <ScrollArea className="series-grid__scroll" aria-label="Popular series">
+          <div className="series-grid">
+            {data.popularSeries.map((series) => (
+              <Card className="series-card" key={series.name} size="sm">
+                <a className="series-card__link" href={series.href}>
+                  <CardContent className="series-card__media">
+                    <img
+                      src={series.imagePath}
+                      alt={series.imageAlt}
+                      loading="lazy"
+                    />
+                  </CardContent>
+                  <CardHeader className="series-card__header">
+                    <Badge className="series-card__badge" variant="outline">
+                      <Heart aria-hidden="true" />
+                      Series
+                    </Badge>
+                    <CardTitle className="series-card__title">
+                      {series.name}
+                    </CardTitle>
+                  </CardHeader>
+                </a>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
+      </section>
+
+      <section
+        className="homepage-paylater-promo"
+        aria-label={data.payLaterPromo.title}
+      >
+        <h2>{data.payLaterPromo.title}</h2>
+        {renderPayLaterPromoMessage ? (
+          renderPayLaterPromoMessage(data.payLaterPromo)
+        ) : (
+          <p>{data.payLaterPromo.body}</p>
+        )}
       </section>
     </div>
   );
@@ -724,6 +756,18 @@ function toCalendarProduct(
   };
 }
 
+function formatProductSeriesLabel(product: HomePageProductCard): string {
+  const labels = [product.categoryLabel, product.seriesLabel].filter(
+    (label): label is string => Boolean(label),
+  );
+
+  if (labels.length > 0) {
+    return labels.join(" · ");
+  }
+
+  return product.eyebrow;
+}
+
 function formatReleaseProductCount(count: number): string {
   if (count === 1) {
     return "1 release pick";
@@ -815,16 +859,21 @@ export const defaultHomePageData: HomePageData = {
       slug: "blind-boxes-2",
       name: "Molly Blind Boxes 2",
       eyebrow: "Hot sale",
+      categoryLabel: "Blind Boxes",
+      seriesLabel: "Molly",
       imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
       imageAlt: "Molly Blind Boxes 2 collectible",
       priceLabel: "$14.99",
       statusLabel: "Released",
+      pickupLabel: "Pickup eligible",
       href: "/products/blind-boxes-2",
     },
     {
       slug: "vinyl-figures-7",
       name: "Pucky Vinyl Figures 2",
       eyebrow: "Coming soon",
+      categoryLabel: "Vinyl Figures",
+      seriesLabel: "Pucky",
       imagePath: "/assets/popmart/products/vinyl-figures-7-1.png",
       imageAlt: "Pucky Vinyl Figures 2 collectible",
       priceLabel: "$22.99",
@@ -835,10 +884,13 @@ export const defaultHomePageData: HomePageData = {
       slug: "plush-12",
       name: "Molly Plush 2",
       eyebrow: "Top rated",
+      categoryLabel: "Plush",
+      seriesLabel: "Molly",
       imagePath: "/assets/popmart/products/plush-12-1.png",
       imageAlt: "Molly Plush 2 collectible",
       priceLabel: "$19.99",
       statusLabel: "Released",
+      pickupLabel: "Pickup eligible",
       href: "/products/plush-12",
     },
   ],
@@ -912,22 +964,31 @@ export const defaultHomePageData: HomePageData = {
   },
   promoCards: [
     {
+      badgeLabel: "New arrivals",
+      title: "New arrivals",
+      body: "Fresh shelf-ready collectibles just landed.",
+      imagePath: "/assets/popmart/products/plush-12-1.png",
+      imageAlt: "New arrivals promo collectible",
+      href: "/products?sort=newest",
+      ctaLabel: "Shop new",
+    },
+    {
+      badgeLabel: "Limited drops",
       title: "Limited drops",
       body: "Collector favorites returning this week.",
-      href: "/products?sort=newest",
+      imagePath: "/assets/popmart/products/blind-boxes-2-1.png",
+      imageAlt: "Limited drops promo collectible",
+      href: "/products?category=blind-boxes",
       ctaLabel: "Shop drops",
     },
     {
+      badgeLabel: "Pickup nearby",
       title: "Pickup nearby",
       body: "Choose eligible stores during checkout.",
+      imagePath: "/assets/popmart/products/accessories-23-1.png",
+      imageAlt: "Pickup nearby promo collectible",
       href: "/checkout",
       ctaLabel: "Find pickup",
-    },
-    {
-      title: "Member rewards",
-      body: "Sign in to keep orders, reviews, and saved payments together.",
-      href: "/account",
-      ctaLabel: "Open account",
     },
   ],
   popularSeries: [

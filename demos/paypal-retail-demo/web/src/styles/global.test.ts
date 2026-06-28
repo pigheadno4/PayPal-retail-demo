@@ -59,6 +59,12 @@ describe("global storefront visual tokens", () => {
     const trustIconBlock = cssBlock(".homepage-trust-card__icon");
     const productCtaBlock = cssBlock(".product-card__cta");
     const categoryArrowBlock = cssBlock(".category-pill__arrow");
+    const railScrollBlock = cssBlock(
+      ".category-strip__scroll,\n.series-grid__scroll",
+    );
+    const railViewportBlock = cssBlock(
+      '.category-strip__scroll [data-slot="scroll-area-viewport"],\n.series-grid__scroll [data-slot="scroll-area-viewport"]',
+    );
 
     expect(globalCss).toContain(".homepage-hero__visual-link");
     expect(globalCss).toContain(
@@ -69,11 +75,21 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain("min-height: clamp(320px, 86vw, 380px);");
     expect(globalCss).toContain(".homepage-hero::after");
     expect(globalCss).toContain(".homepage-drop-board {\n    order: 2;");
-    expect(globalCss).toContain(".homepage-trust-strip {\n    order: 3;");
-    expect(globalCss).toContain(".homepage-paylater-promo {\n    order: 3;");
+    expect(globalCss).toContain(".homepage-trust-strip {\n    order: 5;");
+    expect(globalCss).toContain(".homepage-paylater-promo {\n    order: 6;");
     expect(globalCss).toContain("grid-auto-columns: minmax(214px, 74vw);");
     expect(globalCss).toContain("grid-auto-columns: minmax(270px, 88vw);");
     expect(globalCss).toContain("scroll-snap-type: x proximity;");
+    expect(railScrollBlock).toContain("max-width: 100%");
+    expect(railScrollBlock).toContain("min-width: 0");
+    expect(railScrollBlock).toContain("overflow: hidden");
+    expect(railViewportBlock).toContain("max-width: 100%");
+    expect(railViewportBlock).toContain("min-width: 0");
+    expect(railViewportBlock).toContain("scroll-snap-type: x proximity");
+    expect(globalCss).toContain(
+      ".category-strip,\n  .series-grid {\n    grid-auto-flow: column;",
+    );
+    expect(globalCss).toContain("overflow: visible;");
     expect(siteHeaderBlock).toContain("z-index: 40");
     expect(trustIconBlock).toContain("border-radius: 999px");
     expect(productCtaBlock).toContain("display: inline-flex");
