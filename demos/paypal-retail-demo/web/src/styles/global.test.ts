@@ -94,6 +94,9 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".release-calendar__compact-legend");
     expect(globalCss).toContain(".release-calendar__full-content");
     expect(globalCss).toContain(".homepage-release-shelf__context");
+    expect(globalCss).toContain(
+      "@media (max-width: 1180px) and (min-width: 1021px)",
+    );
     expect(fullCalendarTriggerBlock).toContain("min-height: 44px");
     expect(globalCss).toContain(
       '.release-calendar__full-content[data-state="closed"],\n  .release-calendar__full-content[hidden]',

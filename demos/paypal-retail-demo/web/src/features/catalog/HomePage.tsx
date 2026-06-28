@@ -35,6 +35,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+const fullCalendarDesktopMedia = "(min-width: 1181px)";
+
 export interface HomePageHero {
   readonly eyebrow: string;
   readonly title: string;
@@ -196,11 +198,11 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
       return true;
     }
 
-    return window.matchMedia("(min-width: 1021px)").matches;
+    return window.matchMedia(fullCalendarDesktopMedia).matches;
   });
 
   useEffect(() => {
-    const breakpoint = window.matchMedia("(min-width: 1021px)");
+    const breakpoint = window.matchMedia(fullCalendarDesktopMedia);
     const syncFullCalendar = () => {
       setIsFullCalendarOpen(breakpoint.matches);
     };

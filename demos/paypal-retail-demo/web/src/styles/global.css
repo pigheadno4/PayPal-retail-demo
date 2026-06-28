@@ -6727,6 +6727,21 @@ p {
   ) !important;
 }
 
+@media (max-width: 1180px) and (min-width: 1021px) {
+  .release-calendar__full-trigger {
+    display: inline-flex;
+  }
+
+  .release-calendar__full-content[data-state="closed"],
+  .release-calendar__full-content[hidden] {
+    display: none;
+  }
+
+  .release-calendar__full-content[data-state="open"] {
+    display: grid;
+  }
+}
+
 @media (max-width: 1020px) {
   .homepage-trust-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
