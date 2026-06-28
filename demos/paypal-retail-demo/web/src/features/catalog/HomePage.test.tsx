@@ -109,6 +109,46 @@ describe("HomePage", () => {
     expect(html).not.toContain("Member rewards");
   });
 
+  it("renders shadcn skeleton placeholders while homepage merchandising is loading", () => {
+    const html = renderToStaticMarkup(
+      <HomePage
+        data={{
+          ...defaultHomePageData,
+          loading: true,
+          hero: {
+            ...defaultHomePageData.hero,
+            eyebrow: "Loading",
+            title: "Preparing collectible drops",
+            subtitle: "Live product imagery and availability are loading.",
+            imagePath: "/assets/generic/products/placeholder.svg",
+            imageAlt: "",
+          },
+          hotSales: [],
+          categories: [],
+          calendar: {
+            ...defaultHomePageData.calendar,
+            selectedProducts: [],
+          },
+          promoCards: [],
+          popularSeries: [],
+        }}
+      />,
+    );
+
+    expect(html).toContain('data-loading="true"');
+    expect(html).toContain('aria-label="Loading featured products"');
+    expect(html).toContain('aria-label="Loading categories"');
+    expect(html).toContain('aria-label="Loading promotions"');
+    expect(html).toContain('aria-label="Loading popular series"');
+    expect(html).toContain("homepage-loading-skeleton");
+    expect(
+      (html.match(/data-slot="skeleton"/g) ?? []).length,
+    ).toBeGreaterThanOrEqual(12);
+    expect(html).not.toContain("Molly Blind Boxes 2");
+    expect(html).not.toContain("Pucky Vinyl Figures 2");
+    expect(html).not.toContain("Molly Plush 2");
+  });
+
   it("uses amount-free Pay Later promotion copy on the homepage", () => {
     const html = renderToStaticMarkup(<HomePage data={homePageData()} />);
     const payLaterSection =

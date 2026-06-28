@@ -1140,6 +1140,59 @@ a {
   font-weight: 760;
 }
 
+.homepage-loading-skeleton {
+  pointer-events: none;
+}
+
+.homepage-loading-skeleton__media {
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+}
+
+.homepage-loading-skeleton__line {
+  height: 12px;
+  width: 72%;
+}
+
+.homepage-loading-skeleton__line--short {
+  width: 44%;
+}
+
+.homepage-loading-skeleton__line--wide {
+  width: 86%;
+}
+
+.homepage-loading-skeleton__line--price {
+  width: 56px;
+}
+
+.homepage-loading-skeleton__pill {
+  border-radius: 999px;
+  height: 24px;
+  width: 72px;
+}
+
+.homepage-loading-skeleton__pill--cta {
+  width: 92px;
+}
+
+.homepage-loading-skeleton__icon {
+  align-self: center;
+  border-radius: 999px;
+  height: 30px;
+  justify-self: end;
+  width: 30px;
+}
+
+.release-calendar__compact-skeleton {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 0;
+}
+
 .product-card__cta {
   align-items: center;
   background: color-mix(in srgb, var(--shell-accent), white 88%);
@@ -1204,6 +1257,23 @@ a {
   grid-template-columns: 64px minmax(0, 1fr) auto;
   min-height: 100%;
   padding: 12px;
+}
+
+.category-pill--loading {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 52px minmax(0, 1fr) 30px;
+  padding: 12px;
+}
+
+.category-pill--loading .category-pill__media {
+  aspect-ratio: 1;
+  min-height: 52px;
+}
+
+.category-pill--loading .category-pill__copy {
+  gap: 8px;
 }
 
 .category-pill img {
@@ -1634,6 +1704,27 @@ a {
   object-fit: cover;
   object-position: center;
   width: 100%;
+}
+
+.product-card--loading .product-card__media,
+.series-card--loading .series-card__media {
+  min-height: 0;
+}
+
+.product-card--loading .homepage-loading-skeleton__media {
+  aspect-ratio: 1;
+}
+
+.homepage-promo--loading .homepage-promo__media {
+  min-height: 100%;
+}
+
+.homepage-promo--loading .homepage-loading-skeleton__media {
+  border-radius: 0;
+}
+
+.series-card--loading .homepage-loading-skeleton__media {
+  border-radius: inherit;
 }
 
 .series-grid {

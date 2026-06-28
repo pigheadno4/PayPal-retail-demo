@@ -35,6 +35,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const fullCalendarDesktopMedia = "(min-width: 1181px)";
 
@@ -159,7 +160,10 @@ const homeTrustItems = [
   readonly body: string;
 }[];
 
+const homeLoadingSkeletonSlots = ["one", "two", "three"] as const;
+
 export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
+  const isLoading = Boolean(data.loading);
   const calendarDaysByIsoDate = new Map(
     data.calendar.days.map((day) => [day.isoDate, day]),
   );
@@ -245,7 +249,7 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
   };
 
   return (
-    <div className="homepage" data-loading={data.loading ? "true" : undefined}>
+    <div className="homepage" data-loading={isLoading ? "true" : undefined}>
       <section className="homepage-hero" aria-labelledby="homepage-hero-title">
         <div className="homepage-hero__copy">
           <p className="homepage-eyebrow">{data.hero.eyebrow}</p>
@@ -363,16 +367,24 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                 </CardHeader>
                 <CardContent>
                   <ul className="release-calendar__compact-list">
-                    {selectedReleaseProducts.map((product) => (
-                      <li key={product.slug}>
-                        <a href={product.href}>
-                          <span>{product.name}</span>
-                          <Badge variant="secondary">
-                            {product.statusLabel}
-                          </Badge>
-                        </a>
-                      </li>
-                    ))}
+                    {selectedReleaseProducts.length > 0
+                      ? selectedReleaseProducts.map((product) => (
+                          <li key={product.slug}>
+                            <a href={product.href}>
+                              <span>{product.name}</span>
+                              <Badge variant="secondary">
+                                {product.statusLabel}
+                              </Badge>
+                            </a>
+                          </li>
+                        ))
+                      : isLoading
+                        ? homeLoadingSkeletonSlots
+                            .slice(0, 2)
+                            .map((slot) => (
+                              <HomeReleaseListSkeleton key={slot} />
+                            ))
+                        : null}
                   </ul>
                   <dl
                     className="release-calendar__compact-legend"
@@ -451,56 +463,69 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
           >
             {releaseShelfContext}
           </p>
-          <div className="product-card-grid">
-            {selectedShelfProducts.map((product) => (
-              <Card className="product-card" key={product.slug} size="sm">
-                <a className="product-card__link" href={product.href}>
-                  <CardContent className="product-card__media">
-                    <Badge className="product-card__tag">
-                      {product.eyebrow}
-                    </Badge>
-                    <img
-                      src={product.imagePath}
-                      alt={product.imageAlt}
-                      loading="lazy"
-                    />
-                  </CardContent>
-                  <CardHeader className="product-card__header">
-                    <CardDescription className="product-card__series">
-                      {formatProductSeriesLabel(product)}
-                    </CardDescription>
-                    <CardTitle className="product-card__name">
-                      {product.name}
-                    </CardTitle>
-                    <div className="product-card__badges">
-                      <Badge
-                        className="product-card__status"
-                        variant="secondary"
-                      >
-                        {product.statusLabel}
-                      </Badge>
-                      {product.pickupLabel ? (
-                        <Badge
-                          className="product-card__pickup"
-                          variant="outline"
-                        >
-                          {product.pickupLabel}
+          <div
+            className="product-card-grid"
+            aria-label={
+              isLoading && selectedShelfProducts.length === 0
+                ? "Loading featured products"
+                : undefined
+            }
+          >
+            {selectedShelfProducts.length > 0
+              ? selectedShelfProducts.map((product) => (
+                  <Card className="product-card" key={product.slug} size="sm">
+                    <a className="product-card__link" href={product.href}>
+                      <CardContent className="product-card__media">
+                        <Badge className="product-card__tag">
+                          {product.eyebrow}
                         </Badge>
-                      ) : null}
-                    </div>
-                  </CardHeader>
-                  <CardFooter className="product-card__footer">
-                    <span className="product-card__price">
-                      {product.priceLabel}
-                    </span>
-                    <span className="product-card__cta">
-                      <ShoppingCart aria-hidden="true" />
-                      View item
-                    </span>
-                  </CardFooter>
-                </a>
-              </Card>
-            ))}
+                        <img
+                          src={product.imagePath}
+                          alt={product.imageAlt}
+                          loading="lazy"
+                        />
+                      </CardContent>
+                      <CardHeader className="product-card__header">
+                        <CardDescription className="product-card__series">
+                          {formatProductSeriesLabel(product)}
+                        </CardDescription>
+                        <CardTitle className="product-card__name">
+                          {product.name}
+                        </CardTitle>
+                        <div className="product-card__badges">
+                          <Badge
+                            className="product-card__status"
+                            variant="secondary"
+                          >
+                            {product.statusLabel}
+                          </Badge>
+                          {product.pickupLabel ? (
+                            <Badge
+                              className="product-card__pickup"
+                              variant="outline"
+                            >
+                              {product.pickupLabel}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardFooter className="product-card__footer">
+                        <span className="product-card__price">
+                          {product.priceLabel}
+                        </span>
+                        <span className="product-card__cta">
+                          <ShoppingCart aria-hidden="true" />
+                          View item
+                        </span>
+                      </CardFooter>
+                    </a>
+                  </Card>
+                ))
+              : isLoading
+                ? homeLoadingSkeletonSlots.map((slot) => (
+                    <HomeProductCardSkeleton key={slot} />
+                  ))
+                : null}
           </div>
         </section>
       </div>
@@ -516,82 +541,97 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
           aria-label="Shop by category"
         >
           <div className="category-strip">
-            {data.categories.map((category) => (
-              <Card className="category-pill" key={category.slug} size="sm">
-                <a className="category-pill__link" href={category.href}>
-                  <CardContent className="category-pill__media">
-                    <img
-                      src={category.imagePath}
-                      alt={category.imageAlt}
-                      loading="lazy"
-                    />
-                  </CardContent>
-                  <CardHeader className="category-pill__copy">
-                    <CardTitle className="category-pill__title">
-                      {category.name}
-                    </CardTitle>
-                    <CardDescription className="category-pill__description">
-                      {category.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <span className="category-pill__arrow" aria-hidden="true">
-                    <ArrowRight />
-                  </span>
-                </a>
-              </Card>
-            ))}
+            {data.categories.length > 0
+              ? data.categories.map((category) => (
+                  <Card className="category-pill" key={category.slug} size="sm">
+                    <a className="category-pill__link" href={category.href}>
+                      <CardContent className="category-pill__media">
+                        <img
+                          src={category.imagePath}
+                          alt={category.imageAlt}
+                          loading="lazy"
+                        />
+                      </CardContent>
+                      <CardHeader className="category-pill__copy">
+                        <CardTitle className="category-pill__title">
+                          {category.name}
+                        </CardTitle>
+                        <CardDescription className="category-pill__description">
+                          {category.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <span className="category-pill__arrow" aria-hidden="true">
+                        <ArrowRight />
+                      </span>
+                    </a>
+                  </Card>
+                ))
+              : isLoading
+                ? homeLoadingSkeletonSlots.map((slot) => (
+                    <HomeCategorySkeleton key={slot} />
+                  ))
+                : null}
           </div>
         </ScrollArea>
       </section>
 
       <section className="homepage-promo-grid" aria-label="Promotions">
-        {data.promoCards.map((promo, index) => {
-          const promoProduct =
-            data.hotSales.length > 0
-              ? data.hotSales[index % data.hotSales.length]
-              : undefined;
-          const promoImagePath = promo.imagePath ?? promoProduct?.imagePath;
-          const promoImageAlt = promo.imageAlt ?? promoProduct?.imageAlt;
+        {data.promoCards.length > 0
+          ? data.promoCards.map((promo, index) => {
+              const promoProduct =
+                data.hotSales.length > 0
+                  ? data.hotSales[index % data.hotSales.length]
+                  : undefined;
+              const promoImagePath = promo.imagePath ?? promoProduct?.imagePath;
+              const promoImageAlt = promo.imageAlt ?? promoProduct?.imageAlt;
 
-          return (
-            <Card
-              className="homepage-promo"
-              data-promo-tone={String(index + 1)}
-              key={promo.title}
-            >
-              <a
-                className="homepage-promo__link"
-                href={promo.href ?? "/products"}
-              >
-                <CardHeader className="homepage-promo__header">
-                  <Badge className="homepage-promo__badge" variant="outline">
-                    <Sparkles aria-hidden="true" />
-                    {promo.badgeLabel ?? "Event pick"}
-                  </Badge>
-                  <CardTitle className="homepage-promo__title">
-                    <h2>{promo.title}</h2>
-                  </CardTitle>
-                  <CardDescription className="homepage-promo__body">
-                    <p>{promo.body}</p>
-                  </CardDescription>
-                  <span className="homepage-promo__cta">
-                    {promo.ctaLabel ?? "Shop now"}
-                    <ArrowRight aria-hidden="true" />
-                  </span>
-                </CardHeader>
-                {promoImagePath && promoImageAlt ? (
-                  <CardContent className="homepage-promo__media">
-                    <img
-                      src={promoImagePath}
-                      alt={promoImageAlt}
-                      loading="lazy"
-                    />
-                  </CardContent>
-                ) : null}
-              </a>
-            </Card>
-          );
-        })}
+              return (
+                <Card
+                  className="homepage-promo"
+                  data-promo-tone={String(index + 1)}
+                  key={promo.title}
+                >
+                  <a
+                    className="homepage-promo__link"
+                    href={promo.href ?? "/products"}
+                  >
+                    <CardHeader className="homepage-promo__header">
+                      <Badge
+                        className="homepage-promo__badge"
+                        variant="outline"
+                      >
+                        <Sparkles aria-hidden="true" />
+                        {promo.badgeLabel ?? "Event pick"}
+                      </Badge>
+                      <CardTitle className="homepage-promo__title">
+                        <h2>{promo.title}</h2>
+                      </CardTitle>
+                      <CardDescription className="homepage-promo__body">
+                        <p>{promo.body}</p>
+                      </CardDescription>
+                      <span className="homepage-promo__cta">
+                        {promo.ctaLabel ?? "Shop now"}
+                        <ArrowRight aria-hidden="true" />
+                      </span>
+                    </CardHeader>
+                    {promoImagePath && promoImageAlt ? (
+                      <CardContent className="homepage-promo__media">
+                        <img
+                          src={promoImagePath}
+                          alt={promoImageAlt}
+                          loading="lazy"
+                        />
+                      </CardContent>
+                    ) : null}
+                  </a>
+                </Card>
+              );
+            })
+          : isLoading
+            ? homeLoadingSkeletonSlots.map((slot) => (
+                <HomePromoSkeleton key={slot} />
+              ))
+            : null}
       </section>
 
       <section className="homepage-section" aria-labelledby="series-title">
@@ -602,28 +642,34 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
         />
         <ScrollArea className="series-grid__scroll" aria-label="Popular series">
           <div className="series-grid">
-            {data.popularSeries.map((series) => (
-              <Card className="series-card" key={series.name} size="sm">
-                <a className="series-card__link" href={series.href}>
-                  <CardContent className="series-card__media">
-                    <img
-                      src={series.imagePath}
-                      alt={series.imageAlt}
-                      loading="lazy"
-                    />
-                  </CardContent>
-                  <CardHeader className="series-card__header">
-                    <Badge className="series-card__badge" variant="outline">
-                      <Heart aria-hidden="true" />
-                      Series
-                    </Badge>
-                    <CardTitle className="series-card__title">
-                      {series.name}
-                    </CardTitle>
-                  </CardHeader>
-                </a>
-              </Card>
-            ))}
+            {data.popularSeries.length > 0
+              ? data.popularSeries.map((series) => (
+                  <Card className="series-card" key={series.name} size="sm">
+                    <a className="series-card__link" href={series.href}>
+                      <CardContent className="series-card__media">
+                        <img
+                          src={series.imagePath}
+                          alt={series.imageAlt}
+                          loading="lazy"
+                        />
+                      </CardContent>
+                      <CardHeader className="series-card__header">
+                        <Badge className="series-card__badge" variant="outline">
+                          <Heart aria-hidden="true" />
+                          Series
+                        </Badge>
+                        <CardTitle className="series-card__title">
+                          {series.name}
+                        </CardTitle>
+                      </CardHeader>
+                    </a>
+                  </Card>
+                ))
+              : isLoading
+                ? homeLoadingSkeletonSlots.map((slot) => (
+                    <HomeSeriesSkeleton key={slot} />
+                  ))
+                : null}
           </div>
         </ScrollArea>
       </section>
@@ -640,6 +686,101 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
         )}
       </section>
     </div>
+  );
+}
+
+function HomeReleaseListSkeleton() {
+  return (
+    <li className="release-calendar__compact-skeleton homepage-loading-skeleton">
+      <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--wide" />
+      <Skeleton className="homepage-loading-skeleton__pill" />
+    </li>
+  );
+}
+
+function HomeProductCardSkeleton() {
+  return (
+    <Card
+      className="product-card product-card--loading homepage-loading-skeleton"
+      size="sm"
+      aria-label="Loading featured products"
+    >
+      <CardContent className="product-card__media">
+        <Skeleton className="homepage-loading-skeleton__media" />
+      </CardContent>
+      <CardHeader className="product-card__header">
+        <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--short" />
+        <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--wide" />
+        <div className="product-card__badges">
+          <Skeleton className="homepage-loading-skeleton__pill" />
+          <Skeleton className="homepage-loading-skeleton__pill" />
+        </div>
+      </CardHeader>
+      <CardFooter className="product-card__footer">
+        <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--price" />
+        <Skeleton className="homepage-loading-skeleton__pill homepage-loading-skeleton__pill--cta" />
+      </CardFooter>
+    </Card>
+  );
+}
+
+function HomeCategorySkeleton() {
+  return (
+    <Card
+      className="category-pill category-pill--loading homepage-loading-skeleton"
+      size="sm"
+      aria-label="Loading categories"
+    >
+      <CardContent className="category-pill__media">
+        <Skeleton className="homepage-loading-skeleton__media" />
+      </CardContent>
+      <CardHeader className="category-pill__copy">
+        <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--short" />
+        <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--wide" />
+      </CardHeader>
+      <Skeleton className="homepage-loading-skeleton__icon" />
+    </Card>
+  );
+}
+
+function HomePromoSkeleton() {
+  return (
+    <Card
+      className="homepage-promo homepage-promo--loading homepage-loading-skeleton"
+      aria-label="Loading promotions"
+    >
+      <div className="homepage-promo__link">
+        <CardHeader className="homepage-promo__header">
+          <Skeleton className="homepage-loading-skeleton__pill" />
+          <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--wide" />
+          <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--short" />
+          <Skeleton className="homepage-loading-skeleton__pill homepage-loading-skeleton__pill--cta" />
+        </CardHeader>
+        <CardContent className="homepage-promo__media">
+          <Skeleton className="homepage-loading-skeleton__media" />
+        </CardContent>
+      </div>
+    </Card>
+  );
+}
+
+function HomeSeriesSkeleton() {
+  return (
+    <Card
+      className="series-card series-card--loading homepage-loading-skeleton"
+      size="sm"
+      aria-label="Loading popular series"
+    >
+      <div className="series-card__link">
+        <CardContent className="series-card__media">
+          <Skeleton className="homepage-loading-skeleton__media" />
+        </CardContent>
+        <CardHeader className="series-card__header">
+          <Skeleton className="homepage-loading-skeleton__pill" />
+          <Skeleton className="homepage-loading-skeleton__line homepage-loading-skeleton__line--wide" />
+        </CardHeader>
+      </div>
+    </Card>
   );
 }
 
