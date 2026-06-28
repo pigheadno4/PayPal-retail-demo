@@ -1,7 +1,13 @@
-import type { ComponentProps, ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import {
   ArrowRight,
   CalendarDays,
+  ChevronDown,
   CreditCard,
   Headphones,
   Heart,
@@ -13,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import {
   Card,
@@ -22,6 +29,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export interface HomePageHero {
   readonly eyebrow: string;
@@ -151,6 +163,37 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
   const releaseCalendarMonth = parseCalendarMonthLabel(
     data.calendar.monthLabel,
   );
+  const releaseAgendaDays = data.calendar.days.filter((day) => day.hasRelease);
+  const selectedReleaseDay =
+    releaseAgendaDays.find((day) => day.selected) ?? releaseAgendaDays[0];
+  const selectedReleaseSummary = selectedReleaseDay
+    ? `${formatCalendarDate(selectedReleaseDay.isoDate)} · ${
+        selectedReleaseDay.releaseLabel
+      }`
+    : "Latest release activity";
+  const primaryReleaseHref =
+    data.calendar.selectedProducts[0]?.href ?? "/products?sort=newest";
+  const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return window.matchMedia("(min-width: 1021px)").matches;
+  });
+
+  useEffect(() => {
+    const breakpoint = window.matchMedia("(min-width: 1021px)");
+    const syncFullCalendar = () => {
+      setIsFullCalendarOpen(breakpoint.matches);
+    };
+
+    syncFullCalendar();
+    breakpoint.addEventListener("change", syncFullCalendar);
+
+    return () => {
+      breakpoint.removeEventListener("change", syncFullCalendar);
+    };
+  }, []);
 
   return (
     <div className="homepage" data-loading={data.loading ? "true" : undefined}>
@@ -221,60 +264,133 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
               Follow upcoming drops and jump straight into featured
               collectibles.
             </p>
-            <Calendar
-              aria-label={data.calendar.monthLabel}
-              buttonVariant="ghost"
-              captionLayout="label"
-              className="release-calendar"
-              components={{
-                DayButton: (props) => (
-                  <ReleaseCalendarDayButton
-                    {...props}
-                    calendarDaysByIsoDate={calendarDaysByIsoDate}
-                  />
-                ),
-              }}
-              defaultMonth={releaseCalendarMonth}
-              mode="single"
-              modifiers={{ release: calendarReleaseDates }}
-              selected={selectedCalendarDate}
-              showOutsideDays={false}
-            />
+            <div
+              className="release-calendar__agenda"
+              aria-label="Compact release discovery"
+            >
+              <ol
+                className="release-calendar__date-rail"
+                aria-label="Highlighted release dates"
+              >
+                {releaseAgendaDays.map((day) => {
+                  const chipLabel = `${formatCalendarDate(day.isoDate)}, ${
+                    day.releaseLabel
+                  }`;
+
+                  return (
+                    <li key={day.isoDate}>
+                      {day.selected ? (
+                        <a
+                          className="release-calendar__date-chip"
+                          href={primaryReleaseHref}
+                          aria-current="date"
+                          aria-label={`${chipLabel}. View selected release products.`}
+                          data-selected="true"
+                        >
+                          <span>{day.dayNumber}</span>
+                          <small>{day.releaseLabel}</small>
+                        </a>
+                      ) : (
+                        <span
+                          className="release-calendar__date-chip"
+                          aria-label={chipLabel}
+                          data-selected="false"
+                        >
+                          <span>{day.dayNumber}</span>
+                          <small>{day.releaseLabel}</small>
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              <Card
+                className="release-calendar__compact-products"
+                id="release-calendar-products"
+                aria-live="polite"
+              >
+                <CardHeader className="release-calendar__compact-header">
+                  <CardTitle className="release-calendar__compact-title">
+                    <span aria-hidden="true">
+                      <CalendarDays />
+                    </span>
+                    <h2>Featured releases</h2>
+                  </CardTitle>
+                  <CardDescription>{selectedReleaseSummary}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="release-calendar__compact-list">
+                    {data.calendar.selectedProducts.map((product) => (
+                      <li key={product.slug}>
+                        <a href={product.href}>
+                          <span>{product.name}</span>
+                          <Badge variant="secondary">
+                            {product.statusLabel}
+                          </Badge>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <dl
+                    className="release-calendar__compact-legend"
+                    aria-label="Calendar legend"
+                  >
+                    <div>
+                      <dt>Outlined date</dt>
+                      <dd>Release activity</dd>
+                    </div>
+                    <div>
+                      <dt>Release date</dt>
+                      <dd>Product page is viewable</dd>
+                    </div>
+                    <div>
+                      <dt>New arrival</dt>
+                      <dd>Freshly released item</dd>
+                    </div>
+                  </dl>
+                </CardContent>
+              </Card>
+            </div>
+            <Collapsible
+              className="release-calendar__full"
+              open={isFullCalendarOpen}
+              onOpenChange={setIsFullCalendarOpen}
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  className="release-calendar__full-trigger"
+                  type="button"
+                  variant="outline"
+                >
+                  {isFullCalendarOpen
+                    ? "Hide full calendar"
+                    : "View full calendar"}
+                  <ChevronDown aria-hidden="true" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="release-calendar__full-content">
+                <Calendar
+                  aria-label={data.calendar.monthLabel}
+                  buttonVariant="ghost"
+                  captionLayout="label"
+                  className="release-calendar"
+                  components={{
+                    DayButton: (props) => (
+                      <ReleaseCalendarDayButton
+                        {...props}
+                        calendarDaysByIsoDate={calendarDaysByIsoDate}
+                      />
+                    ),
+                  }}
+                  defaultMonth={releaseCalendarMonth}
+                  mode="single"
+                  modifiers={{ release: calendarReleaseDates }}
+                  selected={selectedCalendarDate}
+                  showOutsideDays={false}
+                />
+              </CollapsibleContent>
+            </Collapsible>
           </div>
-          <Card className="release-calendar__details" role="complementary">
-            <CardHeader className="release-calendar__details-header">
-              <CardTitle className="release-calendar__details-title">
-                <span aria-hidden="true">
-                  <CalendarDays />
-                </span>
-                <h2>Selected releases</h2>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="release-calendar__details-content">
-              <ul>
-                {data.calendar.selectedProducts.map((product) => (
-                  <li key={product.slug}>
-                    <a href={product.href}>{product.name}</a>
-                    <span>{product.statusLabel}</span>
-                  </li>
-                ))}
-              </ul>
-              <dl className="release-calendar__legend">
-                <div>
-                  <dt>Outlined date</dt>
-                  <dd>Release activity</dd>
-                </div>
-                <div>
-                  <dt>Release date</dt>
-                  <dd>Product page is viewable</dd>
-                </div>
-                <div>
-                  <dt>New arrival</dt>
-                  <dd>Freshly released item</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
         </section>
 
         <section className="homepage-section" aria-labelledby="hot-sales-title">

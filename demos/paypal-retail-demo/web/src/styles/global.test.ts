@@ -84,6 +84,18 @@ describe("global storefront visual tokens", () => {
   });
 
   it("keeps the shadcn release calendar inside narrow mobile viewports", () => {
+    const fullCalendarTriggerBlock = cssBlock(
+      ".release-calendar__full-trigger",
+    );
+
+    expect(globalCss).toContain(".release-calendar__agenda");
+    expect(globalCss).toContain(".release-calendar__date-rail");
+    expect(globalCss).toContain(".release-calendar__compact-legend");
+    expect(globalCss).toContain(".release-calendar__full-content");
+    expect(fullCalendarTriggerBlock).toContain("min-height: 44px");
+    expect(globalCss).toContain(
+      '.release-calendar__full-content[data-state="closed"],\n  .release-calendar__full-content[hidden]',
+    );
     expect(globalCss).toContain(".release-calendar .rdp-month_grid tr");
     expect(globalCss).toContain(
       "grid-template-columns: repeat(7, minmax(0, 1fr));",

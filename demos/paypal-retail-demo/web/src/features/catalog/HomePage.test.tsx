@@ -15,6 +15,9 @@ describe("HomePage", () => {
     expect(html).toContain("Pre-order now");
     expect(html).toContain("Shop by category");
     expect(html).toContain("New arrivals calendar");
+    expect(html).toContain("Featured releases");
+    expect(html).toContain("release-calendar__full-trigger");
+    expect(html).toContain("release-calendar__full-content");
     expect(html).toContain("Secure PayPal checkout");
     expect(html).toContain("Demo-authentic catalog");
     expect(html).toContain("Limited drops");
@@ -107,6 +110,9 @@ describe("HomePage", () => {
     const html = renderToStaticMarkup(<HomePage data={homePageData()} />);
 
     expect(html).toContain('data-slot="calendar"');
+    expect(html).toContain('class="release-calendar__date-rail"');
+    expect(html).toContain('aria-current="date"');
+    expect(html).toContain('class="release-calendar__compact-legend"');
     expect(html).toContain('data-release-marker="outlined"');
     expect(html).toContain('aria-label="June 12, Release date"');
     expect(html).toContain('href="/products/labubu-have-a-seat"');
