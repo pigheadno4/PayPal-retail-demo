@@ -3066,30 +3066,41 @@ function BuyerShell({
       </main>
       <footer className="site-footer">
         <section
-          className="site-footer__lead"
+          className="site-footer__newsletter"
           aria-labelledby="site-footer-title"
         >
-          <p className="homepage-eyebrow">Collector updates</p>
-          <h2 id="site-footer-title">Stay in the loop</h2>
-          <p>
-            Follow new drops, delivery and pickup choices, and account order
-            recovery from one demo storefront.
-          </p>
+          <div className="site-footer__lead">
+            <p className="homepage-eyebrow">Collector updates</p>
+            <h2 id="site-footer-title">Stay in the loop</h2>
+            <p>
+              Follow new drops, delivery and pickup choices, and account order
+              recovery from one demo storefront.
+            </p>
+          </div>
+          <div className="site-footer__newsletter-actions">
+            <a href="/products?sort=newest">Shop new drops</a>
+            <a href="/guest-orders">Track order</a>
+          </div>
         </section>
-        <nav className="site-footer__links" aria-label="Footer">
-          {buyerFooterColumns.map((column) => (
-            <div key={column.title}>
-              <h3>{column.title}</h3>
-              <ul>
-                {column.links.map((link) => (
-                  <li key={link.href}>
-                    <a href={link.href}>{link.label}</a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
+        <div className="site-footer__base">
+          <nav className="site-footer__links" aria-label="Footer">
+            {buyerFooterColumns.map((column) => (
+              <div key={column.title}>
+                <h3>{column.title}</h3>
+                <ul>
+                  {column.links.map((link) => (
+                    <li key={link.href}>
+                      <a href={link.href}>{link.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+          <p className="site-footer__support">
+            Secure PayPal checkout, pickup, and order recovery in one demo.
+          </p>
+        </div>
       </footer>
       <StatusRegion id="shell-status" className="sr-only">
         {shellStatus}

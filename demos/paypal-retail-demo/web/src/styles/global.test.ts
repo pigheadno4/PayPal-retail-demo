@@ -421,6 +421,9 @@ describe("global storefront visual tokens", () => {
   });
 
   it("keeps mobile responsive controls at touch-target size without touching PayPal surfaces", () => {
+    const siteHeaderBlock = cssBlock(".site-header");
+    const siteUtilityBlock = cssBlock(".site-utility");
+    const siteBrandBlock = cssBlock(".site-header__brand");
     const headerInnerBlock = cssBlock(".site-header__inner");
     const discoveryBlock = cssBlock(".site-header__discovery");
     const buttonBlock = cssBlockContaining(".button", "min-height: 44px");
@@ -431,15 +434,27 @@ describe("global storefront visual tokens", () => {
     const checkoutBreadcrumbBlock = cssBlock(".checkout-breadcrumb a");
     const filterChipBlock = cssBlock(".catalog-filter-chip");
     const footerLinkBlock = cssBlock(".site-footer__links a");
+    const footerNewsletterBlock = cssBlock(".site-footer__newsletter");
+    const footerActionsBlock = cssBlock(".site-footer__newsletter-actions a");
+    const footerBaseBlock = cssBlockContaining(
+      ".site-footer__base",
+      "background: #082643",
+    );
     const minicartCloseBlock = cssBlock(".minicart-shell__close");
     const headerCartBadgeBlock = cssBlock(".site-header__cart-count");
     const cartFrameBlock = cssBlock(".cart-paypal-frame");
     const checkoutSlotBlock = cssBlock(".checkout-summary__slot");
 
+    expect(siteHeaderBlock).toContain(
+      "background: color-mix(in srgb, var(--shell-bg), #ffffff 76%)",
+    );
+    expect(siteUtilityBlock).toContain("color: #243143");
+    expect(siteBrandBlock).toContain("color: #082643");
     expect(headerInnerBlock).toContain(
       "grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 520px) minmax(\n      460px,",
     );
     expect(discoveryBlock).toContain("min-height: 44px");
+    expect(discoveryBlock).toContain("border: 1px solid var(--shell-border)");
     expect(globalCss).toContain(
       "@media (max-width: 1280px) and (min-width: 901px)",
     );
@@ -456,6 +471,17 @@ describe("global storefront visual tokens", () => {
     expect(filterChipBlock).toContain("min-height: 44px");
     expect(footerLinkBlock).toContain("min-height: 44px");
     expect(footerLinkBlock).toContain("min-width: 44px");
+    expect(footerNewsletterBlock).toContain(
+      "background: linear-gradient(135deg, #ffffff 0%, #fff8f3 64%, #fff0f4 100%)",
+    );
+    expect(footerNewsletterBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
+    );
+    expect(footerActionsBlock).toContain("min-height: 44px");
+    expect(footerBaseBlock).toContain("background: #082643");
+    expect(footerBaseBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr)",
+    );
     expect(minicartCloseBlock).toContain("min-height: 44px");
     expect(minicartCloseBlock).toContain("min-width: 44px");
     expect(headerCartBadgeBlock).toContain("right: 0");

@@ -107,6 +107,13 @@ describe("App shell", () => {
     expect(html).toContain("Coming soon");
     expect(html).toContain("Cart (");
     expect(html).toContain("Stay in the loop");
+    expect(html).toContain('class="site-footer__newsletter"');
+    expect(html).toContain('class="site-footer__newsletter-actions"');
+    expect(html).toContain('class="site-footer__base"');
+    expect(html).toContain("Shop new drops");
+    expect(html).toContain(
+      "Secure PayPal checkout, pickup, and order recovery",
+    );
     expect(html).toContain('aria-label="Open minicart"');
     expect(html).toContain('class="homepage-paylater-promo"');
     expect(html).toContain('class="paypal-provider-scope"');
