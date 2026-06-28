@@ -151,6 +151,46 @@ V3 resolves the remaining reference-fidelity gaps found after hosted GUI review:
 - Hero type: reduce oversized mobile/desktop hero title scale and use a slightly more open line height so the first viewport feels polished rather than heavy. Keep letter spacing at `0`.
 - Font direction: keep the current Rubik/Nunito stack if the slice must stay dependency-free, but apply lighter weights. If a later asset/font pass is allowed, `Fredoka + Nunito` or `Varela Round + Nunito Sans` are preferred for a playful collectible retail tone.
 
+#### Homepage Reference Polish V4
+
+V4 is the homepage refinement contract created from the V2/V3 lessons. V2 established the reference module structure and V3 closed the fake-search plus heavy-type regressions. V4 should not reopen those completed gates; it should make the homepage feel closer to the Sakura reference level by tightening visual mass, release-calendar interaction, footer commerce depth, and mobile browsing rhythm before any runtime implementation is marked complete.
+
+Use these global principles:
+
+- Deep navy is an accent, not the dominant frame. Prefer warm white, cream, blush, and light retail surfaces for the utility/header/footer bands, then reserve navy for one slim nav strip, footer base, headings, and selected states.
+- POP MART red, pink, yellow, mint, and sky accents should carry badges, active states, release markers, and small CTAs. Avoid large uninterrupted black/navy blocks around playful product content.
+- Mobile is the default reading order. At 320-414px, the buyer should see hero/product discovery quickly; a full month calendar cannot consume the browsing flow by default.
+- Typography should stay lighter than the pre-V3 state: body/UI 400-600, card titles 650-750, nav/buttons/badges 700-800, and 900+ only for rare hero emphasis.
+- Preserve PayPal official surfaces. Do not restyle PayPal SDK-rendered buttons/messages, wrap official Pay Later messages in decorative boxes, or add unsupported PayPal claims.
+- Every commercial claim must be demo-backed. Do not add fake ratings, fake loyalty terms, fake preorder deposits, unsupported shipping guarantees, or unsupported authenticity claims to match the reference image.
+
+Module-level V4 plan:
+
+- Utility bar: compress to a lighter 28-32px band. Desktop keeps short shipping language on the left and language/help/track affordances on the right. Mobile keeps a short shipping phrase plus a track-order icon/link without adding a second dark header row.
+- Header search/actions: keep the V3 real search form. Desktop should move toward a light retail header with the POP mark, real search, account/avatar, wishlist, and cart icons. Mobile should keep logo/search/account/cart/menu compact and must never turn the search field back into a route-only anchor.
+- Nav/menu: use one slim nav system. Desktop can keep a navy strip with red/gold active underline and a compact sale badge, or move to a light nav with navy text if the page still feels too heavy. Mobile primary categories and support links stay in the shadcn `Sheet` menu.
+- Hero: keep the image-led hero and clickable feature-drop target, but reduce heavy surrounding chrome. The first viewport should show the hero image, overlaid title/subtitle, compact CTA pair, and a hint of the next merchandising section.
+- Trust strip: keep four icon trust cards, but make them premium and compact. Buyer-facing copy should describe implemented capabilities: generated collectible catalog, delivery/pickup choice, secure PayPal checkout surfaces, and order support/recovery.
+- Release calendar: make it a discovery tool, not a static wall. Desktop keeps calendar left and product shelf right; clicking a date updates selected state, event details, and the adjacent product shelf. Replace large explanatory blocks with compact event chips/cards. Add `This week`, `Upcoming`, and `Calendar` views if the interaction needs clearer modes.
+- Mobile release calendar: default to a compact agenda or horizontal date-chip rail for the next 7-14 days, with matching product cards immediately below. The full month calendar should open through a shadcn `Sheet`, `Dialog`, `Accordion`, or `Collapsible`, not render as a 900-1000px inline table on first pass.
+- Calendar accessibility: selected-date changes should update visible text and an `aria-live` announcement. Date cells/chips need 44px touch targets and labels that include release status, not color alone.
+- Product shelf/cards: use dense shadcn `Card` composition with stable media, status `Badge`, category/series copy, price, release state, wishlist icon state, and a primary CTA. Cards shown from selected calendar dates should explain why they are shown.
+- Category rail: desktop may use a six-column capsule row. Mobile uses `ScrollArea` or a clipped-safe horizontal rail with readable labels and no page-level horizontal scroll.
+- Promo banners: use three image-led cards for New arrivals, Limited drops, and Pickup nearby. Each card needs one image focus, title, short copy, and small CTA. Avoid text-heavy boxes and blank image space.
+- Popular series: keep a cover-art rail focused on series names. Do not overload this module with prices or unsupported product economics.
+- Pay Later: keep the official amount-free message after merchandising modules. The message renders directly, with a buyer-safe timeout fallback that does not produce layout jump or blank chrome.
+- Footer: split the current dark mass into a light newsletter/collector-updates band plus a shorter navy footer base. Include Shop, Help, About, social links, track order, and payment/help links with readable contrast. Mobile footer should stack compactly and avoid becoming the largest homepage module.
+- Loading states: integrate shadcn `Skeleton` for non-image loading surfaces and lightweight image placeholders/LQIP where assets exist. Loading placeholders must not look like final product imagery or cause old mock-image flashes.
+- Responsive QA: verify 1440, 1280, 1024, 768, 390, and 320 widths with no horizontal overflow, no sticky header/calendar overlap, and no clipped tabs/rails/action text.
+
+V4 non-goals:
+
+- Do not replace the homepage with a generic shadcn marketing template.
+- Do not add unsupported autocomplete, personalized recommendations, preorder financial terms, loyalty rewards, or ratings just because they appear in the reference image.
+- Do not change Category, PDP, Cart, Minicart, Checkout, Account, or Admin flows except where shared shell/footer tokens require harmless alignment.
+- Do not regenerate high-risk product images as part of V4. Product-media quality remains a separate later workflow.
+- Do not claim V4 complete without GUI evidence and tracking updates across `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md`.
+
 #### M16 Reference Polish Implementation Guidance
 
 Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.
