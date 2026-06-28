@@ -83,6 +83,39 @@ describe("global storefront visual tokens", () => {
     );
   });
 
+  it("keeps Homepage Reference Polish V4 typography lighter outside rare hero emphasis", () => {
+    const heroTitleBlock = cssBlock(".homepage-hero__copy h1");
+    const sectionHeadingBlock = cssBlock(
+      ".section-heading h2,\n.homepage-promo h2",
+    );
+    const trustTitleBlock = cssBlock(".homepage-trust-card__title");
+    const productTitleBlock = cssBlock(
+      ".product-card__name,\n.series-card__title",
+    );
+    const productPriceBlock = cssBlock(".product-card__price");
+    const productCtaBlock = cssBlock(".product-card__cta");
+    const dateChipDayBlock = cssBlock(".release-calendar__date-chip span");
+    const releaseListTitleBlock = cssBlock(
+      ".release-calendar__compact-list span",
+    );
+    const calendarCaptionBlock = cssBlock(
+      ".release-calendar .rdp-month_caption",
+    );
+    const promoTitleBlock = cssBlock(".homepage-promo__title h2");
+
+    expect(heroTitleBlock).toContain("font-weight: 800");
+    expect(heroTitleBlock).toContain("line-height: 1.08");
+    expect(sectionHeadingBlock).toContain("font-weight: 760");
+    expect(trustTitleBlock).toContain("font-weight: 750");
+    expect(productTitleBlock).toContain("font-weight: 750");
+    expect(productPriceBlock).toContain("font-weight: 760");
+    expect(productCtaBlock).toContain("font-weight: 800");
+    expect(dateChipDayBlock).toContain("font-weight: 750");
+    expect(releaseListTitleBlock).toContain("font-weight: 750");
+    expect(calendarCaptionBlock).toContain("font-weight: 760");
+    expect(promoTitleBlock).toContain("font-weight: 760");
+  });
+
   it("keeps the shadcn release calendar inside narrow mobile viewports", () => {
     const fullCalendarTriggerBlock = cssBlock(
       ".release-calendar__full-trigger",
