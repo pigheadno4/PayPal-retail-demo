@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createSupabaseCheckoutRepository,
@@ -170,6 +170,49 @@ describe("Supabase-backed checkout repository", () => {
       shipping_address: addressDto(),
       selected_shipping_option_id: "ship_express_ca",
     });
+  });
+
+  it("reuses shipping-address recalculation inputs instead of repeating slow draft reads", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push(existingDraft({ fulfillmentMode: "delivery" }));
+    const listCartItems = vi.spyOn(dataSource, "listCartItems");
+    const listShippingOptions = vi.spyOn(dataSource, "listShippingOptions");
+    const repository = createRepository(dataSource);
+
+    await repository.updateShippingAddress(authenticatedContext(), {
+      draftId: "draft_delivery",
+      address: addressInput(),
+      saveToAddressBook: true,
+    });
+
+    expect(listCartItems).toHaveBeenCalledTimes(1);
+    expect(listShippingOptions).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses cart rows while recalculating billing-address totals", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      delivery_state_json: {
+        billing_address: null,
+        same_as_shipping: true,
+        selected_shipping_option_id: "ship_ground_ca",
+        shipping_address: addressDto(),
+      },
+    });
+    const listCartItems = vi.spyOn(dataSource, "listCartItems");
+    const listShippingOptions = vi.spyOn(dataSource, "listShippingOptions");
+    const repository = createRepository(dataSource);
+
+    await repository.updateBillingAddress(authenticatedContext(), {
+      draftId: "draft_delivery",
+      sameAsShipping: true,
+      address: null,
+      saveToAddressBook: true,
+    });
+
+    expect(listCartItems).toHaveBeenCalledTimes(1);
+    expect(listShippingOptions).toHaveBeenCalledTimes(1);
   });
 
   it("persists pickup store and date with ready/unavailable item split", async () => {

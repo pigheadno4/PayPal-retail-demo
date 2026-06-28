@@ -138,6 +138,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Checkout draft API route contracts reject malformed fulfillment, address, and pickup-date input with buyer-safe errors.
 - [x] Supabase-backed checkout repository creates or reuses drafts from verified guest/authenticated active carts.
 - [x] Supabase-backed checkout repository defaults the cheapest eligible delivery shipping option and recalculates tax with shipping excluded.
+- [x] Supabase-backed checkout repository reuses already-loaded cart rows and eligible shipping options during shipping/billing draft recalculation instead of repeating slow cart/shipping reads.
 - [x] Supabase-backed checkout repository persists pickup store/date choices and excludes unavailable pickup quantities from the payable pickup amount while preserving cart intent.
 - [x] Supabase-backed checkout repository rejects ineligible shipping options and unavailable pickup dates before persisting draft state.
 - [x] Checkout promo API route contracts cover evaluate, apply, and remove with normalized promo code inputs and buyer-safe validation errors.

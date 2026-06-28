@@ -427,7 +427,9 @@ export function createSupabaseCheckoutRepository(
         updated_at: resolveNow(dependencies.now),
       });
 
-      return buildDraftResponse(dependencies, updatedDraft, "shipping_option");
+      return buildDraftResponse(dependencies, updatedDraft, "shipping_option", {
+        deliveryShippingOptions: shippingOptions,
+      });
     },
     async updateBillingAddress(context, billingInput) {
       const draft = await resolveDraft(
@@ -495,7 +497,9 @@ export function createSupabaseCheckoutRepository(
         updated_at: resolveNow(dependencies.now),
       });
 
-      return buildDraftResponse(dependencies, updatedDraft, "payment_method");
+      return buildDraftResponse(dependencies, updatedDraft, "payment_method", {
+        deliveryShippingOptions: eligibleOptions,
+      });
     },
     async updatePickupLocation(context, locationInput) {
       const draft = await resolveDraft(
@@ -779,16 +783,26 @@ async function buildDraftResponse(
   input: CheckoutRepositoryDependencies,
   draft: CheckoutDraftRow,
   activeStep?: string,
+  options: {
+    readonly cartItems?: readonly CheckoutCartItemRow[];
+    readonly deliveryShippingOptions?: readonly CheckoutShippingOptionRow[];
+  } = {},
 ): Promise<CheckoutApiResponse> {
-  const cartItems = await input.dataSource.listCartItems(draft.cart_id);
-  const selectedPromoEvaluation = await resolveSelectedPromoEvaluation(
-    input,
-    draft,
-  );
+  const [cartItems, selectedPromoEvaluation] = await Promise.all([
+    options.cartItems ?? input.dataSource.listCartItems(draft.cart_id),
+    resolveSelectedPromoEvaluation(input, draft),
+  ]);
   const promoDiscountMinor =
     selectedPromoEvaluation?.merchandise_discount_minor ?? 0;
-  const delivery = await buildDeliveryDto(input, draft, promoDiscountMinor);
-  const pickup = await buildPickupDto(input, draft, cartItems);
+  const [delivery, pickup] = await Promise.all([
+    buildDeliveryDto(input, {
+      cartItems,
+      draft,
+      promoDiscountMinor,
+      shippingOptions: options.deliveryShippingOptions,
+    }),
+    buildPickupDto(input, draft, cartItems),
+  ]);
   const summary = buildSummary({
     draft,
     cartItems,
@@ -815,8 +829,17 @@ async function buildDraftResponse(
 
 async function buildDeliveryDto(
   input: CheckoutRepositoryDependencies,
-  draft: CheckoutDraftRow,
-  promoDiscountMinor: number,
+  {
+    cartItems,
+    draft,
+    promoDiscountMinor,
+    shippingOptions: prefetchedShippingOptions,
+  }: {
+    readonly cartItems: readonly CheckoutCartItemRow[];
+    readonly draft: CheckoutDraftRow;
+    readonly promoDiscountMinor: number;
+    readonly shippingOptions: readonly CheckoutShippingOptionRow[] | undefined;
+  },
 ): Promise<{
   readonly dto: CatalogJson;
   readonly selectedShippingAmountMinor: number;
@@ -825,18 +848,25 @@ async function buildDeliveryDto(
   const state = draft.delivery_state_json;
   const shippingAddress = state.shipping_address ?? null;
   const shippingOptions = shippingAddress
-    ? await listEligibleShippingOptions(
+    ? (prefetchedShippingOptions ??
+      (await listEligibleShippingOptions(
         input,
         draft,
         addressJsonToInput(shippingAddress),
-      )
+      )))
     : [];
   const selectedShippingOption =
     shippingOptions.find(
       (option) => option.id === state.selected_shipping_option_id,
     ) ?? null;
   const taxMinor = shippingAddress
-    ? await calculateTaxMinor(input, draft, shippingAddress, promoDiscountMinor)
+    ? await calculateTaxMinor(
+        input,
+        draft,
+        shippingAddress,
+        promoDiscountMinor,
+        cartItems,
+      )
     : 0;
 
   return {
@@ -1394,11 +1424,9 @@ async function calculateTaxMinor(
   draft: CheckoutDraftRow,
   address: CheckoutAddressJson,
   promoDiscountMinor: number,
+  cartItems: readonly CheckoutCartItemRow[],
 ): Promise<number> {
-  const [cartItems, taxRates] = await Promise.all([
-    input.dataSource.listCartItems(draft.cart_id),
-    input.dataSource.listTaxRates(draft.market_id),
-  ]);
+  const taxRates = await input.dataSource.listTaxRates(draft.market_id);
   const taxRate = selectTaxRate(
     taxRates.map(mapTaxRateForShared),
     destinationFromAddress(draft.market_id, addressJsonToInput(address)),

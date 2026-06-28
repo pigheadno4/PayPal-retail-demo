@@ -219,6 +219,7 @@ Verification:
 - [x] Implement checkout draft create/update APIs for Delivery and Pickup tabs.
   - [x] Checkout route contracts and repository boundary.
   - [x] Supabase-backed checkout draft repository and live server wiring.
+  - [x] Optimize shipping/billing draft recalculation so address submits reuse already-loaded cart rows and eligible shipping options instead of repeating slow backend reads.
 - [x] Implement promo evaluate/apply/remove APIs.
 - [x] Implement guest order lookup API.
 
@@ -229,6 +230,7 @@ Verification:
 - API tests cover guest cart local ID/secret behavior.
 - API tests cover logged-in cart refresh and merge.
 - API tests cover Delivery and Pickup checkout draft recalculation.
+- Repository tests cover shipping/billing checkout draft recalculation without duplicate cart or shipping-option reads.
 
 ## Milestone 7: PayPal And Payment APIs
 
@@ -572,6 +574,7 @@ Reference-level polish execution guide:
 - [ ] Complete hosted HTTPS checkout Card Fields sandbox approval/capture after explicit action-time approval to submit public PayPal sandbox card data; verify confirmation rendering, card payment-method display, capture ID, and cart clearing.
 - [x] Polish the checkout selected-payment primary action so choosing PayPal or Pay Later never leaves an ambiguous standalone `Continue` button; desktop/tablet show the selected official provider surface in Order Summary, while mobile replaces the sticky continue action with the selected official PayPal/Pay Later surface and renders the official Pay Later message below Pay Later.
 - [x] Fix the follow-up checkout/minicart regressions from GUI review: suppress inline Pickup store cards while the store-picker modal is open, keep the mini-cart `Checkout` and `View cart` actions visually framed in the portaled Sheet, use the visible black Apple Pay logo in checkout payment rows, and route storefront plus checkout Pay Later message placements through the managed official content fetch/apply path with buyer-safe fallback behavior.
+- [x] Optimize checkout draft recalculation after the shipping/billing submit UX review: reuse already-loaded cart rows and delivery shipping options, parallelize delivery/pickup draft response assembly, and keep the duplicate-read regression covered in repository tests.
 - [x] Fix PDP Add to cart server persistence regression so product-page additions POST to `/api/cart/items`, persist the returned cart binding, and survive checkout navigation/reload without manual cart seeding.
 - [x] Review generated product media for IP distance, visual consistency, descriptive alt text, and customer-demo suitability.
 - [x] Accept the current generated POP MART-leaning primary images for this Popmart-specific demo version; separate generic/non-Popmart audience demos must use their own safer asset set.
