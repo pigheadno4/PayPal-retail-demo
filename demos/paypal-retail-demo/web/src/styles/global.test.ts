@@ -90,8 +90,10 @@ describe("global storefront visual tokens", () => {
 
     expect(globalCss).toContain(".release-calendar__agenda");
     expect(globalCss).toContain(".release-calendar__date-rail");
+    expect(globalCss).toContain(".release-calendar__date-chip:focus-visible");
     expect(globalCss).toContain(".release-calendar__compact-legend");
     expect(globalCss).toContain(".release-calendar__full-content");
+    expect(globalCss).toContain(".homepage-release-shelf__context");
     expect(fullCalendarTriggerBlock).toContain("min-height: 44px");
     expect(globalCss).toContain(
       '.release-calendar__full-content[data-state="closed"],\n  .release-calendar__full-content[hidden]',

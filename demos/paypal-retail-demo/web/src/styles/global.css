@@ -925,6 +925,14 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.homepage-release-shelf__context {
+  color: var(--shell-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: -6px 0 0;
+}
+
 .homepage-paylater-promo {
   background: transparent;
   border: 0;
@@ -1163,11 +1171,21 @@ a {
   border: 1px solid var(--shell-border);
   border-radius: 14px;
   color: var(--shell-ink);
+  cursor: pointer;
   display: grid;
+  font: inherit;
   gap: 2px;
   min-height: 58px;
   padding: 8px 10px;
+  text-align: left;
   text-decoration: none;
+  width: 100%;
+}
+
+.release-calendar__date-chip:focus-visible {
+  border-color: var(--shell-accent);
+  outline: 3px solid color-mix(in srgb, var(--shell-accent), transparent 72%);
+  outline-offset: 2px;
 }
 
 .release-calendar__date-chip[data-selected="true"] {

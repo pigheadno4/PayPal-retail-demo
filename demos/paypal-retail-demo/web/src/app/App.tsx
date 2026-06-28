@@ -3555,6 +3555,11 @@ function mapHomePageFromApiResponse(
     categories: mapHomeCategoryCardsFromApi(products),
     calendar: {
       ...fallback.calendar,
+      days: fallback.calendar.days.map((day, index) => {
+        const product = products[index];
+
+        return product ? { ...day, productSlugs: [product.slug] } : day;
+      }),
       selectedProducts: products.slice(0, 3).map((product) => ({
         slug: product.slug,
         name: product.name,

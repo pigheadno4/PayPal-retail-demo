@@ -76,6 +76,7 @@ export interface HomePageCalendarDay {
   readonly releaseLabel: string;
   readonly hasRelease: boolean;
   readonly selected: boolean;
+  readonly productSlugs?: readonly string[];
 }
 
 export interface HomePageCalendarProduct {
@@ -153,9 +154,6 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
   const calendarDaysByIsoDate = new Map(
     data.calendar.days.map((day) => [day.isoDate, day]),
   );
-  const selectedCalendarDate = parseCalendarDate(
-    data.calendar.days.find((day) => day.selected)?.isoDate,
-  );
   const calendarReleaseDates = data.calendar.days
     .filter((day) => day.hasRelease)
     .map((day) => parseCalendarDate(day.isoDate))
@@ -164,15 +162,35 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
     data.calendar.monthLabel,
   );
   const releaseAgendaDays = data.calendar.days.filter((day) => day.hasRelease);
+  const initialReleaseIsoDate =
+    releaseAgendaDays.find((day) => day.selected)?.isoDate ??
+    releaseAgendaDays[0]?.isoDate;
+  const [selectedReleaseIsoDate, setSelectedReleaseIsoDate] = useState<
+    string | undefined
+  >(initialReleaseIsoDate);
   const selectedReleaseDay =
-    releaseAgendaDays.find((day) => day.selected) ?? releaseAgendaDays[0];
+    releaseAgendaDays.find((day) => day.isoDate === selectedReleaseIsoDate) ??
+    releaseAgendaDays[0];
   const selectedReleaseSummary = selectedReleaseDay
     ? `${formatCalendarDate(selectedReleaseDay.isoDate)} · ${
         selectedReleaseDay.releaseLabel
       }`
     : "Latest release activity";
-  const primaryReleaseHref =
-    data.calendar.selectedProducts[0]?.href ?? "/products?sort=newest";
+  const selectedCalendarDate = parseCalendarDate(selectedReleaseDay?.isoDate);
+  const selectedReleaseProducts = getReleaseProductsForDate(
+    data,
+    selectedReleaseDay,
+    releaseAgendaDays,
+  );
+  const selectedShelfProducts = getReleaseShelfProducts(
+    data.hotSales,
+    selectedReleaseProducts,
+  );
+  const releaseShelfContext = selectedReleaseDay
+    ? `Showing ${formatReleaseProductCount(
+        selectedReleaseProducts.length,
+      )} for ${formatCalendarDate(selectedReleaseDay.isoDate)}.`
+    : "Showing current featured drops.";
   const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(() => {
     if (typeof window === "undefined") {
       return true;
@@ -194,6 +212,28 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
       breakpoint.removeEventListener("change", syncFullCalendar);
     };
   }, []);
+
+  useEffect(() => {
+    setSelectedReleaseIsoDate(initialReleaseIsoDate);
+  }, [initialReleaseIsoDate]);
+
+  const handleReleaseDateSelect = (isoDate: string) => {
+    const releaseDay = calendarDaysByIsoDate.get(isoDate);
+
+    if (!releaseDay?.hasRelease) {
+      return;
+    }
+
+    setSelectedReleaseIsoDate(isoDate);
+  };
+
+  const handleCalendarSelect = (date: Date | undefined) => {
+    if (!date) {
+      return;
+    }
+
+    handleReleaseDateSelect(formatCalendarIsoDate(date));
+  };
 
   return (
     <div className="homepage" data-loading={data.loading ? "true" : undefined}>
@@ -276,30 +316,24 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                   const chipLabel = `${formatCalendarDate(day.isoDate)}, ${
                     day.releaseLabel
                   }`;
+                  const isSelected =
+                    day.isoDate === selectedReleaseDay?.isoDate;
 
                   return (
                     <li key={day.isoDate}>
-                      {day.selected ? (
-                        <a
-                          className="release-calendar__date-chip"
-                          href={primaryReleaseHref}
-                          aria-current="date"
-                          aria-label={`${chipLabel}. View selected release products.`}
-                          data-selected="true"
-                        >
-                          <span>{day.dayNumber}</span>
-                          <small>{day.releaseLabel}</small>
-                        </a>
-                      ) : (
-                        <span
-                          className="release-calendar__date-chip"
-                          aria-label={chipLabel}
-                          data-selected="false"
-                        >
-                          <span>{day.dayNumber}</span>
-                          <small>{day.releaseLabel}</small>
-                        </span>
-                      )}
+                      <button
+                        className="release-calendar__date-chip"
+                        type="button"
+                        aria-current={isSelected ? "date" : undefined}
+                        aria-controls="release-calendar-products homepage-release-shelf-context"
+                        aria-label={`${chipLabel}. Show release products.`}
+                        aria-pressed={isSelected}
+                        data-selected={isSelected ? "true" : "false"}
+                        onClick={() => handleReleaseDateSelect(day.isoDate)}
+                      >
+                        <span>{day.dayNumber}</span>
+                        <small>{day.releaseLabel}</small>
+                      </button>
                     </li>
                   );
                 })}
@@ -320,7 +354,7 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                 </CardHeader>
                 <CardContent>
                   <ul className="release-calendar__compact-list">
-                    {data.calendar.selectedProducts.map((product) => (
+                    {selectedReleaseProducts.map((product) => (
                       <li key={product.slug}>
                         <a href={product.href}>
                           <span>{product.name}</span>
@@ -379,12 +413,14 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
                       <ReleaseCalendarDayButton
                         {...props}
                         calendarDaysByIsoDate={calendarDaysByIsoDate}
+                        selectedReleaseIsoDate={selectedReleaseDay?.isoDate}
                       />
                     ),
                   }}
                   defaultMonth={releaseCalendarMonth}
                   mode="single"
                   modifiers={{ release: calendarReleaseDates }}
+                  onSelect={handleCalendarSelect}
                   selected={selectedCalendarDate}
                   showOutsideDays={false}
                 />
@@ -399,8 +435,15 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
             id="hot-sales-title"
             href="/products"
           />
+          <p
+            className="homepage-release-shelf__context"
+            id="homepage-release-shelf-context"
+            aria-live="polite"
+          >
+            {releaseShelfContext}
+          </p>
           <div className="product-card-grid">
-            {data.hotSales.map((product) => (
+            {selectedShelfProducts.map((product) => (
               <Card className="product-card" key={product.slug} size="sm">
                 <a className="product-card__link" href={product.href}>
                   <CardContent className="product-card__media">
@@ -568,14 +611,17 @@ export function HomePage({ data, renderPayLaterPromoMessage }: HomePageProps) {
 
 function ReleaseCalendarDayButton({
   calendarDaysByIsoDate,
+  selectedReleaseIsoDate,
   day,
   modifiers,
   ...props
 }: ComponentProps<typeof CalendarDayButton> & {
   readonly calendarDaysByIsoDate: ReadonlyMap<string, HomePageCalendarDay>;
+  readonly selectedReleaseIsoDate: string | undefined;
 }) {
   const isoDate = formatCalendarIsoDate(day.date);
   const releaseDay = calendarDaysByIsoDate.get(isoDate);
+  const isSelectedReleaseDay = releaseDay?.isoDate === selectedReleaseIsoDate;
   const releaseLabel = releaseDay
     ? `${formatCalendarDate(releaseDay.isoDate)}, ${releaseDay.releaseLabel}`
     : props["aria-label"];
@@ -586,15 +632,102 @@ function ReleaseCalendarDayButton({
       day={day}
       modifiers={modifiers}
       aria-label={releaseLabel}
-      aria-pressed={releaseDay?.selected ?? false}
+      aria-pressed={isSelectedReleaseDay}
       className="release-calendar__day"
       data-release-marker={releaseDay?.hasRelease ? "outlined" : "none"}
-      data-selected={releaseDay?.selected ? "true" : "false"}
+      data-selected={isSelectedReleaseDay ? "true" : "false"}
     >
       <span>{releaseDay?.dayNumber ?? day.date.getDate()}</span>
       {releaseDay?.hasRelease ? <small>{releaseDay.releaseLabel}</small> : null}
     </CalendarDayButton>
   );
+}
+
+function getReleaseProductsForDate(
+  data: HomePageData,
+  releaseDay: HomePageCalendarDay | undefined,
+  releaseAgendaDays: readonly HomePageCalendarDay[],
+): readonly HomePageCalendarProduct[] {
+  if (!releaseDay) {
+    return data.calendar.selectedProducts;
+  }
+
+  const calendarProductsBySlug = new Map(
+    data.calendar.selectedProducts.map((product) => [product.slug, product]),
+  );
+  const shelfProductsBySlug = new Map(
+    data.hotSales.map((product) => [product.slug, product]),
+  );
+  const productsFromSlugs = (releaseDay.productSlugs ?? [])
+    .map((slug) => {
+      const calendarProduct = calendarProductsBySlug.get(slug);
+      const shelfProduct = shelfProductsBySlug.get(slug);
+
+      return (
+        calendarProduct ??
+        (shelfProduct ? toCalendarProduct(shelfProduct) : undefined)
+      );
+    })
+    .filter((product): product is HomePageCalendarProduct => Boolean(product));
+
+  if (productsFromSlugs.length > 0) {
+    return productsFromSlugs;
+  }
+
+  if (releaseDay.selected && data.calendar.selectedProducts.length > 0) {
+    return data.calendar.selectedProducts;
+  }
+
+  const releaseIndex = releaseAgendaDays.findIndex(
+    (candidate) => candidate.isoDate === releaseDay.isoDate,
+  );
+  const fallbackProduct = data.hotSales[releaseIndex] ?? data.hotSales[0];
+
+  if (fallbackProduct) {
+    return [toCalendarProduct(fallbackProduct)];
+  }
+
+  return data.calendar.selectedProducts;
+}
+
+function getReleaseShelfProducts(
+  products: readonly HomePageProductCard[],
+  selectedReleaseProducts: readonly HomePageCalendarProduct[],
+): readonly HomePageProductCard[] {
+  const selectedSlugs = new Set(
+    selectedReleaseProducts.map((product) => product.slug),
+  );
+  const selectedProducts = products.filter((product) =>
+    selectedSlugs.has(product.slug),
+  );
+
+  if (selectedProducts.length === 0) {
+    return products;
+  }
+
+  return [
+    ...selectedProducts,
+    ...products.filter((product) => !selectedSlugs.has(product.slug)),
+  ];
+}
+
+function toCalendarProduct(
+  product: HomePageProductCard,
+): HomePageCalendarProduct {
+  return {
+    slug: product.slug,
+    name: product.name,
+    statusLabel: product.statusLabel,
+    href: product.href,
+  };
+}
+
+function formatReleaseProductCount(count: number): string {
+  if (count === 1) {
+    return "1 release pick";
+  }
+
+  return `${count} release picks`;
 }
 
 function SectionHeader({
@@ -743,6 +876,7 @@ export const defaultHomePageData: HomePageData = {
         releaseLabel: "New arrival",
         hasRelease: true,
         selected: false,
+        productSlugs: ["plush-12"],
       },
       {
         isoDate: "2026-06-12",
@@ -750,6 +884,7 @@ export const defaultHomePageData: HomePageData = {
         releaseLabel: "Release date",
         hasRelease: true,
         selected: true,
+        productSlugs: ["blind-boxes-2"],
       },
       {
         isoDate: "2026-06-18",
@@ -757,6 +892,7 @@ export const defaultHomePageData: HomePageData = {
         releaseLabel: "New arrival",
         hasRelease: true,
         selected: false,
+        productSlugs: ["vinyl-figures-7"],
       },
     ],
     selectedProducts: [

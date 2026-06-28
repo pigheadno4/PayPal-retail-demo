@@ -1,11 +1,36 @@
+// @vitest-environment jsdom
+
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   defaultHomePageData,
   HomePage,
   type HomePageData,
 } from "./HomePage.js";
+
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: query.includes("min-width: 1021px"),
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("HomePage", () => {
   it("renders the merchandising sections required for the storefront homepage", () => {
@@ -119,6 +144,38 @@ describe("HomePage", () => {
     expect(html).toContain("Release date");
     expect(html).toContain("New arrival");
   });
+
+  it("updates the release summary and product shelf when a release date is selected", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HomePage data={homePageData()} />);
+    const releaseShelf = container.querySelector(
+      '[aria-labelledby="hot-sales-title"]',
+    );
+
+    expect(screen.getByText("June 12 · Release date")).toBeTruthy();
+    expect(
+      screen.getByText("Showing 1 release pick for June 12."),
+    ).toBeTruthy();
+    expect(
+      within(releaseShelf as HTMLElement).getAllByText("Labubu Have a Seat")[0],
+    ).toBeTruthy();
+
+    const newArrivalButton = screen.getByRole("button", {
+      name: "June 14, New arrival. Show release products.",
+    });
+    await user.click(newArrivalButton);
+
+    expect(newArrivalButton.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("June 14 · New arrival")).toBeTruthy();
+    expect(
+      screen.getByText("Showing 1 release pick for June 14."),
+    ).toBeTruthy();
+    expect(
+      within(releaseShelf as HTMLElement).getAllByText(
+        "Dimoo Calendar Drop",
+      )[0],
+    ).toBeTruthy();
+  });
 });
 
 function homePageData(): HomePageData {
@@ -150,6 +207,16 @@ function homePageData(): HomePageData {
         statusLabel: "Released",
         href: "/products/labubu-have-a-seat",
       },
+      {
+        slug: "dimoo-calendar-drop",
+        name: "Dimoo Calendar Drop",
+        eyebrow: "New arrival",
+        imagePath: "/assets/popmart/products/dimoo-blind-boxes-3-1.png",
+        imageAlt: "Dimoo Calendar Drop collectible",
+        priceLabel: "$21.99",
+        statusLabel: "New arrival",
+        href: "/products/dimoo-calendar-drop",
+      },
     ],
     categories: [
       {
@@ -171,6 +238,7 @@ function homePageData(): HomePageData {
           releaseLabel: "Release date",
           hasRelease: true,
           selected: true,
+          productSlugs: ["labubu-have-a-seat"],
         },
         {
           isoDate: "2026-06-14",
@@ -178,6 +246,7 @@ function homePageData(): HomePageData {
           releaseLabel: "New arrival",
           hasRelease: true,
           selected: false,
+          productSlugs: ["dimoo-calendar-drop"],
         },
       ],
       selectedProducts: [
