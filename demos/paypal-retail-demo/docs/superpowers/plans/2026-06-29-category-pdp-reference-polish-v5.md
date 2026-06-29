@@ -74,12 +74,15 @@ Review-process requirements:
 **Files:**
 - Modify: `tracking/progress.md`
 - Modify only if gaps are found: `tracking/todos.md`
-- Evidence: `/private/tmp/paypal-retail-category-pdp-v5-preaudit-YYYYMMDD/`
+- Evidence: `/Users/tengtao/Development/demo-projects/.playwright-mcp/v5-preaudit-20260629/` for the focused preaudit; use a dated `/private/tmp/` or workspace evidence folder for the full final matrix.
 
 **Interfaces:**
 - Consumes: live Render Category `/products`, released PDP `/products/blind-boxes-2`, unreleased PDP `/products/blind-boxes-1`.
 - Produces: baseline screenshots/metrics used to judge V5 improvement.
 
+- [x] Complete focused live Render baseline before runtime edits.
+  - Evidence: `/products` at `1440` and `390`, released `/products/blind-boxes-2` at `1440` and `390` with Product facts/Customer reviews tab clicks, and unreleased `/products/blind-boxes-1` at `390`.
+  - Findings to preserve during implementation: Category Pay Later is mounted but visually detached, desktop Category remains sidebar-heavy, coming-soon cards lack strong top-right/muted-media treatment, released PDP support cards still add rail weight and gallery-side blank space, mobile PDP tabs work but hide offscreen triggers, released mobile PDP lacks a sticky Add to cart candidate after scroll, and unreleased PDP still renders disabled purchase/payment frame DOM that must be removed.
 - [ ] Capture live baseline screenshots on `https://retail-demo.onrender.com` for these routes: `/products`, `/products?category=blind-boxes`, `/products?q=molly`, `/products/blind-boxes-2`, and `/products/blind-boxes-1`.
   - Inspection standard: every route has `1440`, `1280`, `1024`, `768`, `390`, and `320` screenshots, named by page/route/width.
 - [ ] Record Category metrics in JSON: header/nav height, first product card top, filter/control block height, active-chip row width, Pay Later wrapper top/height, product-grid column count, coming-soon card count, sale-card count, document width, viewport width, and horizontal overflow boolean.

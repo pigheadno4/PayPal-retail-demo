@@ -219,6 +219,16 @@ V5 missing-prevention rules from the latest review:
 - PDP details on mobile cannot hide right-side tabs behind clipped overflow. Use accordion/collapsible details or a visibly scrollable constrained rail with no internal vertical scrollbar.
 - Mobile sticky Add to cart is allowed only for released products and only when the main CTA is out of view. It mirrors selected option, quantity/pack, and price; it never contains PayPal/Pay Later/payment actions.
 
+Focused hosted Render V5 preaudit findings from 2026-06-29:
+
+- Category currently mounts a ready Pay Later message, but it still reads as a small raw line above the grid rather than an integrated retail module.
+- Category desktop still uses a large left filter column as the dominant control pattern; this conflicts with the V5 grid-first filter/sort direction.
+- Coming-soon/not-released Category cards show lower-card status text, but they do not yet have a strong top-right unavailable badge or muted/desaturated image treatment.
+- Released PDP desktop keeps the purchase rail functional, but the four support modules under the secured PayPal frame still add visual weight and leave the gallery side feeling empty below the main image.
+- Released PDP mobile tab clicks work and Customer reviews content exists, but the tab rail can sit scrolled with left/right triggers offscreen; V5 should improve discoverability with a clearer rail affordance or mobile accordion.
+- Released PDP mobile did not expose a sticky Add to cart candidate after the main CTA scrolled away in the focused preaudit.
+- Unreleased PDP still exposes disabled Add to cart plus disabled PayPal/Pay Later frame DOM; V5 requires hiding the entire purchase/payment frame and showing only coming-soon/not-released action context.
+
 Category V5 plan:
 
 - Pay Later integration: center and align the official amount-free Pay Later message in a restrained retail section that matches page tokens. The wrapper can provide spacing and context, but the PayPal-rendered message remains untouched. Inspection standard: one `paypal-message` renders when provider content is ready, no duplicate fallback copy appears, and the section does not push mobile products below a long non-product first pass.
