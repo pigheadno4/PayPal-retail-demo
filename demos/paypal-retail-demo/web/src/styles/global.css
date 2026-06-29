@@ -7887,17 +7887,12 @@ p {
   }
 
   .catalog-shop-context,
-  .catalog-category-quick-filters,
   .catalog-sort-control {
+    display: none;
+  }
+
+  .catalog-category-quick-filters {
     grid-column: 1;
-  }
-
-  .catalog-shop-context {
-    grid-template-columns: auto 1fr;
-  }
-
-  .catalog-shop-context strong {
-    justify-self: end;
   }
 
   .catalog-category-quick-filters__options {
