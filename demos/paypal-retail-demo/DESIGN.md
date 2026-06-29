@@ -206,6 +206,19 @@ Global V5 principles:
 - Mobile is the default proof point. Category and PDP must be verified at `320`, `390`, `768`, `1024`, `1280`, and `1440` widths before V5 closes.
 - V5 must use a review gate after Category implementation and another after PDP implementation so partial completion cannot be marked as finished.
 
+V5 missing-prevention rules from the latest review:
+
+- Category Pay Later must no longer feel like a raw line of payment text. Put it in a compact merchant-owned retail surface, center the official message, and preserve stable loading/fallback states. The PayPal-rendered message remains untouched.
+- Category controls must not remain one large mixed filter list. The expected hierarchy is page context/result count, quick category chips, sort, `All filters`, active filter chips/reset, then product grid.
+- Category mobile must show products quickly. A full filter sidebar above the grid fails V5 even if the controls technically work.
+- Coming-soon cards need both visual and textual distinction. Use a top-right text badge, muted media, and no cart/payment-start affordance.
+- Unreleased PDP is a separate state, not a disabled version of the released purchase rail. It hides Add to cart, PayPal, Pay Later, express frames, review summary, and sticky mobile purchase actions.
+- Released PDP keeps price, official Pay Later, purchase options, Add to cart, secured PayPal frame, and compact support/trust information in a tight purchase rail.
+- PDP support cards must not create a tall empty right column. Merge or compress `PayPal checkout`, `Delivery choices`, `Order recovery`, and `Demo policies` into chips, a compact band, or an accordion.
+- PDP reviews must be real-data-only and discoverable: rating/review summary near title when data exists, plus a lower review preview/summary for released products.
+- PDP details on mobile cannot hide right-side tabs behind clipped overflow. Use accordion/collapsible details or a visibly scrollable constrained rail with no internal vertical scrollbar.
+- Mobile sticky Add to cart is allowed only for released products and only when the main CTA is out of view. It mirrors selected option, quantity/pack, and price; it never contains PayPal/Pay Later/payment actions.
+
 Category V5 plan:
 
 - Pay Later integration: center and align the official amount-free Pay Later message in a restrained retail section that matches page tokens. The wrapper can provide spacing and context, but the PayPal-rendered message remains untouched. Inspection standard: one `paypal-message` renders when provider content is ready, no duplicate fallback copy appears, and the section does not push mobile products below a long non-product first pass.
