@@ -122,6 +122,9 @@ describe("CategoryPage", () => {
       "";
 
     expect(payLaterSection).toContain("Pay Later with PayPal");
+    expect(payLaterSection).toContain("catalog-paylater__card");
+    expect(payLaterSection).toContain("catalog-paylater__message");
+    expect(payLaterSection).toContain('data-slot="card"');
     expect(payLaterSection).not.toContain("$");
     expect(payLaterSection).not.toContain("£");
     expect(payLaterSection).not.toContain("interest-free installments of");
@@ -152,6 +155,23 @@ describe("CategoryPage", () => {
     expect(html).toContain('data-slot="card-content"');
     expect(html).toContain('data-slot="card-header"');
     expect(html).toContain('data-slot="card-footer"');
+  });
+
+  it("visually separates coming-soon products from released products", () => {
+    const html = renderToStaticMarkup(
+      <CategoryPage data={categoryPageData()} />,
+    );
+    const comingSoonCard =
+      html.match(
+        /<div[^>]*data-release-state="coming-soon"[\s\S]*?<\/div><\/a><\/div>/,
+      )?.[0] ?? "";
+
+    expect(comingSoonCard).toContain("Dimoo Painter Lab");
+    expect(comingSoonCard).toContain("catalog-product-card__coming-soon-badge");
+    expect(comingSoonCard).toContain("Coming soon");
+    expect(comingSoonCard).toContain('data-purchasable="false"');
+    expect(comingSoonCard).toContain('data-muted-media="true"');
+    expect(comingSoonCard).not.toContain("catalog-product-card__sale-badge");
   });
 });
 
@@ -270,6 +290,18 @@ function categoryPageData(): CategoryPageData {
         statusLabel: "Released",
         pickupLabel: "Pickup eligible",
         href: "/products/labubu-have-a-seat",
+      },
+      {
+        slug: "dimoo-painter-lab",
+        name: "Dimoo Painter Lab",
+        categoryName: "Blind Boxes",
+        imagePath: "/assets/popmart/products/dimoo-painter-lab-1.svg",
+        imageAlt: "Dimoo Painter Lab collectible",
+        priceLabel: "$21.99",
+        regularPriceLabel: "$21.99",
+        statusLabel: "Not released",
+        pickupLabel: "Pickup soon",
+        href: "/products/dimoo-painter-lab",
       },
     ],
   };

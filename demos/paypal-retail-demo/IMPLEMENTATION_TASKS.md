@@ -551,9 +551,9 @@ Reference-level polish execution guide:
     - [ ] Full final GUI matrix still must cover `/products`, `/products?category=blind-boxes`, `/products?q=molly`, `/products/blind-boxes-2`, and `/products/blind-boxes-1` at 1440, 1280, 1024, 768, 390, and 320 widths before closing V5.
   - [ ] V5 Category Pay Later integration: align the official amount-free Pay Later message inside a restrained page-token section without restyling the `paypal-message` element.
     - Inspection standard: exactly one official message or one buyer-safe fallback renders, no duplicate fallback appears after SDK readiness, and products remain visible in the first mobile browsing pass.
-    - [ ] Place the Pay Later section with the Category toolbar/grid context rather than as a disconnected raw text line.
-    - [ ] Use merchant-owned shadcn/card-like wrapper chrome with compact padding, warm border/background, optional short label, and stable loading/fallback height.
-    - [ ] Do not target PayPal SDK internals, shadow DOM, `paypal-message`, SDK iframes, or official button internals with merchant CSS.
+    - [x] Place the Pay Later section with the Category toolbar/grid context rather than as a disconnected raw text line.
+    - [x] Use merchant-owned shadcn/card-like wrapper chrome with compact padding, warm border/background, optional short label, and stable loading/fallback height.
+    - [x] Do not target PayPal SDK internals, shadow DOM, `paypal-message`, SDK iframes, or official button internals with merchant CSS.
     - [ ] Add tests for loading, official-ready, fallback-only, and no duplicate fallback states.
   - [ ] V5 Category filter/sort redesign: move primary filters/sort above the grid, keep active filters as chips, put secondary filters in a shadcn `Sheet`/popover, preserve route query state, and keep mobile controls compact.
     - Inspection standard: category, release status, price, availability, pickup context, sort, and `q` survive reload/back/forward; controls are 44px+ on mobile; no horizontal overflow appears at 320px.
@@ -563,9 +563,9 @@ Reference-level polish execution guide:
     - [ ] Tests cover direct URL, header search query `q`, apply/reset, active-chip removal, back/forward state, empty filtered state, and fallback/API-down behavior where existing tests support it.
   - [ ] V5 Category product-card state polish: add top-right coming-soon/not-released labels, muted unreleased media, no purchase-start affordance for unreleased products, sale badge consistency, stable media skeletons, and non-color-only status copy.
     - Inspection standard: released, sale, and coming-soon cards are visually distinct in screenshots; badges do not overlap at 320px; no old mock-image flash or card-height jump occurs.
-    - [ ] Define data-driven card state mapping for released/purchasable, released/unavailable, coming soon, not released, and sold out/unavailable where current data supports it.
-    - [ ] Badge priority prevents `Sale` and `Coming soon` collisions; unreleased state wins when product cannot be purchased.
-    - [ ] Unreleased cards keep PDP navigation but hide or disable cart/checkout/payment-start affordances with clear copy.
+    - [x] Define data-driven card state mapping for released/purchasable and coming soon/not released where current Category data supports it.
+    - [x] Badge priority prevents `Sale` and `Coming soon` collisions; unreleased state wins when product cannot be purchased.
+    - [x] Unreleased cards keep PDP navigation but hide or disable cart/checkout/payment-start affordances with clear copy.
     - [ ] Tests cover badge priority, unreleased action suppression, sale display, wishlist disabled/hidden reason, and image/skeleton class contracts.
   - [ ] V5 PDP coming-soon gating: hide Add to cart, PayPal, Pay Later, and delivery express frames for unreleased products while showing disabled coming-soon/not-released action copy and release context.
     - Inspection standard: unreleased PDP has no payment frame/message/button DOM, reviews stay hidden, and product inspection content remains accessible.

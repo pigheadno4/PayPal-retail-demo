@@ -238,27 +238,48 @@ export function CategoryPage({
             className="catalog-paylater"
             aria-label={data.payLaterPromo.title}
           >
-            {renderPayLaterPromoMessage ? (
-              renderPayLaterPromoMessage(data.payLaterPromo)
-            ) : (
-              <p>{data.payLaterPromo.body}</p>
-            )}
+            <Card className="catalog-paylater__card" size="sm">
+              <CardContent className="catalog-paylater__content">
+                <div className="catalog-paylater__copy">
+                  <span>Flexible checkout</span>
+                  <strong>{data.payLaterPromo.title}</strong>
+                  <p>{data.payLaterPromo.body}</p>
+                </div>
+                <div className="catalog-paylater__message" aria-live="polite">
+                  {renderPayLaterPromoMessage ? (
+                    renderPayLaterPromoMessage(data.payLaterPromo)
+                  ) : (
+                    <p>{data.payLaterPromo.body}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </section>
 
           <section className="catalog-product-section" aria-label="Products">
             {data.products.map((product) => {
               const onSale = product.regularPriceLabel !== product.priceLabel;
+              const isComingSoon = isComingSoonProduct(product);
 
               return (
                 <Card
                   className="catalog-product-card"
                   data-on-sale={onSale ? "true" : undefined}
+                  data-purchasable={isComingSoon ? "false" : "true"}
+                  data-release-state={isComingSoon ? "coming-soon" : "released"}
                   key={product.slug}
                   size="sm"
                 >
                   <a className="catalog-product-card__link" href={product.href}>
-                    <CardContent className="catalog-product-card__media">
-                      {onSale ? (
+                    <CardContent
+                      className="catalog-product-card__media"
+                      data-muted-media={isComingSoon ? "true" : undefined}
+                    >
+                      {isComingSoon ? (
+                        <Badge className="catalog-product-card__coming-soon-badge">
+                          Coming soon
+                        </Badge>
+                      ) : onSale ? (
                         <Badge className="catalog-product-card__sale-badge">
                           Sale
                         </Badge>
@@ -476,6 +497,12 @@ function filterOptionUsesSupportedParams(option: CategoryPageLinkOption) {
 
 function filterGroupId(label: string, prefix: string): string {
   return `${prefix}-${label.toLowerCase().replaceAll(/\s+/g, "-")}`;
+}
+
+function isComingSoonProduct(product: CategoryPageProduct) {
+  const status = product.statusLabel.toLowerCase();
+
+  return status.includes("coming soon") || status.includes("not released");
 }
 
 export const defaultCategoryPageData: CategoryPageData = {

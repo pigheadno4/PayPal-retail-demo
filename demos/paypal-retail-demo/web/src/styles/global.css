@@ -2003,8 +2003,59 @@ a {
 }
 
 .catalog-paylater {
+  display: flex;
+  justify-content: center;
+}
+
+.catalog-paylater__card {
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f2 100%);
+  border: 1px solid color-mix(in srgb, var(--shell-gold) 36%, #ffffff);
+  border-radius: var(--shell-card-radius);
+  box-shadow: var(--shell-shadow-soft);
+  max-width: 760px;
+  padding: 0;
+  width: min(100%, 760px);
+}
+
+.catalog-paylater__content {
+  align-items: center;
   display: grid;
-  gap: 6px;
+  gap: 16px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(260px, 1fr);
+  padding: 16px;
+}
+
+.catalog-paylater__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.catalog-paylater__copy span {
+  color: var(--shell-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.catalog-paylater__copy strong {
+  color: var(--shell-ink);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.catalog-paylater__copy p,
+.catalog-paylater__message p {
+  color: var(--shell-muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.catalog-paylater__message {
+  align-items: center;
+  display: grid;
+  min-height: 34px;
 }
 
 .catalog-product-section {
@@ -2057,12 +2108,37 @@ a {
   z-index: 1;
 }
 
+.catalog-product-card__coming-soon-badge {
+  background: var(--shell-navy);
+  border: 0;
+  border-radius: var(--shell-pill-radius);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: 5px 8px;
+  position: absolute;
+  right: 12px;
+  text-transform: uppercase;
+  top: 12px;
+  z-index: 1;
+}
+
 .catalog-product-card img {
   aspect-ratio: 1;
   background: var(--shell-media-bg, #f0eeea);
   border-radius: var(--shell-compact-radius);
   object-fit: cover;
   width: 100%;
+}
+
+.catalog-product-card__media[data-muted-media="true"] img {
+  filter: grayscale(0.88) saturate(0.45);
+  opacity: 0.72;
+}
+
+.catalog-product-card[data-purchasable="false"] {
+  background: color-mix(in srgb, var(--shell-panel) 88%, #f5f5f5);
 }
 
 .catalog-product-card__title {
@@ -7851,6 +7927,20 @@ p {
 
   .catalog-paylater {
     padding: 0;
+  }
+
+  .catalog-paylater__content {
+    gap: 10px;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .catalog-paylater__copy {
+    gap: 2px;
+  }
+
+  .catalog-paylater__copy p {
+    display: none;
   }
 
   .catalog-product-section {

@@ -112,11 +112,11 @@ Review-process requirements:
 - Consumes: existing amount-free storefront Pay Later message component/path.
 - Produces: a Category Pay Later section that visually belongs to the page without interfering with official message content.
 
-- [ ] Locate the Category Pay Later section in the grid header/control area, not as a disconnected full-width text line.
+- [x] Locate the Category Pay Later section in the grid header/control area, not as a disconnected full-width text line.
   - Inspection standard: on desktop, it sits visually with the product controls/grid column; on mobile, it appears after the compact filter/sort row and before or near product cards without consuming a large standalone viewport block.
-- [ ] Build merchant-owned wrapper chrome with a restrained shadcn `Card` or card-like section.
+- [x] Build merchant-owned wrapper chrome with a restrained shadcn `Card` or card-like section.
   - Inspection standard: wrapper uses page tokens, warm border/background, compact padding, optional short label such as `Flexible Pay Later options`, and a max height that does not crowd the first mobile product pass.
-- [ ] Center the official Pay Later message inside the wrapper.
+- [x] Center the official Pay Later message inside the wrapper.
   - Inspection standard: the wrapper can use flex/grid alignment around the message, but CSS selectors must not target `paypal-message`, PayPal shadow DOM, SDK iframes, SDK custom elements, or PayPal button internals.
 - [ ] Preserve amount-free presentment on Category.
   - Inspection standard: Category does not pass product/cart amount into this message unless a supported category-level amount strategy is later documented; PDP/cart/minicart/checkout remain amount-aware where already implemented.
@@ -179,13 +179,13 @@ Review-process requirements:
 - Consumes: product `release_status`, `is_purchasable`, price/current/regular price, sale state, image data, category labels.
 - Produces: visually distinct released, sale, coming-soon, and unavailable cards.
 
-- [ ] Define card state mapping in code before styling.
+- [x] Define card state mapping in code before styling.
   - Inspection standard: every card derives one primary commerce state from data: `released/purchasable`, `released/unavailable`, `coming soon`, `not released`, or `sold out/unavailable` if supported by current data.
-- [ ] Add top-right status badge rules.
+- [x] Add top-right status badge rules.
   - Inspection standard: `Sale` appears for discounted released products; `Coming soon` or `Not released` appears for unreleased products; if both sale and unreleased ever occur, unreleased status wins because buyer action gating is more important.
-- [ ] Apply unreleased media treatment.
+- [x] Apply unreleased media treatment.
   - Inspection standard: unreleased media is muted/desaturated through merchant CSS on the image container, product shape remains visible, alt text remains unchanged, and text badge/status copy makes the state understandable without color.
-- [ ] Remove or disable purchase-start affordances for unreleased cards.
+- [x] Remove or disable purchase-start affordances for unreleased cards.
   - Inspection standard: card cannot add to cart, start checkout, show express payment, or expose a misleading cart icon; primary affordance is `View details`/card link or disabled coming-soon copy.
 - [ ] Keep wishlist behavior honest.
   - Inspection standard: if wishlist is not implemented, hide it or keep existing disabled/coming-soon reason; do not leave an inert heart icon without accessible explanation.
@@ -193,10 +193,12 @@ Review-process requirements:
   - Inspection standard: current price, regular price, sale badge, and product title remain readable at `320px`; line wrapping does not resize card media or push action controls unpredictably.
 - [ ] Stabilize media and skeleton behavior.
   - Inspection standard: image containers keep fixed ratio, lazy-loaded images do not flash old mock media, pending product-card surfaces use shadcn `Skeleton`, and loaded/fallback image dimensions do not cause layout jump.
-- [ ] Preserve card navigation.
+- [x] Preserve card navigation.
   - Inspection standard: full-card/product-name links navigate to PDP for released and unreleased products; coming-soon status does not block product inspection.
-- [ ] Add tests for state mapping, badge priority, unreleased action suppression, sale display, and image/skeleton class contracts.
+- [x] Add focused tests for state mapping, badge priority, unreleased action suppression, sale display, and muted-media class contracts.
   - Inspection standard: at least one released sale card and one coming-soon/unreleased card are covered by tests.
+- [ ] Add/verify skeleton and lazy-media browser contracts.
+  - Inspection standard: pending product-card surfaces use shadcn `Skeleton`, lazy media does not flash old mock media, and loaded/fallback image dimensions do not cause layout jump.
 - [ ] Browser verify card states with at least one sale product and one coming-soon product at `1440`, `390`, and `320`.
   - Inspection standard: released, sale, and coming-soon states are distinguishable in screenshots without reading debug data, badges do not overlap, and grid height remains stable.
 

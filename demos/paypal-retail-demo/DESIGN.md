@@ -229,6 +229,11 @@ Focused hosted Render V5 preaudit findings from 2026-06-29:
 - Released PDP mobile did not expose a sticky Add to cart candidate after the main CTA scrolled away in the focused preaudit.
 - Unreleased PDP still exposes disabled Add to cart plus disabled PayPal/Pay Later frame DOM; V5 requires hiding the entire purchase/payment frame and showing only coming-soon/not-released action context.
 
+Current V5 implementation status:
+
+- 2026-06-29 Category runtime slice: the Category Pay Later area now uses a merchant-owned shadcn `Card` wrapper with compact token-aligned chrome and a dedicated official-message slot, without targeting PayPal-rendered internals.
+- 2026-06-29 Category runtime slice: not-released product cards now expose a top-right `Coming soon` text badge, muted/desaturated media, explicit non-purchasable state, and preserved PDP navigation. Browser evidence and the broader filter-toolbar/final V5 matrix remain open.
+
 Category V5 plan:
 
 - Pay Later integration: center and align the official amount-free Pay Later message in a restrained retail section that matches page tokens. The wrapper can provide spacing and context, but the PayPal-rendered message remains untouched. Inspection standard: one `paypal-message` renders when provider content is ready, no duplicate fallback copy appears, and the section does not push mobile products below a long non-product first pass.
