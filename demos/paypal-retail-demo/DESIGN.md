@@ -191,6 +191,46 @@ V4 non-goals:
 - Do not regenerate high-risk product images as part of V4. Product-media quality remains a separate later workflow.
 - Do not claim V4 complete without GUI evidence and tracking updates across `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md`.
 
+#### Category + PDP Reference Polish V5
+
+V5 is the next non-homepage polish slice after Homepage Reference Polish V4. It exists because Category and PDP already have a working reference-level foundation, but the latest live review still found visual/UX gaps against the Sakura reference target: Category filters and Pay Later placement feel less integrated than the page system, coming-soon products do not read clearly enough at card level, PDP tabs/reviews are still too hard to discover on mobile, and unreleased PDPs still need cleaner purchase gating.
+
+Implementation handoff: `docs/superpowers/plans/2026-06-29-category-pdp-reference-polish-v5.md`.
+
+Global V5 principles:
+
+- Keep the Sakura reference as a density and polish benchmark, not as a brand-copy target. POP MART red, pink, yellow, mint, sky, warm white, and restrained navy remain the page language.
+- Use shadcn primitives for behavior and structure where helpful: `Sheet` or `Popover` for filters, `Badge` for product states, `Card` for product/support modules, `Tabs`, `ScrollArea`, `Accordion`, or `Collapsible` for PDP details, and `Skeleton` for pending states.
+- Official PayPal surfaces remain official. Category may use a page-token wrapper around the Pay Later area, but the `paypal-message` element itself must not be restyled, clipped, transformed, or replaced with a fake message.
+- Do not invent commerce facts to match the sample. Ratings/review counts must derive from real seeded/submitted reviews. Preorder economics, loyalty/rewards, authenticity, and shipping guarantees render only when implemented and demo-safe.
+- Mobile is the default proof point. Category and PDP must be verified at `320`, `390`, `768`, `1024`, `1280`, and `1440` widths before V5 closes.
+- V5 must use a review gate after Category implementation and another after PDP implementation so partial completion cannot be marked as finished.
+
+Category V5 plan:
+
+- Pay Later integration: center and align the official amount-free Pay Later message in a restrained retail section that matches page tokens. The wrapper can provide spacing and context, but the PayPal-rendered message remains untouched. Inspection standard: one `paypal-message` renders when provider content is ready, no duplicate fallback copy appears, and the section does not push mobile products below a long non-product first pass.
+- Filter/sort simplification: move primary category/filter/sort controls above the product grid and reduce the left-sidebar dominance. Desktop can keep a compact sidebar or secondary filter area, but active filters must be visible as chips near the grid. Mobile uses one shadcn `Sheet` or equivalent filter entry plus active chips in a contained horizontal `ScrollArea`. Inspection standard: controls are 44px+ touch targets, selected states are text/ARIA-visible, `q`/category/sort/filter route state survives reload/back/forward, and no horizontal page overflow appears at `320px`.
+- Product card states: coming-soon/unreleased cards show a top-right text badge, muted/desaturated media, and no cart/payment-start affordance. Sale cards keep a short `Sale` badge plus current/regular price. Inspection standard: sale and coming-soon badges do not overlap, card heights remain stable, and coming-soon state is understandable without color.
+- Mobile browsing rhythm: product cards must appear in the first meaningful mobile browsing pass after the header/page intro controls. Inspection standard: the filter UI does not become a full sidebar above the product list at `320-414px`, and active filters/reset remain reachable after applying changes.
+- Loading and fallback: category pending/loading states use shadcn `Skeleton` for non-image structure and stable image boxes for lazy product media. API-down fallback keeps generated product slugs/images aligned with PDP fallback records.
+
+PDP V5 plan:
+
+- Coming-soon gating: unreleased PDPs hide Add to cart, PayPal, Pay Later, and delivery express frames. They render a disabled `Coming soon` or `Not released` action with concise release context, while keeping product inspection content available. Inspection standard: no official payment frame, Pay Later message, or express button renders for `is_purchasable=false`; reviews remain hidden for unreleased products.
+- Purchase rail/support density: replace or compress the four large support cards under the purchase panel into a smaller trust/support band, accordion, or chip group so the right rail does not create a large blank gap under the gallery. Inspection standard: desktop gallery/purchase area feels balanced; Pay Later stays directly under price for purchasable products; support copy remains implemented/demo-safe.
+- Review discoverability: released PDPs with real review data show rating/review summary near the title and a review preview/summary in the lower detail area. Inspection standard: review score/count derive from real data; no fake star rating appears when data is absent; customer reviews are discoverable without hunting through an apparently empty tab.
+- Detail navigation: desktop keeps refined shadcn/Radix tab semantics with a clear active state. Mobile should either use an accordion/collapsible detail stack or a visibly scrollable tab rail constrained to the card width. Inspection standard: no vertical scrollbar artifact, no clipped inaccessible right-side tab, 44px+ triggers, keyboard/click activation works, inactive panels do not remain exposed to assistive tech.
+- Sticky mobile purchase bar: for released products, when the main Add to cart action scrolls out of view, a sticky bottom purchase bar may show selected option, quantity/pack, price, and Add to cart using the same handler as the main CTA. Inspection standard: the sticky bar appears only when useful, does not cover PayPal messages/tabs/footer content, respects safe-area padding, and never appears as a payment action for unreleased products.
+
+V5 inspection standards before completion:
+
+- Category and PDP screenshots/metrics exist for `1440`, `1280`, `1024`, `768`, `390`, and `320` widths.
+- Category verifies Pay Later placement, filter/sort behavior, active chip visibility, sale badges, coming-soon visual state, and product-card first-pass visibility.
+- PDP verifies released and unreleased product states separately, tab/detail navigation, reviews, support-card density, Pay Later placement, sticky mobile purchase behavior, and payment gating.
+- Focused tests cover changed Category/PDP behavior, plus app/cart/payment integration where handlers or payment placement are touched.
+- `npm run typecheck`, `npm run lint`, `npm run format:check`, and `git diff --check` pass before V5 is marked complete.
+- `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` are updated in the same slice as the implementation evidence.
+
 #### M16 Reference Polish Implementation Guidance
 
 Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.
