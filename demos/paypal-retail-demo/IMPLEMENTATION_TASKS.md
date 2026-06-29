@@ -557,9 +557,10 @@ Reference-level polish execution guide:
     - [ ] Add tests for loading, official-ready, fallback-only, and no duplicate fallback states.
   - [ ] V5 Category filter/sort redesign: move primary filters/sort above the grid, keep active filters as chips, put secondary filters in a shadcn `Sheet`/popover, preserve route query state, and keep mobile controls compact.
     - Inspection standard: category, release status, price, availability, pickup context, sort, and `q` survive reload/back/forward; controls are 44px+ on mobile; no horizontal overflow appears at 320px.
-    - [ ] Toolbar order is page context/result count, quick category chips, sort, `All filters`, active chips/reset, then product grid.
-    - [ ] Quick chips cover implemented primary categories; secondary filters cover only supported release status, availability, price, and pickup availability with disabled reason when location context is missing.
-    - [ ] Mobile sheet has title/description, focus trap, X close, apply/reset controls, 44px+ tap rows, selected indicators, body scroll lock, and focus return.
+    - [x] Toolbar order is page context/result count, quick category chips, sort, `All filters`, active chips/reset, then product grid.
+    - [x] Quick chips cover implemented primary categories; secondary filters cover only supported release status, availability, price, and pickup availability with disabled reason when location context is missing.
+    - [x] Mobile and desktop filter sheets have title/description, focus trap, X close, 44px+ tap rows, selected indicators, body scroll lock, and focus return through shadcn `Sheet`.
+    - [ ] Remaining control acceptance: explicit apply/reset action polish, direct URL/reload/back-forward route-state evidence, and 320px browser overflow proof.
     - [ ] Tests cover direct URL, header search query `q`, apply/reset, active-chip removal, back/forward state, empty filtered state, and fallback/API-down behavior where existing tests support it.
   - [ ] V5 Category product-card state polish: add top-right coming-soon/not-released labels, muted unreleased media, no purchase-start affordance for unreleased products, sale badge consistency, stable media skeletons, and non-color-only status copy.
     - Inspection standard: released, sale, and coming-soon cards are visually distinct in screenshots; badges do not overlap at 320px; no old mock-image flash or card-height jump occurs.

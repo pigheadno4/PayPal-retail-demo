@@ -233,6 +233,7 @@ Current V5 implementation status:
 
 - 2026-06-29 Category runtime slice: the Category Pay Later area now uses a merchant-owned shadcn `Card` wrapper with compact token-aligned chrome and a dedicated official-message slot, without targeting PayPal-rendered internals.
 - 2026-06-29 Category runtime slice: not-released product cards now expose a top-right `Coming soon` text badge, muted/desaturated media, explicit non-purchasable state, and preserved PDP navigation. Browser evidence and the broader filter-toolbar/final V5 matrix remain open.
+- 2026-06-29 Category runtime slice: the dominant desktop filter sidebar is replaced by a grid-first toolbar with result context, quick category chips, sort, `All filters`, active chips/reset, and shadcn Sheet-based secondary filters. Route-state/browser evidence and final responsive GUI proof remain open.
 
 Category V5 plan:
 

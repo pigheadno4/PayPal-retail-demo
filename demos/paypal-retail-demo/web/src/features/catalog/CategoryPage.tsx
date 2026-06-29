@@ -18,7 +18,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 
 export interface CategoryPageLinkOption {
   readonly label: string;
@@ -109,16 +108,6 @@ export function CategoryPage({
       </header>
 
       <div className="catalog-layout">
-        <aside className="catalog-filters" aria-label="Product filters">
-          <CatalogFilterPanel
-            appliedFilterLabel={appliedFilterLabel}
-            categorySwitcher={data.categorySwitcher}
-            filters={supportedFilters}
-            idPrefix="filter"
-            resetHref={data.resetHref}
-          />
-        </aside>
-
         <div className="catalog-results">
           <div
             className="catalog-mobile-filter-rail"
@@ -184,6 +173,85 @@ export function CategoryPage({
             className="catalog-shop-controls"
             aria-label="Catalog controls"
           >
+            <div className="catalog-shop-context">
+              <span>Results</span>
+              <strong>{data.resultCountLabel}</strong>
+            </div>
+            <nav
+              className="catalog-category-quick-filters"
+              aria-label="Category quick filters"
+            >
+              <span>{data.categorySwitcher.label}</span>
+              <div className="catalog-category-quick-filters__options">
+                {data.categorySwitcher.options.map((option) => (
+                  <a
+                    aria-current={option.active ? "true" : undefined}
+                    className="catalog-category-chip"
+                    data-active={option.active ? "true" : "false"}
+                    href={option.href}
+                    key={option.label}
+                  >
+                    <span>{option.label}</span>
+                    {option.countLabel ? (
+                      <small>{option.countLabel}</small>
+                    ) : null}
+                  </a>
+                ))}
+              </div>
+            </nav>
+            <div className="catalog-sort-control">
+              <span>Sort by</span>
+              <div className="catalog-sort-control__options">
+                {sortOptions.map((option) => (
+                  <a
+                    aria-current={option.active ? "true" : undefined}
+                    className={
+                      option.active ? "catalog-sort-control__active-link" : ""
+                    }
+                    data-active={option.active ? "true" : "false"}
+                    href={option.href}
+                    key={option.label}
+                  >
+                    {option.label}
+                  </a>
+                ))}
+              </div>
+              {activeSortOption ? (
+                <small>Current: {activeSortOption.label}</small>
+              ) : null}
+            </div>
+            <div className="catalog-all-filters-trigger">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    aria-label={`All filters, ${appliedFilterLabel}`}
+                    variant="outline"
+                  >
+                    <span>All filters</span>
+                    <strong>{appliedFilterLabel}</strong>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="catalog-desktop-filters" side="right">
+                  <SheetHeader className="catalog-mobile-filters__header">
+                    <SheetTitle>All filters</SheetTitle>
+                    <SheetDescription>
+                      {appliedFilterLabel}. Select one option to update this
+                      product list.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="catalog-mobile-filters__panel">
+                    <CatalogFilterPanel
+                      appliedFilterLabel={appliedFilterLabel}
+                      categorySwitcher={data.categorySwitcher}
+                      filters={supportedFilters}
+                      idPrefix="toolbar-filter"
+                      resetHref={data.resetHref}
+                      variant="sheet"
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
             <div className="catalog-applied-filters">
               <span>Applied filters</span>
               <div className="catalog-applied-filters__chips">
@@ -206,31 +274,12 @@ export function CategoryPage({
                   </Badge>
                 )}
               </div>
-            </div>
-            <Separator
-              className="catalog-shop-controls__separator"
-              orientation="vertical"
-            />
-            <div className="catalog-sort-control">
-              <span>Sort by</span>
-              <div className="catalog-sort-control__options">
-                {sortOptions.map((option) => (
-                  <a
-                    aria-current={option.active ? "true" : undefined}
-                    className={
-                      option.active ? "catalog-sort-control__active-link" : ""
-                    }
-                    data-active={option.active ? "true" : "false"}
-                    href={option.href}
-                    key={option.label}
-                  >
-                    {option.label}
-                  </a>
-                ))}
-              </div>
-              {activeSortOption ? (
-                <small>Current: {activeSortOption.label}</small>
-              ) : null}
+              <a
+                className="catalog-applied-filters__reset"
+                href={data.resetHref}
+              >
+                Reset filters
+              </a>
             </div>
           </section>
 

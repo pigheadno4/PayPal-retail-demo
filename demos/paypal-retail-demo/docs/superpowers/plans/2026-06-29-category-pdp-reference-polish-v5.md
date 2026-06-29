@@ -143,23 +143,25 @@ Review-process requirements:
 - Consumes: existing category, release status, availability, price, pickup context, sort, and `q` query behavior.
 - Produces: compact top filter/sort controls plus mobile sheet/drawer behavior.
 
-- [ ] Define the Category control hierarchy before coding: page title/result count, quick category chips, sort control, `All filters` trigger, active filter chips, reset action, then product grid.
+- [x] Define the Category control hierarchy before coding: page title/result count, quick category chips, sort control, `All filters` trigger, active filter chips, reset action, then product grid.
   - Inspection standard: implementation follows this order in DOM and visual layout unless existing semantics require a small deviation documented in `tracking/progress.md`.
-- [ ] Move primary category options into quick chips above the grid.
+- [x] Move primary category options into quick chips above the grid.
   - Inspection standard: `All`, `Blind Boxes`, `Figures`, `Plush`, and other implemented categories are visible as compact chips/segmented options, update route/query state, and do not duplicate unsupported filters.
-- [ ] Move secondary filters into shadcn `Sheet` on mobile and `Popover`/compact panel on desktop/tablet.
+- [x] Move secondary filters into shadcn `Sheet` on mobile and `Popover`/compact panel on desktop/tablet.
   - Inspection standard: secondary filters include only supported filters: release status, availability, price, pickup availability when location context exists, and category where not already covered by quick chips.
-- [ ] Keep active filters visible without reopening the sheet.
+- [x] Keep active filters visible without reopening the sheet.
   - Inspection standard: active chips show readable label and remove affordance; reset clears all supported filters and preserves `q` only if the buyer explicitly searched.
-- [ ] Keep sort separate and always reachable.
+- [x] Keep sort separate and always reachable.
   - Inspection standard: sort is a compact select/trigger in the toolbar; changing sort updates visible order and route/query state without closing unrelated filter UI unexpectedly.
-- [ ] Implement mobile sheet behavior.
-  - Inspection standard: sheet has accessible title/description, focus trap, X close, apply/reset buttons, 44px+ tap rows, selected checkmarks/chips, body scroll lock while open, and returns focus to trigger on close.
+- [x] Implement mobile and desktop sheet behavior.
+  - Inspection standard: sheet has accessible title/description, focus trap, X close, 44px+ tap rows, selected checkmarks/chips, body scroll lock while open, and returns focus to trigger on close.
+- [ ] Polish explicit filter apply/reset actions inside sheets.
+  - Inspection standard: apply/reset affordances are visually clear, route behavior is predictable, and reset semantics are covered by interaction/browser evidence.
 - [ ] Preserve route/query semantics for category, release status, price, availability, pickup context, sort, and `q`.
   - Inspection standard: direct URL load, back/forward navigation, filter apply, chip remove, reset, and header search results all reproduce the expected visible state.
 - [ ] Add empty and loading states for filtered results.
   - Inspection standard: empty state shows applied filters, reset action, and link to all products; loading state uses shadcn `Skeleton` and never flashes old fixture products.
-- [ ] Add accessibility labels and selected-state semantics.
+- [x] Add accessibility labels and selected-state semantics.
   - Inspection standard: filters expose selected state through text/ARIA, disabled pickup filter includes a concise reason, and color is not the only indicator.
 - [ ] Run interaction tests for filter apply/reset, query preservation, active-chip removal, mobile sheet open/apply/close, empty filtered state, and sort changes.
   - Inspection standard: tests cover both live catalog path and fallback/API-down behavior where current tests support it.

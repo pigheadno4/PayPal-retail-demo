@@ -26,9 +26,8 @@ describe("CategoryPage", () => {
     expect(html).toContain("Reset filters");
     expect(html).toContain("Price");
     expect(html).toContain("Availability");
-    expect(html).toContain("Release status");
-    expect(html).toContain("Pickup");
     expect(html).not.toContain("Search products");
+    expect(html).not.toContain('class="catalog-filters"');
   });
 
   it("renders reference-level applied filter chips and sort controls above products", () => {
@@ -51,8 +50,51 @@ describe("CategoryPage", () => {
     expect(html).toContain("Price low to high");
     expect(html).toContain('href="/products?sort=price_asc"');
     expect(html).toContain('data-slot="badge"');
-    expect(html).toContain('data-slot="separator"');
     expect(html).not.toContain("Series: THE MONSTERS");
+  });
+
+  it("renders the V5 category control hierarchy above the product grid", () => {
+    const html = renderToStaticMarkup(
+      <CategoryPage data={categoryPageData()} />,
+    );
+    const contextIndex = html.indexOf('class="catalog-shop-context"');
+    const quickFiltersIndex = html.indexOf(
+      'class="catalog-category-quick-filters"',
+    );
+    const sortIndex = html.indexOf('class="catalog-sort-control"');
+    const allFiltersIndex = html.indexOf('class="catalog-all-filters-trigger"');
+    const appliedIndex = html.indexOf('class="catalog-applied-filters"');
+    const productGridIndex = html.indexOf('class="catalog-product-section"');
+
+    expect(contextIndex).toBeGreaterThan(-1);
+    expect(quickFiltersIndex).toBeGreaterThan(contextIndex);
+    expect(sortIndex).toBeGreaterThan(quickFiltersIndex);
+    expect(allFiltersIndex).toBeGreaterThan(sortIndex);
+    expect(appliedIndex).toBeGreaterThan(allFiltersIndex);
+    expect(productGridIndex).toBeGreaterThan(appliedIndex);
+    expect(html).toContain('aria-label="Category quick filters"');
+    expect(html).toContain('class="catalog-category-chip"');
+    expect(html).toContain('data-slot="sheet-trigger"');
+    expect(html).toContain("<span>All filters</span>");
+  });
+
+  it("opens desktop secondary filters inside a shadcn sheet", async () => {
+    const user = userEvent.setup();
+
+    render(<CategoryPage data={categoryPageData()} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "All filters, 2 filters applied" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "All filters" });
+
+    expect(dialog.getAttribute("data-slot")).toBe("sheet-content");
+    expect(within(dialog).getByText("Category")).toBeTruthy();
+    expect(within(dialog).getByText("Release status")).toBeTruthy();
+    expect(within(dialog).getByText("Pickup")).toBeTruthy();
+    expect(dialog.querySelector("#toolbar-filter-price")).toBeTruthy();
+    expect(dialog.querySelector("#toolbar-filter-release-status")).toBeTruthy();
   });
 
   it("renders a compact mobile filter control before the product grid", () => {
@@ -72,7 +114,7 @@ describe("CategoryPage", () => {
     expect(html).toContain("<span>Filter &amp; sort</span>");
     expect(html).toContain("<strong>2 filters applied</strong>");
     expect(html).toContain('class="catalog-mobile-reset"');
-    expect(html.match(/id="filter-price"/g) ?? []).toHaveLength(1);
+    expect(html).not.toContain('id="filter-price"');
     expect(html).not.toContain("<details");
     expect(html).not.toContain("<summary");
   });
@@ -130,13 +172,25 @@ describe("CategoryPage", () => {
     expect(payLaterSection).not.toContain("interest-free installments of");
   });
 
-  it("shows a pickup filter hint when no buyer location is available", () => {
-    const html = renderToStaticMarkup(
-      <CategoryPage data={categoryPageData()} />,
+  it("shows a pickup filter hint when no buyer location is available", async () => {
+    const user = userEvent.setup();
+
+    render(<CategoryPage data={categoryPageData()} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "All filters, 2 filters applied" }),
     );
 
-    expect(html).toContain("Add a ZIP or sign in to check pickup filters.");
-    expect(html).toContain('aria-disabled="true"');
+    const dialog = await screen.findByRole("dialog", { name: "All filters" });
+
+    expect(
+      within(dialog).getByText("Add a ZIP or sign in to check pickup filters."),
+    ).toBeTruthy();
+    expect(
+      dialog.querySelector(
+        '[aria-disabled="true"][aria-labelledby="toolbar-filter-pickup"]',
+      ),
+    ).toBeTruthy();
   });
 
   it("renders filtered products with PDP links, status, pickup, and descriptive image alt text", () => {
