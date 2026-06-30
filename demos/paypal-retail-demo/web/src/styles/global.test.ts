@@ -219,6 +219,7 @@ describe("global storefront visual tokens", () => {
     const productReviewSummaryBlock = cssBlock(".product-review-summary-card");
     const productSocialProofListBlock = cssBlock(".product-social-proof-list");
     const productSocialProofCardBlock = cssBlock(".product-social-proof-card");
+    const productStickyPurchaseBlock = cssBlock(".product-sticky-purchase");
 
     expect(globalCss).toContain(".product-breadcrumb");
     expect(globalCss).toContain(".product-gallery__stage");
@@ -236,6 +237,7 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".product-detail-tabs__trigger");
     expect(globalCss).toContain(".product-review-summary-card");
     expect(globalCss).toContain(".product-social-proof-card");
+    expect(globalCss).toContain(".product-sticky-purchase");
     expect(productRatingSummaryBlock).toContain("display: inline-flex");
     expect(productSupportBandBlock).toContain("grid-template-columns");
     expect(productSupportBandBlock).toContain(
@@ -245,6 +247,7 @@ describe("global storefront visual tokens", () => {
     expect(productReviewSummaryBlock).toContain("box-shadow: none");
     expect(productSocialProofListBlock).toContain("display: grid");
     expect(productSocialProofCardBlock).toContain("box-shadow");
+    expect(productStickyPurchaseBlock).toContain("display: none");
     expect(productDetailTabsBlock).toContain("min-width: 0");
     expect(productTabsRootBlock).toContain("max-width: 100%");
     expect(productTabsRootBlock).toContain("min-width: 0");
@@ -306,6 +309,24 @@ describe("global storefront visual tokens", () => {
     );
     expect(globalCss).toContain(".product-paypal-frame {\n    order: 4;");
     expect(globalCss).toContain(".product-support-band {\n    order: 5;");
+    expect(globalCss).toContain(
+      '.product-page[data-sticky-purchase-visible="true"] {\n    padding-bottom: calc(112px + env(safe-area-inset-bottom));',
+    );
+    expect(globalCss).toContain(
+      ".product-sticky-purchase {\n    background: rgba(255, 255, 255, 0.96);",
+    );
+    expect(globalCss).toContain(
+      "bottom: calc(12px + env(safe-area-inset-bottom));",
+    );
+    expect(globalCss).toContain(
+      ".product-sticky-purchase__content {\n    align-items: center;",
+    );
+    expect(globalCss).toContain(
+      ".product-sticky-purchase__button {\n    min-height: 44px;",
+    );
+    expect(globalCss).toContain(
+      ".product-sticky-purchase__content {\n    align-items: stretch;\n    grid-template-columns: 1fr;",
+    );
     expect(globalCss).toContain(
       ".product-paylater {\n  background: transparent;",
     );

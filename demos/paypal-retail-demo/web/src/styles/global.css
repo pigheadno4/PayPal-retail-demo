@@ -2713,6 +2713,10 @@ a {
   gap: 12px;
 }
 
+.product-sticky-purchase {
+  display: none;
+}
+
 .product-actions__notice {
   color: #a6111f;
   font-weight: 800;
@@ -8262,6 +8266,10 @@ p {
     gap: 14px;
   }
 
+  .product-page[data-sticky-purchase-visible="true"] {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+
   .product-summary__intro {
     font-size: 0.92rem;
     line-height: 1.45;
@@ -8336,6 +8344,64 @@ p {
 
   .product-purchase-panel .product-actions {
     order: 3;
+  }
+
+  .product-sticky-purchase {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(244, 36, 52, 0.18);
+    border-radius: 18px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 18px 42px rgba(11, 41, 69, 0.22);
+    display: block;
+    inset-inline: 12px;
+    max-width: min(100% - 24px, 430px);
+    padding: 0;
+    position: fixed;
+    z-index: 55;
+  }
+
+  .product-sticky-purchase__content {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px;
+  }
+
+  .product-sticky-purchase__copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .product-sticky-purchase__copy span,
+  .product-sticky-purchase__copy strong,
+  .product-sticky-purchase__copy small {
+    overflow-wrap: anywhere;
+  }
+
+  .product-sticky-purchase__copy span {
+    color: var(--shell-ink);
+    font-size: 0.82rem;
+    font-weight: 900;
+  }
+
+  .product-sticky-purchase__copy strong {
+    color: var(--shell-accent);
+    font-size: 0.98rem;
+    font-weight: 950;
+  }
+
+  .product-sticky-purchase__copy small {
+    color: var(--shell-muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+  }
+
+  .product-sticky-purchase__button {
+    min-height: 44px;
+    min-width: 136px;
+    white-space: nowrap;
   }
 
   .product-paypal-frame {
@@ -8511,6 +8577,19 @@ p {
 }
 
 @media (max-width: 420px) {
+  .product-page[data-sticky-purchase-visible="true"] {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+
+  .product-sticky-purchase__content {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .product-sticky-purchase__button {
+    inline-size: 100%;
+  }
+
   .checkout-sticky-action {
     grid-template-columns: 1fr;
     min-height: 112px;

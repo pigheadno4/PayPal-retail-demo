@@ -292,24 +292,25 @@ Review-process requirements:
 - Consumes: selected purchase option, quantity/selected pack, current price, add-to-cart handler, purchasable state.
 - Produces: mobile sticky purchase bar that appears only when useful.
 
-- [ ] Add intersection/visibility logic for the main PDP CTA.
+- [x] Add intersection/visibility logic for the main PDP CTA.
   - Inspection standard: sticky bar appears only below the mobile breakpoint and only when the primary Add to cart action is scrolled out of view; it disappears when the main CTA returns to view.
-- [ ] Define sticky bar content for released products.
+- [x] Define sticky bar content for released products.
   - Inspection standard: bar includes short product title or option label, selected purchase option (`Random 1PC` or `Whole Box` when applicable), selected quantity/pack count, current price for the selected option, and one Add to cart action.
-- [ ] Reuse the main add-to-cart state and handler.
+- [x] Reuse the main add-to-cart state and handler.
   - Inspection standard: sticky action cannot add the wrong product, option, or quantity; whole-box option still adds the intended whole-box quantity; loading/error states match the main CTA.
-- [ ] Keep PayPal out of the sticky bar.
+- [x] Keep PayPal out of the sticky bar.
   - Inspection standard: sticky bar does not render PayPal, Pay Later, card, wallet, or express-payment buttons; it is an Add to cart shortcut only.
-- [ ] Handle unreleased products.
+- [x] Handle unreleased products.
   - Inspection standard: sticky bar is hidden for unreleased products unless the final design explicitly chooses a disabled coming-soon bar; in either case, no sticky payment or Add to cart action appears.
-- [ ] Reserve layout space and safe-area padding.
+- [x] Reserve layout space and safe-area padding.
   - Inspection standard: body/main bottom padding prevents footer/detail content from being hidden, bar uses `env(safe-area-inset-bottom)`, and the bar does not cover PayPal messages, detail tabs, footer links, or form controls at `320px` and `390px`.
-- [ ] Add keyboard and screen-reader affordances.
+- [x] Add keyboard and screen-reader affordances.
   - Inspection standard: sticky Add to cart has accessible name including selected option or quantity, focus styles are visible, and the bar does not trap focus.
-- [ ] Add tests for visibility trigger, selected option sync, whole-box quantity, hidden unreleased state, loading/error copy, and no duplicate cart dispatch.
+- [x] Add tests for visibility trigger, selected option sync, whole-box quantity, hidden unreleased state, no payment-surface copy, and no duplicate cart dispatch.
   - Inspection standard: tests simulate CTA hidden/visible state and verify exactly one cart add handler call per sticky click.
-- [ ] Browser verify released and unreleased PDP sticky behavior at `390` and `320`.
+- [x] Browser verify released and unreleased PDP sticky behavior at `390` and `320`.
   - Inspection standard: released sticky bar appears/disappears correctly during scroll; unreleased PDP has no active sticky purchase action; no content is covered at the bottom of the page.
+  - Evidence: `/private/tmp/paypal-retail-pdp-v5-sticky-20260630/` contains screenshots and metrics for released 390/320, released Whole Box sticky click, and unreleased 390/320. Local Playwright still reported Vite console errors, so exact hosted console capture remains a final V5 matrix gate.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   Card,
@@ -199,6 +199,8 @@ export function ProductDetailPage({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeDetailTab, setActiveDetailTab] =
     useState<ProductDetailTabId>("collector");
+  const [showStickyPurchaseBar, setShowStickyPurchaseBar] = useState(false);
+  const primaryActionRef = useRef<HTMLElement | null>(null);
   const purchaseOptions =
     data.purchaseOptions && data.purchaseOptions.length > 0
       ? data.purchaseOptions
@@ -464,8 +466,67 @@ export function ProductDetailPage({
     }
   }
 
+  useEffect(() => {
+    setShowStickyPurchaseBar(false);
+
+    if (
+      !data.purchasable ||
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function" ||
+      typeof window.IntersectionObserver !== "function"
+    ) {
+      return;
+    }
+
+    const mobileQuery = window.matchMedia("(max-width: 767px)");
+    let observer: IntersectionObserver | null = null;
+
+    function disconnectObserver() {
+      observer?.disconnect();
+      observer = null;
+    }
+
+    function evaluateStickyObserver() {
+      disconnectObserver();
+
+      if (!mobileQuery.matches || !primaryActionRef.current) {
+        setShowStickyPurchaseBar(false);
+        return;
+      }
+
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          setShowStickyPurchaseBar(!entry?.isIntersecting);
+        },
+        { threshold: 0.1 },
+      );
+      observer.observe(primaryActionRef.current);
+    }
+
+    evaluateStickyObserver();
+
+    if (typeof mobileQuery.addEventListener === "function") {
+      mobileQuery.addEventListener("change", evaluateStickyObserver);
+    } else {
+      mobileQuery.addListener?.(evaluateStickyObserver);
+    }
+
+    return () => {
+      disconnectObserver();
+
+      if (typeof mobileQuery.removeEventListener === "function") {
+        mobileQuery.removeEventListener("change", evaluateStickyObserver);
+      } else {
+        mobileQuery.removeListener?.(evaluateStickyObserver);
+      }
+    };
+  }, [data.purchasable, data.slug]);
+
   return (
-    <div className="product-page">
+    <div
+      className="product-page"
+      data-sticky-purchase-visible={showStickyPurchaseBar ? "true" : "false"}
+    >
       <nav className="product-breadcrumb" aria-label="Breadcrumb">
         <a href="/">Home</a>
         <span aria-hidden="true">/</span>
@@ -626,6 +687,7 @@ export function ProductDetailPage({
               <section
                 className="product-actions"
                 aria-label="Purchase actions"
+                ref={primaryActionRef}
               >
                 <Button
                   className="button button--primary product-actions__button"
@@ -833,6 +895,32 @@ export function ProductDetailPage({
             ))}
           </div>
         </section>
+      ) : null}
+
+      {showStickyPurchaseBar ? (
+        <Card
+          className="product-sticky-purchase"
+          aria-label="Sticky purchase action"
+          size="sm"
+        >
+          <CardContent className="product-sticky-purchase__content">
+            <div className="product-sticky-purchase__copy">
+              <span>{selectedPurchaseOption.label}</span>
+              <strong>{selectedPurchaseOption.priceLabel}</strong>
+              <small>Qty {selectedPurchaseOption.quantity}</small>
+            </div>
+            <Button
+              className="button button--primary product-sticky-purchase__button"
+              type="button"
+              aria-label={`Add ${selectedPurchaseOption.label} quantity ${selectedPurchaseOption.quantity} to cart`}
+              onClick={() => {
+                onAddToCart?.(data, selectedPurchaseSelection);
+              }}
+            >
+              {selectedPurchaseOption.ctaLabel ?? "Add to cart"}
+            </Button>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

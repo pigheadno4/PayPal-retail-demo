@@ -1,14 +1,27 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ProductDetailPage,
   type ProductDetailPageData,
 } from "./ProductDetailPage.js";
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("ProductDetailPage", () => {
   it("renders released product details with gallery, amount-aware Pay Later, actions, and reviews", () => {
@@ -232,6 +245,103 @@ describe("ProductDetailPage", () => {
         priceLabel: "$159.49",
       },
     ]);
+  });
+
+  it("shows the sticky purchase bar on mobile only when the main CTA leaves view", () => {
+    installMatchMediaMock(true);
+    const observer = installIntersectionObserverMock();
+    const onAddToCart = vi.fn();
+
+    render(
+      <ProductDetailPage data={releasedProduct()} onAddToCart={onAddToCart} />,
+    );
+
+    expect(screen.queryByLabelText("Sticky purchase action")).toBeNull();
+
+    observer.trigger(false);
+
+    const stickyBar = screen.getByLabelText("Sticky purchase action");
+
+    expect(stickyBar.textContent).toContain("Random 1PC");
+    expect(stickyBar.textContent).toContain("Qty 1");
+    expect(stickyBar.textContent).toContain("$13.99");
+    expect(stickyBar.textContent).not.toMatch(
+      /PayPal|Pay Later|card|wallet|express/i,
+    );
+
+    fireEvent.click(
+      within(stickyBar).getByRole("button", {
+        name: "Add Random 1PC quantity 1 to cart",
+      }),
+    );
+
+    expect(onAddToCart).toHaveBeenCalledTimes(1);
+    expect(onAddToCart).toHaveBeenCalledWith(releasedProduct(), {
+      optionId: "random-1pc",
+      label: "Random 1PC",
+      quantity: 1,
+      priceLabel: "$13.99",
+    });
+
+    observer.trigger(true);
+
+    expect(screen.queryByLabelText("Sticky purchase action")).toBeNull();
+  });
+
+  it("keeps sticky purchase selection synced with whole-box quantity and price", () => {
+    installMatchMediaMock(true);
+    const observer = installIntersectionObserverMock();
+    const onAddToCart = vi.fn();
+
+    render(
+      <ProductDetailPage data={releasedProduct()} onAddToCart={onAddToCart} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("radio", {
+        name: /Whole Box - 12PC no duplicates/,
+      }),
+    );
+    observer.trigger(false);
+
+    const stickyBar = screen.getByLabelText("Sticky purchase action");
+
+    expect(stickyBar.textContent).toContain("Whole Box - 12PC no duplicates");
+    expect(stickyBar.textContent).toContain("Qty 12");
+    expect(stickyBar.textContent).toContain("$159.49");
+
+    fireEvent.click(
+      within(stickyBar).getByRole("button", {
+        name: "Add Whole Box - 12PC no duplicates quantity 12 to cart",
+      }),
+    );
+
+    expect(onAddToCart).toHaveBeenCalledTimes(1);
+    expect(onAddToCart).toHaveBeenCalledWith(releasedProduct(), {
+      optionId: "whole-box-12pc",
+      label: "Whole Box - 12PC no duplicates",
+      quantity: 12,
+      priceLabel: "$159.49",
+    });
+  });
+
+  it("does not expose sticky purchase actions on desktop or unreleased PDPs", () => {
+    installMatchMediaMock(false);
+    const desktopObserver = installIntersectionObserverMock();
+
+    render(<ProductDetailPage data={releasedProduct()} />);
+
+    expect(screen.queryByLabelText("Sticky purchase action")).toBeNull();
+    expect(desktopObserver.isInitialized()).toBe(false);
+
+    vi.unstubAllGlobals();
+    installMatchMediaMock(true);
+    const mobileObserver = installIntersectionObserverMock();
+
+    render(<ProductDetailPage data={unreleasedProduct()} />);
+
+    expect(screen.queryByLabelText("Sticky purchase action")).toBeNull();
+    expect(mobileObserver.isInitialized()).toBe(false);
   });
 
   it("places the official Pay Later message directly under the price before primary actions", () => {
@@ -647,5 +757,84 @@ export function unreleasedProduct(): ProductDetailPageData {
       body: "Flexible payment options may be available for $15.99 at checkout.",
     },
     reviews: [],
+  };
+}
+
+function installMatchMediaMock(matches: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((media: string) => ({
+      matches,
+      media,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+function installIntersectionObserverMock() {
+  let intersectionCallback:
+    | ((
+        entries: IntersectionObserverEntry[],
+        observer: IntersectionObserver,
+      ) => void)
+    | null = null;
+
+  const observer = {
+    root: null,
+    rootMargin: "0px",
+    thresholds: [0],
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+    takeRecords: vi.fn(() => []),
+  } as unknown as IntersectionObserver;
+
+  const IntersectionObserverMock = vi.fn(
+    (
+      callback: (
+        entries: IntersectionObserverEntry[],
+        observer: IntersectionObserver,
+      ) => void,
+    ) => {
+      intersectionCallback = callback;
+
+      return observer;
+    },
+  );
+
+  vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
+
+  return {
+    isInitialized() {
+      return Boolean(intersectionCallback);
+    },
+    trigger(isIntersecting: boolean) {
+      if (!intersectionCallback) {
+        throw new Error("IntersectionObserver was not initialized.");
+      }
+
+      const target = document.querySelector(".product-actions");
+
+      if (!target) {
+        throw new Error("Product actions target was not rendered.");
+      }
+
+      act(() => {
+        intersectionCallback?.(
+          [
+            {
+              isIntersecting,
+              target,
+            } as IntersectionObserverEntry,
+          ],
+          observer,
+        );
+      });
+    },
   };
 }
