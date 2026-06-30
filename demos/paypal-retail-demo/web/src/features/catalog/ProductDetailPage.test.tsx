@@ -296,7 +296,7 @@ describe("ProductDetailPage", () => {
     expect(html).not.toContain('class="product-gallery__thumb"');
   });
 
-  it("keeps future-release PDPs viewable while blocking checkout actions and hiding reviews", () => {
+  it("keeps future-release PDPs inspectable without purchase or payment DOM", () => {
     const html = renderToStaticMarkup(
       <ProductDetailPage data={unreleasedProduct()} />,
     );
@@ -304,13 +304,53 @@ describe("ProductDetailPage", () => {
     expect(html).toContain("Skullpanda Future Drop");
     expect(html).toContain("Not released");
     expect(html).toContain("Checkout opens after release.");
-    expect(html).toContain("disabled");
+    expect(html).toContain("product-release-preview");
+    expect(html).toContain("Coming soon");
+    expect(html).toContain("Product facts");
+    expect(html).toContain("Release window");
+    expect(html).toContain('class="product-gallery__main"');
+    expect(html).not.toContain("product-purchase-options");
+    expect(html).not.toContain("product-actions");
+    expect(html).not.toContain("product-paylater");
+    expect(html).not.toContain("product-paypal-frame");
+    expect(html).not.toContain("product-trust-grid");
+    expect(html).not.toContain("Add to cart");
+    expect(html).not.toContain("Add whole box");
+    expect(html).not.toContain("PayPal checkout");
+    expect(html).not.toContain("Secured by PayPal");
+    expect(html).not.toContain("data-paypal-sdk-method");
     expect(html).not.toContain("Collector reviews");
     expect(html).not.toContain("Customer reviews");
     expect(html).not.toContain(
       "Flexible payment options may be available for $15.99",
     );
     expect(html).not.toContain("Pickup");
+  });
+
+  it("hides unreleased PDP review surfaces even if social proof data is present", () => {
+    const html = renderToStaticMarkup(
+      <ProductDetailPage
+        data={{
+          ...unreleasedProduct(),
+          socialProof: [
+            {
+              id: "future-proof-1",
+              mediaLabel: "Photo unboxing",
+              title: "Preview-only social proof",
+              body: "This should not appear before release.",
+              authorName: "Demo collector",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(html).toContain("Skullpanda Future Drop");
+    expect(html).toContain("product-release-preview");
+    expect(html).not.toContain("Customer reviews");
+    expect(html).not.toContain("Collector reviews");
+    expect(html).not.toContain("Preview-only social proof");
+    expect(html).not.toContain('data-review-card="true"');
   });
 });
 

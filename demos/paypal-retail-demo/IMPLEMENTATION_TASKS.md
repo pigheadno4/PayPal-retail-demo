@@ -570,10 +570,14 @@ Reference-level polish execution guide:
     - [ ] Tests cover badge priority, unreleased action suppression, sale display, wishlist disabled/hidden reason, and image/skeleton class contracts.
   - [ ] V5 PDP coming-soon gating: hide Add to cart, PayPal, Pay Later, and delivery express frames for unreleased products while showing disabled coming-soon/not-released action copy and release context.
     - Inspection standard: unreleased PDP has no payment frame/message/button DOM, reviews stay hidden, and product inspection content remains accessible.
-    - [ ] Implement released/unreleased purchase-state branching instead of rendering the released purchase rail with disabled internals.
-    - [ ] Unreleased PDP keeps breadcrumb, gallery, title, status, vendor/profile label, facts, story, shipping/returns, and Q&A/detail content reachable.
-    - [ ] Do not add enabled `Notify me` or email capture unless real state/routes are implemented.
-    - [ ] Tests prove released PDP shows eligible purchase/payment/reviews and unreleased PDP hides purchase/payment/reviews without hiding inspection content.
+    - [x] Implement released/unreleased purchase-state branching instead of rendering the released purchase rail with disabled internals.
+    - [x] Unreleased PDP keeps breadcrumb, gallery, title, status, vendor/profile label, facts, shipping/returns, and Q&A/detail content reachable.
+    - [x] Do not add enabled `Notify me` or email capture unless real state/routes are implemented.
+    - [x] Tests prove released PDP shows eligible purchase/payment/reviews and unreleased PDP hides purchase/payment/reviews/social proof without hiding inspection content.
+    - [x] Review-gate fix: unreleased PDPs also hide review/social-proof surfaces if upstream data accidentally includes social proof, and merchant CSS no longer targets PayPal SDK custom-element tags for checkout/delivery action sizing.
+    - [x] Local browser verify unreleased fallback PDP at 1440, 390, and 320 with no Add to cart, PayPal frame/button, Pay Later message/button, review cards, sticky purchase action, or horizontal overflow.
+      - Evidence: `/products/vinyl-figures-7?qa=pdp-v5-unreleased-gating` passed in local Vite fallback mode; screenshots are `pdp-v5-unreleased-desktop-1440.png`, `pdp-v5-unreleased-mobile-390.png`, and `pdp-v5-unreleased-small-320.png`; metrics live in `/private/tmp/paypal-retail-pdp-v5-unreleased-gating-20260630/metrics.json`.
+      - Hosted caveat: `/products/blind-boxes-1` was not available in local Vite fallback mode; hosted `/products/blind-boxes-1` remains covered by the final V5 matrix gate.
   - [ ] V5 PDP purchase rail/reviews/detail navigation: compact support cards, keep Pay Later under price, show real review summary/preview for released products, and refine desktop/mobile detail navigation.
     - Inspection standard: no fake ratings, Customer reviews are discoverable from real data, desktop tabs have no vertical scrollbar artifact, mobile tabs/accordion do not clip inaccessible right-side controls, and all detail sections activate by click/keyboard.
     - [ ] Audit the four support modules and decide keep/merge/move/remove for `PayPal checkout`, `Delivery choices`, `Order recovery`, and `Demo policies`.

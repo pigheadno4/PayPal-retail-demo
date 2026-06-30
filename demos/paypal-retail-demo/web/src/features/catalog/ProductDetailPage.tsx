@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -213,7 +214,7 @@ export function ProductDetailPage({
     selectedPurchaseOption.regularPriceLabel ?? data.regularPriceLabel;
   const activeImage = data.gallery[activeImageIndex] ?? data.gallery[0];
   const showReviews = data.purchasable && data.reviews.length > 0;
-  const socialProof = data.socialProof ?? [];
+  const socialProof = data.purchasable ? (data.socialProof ?? []) : [];
   const trustBadges =
     data.trustBadges && data.trustBadges.length > 0
       ? data.trustBadges
@@ -511,139 +512,187 @@ export function ProductDetailPage({
           </div>
 
           {data.purchasable ? (
-            <div className="product-paylater" aria-label="Pay Later message">
-              {renderPayLaterMessage ? (
-                renderPayLaterMessage(
-                  data,
-                  data.payLaterMessage.body,
-                  selectedPurchaseOption.priceLabel,
-                )
-              ) : (
-                <p>
-                  Flexible payment options may be available for{" "}
-                  {selectedPurchaseOption.priceLabel} at checkout.
-                </p>
-              )}
-            </div>
-          ) : null}
-
-          {purchaseOptions.length > 1 ? (
-            <fieldset className="product-purchase-options">
-              <legend>Choose box format</legend>
-              <div>
-                {purchaseOptions.map((option) => (
-                  <label
-                    className="product-purchase-option"
-                    data-selected={
-                      selectedPurchaseOption.id === option.id ? "true" : "false"
-                    }
-                    key={option.id}
-                  >
-                    <input
-                      type="radio"
-                      name={`purchase-option-${data.slug}`}
-                      value={option.id}
-                      checked={selectedPurchaseOption.id === option.id}
-                      onChange={() => setSelectedPurchaseOptionId(option.id)}
-                    />
-                    <span>
-                      <strong>{option.label}</strong>
-                      <small>{option.description}</small>
-                    </span>
-                    <span>
-                      {option.badgeLabel ? <em>{option.badgeLabel}</em> : null}
-                      <strong>{option.priceLabel}</strong>
-                      {option.valueLabel ? (
-                        <small>{option.valueLabel}</small>
-                      ) : null}
-                    </span>
-                  </label>
-                ))}
+            <>
+              <div className="product-paylater" aria-label="Pay Later message">
+                {renderPayLaterMessage ? (
+                  renderPayLaterMessage(
+                    data,
+                    data.payLaterMessage.body,
+                    selectedPurchaseOption.priceLabel,
+                  )
+                ) : (
+                  <p>
+                    Flexible payment options may be available for{" "}
+                    {selectedPurchaseOption.priceLabel} at checkout.
+                  </p>
+                )}
               </div>
-            </fieldset>
-          ) : null}
 
-          {data.scarcitySignal ? (
-            <aside className="product-scarcity" aria-label="Product demand">
-              <strong>{data.scarcitySignal.stockLabel}</strong>
-              <span>{data.scarcitySignal.viewerLabel}</span>
-            </aside>
-          ) : null}
+              {purchaseOptions.length > 1 ? (
+                <fieldset className="product-purchase-options">
+                  <legend>Choose box format</legend>
+                  <div>
+                    {purchaseOptions.map((option) => (
+                      <label
+                        className="product-purchase-option"
+                        data-selected={
+                          selectedPurchaseOption.id === option.id
+                            ? "true"
+                            : "false"
+                        }
+                        key={option.id}
+                      >
+                        <input
+                          type="radio"
+                          name={`purchase-option-${data.slug}`}
+                          value={option.id}
+                          checked={selectedPurchaseOption.id === option.id}
+                          onChange={() =>
+                            setSelectedPurchaseOptionId(option.id)
+                          }
+                        />
+                        <span>
+                          <strong>{option.label}</strong>
+                          <small>{option.description}</small>
+                        </span>
+                        <span>
+                          {option.badgeLabel ? (
+                            <em>{option.badgeLabel}</em>
+                          ) : null}
+                          <strong>{option.priceLabel}</strong>
+                          {option.valueLabel ? (
+                            <small>{option.valueLabel}</small>
+                          ) : null}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
 
-          <section className="product-actions" aria-label="Purchase actions">
-            {data.unavailableReason ? (
-              <p className="product-actions__notice">
-                {data.unavailableReason}
-              </p>
-            ) : null}
-            <Button
-              className="button button--primary product-actions__button"
-              type="button"
-              disabled={!data.purchasable}
-              onClick={() => {
-                if (data.purchasable) {
-                  onAddToCart?.(data, selectedPurchaseSelection);
-                }
-              }}
+              {data.scarcitySignal ? (
+                <aside className="product-scarcity" aria-label="Product demand">
+                  <strong>{data.scarcitySignal.stockLabel}</strong>
+                  <span>{data.scarcitySignal.viewerLabel}</span>
+                </aside>
+              ) : null}
+
+              <section
+                className="product-actions"
+                aria-label="Purchase actions"
+              >
+                <Button
+                  className="button button--primary product-actions__button"
+                  type="button"
+                  onClick={() => {
+                    onAddToCart?.(data, selectedPurchaseSelection);
+                  }}
+                >
+                  {selectedPurchaseOption.ctaLabel ?? "Add to cart"}
+                </Button>
+              </section>
+
+              <PayPalPaymentFrame className="product-paypal-frame">
+                <div className="product-express-actions">
+                  {renderDeliveryExpressAction ? (
+                    <>
+                      {renderDeliveryExpressAction(
+                        "paypal",
+                        data,
+                        selectedPurchaseOption.priceLabel,
+                      )}
+                      {renderDeliveryExpressAction(
+                        "paylater",
+                        data,
+                        selectedPurchaseOption.priceLabel,
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="product-express-actions__paypal"
+                        data-fulfillment-mode="delivery"
+                        type="button"
+                        onClick={() => startDeliveryExpress("paypal")}
+                      >
+                        PayPal
+                      </button>
+                      <button
+                        className="product-express-actions__paylater"
+                        data-fulfillment-mode="delivery"
+                        type="button"
+                        onClick={() => startDeliveryExpress("paylater")}
+                      >
+                        Pay Later
+                      </button>
+                    </>
+                  )}
+                </div>
+              </PayPalPaymentFrame>
+
+              <section
+                className="product-trust-grid"
+                aria-label="Product trust"
+              >
+                {trustBadges.map((badge) => (
+                  <Card
+                    className="product-trust-card"
+                    key={badge.title}
+                    size="sm"
+                  >
+                    <CardHeader className="product-trust-card__header">
+                      <CardTitle className="product-trust-card__title">
+                        {badge.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="product-trust-card__content">
+                      <span>{badge.body}</span>
+                    </CardContent>
+                  </Card>
+                ))}
+              </section>
+            </>
+          ) : (
+            <Card
+              className="product-release-preview"
+              aria-label="Release preview"
+              size="sm"
             >
-              {selectedPurchaseOption.ctaLabel ?? "Add to cart"}
-            </Button>
-          </section>
-
-          <PayPalPaymentFrame className="product-paypal-frame">
-            <div className="product-express-actions">
-              {data.purchasable && renderDeliveryExpressAction ? (
-                <>
-                  {renderDeliveryExpressAction(
-                    "paypal",
-                    data,
-                    selectedPurchaseOption.priceLabel,
-                  )}
-                  {renderDeliveryExpressAction(
-                    "paylater",
-                    data,
-                    selectedPurchaseOption.priceLabel,
-                  )}
-                </>
-              ) : (
-                <>
-                  <button
-                    className="product-express-actions__paypal"
-                    data-fulfillment-mode="delivery"
-                    type="button"
-                    disabled={!data.purchasable}
-                    onClick={() => startDeliveryExpress("paypal")}
-                  >
-                    PayPal
-                  </button>
-                  <button
-                    className="product-express-actions__paylater"
-                    data-fulfillment-mode="delivery"
-                    type="button"
-                    disabled={!data.purchasable}
-                    onClick={() => startDeliveryExpress("paylater")}
-                  >
-                    Pay Later
-                  </button>
-                </>
-              )}
-            </div>
-          </PayPalPaymentFrame>
-
-          <section className="product-trust-grid" aria-label="Product trust">
-            {trustBadges.map((badge) => (
-              <Card className="product-trust-card" key={badge.title} size="sm">
-                <CardHeader className="product-trust-card__header">
-                  <CardTitle className="product-trust-card__title">
-                    {badge.title}
+              <CardHeader className="product-release-preview__header">
+                <div>
+                  <CardDescription className="product-release-preview__eyebrow">
+                    Preview mode
+                  </CardDescription>
+                  <CardTitle className="product-release-preview__title">
+                    Coming soon
                   </CardTitle>
-                </CardHeader>
-                <CardContent className="product-trust-card__content">
-                  <span>{badge.body}</span>
-                </CardContent>
-              </Card>
-            ))}
-          </section>
+                </div>
+                <CardAction>
+                  <Badge variant="outline">{data.statusLabel}</Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="product-release-preview__content">
+                <p>
+                  {data.unavailableReason ??
+                    "Checkout opens when this collectible is released."}
+                </p>
+                <p>
+                  Product images, facts, gallery details, shipping notes, and
+                  Q&amp;A remain available for preview.
+                </p>
+              </CardContent>
+              <CardFooter className="product-release-preview__footer">
+                <Button
+                  className="product-release-preview__button"
+                  disabled
+                  type="button"
+                  variant="secondary"
+                >
+                  Coming soon
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
         </div>
 
         <p className="product-summary__intro">{data.introduction}</p>

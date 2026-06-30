@@ -286,6 +286,22 @@ describe("global storefront visual tokens", () => {
     );
   });
 
+  it("styles unreleased PDP preview cards without exposing payment surfaces", () => {
+    const releasePreviewBlock = cssBlock(".product-release-preview");
+    const releasePreviewFooterBlock = cssBlock(
+      ".product-release-preview__footer",
+    );
+
+    expect(releasePreviewBlock).toContain("background: #fff8f3");
+    expect(releasePreviewBlock).toContain("border: 1px solid #ffd4bf");
+    expect(releasePreviewBlock).toContain("box-shadow: none");
+    expect(globalCss).toContain(".product-release-preview__header");
+    expect(globalCss).toContain(".product-release-preview__content");
+    expect(globalCss).toContain(".product-release-preview__button");
+    expect(releasePreviewFooterBlock).toContain("background: transparent");
+    expect(releasePreviewFooterBlock).toContain("border-top: 0");
+  });
+
   it("uses a shared PayPal frame and mobile-safe quantity targets in cart surfaces", () => {
     const cartFrameBlock = cssBlock(".cart-paypal-frame");
     const quantityBlock = cssBlock(".cart-quantity");
@@ -308,8 +324,17 @@ describe("global storefront visual tokens", () => {
     const minicartBodyBlock = cssBlock(".minicart-shell__body");
     const minicartItemsPanelBlock = cssBlock(".minicart-items-panel");
     const minicartPanelBlock = cssBlock(".minicart-checkout-panel");
-    const deliveryExpressSdkButtonBlock = cssBlock(
-      ".delivery-express-action paypal-button,\n.delivery-express-action paypal-pay-later-button",
+    const deliveryExpressActionBlock = cssBlock(
+      ".product-express-actions .delivery-express-action",
+    );
+    const paypalStandaloneActionBlock = cssBlock(".paypal-standalone-action");
+    const paylaterStandaloneActionBlock = cssBlock(
+      ".paylater-standalone-action",
+    );
+    const walletCheckoutActionBlock = cssBlock(".wallet-checkout-action");
+    const paylaterAmountMessageBlock = cssBlockContaining(
+      ".paylater-amount-message",
+      "min-height",
     );
 
     expect(globalCss).toContain(
@@ -353,8 +378,25 @@ describe("global storefront visual tokens", () => {
     expect(minicartPanelBlock).toContain("box-shadow: 0 -14px");
     expect(globalCss).toContain(".minicart-checkout-panel {\n    max-height:");
     expect(globalCss).toContain("overscroll-behavior: contain");
-    expect(deliveryExpressSdkButtonBlock).toContain("min-height: 44px");
-    expect(deliveryExpressSdkButtonBlock).toContain("width: 100%");
+    expect(deliveryExpressActionBlock).toContain("display: block");
+    expect(deliveryExpressActionBlock).toContain("min-height: 44px");
+    expect(deliveryExpressActionBlock).toContain("min-width: 0");
+    expect(deliveryExpressActionBlock).toContain("width: 100%");
+    expect(paypalStandaloneActionBlock).toContain("display: grid");
+    expect(paypalStandaloneActionBlock).toContain("min-height: 52px");
+    expect(paypalStandaloneActionBlock).toContain("width: 100%");
+    expect(paylaterStandaloneActionBlock).toContain("display: grid");
+    expect(paylaterStandaloneActionBlock).toContain("min-height: 80px");
+    expect(paylaterStandaloneActionBlock).toContain("width: 100%");
+    expect(walletCheckoutActionBlock).toContain("display: grid");
+    expect(walletCheckoutActionBlock).toContain("min-height: 52px");
+    expect(walletCheckoutActionBlock).toContain("width: 100%");
+    expect(paylaterAmountMessageBlock).toContain("min-height: 28px");
+    expect(globalCss).not.toContain("paypal-button");
+    expect(globalCss).not.toContain("paypal-pay-later-button");
+    expect(globalCss).not.toContain("paypal-message");
+    expect(globalCss).not.toContain("apple-pay-button");
+    expect(globalCss).not.toContain("venmo-button");
     expect(globalCss).toContain("@container cart-payment (max-width: 340px)");
     expect(globalCss).toContain(".cart-item {\n    align-items: start;");
     expect(globalCss).toContain(

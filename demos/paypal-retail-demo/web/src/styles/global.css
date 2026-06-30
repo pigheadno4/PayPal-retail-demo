@@ -2487,6 +2487,54 @@ a {
   line-height: 1.35;
 }
 
+.product-release-preview {
+  background: #fff8f3;
+  border: 1px solid #ffd4bf;
+  border-radius: var(--shell-compact-radius);
+  box-shadow: none;
+  gap: 10px;
+}
+
+.product-release-preview__header {
+  align-items: start;
+}
+
+.product-release-preview__eyebrow {
+  color: var(--shell-accent);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.product-release-preview__title {
+  color: var(--shell-ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.product-release-preview__content {
+  display: grid;
+  gap: 6px;
+}
+
+.product-release-preview__content p {
+  color: #333331;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.product-release-preview__footer {
+  background: transparent;
+  border-top: 0;
+  justify-content: stretch;
+  padding-top: 0;
+}
+
+.product-release-preview__button {
+  inline-size: 100%;
+}
+
 .product-detail-list {
   border-bottom: 1px solid var(--shell-border);
   border-top: 1px solid var(--shell-border);
@@ -3006,13 +3054,9 @@ a {
 }
 
 .product-express-actions .delivery-express-action {
-  min-width: 0;
-}
-
-.delivery-express-action paypal-button,
-.delivery-express-action paypal-pay-later-button {
   display: block;
   min-height: 44px;
+  min-width: 0;
   width: 100%;
 }
 
@@ -5120,6 +5164,7 @@ a {
   gap: 8px;
   min-height: 52px;
   padding: 6px;
+  width: 100%;
 }
 
 .paylater-standalone-action {
@@ -5127,6 +5172,7 @@ a {
   gap: 8px;
   min-height: 80px;
   padding: 6px;
+  width: 100%;
 }
 
 .wallet-checkout-action {
@@ -5134,6 +5180,7 @@ a {
   gap: 8px;
   min-height: 52px;
   padding: 8px;
+  width: 100%;
 }
 
 .wallet-checkout-action__google-pay {
@@ -5278,26 +5325,12 @@ a {
   padding: 0 14px;
 }
 
-.paypal-standalone-action paypal-button,
-.paylater-standalone-action paypal-pay-later-button,
-.wallet-checkout-action apple-pay-button,
-.wallet-checkout-action venmo-button {
-  display: block;
-  min-height: 44px;
-  width: 100%;
-}
-
 .paylater-amount-message {
   background: transparent;
   border: 0;
   border-radius: 0;
   min-height: 28px;
   padding: 0;
-}
-
-.paylater-amount-message paypal-message {
-  display: block;
-  min-height: 28px;
 }
 
 .paylater-amount-message__fallback {

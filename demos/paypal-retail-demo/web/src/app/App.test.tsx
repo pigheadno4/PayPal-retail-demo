@@ -181,7 +181,15 @@ describe("App shell", () => {
 
     expect(html).toContain("Skullpanda Future Drop");
     expect(html).toContain("Checkout opens after release.");
-    expect(html).toContain("disabled");
+    expect(html).toContain("product-release-preview");
+    expect(html).toContain("Coming soon");
+    expect(html).not.toContain("Add to cart");
+    expect(html).not.toContain("product-trust-grid");
+    expect(html).not.toContain("product-paypal-frame");
+    expect(html).not.toContain("Secured by PayPal");
+    expect(html).not.toContain('class="paypal-provider-scope"');
+    expect(html).not.toContain('data-paypal-sdk-method="paypal"');
+    expect(html).not.toContain('data-paypal-sdk-method="paylater"');
     expect(html).not.toContain("Collector reviews");
     expect(html).not.toContain(
       "Flexible payment options may be available for $15.99",

@@ -218,22 +218,24 @@ Review-process requirements:
 - Consumes: PDP `is_purchasable`, `release_status`, release date, review visibility, checkout visibility.
 - Produces: unreleased PDP state that blocks purchase and hides official payment actions.
 
-- [ ] Implement an explicit released/unreleased purchase-state branch in PDP rendering.
+- [x] Implement an explicit released/unreleased purchase-state branch in PDP rendering.
   - Inspection standard: purchasable products follow the existing purchase/PayPal flow; unreleased products use a separate blocked-purchase layout instead of partially disabling controls inside the purchasable layout.
-- [ ] For unreleased PDPs, remove purchase and payment surfaces from DOM.
+- [x] For unreleased PDPs, remove purchase and payment surfaces from DOM.
   - Inspection standard: no Add to cart button, PayPal frame, PayPal button, Pay Later button, Pay Later message, express delivery frame, or sticky mobile purchase/payment bar renders for `is_purchasable=false`.
-- [ ] Render a disabled `Coming soon` or `Not released` action.
+- [x] Render a disabled `Coming soon` or `Not released` action.
   - Inspection standard: disabled action uses gray/neutral styling, `disabled`/`aria-disabled` semantics where appropriate, and nearby copy explains release status/date using existing data only.
-- [ ] Preserve product inspection.
+- [x] Preserve product inspection.
   - Inspection standard: breadcrumb, gallery, product title, status badge, vendor/profile label, facts, story, shipping/returns info, and Q&A/detail content remain reachable.
-- [ ] Hide reviews and review summary for unreleased products.
-  - Inspection standard: no star rating, review count, review cards, review histogram, or write-review affordance renders before release.
-- [ ] Remove fake notify behavior unless implemented.
+- [x] Hide reviews and review summary for unreleased products.
+  - Inspection standard: no star rating, review count, review cards, review histogram, social-proof cards, or write-review affordance renders before release, even if upstream data includes review/social-proof records.
+- [x] Remove fake notify behavior unless implemented.
   - Inspection standard: do not add an enabled `Notify me` or email capture unless a real route/state is wired; a disabled `Coming soon` action is acceptable.
-- [ ] Add released vs unreleased tests.
+- [x] Add released vs unreleased tests.
   - Inspection standard: tests prove released product shows Add to cart/payment/reviews where eligible, and unreleased product hides payment/reviews while keeping inspection content.
-- [ ] Browser verify `/products/blind-boxes-1` at `1440`, `390`, and `320`.
+- [x] Browser verify the local unreleased fallback PDP at `1440`, `390`, and `320`.
   - Inspection standard: screenshot shows disabled coming-soon action, no blank payment frame, no review section, no sticky purchase bar, and no horizontal overflow.
+  - Evidence: local Vite route `/products/vinyl-figures-7?qa=pdp-v5-unreleased-gating` passed at 1440/390/320 with screenshots `pdp-v5-unreleased-desktop-1440.png`, `pdp-v5-unreleased-mobile-390.png`, and `pdp-v5-unreleased-small-320.png`; metrics are in `/private/tmp/paypal-retail-pdp-v5-unreleased-gating-20260630/metrics.json`.
+  - Hosted caveat: `/products/blind-boxes-1` was not available in Vite-only fallback mode, so hosted `/products/blind-boxes-1` proof remains part of the final V5 matrix.
 
 ---
 
