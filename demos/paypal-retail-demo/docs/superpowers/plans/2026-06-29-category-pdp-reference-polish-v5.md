@@ -251,28 +251,32 @@ Review-process requirements:
 - Consumes: real review data, product facts/story/lineup, existing trust/support copy, Pay Later message placement.
 - Produces: denser desktop PDP purchase/support hierarchy and discoverable real reviews.
 
-- [ ] Audit the existing purchase rail modules before moving them.
+- [x] Audit the existing purchase rail modules before moving them.
   - Inspection standard: identify each current module (`PayPal checkout`, `Delivery choices`, `Order recovery`, `Demo policies`) as keep, merge, move to details, or remove; no module is deleted unless its copy is unsupported, duplicate, or tracked as intentionally deferred.
-- [ ] Compact support modules into a lower-footprint pattern.
+  - Result: kept the current supported runtime modules `PayPal checkout`, `Delivery express`, `Pay Later`, and `Order recovery`; merged them from the old 2x2 `product-trust-grid` cards into a compact `product-support-band`. No standalone `Demo policies` module existed in the current PDP default support set, so it was not recreated; shipping/return policy copy remains in the detail tab.
+- [x] Compact support modules into a lower-footprint pattern.
   - Inspection standard: use one of these patterns: inline trust chips below the payment frame, a compact two-row support band, or a `Delivery & support` accordion; avoid a 2x2 card grid that makes the right column much taller than the gallery.
-- [ ] Keep official Pay Later directly under price for purchasable products.
+- [x] Keep official Pay Later directly under price for purchasable products.
   - Inspection standard: price, Pay Later message, purchase options, Add to cart, PayPal frame, and compact support copy stay in that order unless a testable layout constraint requires a documented deviation.
-- [ ] Preserve the secured PayPal frame behavior.
+- [x] Preserve the secured PayPal frame behavior.
   - Inspection standard: when Pay Later is eligible, desktop/tablet can show PayPal and Pay Later side by side if width allows, mobile stacks them, and no custom styling is applied to SDK-rendered buttons.
-- [ ] Add visible rating/review summary near title when real review data exists.
+- [x] Add visible rating/review summary near title when real review data exists.
   - Inspection standard: show star/score/count only from seeded/submitted review records; if average/count is zero or unavailable, omit rating summary and do not show placeholder stars.
-- [ ] Add a review preview/summary block in the details area for released products.
+- [x] Add a review preview/summary block in the details area for released products.
   - Inspection standard: section includes at least summary stats and the existing real review cards when data exists; if there are no reviews, show a concise empty state only for released products and never for unreleased products.
-- [ ] Refine desktop detail tabs.
+  - Review-gate inspection: social proof by itself must not create or reopen `Customer reviews`; when real reviews exist, supplemental collector proof must use separate `data-social-proof-card` instrumentation and not be counted as `data-review-card`.
+- [x] Refine desktop detail tabs.
   - Inspection standard: selected trigger has stronger active styling, focus ring is visible, triggers are 44px+ high, tab list height equals scroll height, no vertical scrollbar appears, and inactive panels are hidden from sight and accessibility tree.
-- [ ] Refine mobile detail navigation.
+- [x] Refine mobile detail navigation.
   - Inspection standard: either replace mobile tabs with shadcn `Accordion`/`Collapsible` sections or add a constrained `ScrollArea` tab rail with edge affordance; right-side tabs cannot be clipped without a clear scroll affordance.
-- [ ] Preserve all current detail sections.
+- [x] Preserve all current detail sections.
   - Inspection standard: `Collector details`, `Product facts`, `Gallery`, `Customer reviews`, `Shipping and returns`, and `Q&A` remain accessible for released products unless a section has no real data and is intentionally hidden with tracking.
-- [ ] Add tests for support-card compaction, review summary rendering, no fake review rendering, desktop tab activation, mobile detail navigation state, and a11y visibility of inactive panels.
+- [x] Add tests for support-card compaction, review summary rendering, no fake review rendering, desktop tab activation, mobile detail navigation state, and a11y visibility of inactive panels.
   - Inspection standard: tests cover both mouse/click and keyboard activation where the component supports it.
-- [ ] Browser verify released PDP at `1440`, `1280`, `768`, `390`, and `320`.
+- [x] Browser verify released PDP at `1440`, `1280`, `768`, `390`, and `320`.
   - Inspection standard: no desktop blank-gap regression, Customer reviews are visibly discoverable, tabs/details interact correctly, no clipped mobile tabs/accordion controls, no internal scrollbar artifact, and no page-level horizontal overflow.
+  - Evidence: local Vite route `/products/blind-boxes-2?qa=pdp-v5-task6-tab-start` passed at 1440/1280/768/390/320. Metrics and screenshots live in `/private/tmp/paypal-retail-pdp-v5-task6-20260630/`; the first mobile-tab pass caught a centered tab-list regression at 768px, fixed by forcing `justify-content: flex-start`, and the after-metrics show first tab visible with `scrollLeft: 0`, no page-level horizontal overflow, and hidden vertical overflow. Browser click proof `pdp-v5-task6-mobile-320-review-click.json` shows `Customer reviews` activates and the review summary is visible.
+  - Console caveat: Playwright MCP still reported repeated console errors during local Vite PDP visits. Direct Node Playwright console capture was blocked by missing local browser binaries/system Chrome headless abort, so exact message capture remains for final hosted V5 matrix rather than this component slice.
 
 ---
 

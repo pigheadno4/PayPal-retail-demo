@@ -65,7 +65,8 @@ describe("ProductDetailPage", () => {
       /<fieldset[^>]*data-slot="field-set"[^>]*class="[^"]*product-paypal-frame/,
     );
     expect(html).toContain("Secured by PayPal");
-    expect(html).toContain('class="product-trust-grid"');
+    expect(html).toContain('class="product-support-band"');
+    expect(html).toContain('data-support-item="true"');
     expect(html).toContain("PayPal checkout");
     expect(html).toContain("Order recovery");
     expect(html).toContain("Collector details");
@@ -83,6 +84,87 @@ describe("ProductDetailPage", () => {
     expect(html).not.toContain("Deposit");
     expect(html).not.toContain("Purchase status");
     expect(html).not.toContain('class="product-release-panel"');
+    expect(html).not.toContain('class="product-trust-grid"');
+  });
+
+  it("renders released PDP support and reviews as compact real-data surfaces", () => {
+    const html = renderToStaticMarkup(
+      <ProductDetailPage data={releasedProduct()} />,
+    );
+
+    const priceIndex = html.indexOf('class="product-price"');
+    const payLaterIndex = html.indexOf('class="product-paylater"');
+    const optionsIndex = html.indexOf('class="product-purchase-options"');
+    const actionsIndex = html.indexOf('class="product-actions"');
+    const frameIndex = html.indexOf("product-paypal-frame");
+    const supportIndex = html.indexOf('class="product-support-band"');
+    const ratingIndex = html.indexOf('class="product-rating-summary"');
+    const reviewSummaryIndex = html.indexOf("product-review-summary-card");
+    const reviewCardIndex = html.indexOf('data-review-card="true"');
+
+    expect(priceIndex).toBeGreaterThan(-1);
+    expect(payLaterIndex).toBeGreaterThan(priceIndex);
+    expect(optionsIndex).toBeGreaterThan(payLaterIndex);
+    expect(actionsIndex).toBeGreaterThan(optionsIndex);
+    expect(frameIndex).toBeGreaterThan(actionsIndex);
+    expect(supportIndex).toBeGreaterThan(frameIndex);
+    expect(ratingIndex).toBeGreaterThan(-1);
+    expect(html).toContain("5.0 / 5");
+    expect(html).toContain("Based on 1 collector review");
+    expect(html).toContain('aria-label="5.0 out of 5 from 1 collector review"');
+    expect(html).toContain("Review summary");
+    expect(html).toContain("Real collector feedback");
+    expect(reviewSummaryIndex).toBeGreaterThan(-1);
+    expect(reviewCardIndex).toBeGreaterThan(reviewSummaryIndex);
+    expect(html.match(/data-review-card="true"/g)?.length).toBe(1);
+    expect(html).toContain('data-social-proof-card="true"');
+    expect(html.match(/data-support-item="true"/g)?.length).toBe(4);
+    expect(html).not.toContain("No customer reviews yet");
+  });
+
+  it("does not render fake rating or review summary when released review data is absent", () => {
+    const html = renderToStaticMarkup(
+      <ProductDetailPage
+        data={{
+          ...releasedProduct(),
+          reviews: [],
+          socialProof: [],
+        }}
+      />,
+    );
+
+    expect(html).not.toContain("product-rating-summary");
+    expect(html).not.toContain("product-review-summary-card");
+    expect(html).not.toContain("5.0 / 5");
+    expect(html).not.toContain("Customer reviews");
+    expect(html).not.toContain('data-review-card="true"');
+  });
+
+  it("does not open customer reviews from social proof alone", () => {
+    const html = renderToStaticMarkup(
+      <ProductDetailPage
+        data={{
+          ...releasedProduct(),
+          reviews: [],
+          socialProof: [
+            {
+              id: "proof-without-review",
+              mediaLabel: "Photo unboxing",
+              title: "Social proof without review",
+              body: "This should not be treated as a customer review.",
+              authorName: "Demo collector",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(html).not.toContain("product-rating-summary");
+    expect(html).not.toContain("product-review-summary-card");
+    expect(html).not.toContain("Customer reviews");
+    expect(html).not.toContain("Social proof without review");
+    expect(html).not.toContain('data-review-card="true"');
+    expect(html).not.toContain('data-social-proof-card="true"');
   });
 
   it("uses low-resolution gallery media first when high-resolution source is provided", () => {
@@ -251,6 +333,32 @@ describe("ProductDetailPage", () => {
     );
   });
 
+  it("supports keyboard activation for released PDP detail tabs", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ProductDetailPage data={releasedProduct()} />,
+    );
+    const view = within(container);
+
+    const reviewsTab = view.getByRole("tab", {
+      name: "Customer reviews",
+    });
+    const panels = Array.from(
+      container.querySelectorAll('[data-slot="tabs-content"]'),
+    );
+    const reviewsPanel = panels.find((panel) =>
+      panel.textContent?.includes("Review summary"),
+    );
+
+    reviewsTab.focus();
+    await user.keyboard("{Enter}");
+
+    expect(reviewsTab.getAttribute("aria-selected")).toBe("true");
+    expect(reviewsPanel?.hasAttribute("hidden")).toBe(false);
+    expect(reviewsPanel?.getAttribute("aria-hidden")).toBe("false");
+    expect(reviewsPanel?.textContent).toContain("Real collector feedback");
+  });
+
   it("keeps detailed PDP thumbnails in a stage for desktop rail styling", () => {
     const html = renderToStaticMarkup(
       <ProductDetailPage data={releasedProduct()} />,
@@ -314,6 +422,7 @@ describe("ProductDetailPage", () => {
     expect(html).not.toContain("product-paylater");
     expect(html).not.toContain("product-paypal-frame");
     expect(html).not.toContain("product-trust-grid");
+    expect(html).not.toContain("product-support-band");
     expect(html).not.toContain("Add to cart");
     expect(html).not.toContain("Add whole box");
     expect(html).not.toContain("PayPal checkout");

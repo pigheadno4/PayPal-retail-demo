@@ -183,6 +183,12 @@ interface ProductDetailTab {
   readonly content: ReactNode;
 }
 
+interface ProductReviewSummary {
+  readonly scoreLabel: string;
+  readonly ariaLabel: string;
+  readonly countLabel: string;
+}
+
 export function ProductDetailPage({
   data,
   onAddToCart,
@@ -215,6 +221,9 @@ export function ProductDetailPage({
   const activeImage = data.gallery[activeImageIndex] ?? data.gallery[0];
   const showReviews = data.purchasable && data.reviews.length > 0;
   const socialProof = data.purchasable ? (data.socialProof ?? []) : [];
+  const reviewSummary = showReviews
+    ? buildProductReviewSummary(data.reviews)
+    : null;
   const trustBadges =
     data.trustBadges && data.trustBadges.length > 0
       ? data.trustBadges
@@ -343,7 +352,7 @@ export function ProductDetailPage({
         </div>
       ),
     },
-    ...(showReviews || socialProof.length > 0
+    ...(showReviews
       ? [
           {
             id: "reviews" as const,
@@ -351,6 +360,26 @@ export function ProductDetailPage({
             content: (
               <>
                 <h3>Collector reviews</h3>
+                {reviewSummary ? (
+                  <Card
+                    className="product-review-summary-card"
+                    aria-label="Review summary"
+                    size="sm"
+                  >
+                    <CardHeader className="product-review-summary-card__header">
+                      <CardDescription className="product-review-summary-card__eyebrow">
+                        Real collector feedback
+                      </CardDescription>
+                      <CardTitle className="product-review-summary-card__title">
+                        Review summary
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="product-review-summary-card__content">
+                      <strong>{reviewSummary.scoreLabel}</strong>
+                      <span>{reviewSummary.countLabel}</span>
+                    </CardContent>
+                  </Card>
+                ) : null}
                 <div className="product-reviews__list">
                   {data.reviews.map((review) => (
                     <Card
@@ -374,29 +403,37 @@ export function ProductDetailPage({
                       </CardFooter>
                     </Card>
                   ))}
-                  {socialProof.map((proof) => (
-                    <Card
-                      className="product-review"
-                      data-review-card="true"
-                      key={proof.id}
-                    >
-                      <CardHeader className="product-review__header">
-                        <CardTitle className="product-review__title">
-                          {proof.title}
-                        </CardTitle>
-                        <CardDescription className="product-review__meta">
-                          {proof.mediaLabel}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="product-review__content">
-                        <p>{proof.body}</p>
-                      </CardContent>
-                      <CardFooter className="product-review__footer">
-                        {proof.authorName}
-                      </CardFooter>
-                    </Card>
-                  ))}
                 </div>
+                {socialProof.length > 0 ? (
+                  <div
+                    className="product-social-proof-list"
+                    aria-label="Collector proof"
+                  >
+                    <h4>Collector proof</h4>
+                    {socialProof.map((proof) => (
+                      <Card
+                        className="product-social-proof-card"
+                        data-social-proof-card="true"
+                        key={proof.id}
+                      >
+                        <CardHeader className="product-social-proof-card__header">
+                          <CardTitle className="product-social-proof-card__title">
+                            {proof.title}
+                          </CardTitle>
+                          <CardDescription className="product-social-proof-card__meta">
+                            {proof.mediaLabel}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="product-social-proof-card__content">
+                          <p>{proof.body}</p>
+                        </CardContent>
+                        <CardFooter className="product-social-proof-card__footer">
+                          {proof.authorName}
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                ) : null}
               </>
             ),
           },
@@ -497,6 +534,15 @@ export function ProductDetailPage({
           ) : null}
           {showReviews ? <span>{reviewCountLabel}</span> : null}
         </div>
+        {reviewSummary ? (
+          <div
+            className="product-rating-summary"
+            aria-label={reviewSummary.ariaLabel}
+          >
+            <strong>{reviewSummary.scoreLabel}</strong>
+            <span>{reviewSummary.countLabel}</span>
+          </div>
+        ) : null}
         <div className="product-chip-row" aria-label="Product attributes">
           <span>{data.seriesName}</span>
           <span>{data.categoryName}</span>
@@ -631,24 +677,23 @@ export function ProductDetailPage({
               </PayPalPaymentFrame>
 
               <section
-                className="product-trust-grid"
-                aria-label="Product trust"
+                className="product-support-band"
+                aria-label="Product support"
               >
                 {trustBadges.map((badge) => (
-                  <Card
-                    className="product-trust-card"
+                  <div
+                    className="product-support-band__item"
+                    data-support-item="true"
                     key={badge.title}
-                    size="sm"
                   >
-                    <CardHeader className="product-trust-card__header">
-                      <CardTitle className="product-trust-card__title">
-                        {badge.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="product-trust-card__content">
-                      <span>{badge.body}</span>
-                    </CardContent>
-                  </Card>
+                    <Badge
+                      className="product-support-band__badge"
+                      variant="secondary"
+                    >
+                      {badge.title}
+                    </Badge>
+                    <span>{badge.body}</span>
+                  </div>
                 ))}
               </section>
             </>
@@ -706,23 +751,28 @@ export function ProductDetailPage({
           }
           className="product-detail-tabs__root"
         >
-          <TabsList
-            className="product-detail-tabs__nav"
-            variant="line"
-            aria-label="Product detail sections"
+          <div
+            className="product-detail-tabs__nav-shell"
+            data-scroll-affordance="horizontal"
           >
-            {detailTabs.map((tab) => (
-              <TabsTrigger
-                className="product-detail-tabs__trigger"
-                id={`${detailTabPrefix}-${tab.id}-tab`}
-                onClick={() => setActiveDetailTab(tab.id)}
-                value={tab.id}
-                key={tab.id}
-              >
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+            <TabsList
+              className="product-detail-tabs__nav"
+              variant="line"
+              aria-label="Product detail sections"
+            >
+              {detailTabs.map((tab) => (
+                <TabsTrigger
+                  className="product-detail-tabs__trigger"
+                  id={`${detailTabPrefix}-${tab.id}-tab`}
+                  onClick={() => setActiveDetailTab(tab.id)}
+                  value={tab.id}
+                  key={tab.id}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           {detailTabs.map((tab) => (
             <TabsContent
@@ -786,6 +836,51 @@ export function ProductDetailPage({
       ) : null}
     </div>
   );
+}
+
+function buildProductReviewSummary(
+  reviews: readonly ProductReview[],
+): ProductReviewSummary | null {
+  const parsedRatings = reviews
+    .map((review) => parseRatingLabel(review.ratingLabel))
+    .filter((rating): rating is number => rating !== null);
+
+  if (parsedRatings.length === 0) {
+    return null;
+  }
+
+  const average =
+    parsedRatings.reduce((sum, rating) => sum + rating, 0) /
+    parsedRatings.length;
+  const scoreLabel = `${average.toFixed(1)} / 5`;
+  const reviewNoun =
+    reviews.length === 1 ? "collector review" : "collector reviews";
+  const countLabel = `Based on ${reviews.length} ${reviewNoun}`;
+
+  return {
+    scoreLabel,
+    countLabel,
+    ariaLabel: `${average.toFixed(1)} out of 5 from ${reviews.length} ${reviewNoun}`,
+  };
+}
+
+function parseRatingLabel(ratingLabel: string): number | null {
+  const ratingMatch = ratingLabel.match(
+    /(?<score>\d+(?:\.\d+)?)\s*out\s+of\s+(?<max>\d+(?:\.\d+)?)/i,
+  );
+
+  if (!ratingMatch?.groups) {
+    return null;
+  }
+
+  const score = Number(ratingMatch.groups.score);
+  const max = Number(ratingMatch.groups.max);
+
+  if (!Number.isFinite(score) || !Number.isFinite(max) || max <= 0) {
+    return null;
+  }
+
+  return Math.min(5, Math.max(0, (score / max) * 5));
 }
 
 interface ProductProgressiveImageProps {

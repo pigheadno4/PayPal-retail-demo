@@ -203,28 +203,61 @@ describe("global storefront visual tokens", () => {
   it("styles the detailed PDP gallery rail and trust/detail sections", () => {
     const productDetailTabsBlock = cssBlock(".product-detail-tabs");
     const productTabsRootBlock = cssBlock(".product-detail-tabs__root");
+    const productTabsNavShellBlock = cssBlock(
+      ".product-detail-tabs__nav-shell",
+    );
+    const productTabsNavShellEdgeBlock = cssBlock(
+      ".product-detail-tabs__nav-shell::before,\n.product-detail-tabs__nav-shell::after",
+    );
     const productTabsNavBlock = cssBlock(".product-detail-tabs__nav");
     const productTabsTriggerBlock = cssBlock(
       ".product-detail-tabs__nav .product-detail-tabs__trigger",
     );
+    const productSupportBandBlock = cssBlock(".product-support-band");
+    const productSupportBandItemBlock = cssBlock(".product-support-band__item");
+    const productRatingSummaryBlock = cssBlock(".product-rating-summary");
+    const productReviewSummaryBlock = cssBlock(".product-review-summary-card");
+    const productSocialProofListBlock = cssBlock(".product-social-proof-list");
+    const productSocialProofCardBlock = cssBlock(".product-social-proof-card");
 
     expect(globalCss).toContain(".product-breadcrumb");
     expect(globalCss).toContain(".product-gallery__stage");
     expect(globalCss).toContain(".product-gallery__viewer");
     expect(globalCss).toContain(".product-status-row");
+    expect(globalCss).toContain(".product-rating-summary");
     expect(globalCss).toContain(".product-paypal-frame");
     expect(globalCss).toContain(".product-paypal-frame legend");
-    expect(globalCss).toContain(".product-trust-grid");
+    expect(globalCss).toContain(".product-support-band");
+    expect(globalCss).not.toContain(".product-trust-grid");
+    expect(globalCss).not.toContain(".product-trust-card");
     expect(globalCss).toContain(".product-detail-tabs");
+    expect(globalCss).toContain(".product-detail-tabs__nav-shell");
     expect(globalCss).toContain(".product-detail-tabs__nav");
     expect(globalCss).toContain(".product-detail-tabs__trigger");
+    expect(globalCss).toContain(".product-review-summary-card");
+    expect(globalCss).toContain(".product-social-proof-card");
+    expect(productRatingSummaryBlock).toContain("display: inline-flex");
+    expect(productSupportBandBlock).toContain("grid-template-columns");
+    expect(productSupportBandBlock).toContain(
+      "repeat(auto-fit, minmax(150px, 1fr))",
+    );
+    expect(productSupportBandItemBlock).toContain("display: grid");
+    expect(productReviewSummaryBlock).toContain("box-shadow: none");
+    expect(productSocialProofListBlock).toContain("display: grid");
+    expect(productSocialProofCardBlock).toContain("box-shadow");
     expect(productDetailTabsBlock).toContain("min-width: 0");
     expect(productTabsRootBlock).toContain("max-width: 100%");
     expect(productTabsRootBlock).toContain("min-width: 0");
     expect(productTabsRootBlock).toContain("width: 100%");
+    expect(productTabsNavShellBlock).toContain("overflow: hidden");
+    expect(productTabsNavShellBlock).toContain("position: relative");
+    expect(productTabsNavShellEdgeBlock).toContain("pointer-events: none");
     expect(productTabsNavBlock).toContain("max-width: 100%");
     expect(productTabsNavBlock).toContain("display: flex !important");
     expect(productTabsNavBlock).toContain("inline-size: 100% !important");
+    expect(productTabsNavBlock).toContain(
+      "justify-content: flex-start !important",
+    );
     expect(productTabsNavBlock).toContain("block-size: auto !important");
     expect(productTabsNavBlock).toContain("min-block-size: 55px");
     expect(productTabsNavBlock).toContain("width: 100% !important");
@@ -236,6 +269,7 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(
       '.product-detail-tabs__nav .product-detail-tabs__trigger[aria-selected="true"]',
     );
+    expect(globalCss).toContain(".product-detail-tabs__nav-shell::after");
     expect(globalCss).toContain(".product-detail-tabs__panel > h2::before");
     expect(globalCss).toContain(".product-gallery__thumbs {\n  order: -1;");
   });
@@ -271,6 +305,7 @@ describe("global storefront visual tokens", () => {
       ".product-purchase-panel .product-actions {\n    order: 3;",
     );
     expect(globalCss).toContain(".product-paypal-frame {\n    order: 4;");
+    expect(globalCss).toContain(".product-support-band {\n    order: 5;");
     expect(globalCss).toContain(
       ".product-paylater {\n  background: transparent;",
     );
