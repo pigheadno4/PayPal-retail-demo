@@ -46,6 +46,20 @@ beforeEach(() => {
     configurable: true,
     value: createMemoryStorage(),
   });
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string) =>
+      ({
+        addEventListener: () => undefined,
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: () => undefined,
+        removeListener: () => undefined,
+      }) as MediaQueryList,
+  });
 });
 
 afterEach(() => {
@@ -417,7 +431,7 @@ describe("App buyer interactions", () => {
     expect(document.body.innerHTML.toLowerCase()).not.toMatch(
       /labubu|skullpanda|hirono|series=/,
     );
-    expect(screen.getByText("3 products")).toBeTruthy();
+    expect(screen.getAllByText("3 products").length).toBeGreaterThan(0);
     expect(
       screen.queryByText("Catalog products could not be loaded."),
     ).toBeNull();
@@ -584,20 +598,25 @@ describe("App buyer interactions", () => {
       );
     });
 
-    expect(await screen.findByText("1 product")).toBeTruthy();
-    expect(screen.getAllByText("1 filter applied").length).toBeGreaterThan(0);
-    const productFilters = screen.getByRole("complementary", {
-      name: "Product filters",
+    await waitFor(() => {
+      expect(screen.getAllByText("1 product").length).toBeGreaterThan(0);
     });
-    const blindBoxesFilter = within(productFilters).getByRole("link", {
+    expect(screen.getAllByText("1 filter applied").length).toBeGreaterThan(0);
+    const categoryQuickFilters = screen.getByRole("navigation", {
+      name: "Category quick filters",
+    });
+    const blindBoxesFilter = within(categoryQuickFilters).getByRole("link", {
       name: "Blind Boxes5",
     });
     expect(
-      within(productFilters)
+      within(categoryQuickFilters)
         .getByRole("link", { name: "All options25" })
         .getAttribute("data-active"),
     ).toBe("false");
     expect(blindBoxesFilter.getAttribute("data-active")).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "All filters, 1 filter applied" }),
+    ).toBeTruthy();
     expect(screen.getByText("The Monsters Blind Boxes 1")).toBeTruthy();
   });
 
