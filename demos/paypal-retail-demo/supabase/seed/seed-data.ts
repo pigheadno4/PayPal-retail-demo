@@ -2290,7 +2290,7 @@ function orderScenarios(): readonly OrderScenario[] {
       shippingMinor: 0,
       storeSlug: "manchester-arndale",
       pickupDate: "2026-05-24",
-      lines: [{ productOrdinal: 7, quantity: 1, lineTaxMinor: 580 }],
+      lines: [{ productOrdinal: 2, quantity: 1, lineTaxMinor: 580 }],
     },
     {
       key: "guest-delivered",

@@ -871,11 +871,12 @@ interface CatalogProductDetailApiResponse {
     readonly reviews: {
       readonly visible: boolean;
       readonly items: readonly {
-        readonly id: string;
+        readonly id?: string | null;
         readonly author_name?: string | null;
         readonly rating?: number | null;
         readonly title?: string | null;
         readonly body?: string | null;
+        readonly created_at?: string | null;
       }[];
     };
   };
@@ -4139,8 +4140,10 @@ function mapProductDetailPageFromApiResponse(
       body: `Flexible payment options may be available for ${currentPriceLabel} at checkout.`,
     },
     reviews: product.reviews.visible
-      ? product.reviews.items.map((review) => ({
-          id: review.id,
+      ? product.reviews.items.map((review, index) => ({
+          id:
+            review.id?.trim() ||
+            `${product.id}:review:${review.created_at ?? index}`,
           authorName: review.author_name?.trim() || "Collector",
           ratingLabel:
             typeof review.rating === "number"

@@ -213,6 +213,7 @@ describe("catalog storefront routes", () => {
             visible: true,
             items: [
               {
+                id: "review_labubu_1",
                 rating: 5,
                 title: "Shelf superstar",
               },
@@ -462,6 +463,7 @@ function createCatalogRepository(): CatalogRepository & {
             items: released
               ? [
                   {
+                    id: "review_labubu_1",
                     rating: 5,
                     title: "Shelf superstar",
                     body: "Looks great in the display case.",

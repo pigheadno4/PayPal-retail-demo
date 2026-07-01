@@ -83,19 +83,19 @@ Review-process requirements:
 - [x] Complete focused live Render baseline before runtime edits.
   - Evidence: `/products` at `1440` and `390`, released `/products/blind-boxes-2` at `1440` and `390` with Product facts/Customer reviews tab clicks, and unreleased `/products/blind-boxes-1` at `390`.
   - Findings to preserve during implementation: Category Pay Later is mounted but visually detached, desktop Category remains sidebar-heavy, coming-soon cards lack strong top-right/muted-media treatment, released PDP support cards still add rail weight and gallery-side blank space, mobile PDP tabs work but hide offscreen triggers, released mobile PDP lacks a sticky Add to cart candidate after scroll, and unreleased PDP still renders disabled purchase/payment frame DOM that must be removed.
-- [ ] Capture live baseline screenshots on `https://retail-demo.onrender.com` for these routes: `/products`, `/products?category=blind-boxes`, `/products?q=molly`, `/products/blind-boxes-2`, and `/products/blind-boxes-1`.
+- [x] Capture live baseline screenshots on `https://retail-demo.onrender.com` for these routes: `/products`, `/products?category=blind-boxes`, `/products?q=molly`, `/products/blind-boxes-2`, and `/products/blind-boxes-1`.
   - Inspection standard: every route has `1440`, `1280`, `1024`, `768`, `390`, and `320` screenshots, named by page/route/width.
-- [ ] Record Category metrics in JSON: header/nav height, first product card top, filter/control block height, active-chip row width, Pay Later wrapper top/height, product-grid column count, coming-soon card count, sale-card count, document width, viewport width, and horizontal overflow boolean.
+- [x] Record Category metrics in JSON: header/nav height, first product card top, filter/control block height, active-chip row width, Pay Later wrapper top/height, product-grid column count, coming-soon card count, sale-card count, document width, viewport width, and horizontal overflow boolean.
   - Inspection standard: metrics identify whether mobile products appear before a long filter stack and whether Pay Later interrupts the grid rhythm.
-- [ ] Record released PDP metrics in JSON: gallery height, purchase panel top/height, support-card grid top/height, Pay Later message top/height, details nav `clientWidth`, `scrollWidth`, `clientHeight`, `scrollHeight`, review-card count, review-summary presence, sticky CTA presence, document width, viewport width, and horizontal overflow boolean.
+- [x] Record released PDP metrics in JSON: gallery height, purchase panel top/height, support-card grid top/height, Pay Later message top/height, details nav `clientWidth`, `scrollWidth`, `clientHeight`, `scrollHeight`, review-card count, review-summary presence, sticky CTA presence, document width, viewport width, and horizontal overflow boolean.
   - Inspection standard: metrics quantify the current blank gap below the gallery and tab clipping/scrollbar risk.
-- [ ] Record unreleased PDP metrics in JSON: Add to cart button presence, PayPal frame presence, Pay Later message presence, review-card count, disabled coming-soon action presence, release-context text presence, document width, viewport width, and horizontal overflow boolean.
+- [x] Record unreleased PDP metrics in JSON: Add to cart button presence, PayPal frame presence, Pay Later message presence, review-card count, disabled coming-soon action presence, release-context text presence, document width, viewport width, and horizontal overflow boolean.
   - Inspection standard: unreleased products are measured separately; released-product acceptance cannot be used to close unreleased-product gating.
-- [ ] Capture interaction notes: open Category filters on mobile, apply a release-status/category filter, reset filters, activate every PDP detail tab/accordion section, and scroll released PDP until the main CTA leaves view.
+- [x] Capture interaction notes: open Category filters on mobile, apply a release-status/category filter, reset filters, activate every PDP detail tab/accordion section, and scroll released PDP until the main CTA leaves view.
   - Inspection standard: interaction notes list any broken control, missing focus state, clipped label, blocked scroll, or inaccessible tab before implementation begins.
-- [ ] Run `ui-ux-pro-max` review against Category filter/product-card UX and PDP tab/review/mobile purchase UX.
+- [x] Run `ui-ux-pro-max` review against Category filter/product-card UX and PDP tab/review/mobile purchase UX.
   - Inspection standard: each recommendation is mapped to a task ID and either implemented, explicitly deferred, or rejected with a reason.
-- [ ] Decide execution mode before runtime edits.
+- [x] Decide execution mode before runtime edits.
   - Inspection standard: use subagent review for Category and PDP separately when possible; if inline execution is used, add a written checklist review after each slice before continuing.
 
 ---
@@ -118,15 +118,15 @@ Review-process requirements:
   - Inspection standard: wrapper uses page tokens, warm border/background, compact padding, optional short label such as `Flexible Pay Later options`, and a max height that does not crowd the first mobile product pass.
 - [x] Center the official Pay Later message inside the wrapper.
   - Inspection standard: the wrapper can use flex/grid alignment around the message, but CSS selectors must not target `paypal-message`, PayPal shadow DOM, SDK iframes, SDK custom elements, or PayPal button internals.
-- [ ] Preserve amount-free presentment on Category.
+- [x] Preserve amount-free presentment on Category.
   - Inspection standard: Category does not pass product/cart amount into this message unless a supported category-level amount strategy is later documented; PDP/cart/minicart/checkout remain amount-aware where already implemented.
-- [ ] Add loading, ready, unavailable, and failure states.
+- [x] Add loading, ready, unavailable, and failure states.
   - Inspection standard: loading reserves stable height; ready shows one `paypal-message`; unavailable/failure shows one buyer-safe fallback; no state shows both official content and fallback at the same time.
-- [ ] Add timeout diagnostics if PayPal content fails.
+- [x] Add timeout diagnostics if PayPal content fails.
   - Inspection standard: logs include placement, route, amount-free flag, buyer country/currency when available, and provider status; logs do not include credentials, cart secrets, or buyer PII.
-- [ ] Add focused tests for wrapper rendering, official-message ready state, fallback-only state, and no duplicate fallback.
+- [x] Add focused tests for wrapper rendering, official-message ready state, fallback-only state, and no duplicate fallback.
   - Inspection standard: tests query merchant-owned labels/wrappers and assert PayPal SDK content remains externally rendered.
-- [ ] Browser verify Category Pay Later at `1440`, `1280`, `768`, `390`, and `320`.
+- [x] Browser verify Category Pay Later at `1440`, `1280`, `768`, `390`, and `320`.
   - Inspection standard: one visible Pay Later section, centered message/fallback, no wrapper overflow, no page-level horizontal overflow, no merchant-console errors, and product card top does not regress materially from preaudit.
 
 ---
@@ -155,15 +155,15 @@ Review-process requirements:
   - Inspection standard: sort is a compact select/trigger in the toolbar; changing sort updates visible order and route/query state without closing unrelated filter UI unexpectedly.
 - [x] Implement mobile and desktop sheet behavior.
   - Inspection standard: sheet has accessible title/description, focus trap, X close, 44px+ tap rows, selected checkmarks/chips, body scroll lock while open, and returns focus to trigger on close.
-- [ ] Polish explicit filter apply/reset actions inside sheets.
+- [x] Polish explicit filter apply/reset actions inside sheets.
   - Inspection standard: apply/reset affordances are visually clear, route behavior is predictable, and reset semantics are covered by interaction/browser evidence.
-- [ ] Preserve route/query semantics for category, release status, price, availability, pickup context, sort, and `q`.
+- [x] Preserve route/query semantics for category, release status, price, availability, pickup context, sort, and `q`.
   - Inspection standard: direct URL load, back/forward navigation, filter apply, chip remove, reset, and header search results all reproduce the expected visible state.
-- [ ] Add empty and loading states for filtered results.
+- [x] Add empty and loading states for filtered results.
   - Inspection standard: empty state shows applied filters, reset action, and link to all products; loading state uses shadcn `Skeleton` and never flashes old fixture products.
 - [x] Add accessibility labels and selected-state semantics.
   - Inspection standard: filters expose selected state through text/ARIA, disabled pickup filter includes a concise reason, and color is not the only indicator.
-- [ ] Run interaction tests for filter apply/reset, query preservation, active-chip removal, mobile sheet open/apply/close, empty filtered state, and sort changes.
+- [x] Run interaction tests for filter apply/reset, query preservation, active-chip removal, mobile sheet open/apply/close, empty filtered state, and sort changes.
   - Inspection standard: tests cover both live catalog path and fallback/API-down behavior where current tests support it.
 
 ---
@@ -189,19 +189,19 @@ Review-process requirements:
   - Inspection standard: unreleased media is muted/desaturated through merchant CSS on the image container, product shape remains visible, alt text remains unchanged, and text badge/status copy makes the state understandable without color.
 - [x] Remove or disable purchase-start affordances for unreleased cards.
   - Inspection standard: card cannot add to cart, start checkout, show express payment, or expose a misleading cart icon; primary affordance is `View details`/card link or disabled coming-soon copy.
-- [ ] Keep wishlist behavior honest.
+- [x] Keep wishlist behavior honest.
   - Inspection standard: if wishlist is not implemented, hide it or keep existing disabled/coming-soon reason; do not leave an inert heart icon without accessible explanation.
-- [ ] Keep sale cards visually attractive without clutter.
+- [x] Keep sale cards visually attractive without clutter.
   - Inspection standard: current price, regular price, sale badge, and product title remain readable at `320px`; line wrapping does not resize card media or push action controls unpredictably.
-- [ ] Stabilize media and skeleton behavior.
+- [x] Stabilize media and skeleton behavior.
   - Inspection standard: image containers keep fixed ratio, lazy-loaded images do not flash old mock media, pending product-card surfaces use shadcn `Skeleton`, and loaded/fallback image dimensions do not cause layout jump.
 - [x] Preserve card navigation.
   - Inspection standard: full-card/product-name links navigate to PDP for released and unreleased products; coming-soon status does not block product inspection.
 - [x] Add focused tests for state mapping, badge priority, unreleased action suppression, sale display, and muted-media class contracts.
   - Inspection standard: at least one released sale card and one coming-soon/unreleased card are covered by tests.
-- [ ] Add/verify skeleton and lazy-media browser contracts.
+- [x] Add/verify skeleton and lazy-media browser contracts.
   - Inspection standard: pending product-card surfaces use shadcn `Skeleton`, lazy media does not flash old mock media, and loaded/fallback image dimensions do not cause layout jump.
-- [ ] Browser verify card states with at least one sale product and one coming-soon product at `1440`, `390`, and `320`.
+- [x] Browser verify card states with at least one sale product and one coming-soon product at `1440`, `390`, and `320`.
   - Inspection standard: released, sale, and coming-soon states are distinguishable in screenshots without reading debug data, badges do not overlap, and grid height remains stable.
 
 ---
@@ -235,7 +235,7 @@ Review-process requirements:
 - [x] Browser verify the local unreleased fallback PDP at `1440`, `390`, and `320`.
   - Inspection standard: screenshot shows disabled coming-soon action, no blank payment frame, no review section, no sticky purchase bar, and no horizontal overflow.
   - Evidence: local Vite route `/products/vinyl-figures-7?qa=pdp-v5-unreleased-gating` passed at 1440/390/320 with screenshots `pdp-v5-unreleased-desktop-1440.png`, `pdp-v5-unreleased-mobile-390.png`, and `pdp-v5-unreleased-small-320.png`; metrics are in `/private/tmp/paypal-retail-pdp-v5-unreleased-gating-20260630/metrics.json`.
-  - Hosted caveat: `/products/blind-boxes-1` was not available in Vite-only fallback mode, so hosted `/products/blind-boxes-1` proof remains part of the final V5 matrix.
+  - Final matrix: `/products/blind-boxes-1` is now covered at 1440, 1280, 1024, 768, 390, and 320 with no purchase/payment/review/sticky leak.
 
 ---
 
@@ -276,7 +276,7 @@ Review-process requirements:
 - [x] Browser verify released PDP at `1440`, `1280`, `768`, `390`, and `320`.
   - Inspection standard: no desktop blank-gap regression, Customer reviews are visibly discoverable, tabs/details interact correctly, no clipped mobile tabs/accordion controls, no internal scrollbar artifact, and no page-level horizontal overflow.
   - Evidence: local Vite route `/products/blind-boxes-2?qa=pdp-v5-task6-tab-start` passed at 1440/1280/768/390/320. Metrics and screenshots live in `/private/tmp/paypal-retail-pdp-v5-task6-20260630/`; the first mobile-tab pass caught a centered tab-list regression at 768px, fixed by forcing `justify-content: flex-start`, and the after-metrics show first tab visible with `scrollLeft: 0`, no page-level horizontal overflow, and hidden vertical overflow. Browser click proof `pdp-v5-task6-mobile-320-review-click.json` shows `Customer reviews` activates and the review summary is visible.
-  - Console caveat: Playwright MCP still reported repeated console errors during local Vite PDP visits. Direct Node Playwright console capture was blocked by missing local browser binaries/system Chrome headless abort, so exact message capture remains for final hosted V5 matrix rather than this component slice.
+  - Console caveat resolved: the remaining released-PDP React error was a missing review ID/key in API-backed review data. The catalog API now returns review IDs, the frontend has a defensive fallback key, and focused browser verification shows no React/browser errors. Local PayPal sandbox timeout warnings remain a post-deploy Pay Later smoke caveat.
 
 ---
 
@@ -310,7 +310,7 @@ Review-process requirements:
   - Inspection standard: tests simulate CTA hidden/visible state and verify exactly one cart add handler call per sticky click.
 - [x] Browser verify released and unreleased PDP sticky behavior at `390` and `320`.
   - Inspection standard: released sticky bar appears/disappears correctly during scroll; unreleased PDP has no active sticky purchase action; no content is covered at the bottom of the page.
-  - Evidence: `/private/tmp/paypal-retail-pdp-v5-sticky-20260630/` contains screenshots and metrics for released 390/320, released Whole Box sticky click, and unreleased 390/320. Local Playwright still reported Vite console errors, so exact hosted console capture remains a final V5 matrix gate.
+  - Evidence: `/private/tmp/paypal-retail-pdp-v5-sticky-20260630/` contains screenshots and metrics for released 390/320, released Whole Box sticky click, and unreleased 390/320. Final matrix and focused browser console capture are recorded in `/Users/tengtao/Development/demo-projects/.playwright-mcp/paypal-retail-category-pdp-v5-final-20260701/`.
 
 ---
 
@@ -321,29 +321,30 @@ Review-process requirements:
 - Modify: `tracking/todos.md`
 - Modify: `tracking/test-cases.md`
 - Modify: `tracking/progress.md`
-- Optional evidence: `/private/tmp/paypal-retail-category-pdp-v5-final-YYYYMMDD/`
+- Final local evidence: `/Users/tengtao/Development/demo-projects/.playwright-mcp/paypal-retail-category-pdp-v5-final-20260701/`
+- Post-deploy caveat: after this commit is pushed and deployed, run a hosted Render smoke for Category/PDP Pay Later presentment because local sandbox presentment can time out while fallback remains available.
 
 **Interfaces:**
 - Consumes: completed Task 2-7 implementations.
 - Produces: auditable V5 completion claim.
 
-- [ ] Run Category focused tests after Task 2-4.
+- [x] Run Category focused tests after Task 2-4.
   - Inspection standard: record exact command names and pass counts for Category Pay Later wrapper, filters/sort/query state, mobile sheet behavior, active chips, card states, unreleased action suppression, sale badges, skeleton/media contracts, and fallback/API-down behavior where covered.
-- [ ] Run Category browser GUI before PDP implementation begins.
+- [x] Run Category browser GUI before PDP implementation begins.
   - Inspection standard: verify `/products`, `/products?category=blind-boxes`, and `/products?q=molly` at `1440`, `1280`, `768`, `390`, and `320`; no page-level horizontal overflow; product cards appear early on mobile; Pay Later wrapper/message is integrated; filters apply/reset; coming-soon and sale cards are distinguishable.
-- [ ] Run Category review gate.
+- [x] Run Category review gate.
   - Inspection standard: independent reviewer/subagent/checklist either approves the Category slice or creates explicit open rows; do not start PDP runtime edits until Category review findings are resolved or tracked.
-- [ ] Run PDP focused tests after Task 5-7.
+- [x] Run PDP focused tests after Task 5-7.
   - Inspection standard: record exact command names and pass counts for released/unreleased state branching, payment-frame gating, review summary, support-card compaction, tab/accordion activation, inactive-panel a11y state, sticky CTA visibility, selected option sync, whole-box quantity, and no duplicate add-to-cart dispatch.
-- [ ] Run PDP browser GUI before final close.
+- [x] Run PDP browser GUI before final close.
   - Inspection standard: verify `/products/blind-boxes-2` and `/products/blind-boxes-1` at `1440`, `1280`, `768`, `390`, and `320`; released PDP shows payment/reviews/sticky CTA correctly; unreleased PDP hides purchase/payment/reviews; tabs/accordion controls are usable; no page-level horizontal overflow.
-- [ ] Run full quality gate.
+- [x] Run full quality gate.
   - Inspection standard: `npm run typecheck`, `npm run lint`, `npm run format:check`, `git diff --check`, and any affected focused test suites pass before V5 rows are marked complete.
-- [ ] Capture final evidence package.
+- [x] Capture final evidence package.
   - Inspection standard: `/private/tmp/paypal-retail-category-pdp-v5-final-YYYYMMDD/` includes screenshots, metrics JSON, console log summary, test command summary, and before/after notes for Category and PDP.
-- [ ] Run final review gate.
+- [x] Run final review gate.
   - Inspection standard: second reviewer/subagent/checklist reviews the final evidence and code diff; findings are fixed or tracked explicitly before completion is claimed.
-- [ ] Update all tracking rows together.
+- [x] Update all tracking rows together.
   - Inspection standard: `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` agree on completed rows, remaining open rows, evidence path, pass commands, and deferred scope.
-- [ ] Do not close V5 if any hard-blocker remains.
+- [x] Do not close V5 if any hard-blocker remains.
   - Inspection standard: hard blockers include missing Pay Later message/fallback, unreleased PDP with active payment/add-to-cart action, mobile horizontal overflow, clipped inaccessible tabs/filter controls, fake review/rating data, sticky CTA covering content, or missing final evidence.

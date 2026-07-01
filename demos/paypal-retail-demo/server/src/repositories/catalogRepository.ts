@@ -86,6 +86,7 @@ export interface CatalogProductImageRow {
 }
 
 export interface CatalogProductReviewRow {
+  readonly id: string;
   readonly rating: number;
   readonly title: string | null;
   readonly body: string | null;
@@ -446,6 +447,7 @@ function mapVisibleReviews(reviews: readonly CatalogProductReviewRow[]) {
       review_count: reviewCount,
     },
     items: activeReviews.map((review) => ({
+      id: review.id,
       rating: review.rating,
       title: review.title,
       body: review.body,
@@ -843,7 +845,7 @@ export function createSupabaseCatalogDataSource(
           queryMany<CatalogProductReviewRow>(
             supabase
               .from("reviews")
-              .select("rating, title, body, created_at")
+              .select("id, rating, title, body, created_at")
               .eq("profile_id", profileId)
               .eq("product_id", product.id)
               .eq("status", "active")

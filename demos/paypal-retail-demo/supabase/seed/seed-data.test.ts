@@ -75,6 +75,29 @@ describe("retail demo seed data", () => {
     expect(reviews?.rows.every((row) => row.status === "active")).toBe(true);
   });
 
+  it("seeds a real active review for the primary Molly PDP", () => {
+    const dataset = buildSeedDataset();
+    const products = dataset.tables.find(
+      (table) => table.name === "app.products",
+    );
+    const reviews = dataset.tables.find(
+      (table) => table.name === "app.reviews",
+    );
+    const mollyBlindBox = products?.rows.find(
+      (row) =>
+        row.profile_id === stableUuid("profile:popmart") &&
+        row.slug === "blind-boxes-2",
+    );
+
+    expect(mollyBlindBox).toBeTruthy();
+    expect(
+      reviews?.rows.some(
+        (row) =>
+          row.product_id === mollyBlindBox?.id && row.status === "active",
+      ),
+    ).toBe(true);
+  });
+
   it("uses stable UUIDs so repeated seeds are idempotent", () => {
     expect(stableUuid("profile:popmart")).toBe(stableUuid("profile:popmart"));
     expect(stableUuid("profile:popmart")).not.toBe(
@@ -285,6 +308,16 @@ describe("retail demo seed data", () => {
     expect(sql).toContain("insert into app.products");
     expect(sql).toContain('on conflict ("id") do update set');
     expect(sql).toContain("commit;");
+  });
+
+  it("reconciles mutable seeded cart rows before cart item upserts", () => {
+    const sql = buildSeedSql(buildSeedDataset());
+    const reconciliationIndex = sql.indexOf("delete from app.cart_items");
+    const cartItemUpsertIndex = sql.indexOf("insert into app.cart_items");
+
+    expect(reconciliationIndex).toBeGreaterThan(0);
+    expect(reconciliationIndex).toBeLessThan(cartItemUpsertIndex);
+    expect(sql).toContain("where cart_id in");
   });
 
   it("does not insert Supabase generated auth columns", () => {

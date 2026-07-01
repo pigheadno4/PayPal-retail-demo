@@ -375,6 +375,7 @@ const productDetails: CatalogProductDetailRow[] = [
     ],
     reviews: [
       {
+        id: "review_labubu_1",
         rating: 5,
         title: "Shelf superstar",
         body: "Looks great in the display case.",
@@ -397,6 +398,7 @@ const productDetails: CatalogProductDetailRow[] = [
     ],
     reviews: [
       {
+        id: "review_future_1",
         rating: 5,
         title: "Should stay hidden",
         body: "Unreleased products do not show reviews.",
