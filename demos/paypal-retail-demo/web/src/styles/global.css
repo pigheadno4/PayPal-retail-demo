@@ -3116,6 +3116,13 @@ a {
   width: 100%;
 }
 
+.delivery-express-action paypal-button,
+.delivery-express-action paypal-pay-later-button {
+  display: block;
+  min-height: 44px;
+  width: 100%;
+}
+
 .product-express-actions
   .delivery-express-action[data-delivery-express-method="paylater"]:has(
     [data-paylater-button-eligibility]:not(
@@ -5316,6 +5323,15 @@ a {
   width: 100%;
 }
 
+.paypal-standalone-action paypal-button,
+.paylater-standalone-action paypal-pay-later-button,
+.wallet-checkout-action apple-pay-button,
+.wallet-checkout-action venmo-button {
+  display: block;
+  min-height: 44px;
+  width: 100%;
+}
+
 .wallet-checkout-action__google-pay {
   display: grid;
   min-height: 44px;
@@ -5464,6 +5480,11 @@ a {
   border-radius: 0;
   min-height: 28px;
   padding: 0;
+}
+
+.paylater-amount-message paypal-message {
+  display: block;
+  min-height: 28px;
 }
 
 .paylater-amount-message__fallback {

@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Preserve official PayPal SDK surfaces: do not restyle the `paypal-message`, official PayPal buttons, Pay Later buttons, card fields, or SDK iframes/custom elements directly.
+- Preserve official PayPal SDK surfaces: do not decoratively restyle the `paypal-message`, official PayPal buttons, Pay Later buttons, card fields, SDK iframes, or SDK internals; shared CSS must still keep SDK custom elements sized to their reserved merchant-owned frames.
 - Do not add fake ratings, fake review counts, fake preorder economics, fake loyalty benefits, fake authenticity claims, or unsupported shipping guarantees.
 - All coming-soon/unreleased states must be text-labeled and not rely on grayscale/color alone.
 - Mobile acceptance widths are `320`, `375`, `390`, and `414` where practical; final V5 GUI gate must include `1440`, `1280`, `1024`, `768`, `390`, and `320`.
@@ -30,7 +30,7 @@ Category requirements:
 - Coming soon products: show a top-right text badge and visually separate their media, for example muted/desaturated image treatment, without relying on color alone.
 - Unreleased product actions: do not expose cart/payment-start affordances for coming-soon products.
 - Mobile Category: product cards must appear quickly; filter/sort controls must be touch-friendly and cannot clip at `320px`.
-- PayPal safety: the wrapper may style only merchant-owned surrounding chrome, not the PayPal-rendered message.
+- PayPal safety: wrappers may style only merchant-owned surrounding chrome; official PayPal-rendered elements may receive layout-only display/min-height/full-width safeguards, not decorative brand chrome.
 
 PDP requirements:
 
@@ -117,7 +117,7 @@ Review-process requirements:
 - [x] Build merchant-owned wrapper chrome with a restrained shadcn `Card` or card-like section.
   - Inspection standard: wrapper uses page tokens, warm border/background, compact padding, optional short label such as `Flexible Pay Later options`, and a max height that does not crowd the first mobile product pass.
 - [x] Center the official Pay Later message inside the wrapper.
-  - Inspection standard: the wrapper can use flex/grid alignment around the message, but CSS selectors must not target `paypal-message`, PayPal shadow DOM, SDK iframes, SDK custom elements, or PayPal button internals.
+  - Inspection standard: the wrapper can use flex/grid alignment around the message, but merchant CSS must not decorate PayPal shadow DOM, SDK iframes, or PayPal button internals; shared layout CSS may target `paypal-message` and button custom elements only for stable display/min-height/full-width sizing.
 - [x] Preserve amount-free presentment on Category.
   - Inspection standard: Category does not pass product/cart amount into this message unless a supported category-level amount strategy is later documented; PDP/cart/minicart/checkout remain amount-aware where already implemented.
 - [x] Add loading, ready, unavailable, and failure states.

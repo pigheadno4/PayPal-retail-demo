@@ -553,7 +553,7 @@ Reference-level polish execution guide:
     - Inspection standard: exactly one official message or one buyer-safe fallback renders, no duplicate fallback appears after SDK readiness, and products remain visible in the first mobile browsing pass.
     - [x] Place the Pay Later section with the Category toolbar/grid context rather than as a disconnected raw text line.
     - [x] Use merchant-owned shadcn/card-like wrapper chrome with compact padding, warm border/background, optional short label, and stable loading/fallback height.
-    - [x] Do not target PayPal SDK internals, shadow DOM, `paypal-message`, SDK iframes, or official button internals with merchant CSS.
+    - [x] Do not decorate PayPal SDK internals, shadow DOM, SDK iframes, or official button internals with merchant CSS; shared layout CSS may still size SDK custom elements such as `paypal-message` so official content fills the reserved slot.
     - [x] Focused unit/browser coverage verifies the merchant-owned wrapper, fallback slot, amount-free copy, and final Category matrix behavior. Local PayPal sandbox presentment can log timeout warnings; buyer-safe fallback remains available and hosted Render smoke stays the post-deploy check.
   - [x] V5 Category filter/sort redesign: move primary filters/sort above the grid, keep active filters as chips, put secondary filters in a shadcn `Sheet`/popover, preserve route query state, and keep mobile controls compact.
     - Inspection standard: category, release status, price, availability, pickup context, sort, and `q` survive reload/back/forward; controls are 44px+ on mobile; no horizontal overflow appears at 320px.
@@ -574,7 +574,7 @@ Reference-level polish execution guide:
     - [x] Unreleased PDP keeps breadcrumb, gallery, title, status, vendor/profile label, facts, shipping/returns, and Q&A/detail content reachable.
     - [x] Do not add enabled `Notify me` or email capture unless real state/routes are implemented.
     - [x] Tests prove released PDP shows eligible purchase/payment/reviews and unreleased PDP hides purchase/payment/reviews/social proof without hiding inspection content.
-    - [x] Review-gate fix: unreleased PDPs also hide review/social-proof surfaces if upstream data accidentally includes social proof, and merchant CSS no longer targets PayPal SDK custom-element tags for checkout/delivery action sizing.
+    - [x] Review-gate fix: unreleased PDPs also hide review/social-proof surfaces if upstream data accidentally includes social proof, and PayPal SDK custom-element tags keep explicit layout sizing for checkout/delivery actions rather than relying on wrapper-only width.
     - [x] Local browser verify unreleased fallback PDP at 1440, 390, and 320 with no Add to cart, PayPal frame/button, Pay Later message/button, review cards, sticky purchase action, or horizontal overflow.
       - Evidence: `/products/vinyl-figures-7?qa=pdp-v5-unreleased-gating` passed in local Vite fallback mode; screenshots are `pdp-v5-unreleased-desktop-1440.png`, `pdp-v5-unreleased-mobile-390.png`, and `pdp-v5-unreleased-small-320.png`; metrics live in `/private/tmp/paypal-retail-pdp-v5-unreleased-gating-20260630/metrics.json`.
       - Final matrix: `/products/blind-boxes-1` is covered at 1440, 1280, 1024, 768, 390, and 320 widths with no active Add to cart, PayPal frame, Pay Later message/button, review cards, sticky purchase action, or horizontal overflow.

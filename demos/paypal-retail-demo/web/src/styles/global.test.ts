@@ -383,14 +383,23 @@ describe("global storefront visual tokens", () => {
     const deliveryExpressActionBlock = cssBlock(
       ".product-express-actions .delivery-express-action",
     );
+    const deliveryExpressSdkButtonBlock = cssBlock(
+      ".delivery-express-action paypal-button,\n.delivery-express-action paypal-pay-later-button",
+    );
     const paypalStandaloneActionBlock = cssBlock(".paypal-standalone-action");
     const paylaterStandaloneActionBlock = cssBlock(
       ".paylater-standalone-action",
     );
     const walletCheckoutActionBlock = cssBlock(".wallet-checkout-action");
+    const checkoutSdkButtonBlock = cssBlock(
+      ".paypal-standalone-action paypal-button,\n.paylater-standalone-action paypal-pay-later-button,\n.wallet-checkout-action apple-pay-button,\n.wallet-checkout-action venmo-button",
+    );
     const paylaterAmountMessageBlock = cssBlockContaining(
       ".paylater-amount-message",
       "min-height",
+    );
+    const paylaterSdkMessageBlock = cssBlock(
+      ".paylater-amount-message paypal-message",
     );
 
     expect(globalCss).toContain(
@@ -438,6 +447,9 @@ describe("global storefront visual tokens", () => {
     expect(deliveryExpressActionBlock).toContain("min-height: 44px");
     expect(deliveryExpressActionBlock).toContain("min-width: 0");
     expect(deliveryExpressActionBlock).toContain("width: 100%");
+    expect(deliveryExpressSdkButtonBlock).toContain("display: block");
+    expect(deliveryExpressSdkButtonBlock).toContain("min-height: 44px");
+    expect(deliveryExpressSdkButtonBlock).toContain("width: 100%");
     expect(paypalStandaloneActionBlock).toContain("display: grid");
     expect(paypalStandaloneActionBlock).toContain("min-height: 52px");
     expect(paypalStandaloneActionBlock).toContain("width: 100%");
@@ -447,12 +459,12 @@ describe("global storefront visual tokens", () => {
     expect(walletCheckoutActionBlock).toContain("display: grid");
     expect(walletCheckoutActionBlock).toContain("min-height: 52px");
     expect(walletCheckoutActionBlock).toContain("width: 100%");
+    expect(checkoutSdkButtonBlock).toContain("display: block");
+    expect(checkoutSdkButtonBlock).toContain("min-height: 44px");
+    expect(checkoutSdkButtonBlock).toContain("width: 100%");
     expect(paylaterAmountMessageBlock).toContain("min-height: 28px");
-    expect(globalCss).not.toContain("paypal-button");
-    expect(globalCss).not.toContain("paypal-pay-later-button");
-    expect(globalCss).not.toContain("paypal-message");
-    expect(globalCss).not.toContain("apple-pay-button");
-    expect(globalCss).not.toContain("venmo-button");
+    expect(paylaterSdkMessageBlock).toContain("display: block");
+    expect(paylaterSdkMessageBlock).toContain("min-height: 28px");
     expect(globalCss).toContain("@container cart-payment (max-width: 340px)");
     expect(globalCss).toContain(".cart-item {\n    align-items: start;");
     expect(globalCss).toContain(
