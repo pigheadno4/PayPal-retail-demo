@@ -265,6 +265,42 @@ V5 inspection standards before completion:
 - `npm run typecheck`, `npm run lint`, `npm run format:check`, and `git diff --check` pass before V5 is marked complete.
 - `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` are updated in the same slice as the implementation evidence.
 
+#### Category + PDP Refinement V6
+
+V6 is the approved follow-up polish direction from the 2026-07-02 visual companion review. It narrows the remaining Category/PDP polish to reducing above-the-grid mass, protecting mobile product imagery, and moving PDP support context out of the purchase rail.
+
+Selected visual direction:
+
+- Category uses the approved `A+B` direction: remove the large `All products` title/subtitle/result-count hero block from the primary browsing area, keep only compact utility context, and let the product grid become the first dominant visual signal.
+- Category Pay Later uses the quiet divider/strip treatment from direction `A`: a compact merchant-owned area with top/bottom border, centered official PayPal message slot, and no large explanatory card copy. The PayPal-rendered message remains untouched.
+- Category desktop keeps one compact control row: quick category chips, sort state, `All filters`, active filter chips, and reset when applicable. Do not reintroduce a large mixed filter panel above the grid.
+- Category mobile follows direction `B`: product cards must appear immediately after the compact chips/Pay Later strip. The top `All products` and verbose `25 products` copy should not consume first-viewport height.
+- Category mobile uses a floating circular filter action at the lower right with a real Lucide-style filter icon such as `SlidersHorizontal` or `ListFilter`, an accessible label, 44px minimum target size, and enough bottom/right offset for safe-area padding. Tapping opens the existing shadcn `Sheet` filter surface.
+- Category mobile still needs visible selected state and route/back-forward preservation for category, sort, and filter changes. The floating action is only the entry point, not a replacement for stateful filtering.
+
+PDP uses the approved `A` structure with simpler `B`-style wording:
+
+- Released PDP purchase rail should stay focused on price, amount-aware Pay Later, purchase option/quantity controls, Add to cart, and official PayPal/Pay Later buttons. Do not put the four support tiles back under the secured PayPal frame.
+- Move the four support modules into the lower PDP content between `Collector details` and `Series lineup`. They render as flat/tiled support cards, not as a large nested panel.
+- Support tile labels use simple buyer-facing words: `PayPal checkout`, `Delivery express`, `Pay Later`, and `Order recovery`.
+- Support tile body copy stays short and demo-safe:
+  - `PayPal checkout`: `Official surfaces when eligible.`
+  - `Delivery express`: `Start delivery checkout here.`
+  - `Pay Later`: `Shown for eligible products.`
+  - `Order recovery`: `Track or recover after checkout.`
+- The lower tile row should feel like a bridge between collector story and series lineup. It should not interrupt product inspection or create a second purchase panel.
+- Keep PDP tab labels concise. Prefer `Reviews (1)` over long review labels when space is tight, while ensuring the full accessible name still communicates `Customer reviews`.
+- Rating/review treatments stay real-data-only. Use compact star text such as `***** (1)` visually if implemented with accessible labels, and do not render review UI for unreleased or no-review products.
+
+V6 implementation acceptance:
+
+- At `320` and `390` widths, Category first viewport shows product imagery without requiring the buyer to scroll past a large page title, result-count block, or filter panel.
+- Category mobile filter entry is a circular icon button with a real icon, visible focus state, `aria-label`, and no overlap with product-card CTAs or the mobile sticky PDP purchase bar.
+- Category Pay Later wrapper is compact, centered, stable during SDK timeout/fallback, and does not duplicate unsupported marketing copy.
+- PDP released purchase rail has no support tile grid below the PayPal frame. Support tiles appear only in the lower details area between collector copy and lineup.
+- PDP support tile wording matches the approved simple labels/copy above.
+- PDP mobile keeps details/tabs reachable without horizontal page overflow; support tiles stack cleanly before the series lineup.
+
 #### M16 Reference Polish Implementation Guidance
 
 Use `docs/superpowers/plans/2026-06-18-popmart-reference-polish.md` as the execution guide for this polish slice. The plan owns file-level steps, tests, and visual QA gates; this section owns the visual contract.
