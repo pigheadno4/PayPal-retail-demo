@@ -18,6 +18,8 @@ describe("CategoryPage", () => {
     );
 
     expect(html).toContain("All products");
+    expect(html).not.toContain('class="catalog-hero"');
+    expect(html).toContain('class="catalog-compact-context"');
     expect(html).not.toContain(
       "Filter collectible drops by series, status, and availability.",
     );
@@ -53,17 +55,18 @@ describe("CategoryPage", () => {
     expect(html).not.toContain("Series: THE MONSTERS");
   });
 
-  it("renders the V5 category control hierarchy above the product grid", () => {
+  it("renders the V6 category control hierarchy above the product grid", () => {
     const html = renderToStaticMarkup(
       <CategoryPage data={categoryPageData()} />,
     );
-    const contextIndex = html.indexOf('class="catalog-shop-context"');
+    const contextIndex = html.indexOf('class="catalog-compact-context"');
     const quickFiltersIndex = html.indexOf(
       'class="catalog-category-quick-filters"',
     );
     const sortIndex = html.indexOf('class="catalog-sort-control"');
     const allFiltersIndex = html.indexOf('class="catalog-all-filters-trigger"');
     const appliedIndex = html.indexOf('class="catalog-applied-filters"');
+    const payLaterIndex = html.indexOf('class="catalog-paylater"');
     const productGridIndex = html.indexOf('class="catalog-product-section"');
 
     expect(contextIndex).toBeGreaterThan(-1);
@@ -71,7 +74,8 @@ describe("CategoryPage", () => {
     expect(sortIndex).toBeGreaterThan(quickFiltersIndex);
     expect(allFiltersIndex).toBeGreaterThan(sortIndex);
     expect(appliedIndex).toBeGreaterThan(allFiltersIndex);
-    expect(productGridIndex).toBeGreaterThan(appliedIndex);
+    expect(payLaterIndex).toBeGreaterThan(appliedIndex);
+    expect(productGridIndex).toBeGreaterThan(payLaterIndex);
     expect(html).toContain('aria-label="Category quick filters"');
     expect(html).toContain('class="catalog-category-chip"');
     expect(html).toContain('data-slot="sheet-trigger"');
@@ -97,23 +101,30 @@ describe("CategoryPage", () => {
     expect(dialog.querySelector("#toolbar-filter-release-status")).toBeTruthy();
   });
 
-  it("renders a compact mobile filter control before the product grid", () => {
+  it("renders a floating mobile filter action for the product grid", () => {
     const html = renderToStaticMarkup(
       <CategoryPage data={categoryPageData()} />,
     );
     const mobileFiltersIndex = html.indexOf(
-      'class="catalog-mobile-filter-rail"',
+      'class="catalog-mobile-filter-fab"',
     );
     const productGridIndex = html.indexOf('class="catalog-product-section"');
+    const mobileFilterFab =
+      html.match(
+        /<div class="catalog-mobile-filter-fab"[\s\S]*?<\/button><\/div>/,
+      )?.[0] ?? "";
 
     expect(mobileFiltersIndex).toBeGreaterThan(-1);
     expect(productGridIndex).toBeGreaterThan(-1);
-    expect(mobileFiltersIndex).toBeLessThan(productGridIndex);
-    expect(html).toContain('data-slot="sheet-trigger"');
-    expect(html).toContain('aria-label="Filters, 2 filters applied"');
-    expect(html).toContain("<span>Filter &amp; sort</span>");
-    expect(html).toContain("<strong>2 filters applied</strong>");
-    expect(html).toContain('class="catalog-mobile-reset"');
+    expect(mobileFilterFab).toContain('data-slot="sheet-trigger"');
+    expect(mobileFilterFab).toContain(
+      'aria-label="Filters, 2 filters applied"',
+    );
+    expect(mobileFilterFab).toContain("catalog-mobile-filter-fab__icon");
+    expect(mobileFilterFab).toContain('aria-hidden="true"');
+    expect(mobileFilterFab).not.toContain("<span>Filter &amp; sort</span>");
+    expect(mobileFilterFab).not.toContain("<strong>2 filters applied</strong>");
+    expect(html).not.toContain('class="catalog-mobile-reset"');
     expect(html).not.toContain('id="filter-price"');
     expect(html).not.toContain("<details");
     expect(html).not.toContain("<summary");
@@ -164,9 +175,11 @@ describe("CategoryPage", () => {
       "";
 
     expect(payLaterSection).toContain("Pay Later with PayPal");
-    expect(payLaterSection).toContain("catalog-paylater__card");
+    expect(payLaterSection).toContain("catalog-paylater__strip");
     expect(payLaterSection).toContain("catalog-paylater__message");
-    expect(payLaterSection).toContain('data-slot="card"');
+    expect(payLaterSection).not.toContain("catalog-paylater__card");
+    expect(payLaterSection).not.toContain("Flexible checkout");
+    expect(payLaterSection).not.toContain('data-slot="card"');
     expect(payLaterSection).not.toContain("$");
     expect(payLaterSection).not.toContain("£");
     expect(payLaterSection).not.toContain("interest-free installments of");

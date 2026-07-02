@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { SlidersHorizontalIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,83 +100,16 @@ export function CategoryPage({
 
   return (
     <div className="catalog-page">
-      <header className="catalog-hero">
-        <p className="homepage-eyebrow">Shop</p>
-        <div>
-          <h1>{data.title}</h1>
-        </div>
-        <span>{data.resultCountLabel}</span>
-      </header>
-
       <div className="catalog-layout">
         <div className="catalog-results">
-          <div
-            className="catalog-mobile-filter-rail"
-            aria-label="Mobile product filters"
-          >
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  aria-label={`Filters, ${appliedFilterLabel}`}
-                  className="catalog-mobile-filter-trigger"
-                  variant="outline"
-                >
-                  <span>Filter & sort</span>
-                  <strong>{appliedFilterLabel}</strong>
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="catalog-mobile-filters" side="bottom">
-                <SheetHeader className="catalog-mobile-filters__header">
-                  <SheetTitle>Filter and sort</SheetTitle>
-                  <SheetDescription>
-                    {appliedFilterLabel}. Select one option to update this
-                    product list.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="catalog-mobile-filters__panel">
-                  <CatalogFilterPanel
-                    appliedFilterLabel={appliedFilterLabel}
-                    categorySwitcher={data.categorySwitcher}
-                    filters={supportedFilters}
-                    idPrefix="mobile-filter"
-                    resetHref={data.resetHref}
-                    showSummary={false}
-                    variant="sheet"
-                  />
-                  <section
-                    className="filter-group filter-group--sheet"
-                    aria-labelledby="mobile-filter-sort"
-                  >
-                    <h2 id="mobile-filter-sort">Sort by</h2>
-                    <div className="filter-options">
-                      {sortOptions.map((option) => (
-                        <a
-                          className="filter-option filter-option--sheet"
-                          data-active={option.active ? "true" : "false"}
-                          href={option.href}
-                          key={option.label}
-                        >
-                          <span>{option.label}</span>
-                          {option.active ? <small>Current</small> : null}
-                        </a>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <a className="catalog-mobile-reset" href={data.resetHref}>
-              Reset
-            </a>
-          </div>
-
           <section
             className="catalog-shop-controls"
             aria-label="Catalog controls"
           >
-            <div className="catalog-shop-context">
-              <span>Results</span>
-              <strong>{data.resultCountLabel}</strong>
+            <div className="catalog-compact-context">
+              <span>Shop</span>
+              <strong>{data.title}</strong>
+              <small>{data.resultCountLabel}</small>
             </div>
             <nav
               className="catalog-category-quick-filters"
@@ -287,22 +221,16 @@ export function CategoryPage({
             className="catalog-paylater"
             aria-label={data.payLaterPromo.title}
           >
-            <Card className="catalog-paylater__card" size="sm">
-              <CardContent className="catalog-paylater__content">
-                <div className="catalog-paylater__copy">
-                  <span>Flexible checkout</span>
-                  <strong>{data.payLaterPromo.title}</strong>
+            <div className="catalog-paylater__strip">
+              <span className="sr-only">{data.payLaterPromo.title}</span>
+              <div className="catalog-paylater__message" aria-live="polite">
+                {renderPayLaterPromoMessage ? (
+                  renderPayLaterPromoMessage(data.payLaterPromo)
+                ) : (
                   <p>{data.payLaterPromo.body}</p>
-                </div>
-                <div className="catalog-paylater__message" aria-live="polite">
-                  {renderPayLaterPromoMessage ? (
-                    renderPayLaterPromoMessage(data.payLaterPromo)
-                  ) : (
-                    <p>{data.payLaterPromo.body}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                )}
+              </div>
+            </div>
           </section>
 
           <section className="catalog-product-section" aria-label="Products">
@@ -372,6 +300,63 @@ export function CategoryPage({
               );
             })}
           </section>
+
+          <div className="catalog-mobile-filter-fab">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  aria-label={`Filters, ${appliedFilterLabel}`}
+                  className="catalog-mobile-filter-trigger"
+                  variant="outline"
+                >
+                  <SlidersHorizontalIcon
+                    aria-hidden="true"
+                    className="catalog-mobile-filter-fab__icon"
+                    data-icon="inline-start"
+                  />
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="catalog-mobile-filters" side="bottom">
+                <SheetHeader className="catalog-mobile-filters__header">
+                  <SheetTitle>Filter and sort</SheetTitle>
+                  <SheetDescription>
+                    {appliedFilterLabel}. Select one option to update this
+                    product list.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="catalog-mobile-filters__panel">
+                  <CatalogFilterPanel
+                    appliedFilterLabel={appliedFilterLabel}
+                    categorySwitcher={data.categorySwitcher}
+                    filters={supportedFilters}
+                    idPrefix="mobile-filter"
+                    resetHref={data.resetHref}
+                    showSummary={false}
+                    variant="sheet"
+                  />
+                  <section
+                    className="filter-group filter-group--sheet"
+                    aria-labelledby="mobile-filter-sort"
+                  >
+                    <h2 id="mobile-filter-sort">Sort by</h2>
+                    <div className="filter-options">
+                      {sortOptions.map((option) => (
+                        <a
+                          className="filter-option filter-option--sheet"
+                          data-active={option.active ? "true" : "false"}
+                          href={option.href}
+                          key={option.label}
+                        >
+                          <span>{option.label}</span>
+                          {option.active ? <small>Current</small> : null}
+                        </a>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
     </div>

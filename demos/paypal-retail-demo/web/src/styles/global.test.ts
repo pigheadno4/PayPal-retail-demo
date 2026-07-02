@@ -41,10 +41,27 @@ describe("global storefront visual tokens", () => {
   });
 
   it("compresses category filters on mobile before product cards", () => {
+    const catalogShopControlsBlock = cssBlock(".catalog-shop-controls");
+    const catalogCategoryQuickFiltersBlock = cssBlock(
+      ".catalog-category-quick-filters",
+    );
+    const catalogSortControlBlock = cssBlock(".catalog-sort-control");
+    const catalogAppliedFiltersBlock = cssBlock(".catalog-applied-filters");
+
+    expect(catalogShopControlsBlock).toContain(
+      "grid-template-columns:\n    minmax(108px, 0.16fr) minmax(360px, 1fr) minmax(220px, 0.34fr) auto\n    minmax(160px, 0.28fr);",
+    );
+    expect(catalogCategoryQuickFiltersBlock).toContain(
+      "grid-template-columns: auto minmax(0, 1fr);",
+    );
+    expect(catalogSortControlBlock).toContain(
+      "grid-template-columns: auto minmax(0, 1fr);",
+    );
+    expect(catalogAppliedFiltersBlock).not.toContain("grid-column: 1 / -1");
     expect(globalCss).toContain(".catalog-mobile-filter-rail");
     expect(globalCss).toContain(".catalog-mobile-filters");
     expect(globalCss).toContain(".catalog-mobile-filter-trigger");
-    expect(globalCss).toContain("grid-column: 1 / -1;");
+    expect(globalCss).toContain(".catalog-shop-controls {\n    display: none;");
     expect(globalCss).toContain(".catalog-filters {\n    display: none;");
     expect(globalCss).toContain(
       ".catalog-product-section {\n    grid-template-columns: repeat(2, minmax(0, 1fr));",
@@ -213,9 +230,21 @@ describe("global storefront visual tokens", () => {
     const productTabsTriggerBlock = cssBlock(
       ".product-detail-tabs__nav .product-detail-tabs__trigger",
     );
-    const productSupportBandBlock = cssBlock(".product-support-band");
-    const productSupportBandItemBlock = cssBlock(".product-support-band__item");
+    const productDetailSupportBlock = cssBlock(".product-detail-support");
+    const productDetailSupportItemBlock = cssBlock(
+      ".product-detail-support__item",
+    );
     const productRatingSummaryBlock = cssBlock(".product-rating-summary");
+    const productRatingStarsBlock = cssBlock(".product-rating-stars");
+    const productRatingStarFilledBlock = cssBlock(
+      ".product-rating-star__shape--filled,\n.product-rating-star__shape--half",
+    );
+    const productRatingStarHalfBlock = cssBlock(
+      ".product-rating-star__shape--half",
+    );
+    const productRatingStarEmptyBlock = cssBlock(
+      ".product-rating-star__shape--empty",
+    );
     const productReviewSummaryBlock = cssBlock(".product-review-summary-card");
     const productSocialProofListBlock = cssBlock(".product-social-proof-list");
     const productSocialProofCardBlock = cssBlock(".product-social-proof-card");
@@ -228,9 +257,10 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".product-rating-summary");
     expect(globalCss).toContain(".product-paypal-frame");
     expect(globalCss).toContain(".product-paypal-frame legend");
-    expect(globalCss).toContain(".product-support-band");
+    expect(globalCss).toContain(".product-detail-support");
     expect(globalCss).not.toContain(".product-trust-grid");
     expect(globalCss).not.toContain(".product-trust-card");
+    expect(globalCss).not.toContain(".product-support-band");
     expect(globalCss).toContain(".product-detail-tabs");
     expect(globalCss).toContain(".product-detail-tabs__nav-shell");
     expect(globalCss).toContain(".product-detail-tabs__nav");
@@ -239,11 +269,16 @@ describe("global storefront visual tokens", () => {
     expect(globalCss).toContain(".product-social-proof-card");
     expect(globalCss).toContain(".product-sticky-purchase");
     expect(productRatingSummaryBlock).toContain("display: inline-flex");
-    expect(productSupportBandBlock).toContain("grid-template-columns");
-    expect(productSupportBandBlock).toContain(
-      "repeat(auto-fit, minmax(150px, 1fr))",
+    expect(productRatingStarsBlock).toContain("display: inline-flex");
+    expect(productRatingStarFilledBlock).toContain("fill: #f6b529");
+    expect(productRatingStarHalfBlock).toContain("fill: #f6b529");
+    expect(globalCss).toContain(
+      ".product-rating-star__shape--half {\n  clip-path: inset(0 50% 0 0);",
     );
-    expect(productSupportBandItemBlock).toContain("display: grid");
+    expect(productRatingStarEmptyBlock).toContain("fill: #171717");
+    expect(productDetailSupportBlock).toContain("grid-template-columns");
+    expect(productDetailSupportBlock).toContain("repeat(4, minmax(0, 1fr))");
+    expect(productDetailSupportItemBlock).toContain("display: grid");
     expect(productReviewSummaryBlock).toContain("box-shadow: none");
     expect(productSocialProofListBlock).toContain("display: grid");
     expect(productSocialProofCardBlock).toContain("box-shadow");
@@ -308,7 +343,9 @@ describe("global storefront visual tokens", () => {
       ".product-purchase-panel .product-actions {\n    order: 3;",
     );
     expect(globalCss).toContain(".product-paypal-frame {\n    order: 4;");
-    expect(globalCss).toContain(".product-support-band {\n    order: 5;");
+    expect(globalCss).toContain(
+      ".product-detail-support {\n    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));",
+    );
     expect(globalCss).toContain(
       '.product-page[data-sticky-purchase-visible="true"] {\n    padding-bottom: calc(112px + env(safe-area-inset-bottom));',
     );
@@ -595,6 +632,11 @@ describe("global storefront visual tokens", () => {
     const footerLinkBlock = cssBlock(".site-footer__links a");
     const footerNewsletterBlock = cssBlock(".site-footer__newsletter");
     const footerActionsBlock = cssBlock(".site-footer__newsletter-actions a");
+    const footerPaymentMarksBlock = cssBlock(".site-footer__payment-marks");
+    const footerPaymentMarkBlock = cssBlock(".site-footer__payment-mark");
+    const footerPaymentMarkImageBlock = cssBlock(
+      ".site-footer__payment-mark img",
+    );
     const footerBaseBlock = cssBlockContaining(
       ".site-footer__base",
       "background: #082643",
@@ -637,6 +679,11 @@ describe("global storefront visual tokens", () => {
       "grid-template-columns: minmax(0, 1fr) auto",
     );
     expect(footerActionsBlock).toContain("min-height: 44px");
+    expect(footerPaymentMarksBlock).toContain("display: flex");
+    expect(footerPaymentMarksBlock).toContain("flex-wrap: wrap");
+    expect(footerPaymentMarkBlock).toContain("height: 32px");
+    expect(footerPaymentMarkBlock).toContain("border-radius: 6px");
+    expect(footerPaymentMarkImageBlock).toContain("object-fit: contain");
     expect(footerBaseBlock).toContain("background: #082643");
     expect(footerBaseBlock).toContain(
       "grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr)",

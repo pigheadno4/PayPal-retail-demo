@@ -78,13 +78,13 @@ describe("ProductDetailPage", () => {
       /<fieldset[^>]*data-slot="field-set"[^>]*class="[^"]*product-paypal-frame/,
     );
     expect(html).toContain("Secured by PayPal");
-    expect(html).toContain('class="product-support-band"');
+    expect(html).toContain('class="product-detail-support"');
     expect(html).toContain('data-support-item="true"');
     expect(html).toContain("PayPal checkout");
     expect(html).toContain("Order recovery");
     expect(html).toContain("Collector details");
     expect(html).toContain("Product facts");
-    expect(html).toContain("Customer reviews");
+    expect(html).toContain("Customer reviews (1)");
     expect(html).toContain("Shipping and returns");
     expect(html).toContain("Q&amp;A");
     expect(html).toContain("You may also like");
@@ -110,7 +110,9 @@ describe("ProductDetailPage", () => {
     const optionsIndex = html.indexOf('class="product-purchase-options"');
     const actionsIndex = html.indexOf('class="product-actions"');
     const frameIndex = html.indexOf("product-paypal-frame");
-    const supportIndex = html.indexOf('class="product-support-band"');
+    const supportIndex = html.indexOf('class="product-detail-support"');
+    const storyIndex = html.indexOf("product-story");
+    const lineupIndex = html.indexOf("product-lineup");
     const ratingIndex = html.indexOf('class="product-rating-summary"');
     const reviewSummaryIndex = html.indexOf("product-review-summary-card");
     const reviewCardIndex = html.indexOf('data-review-card="true"');
@@ -120,10 +122,16 @@ describe("ProductDetailPage", () => {
     expect(optionsIndex).toBeGreaterThan(payLaterIndex);
     expect(actionsIndex).toBeGreaterThan(optionsIndex);
     expect(frameIndex).toBeGreaterThan(actionsIndex);
-    expect(supportIndex).toBeGreaterThan(frameIndex);
+    expect(storyIndex).toBeGreaterThan(-1);
+    expect(supportIndex).toBeGreaterThan(storyIndex);
+    expect(lineupIndex).toBeGreaterThan(supportIndex);
     expect(ratingIndex).toBeGreaterThan(-1);
-    expect(html).toContain("5.0 / 5");
-    expect(html).toContain("Based on 1 collector review");
+    expect(html).toContain('class="product-rating-count">(1)</span>');
+    expect(html).toContain('data-rating-stars="true"');
+    expect(html).not.toContain("★★★★★ (1)");
+    expect(html).not.toContain("5.0 / 5");
+    expect(html).not.toContain("Based on 1 collector review");
+    expect(html).not.toContain("5 out of 5");
     expect(html).toContain('aria-label="5.0 out of 5 from 1 collector review"');
     expect(html).toContain("Review summary");
     expect(html).toContain("Real collector feedback");
@@ -132,7 +140,56 @@ describe("ProductDetailPage", () => {
     expect(html.match(/data-review-card="true"/g)?.length).toBe(1);
     expect(html).toContain('data-social-proof-card="true"');
     expect(html.match(/data-support-item="true"/g)?.length).toBe(4);
+    expect(html).toContain("Official surfaces when eligible.");
+    expect(html).toContain("Start delivery checkout here.");
+    expect(html).toContain("Shown for eligible products.");
+    expect(html).toContain("Track or recover after checkout.");
     expect(html).not.toContain("No customer reviews yet");
+  });
+
+  it("renders SVG rating icons with filled, half, and empty states", () => {
+    const baseProduct = releasedProduct();
+    const product = {
+      ...baseProduct,
+      reviews: [
+        {
+          id: "review-half-star",
+          authorName: "Mina",
+          title: "Cute desk companion",
+          ratingLabel: "3.5 out of 5",
+          body: "Arrived safely and looks great next to my monitor.",
+        },
+      ],
+    };
+    const { container } = render(<ProductDetailPage data={product} />);
+
+    const summaryStars = container.querySelector(
+      '.product-rating-summary [data-rating-stars="true"]',
+    );
+
+    expect(summaryStars).toBeTruthy();
+    expect(summaryStars?.querySelectorAll("svg")).toHaveLength(5);
+    expect(
+      summaryStars?.querySelectorAll('[data-rating-star-state="filled"]'),
+    ).toHaveLength(3);
+    expect(
+      summaryStars?.querySelectorAll('[data-rating-star-state="half"]'),
+    ).toHaveLength(1);
+    expect(
+      summaryStars?.querySelectorAll('[data-rating-star-state="empty"]'),
+    ).toHaveLength(1);
+    expect(
+      summaryStars?.querySelector('[data-rating-star-layer="half"]'),
+    ).toBeTruthy();
+    expect(
+      summaryStars?.querySelector('[data-rating-star-layer="empty"]'),
+    ).toBeTruthy();
+    expect(
+      container
+        .querySelector(".product-rating-summary")
+        ?.getAttribute("aria-label"),
+    ).toBe("3.5 out of 5 from 1 collector review");
+    expect(container.textContent).not.toContain("★★★");
   });
 
   it("does not render fake rating or review summary when released review data is absent", () => {
@@ -451,7 +508,7 @@ describe("ProductDetailPage", () => {
     const view = within(container);
 
     const reviewsTab = view.getByRole("tab", {
-      name: "Customer reviews",
+      name: "Customer reviews (1)",
     });
     const panels = Array.from(
       container.querySelectorAll('[data-slot="tabs-content"]'),

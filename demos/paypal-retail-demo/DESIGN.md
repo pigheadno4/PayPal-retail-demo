@@ -290,7 +290,7 @@ PDP uses the approved `A` structure with simpler `B`-style wording:
   - `Order recovery`: `Track or recover after checkout.`
 - The lower tile row should feel like a bridge between collector story and series lineup. It should not interrupt product inspection or create a second purchase panel.
 - Keep PDP tab labels concise. Prefer `Reviews (1)` over long review labels when space is tight, while ensuring the full accessible name still communicates `Customer reviews`.
-- Rating/review treatments stay real-data-only. Use compact star text such as `***** (1)` visually if implemented with accessible labels, and do not render review UI for unreleased or no-review products.
+- Rating/review treatments stay real-data-only. Use compact SVG/icon star rows plus count visually if implemented with accessible labels, and do not render review UI for unreleased or no-review products.
 
 V6 implementation acceptance:
 
@@ -300,6 +300,16 @@ V6 implementation acceptance:
 - PDP released purchase rail has no support tile grid below the PayPal frame. Support tiles appear only in the lower details area between collector copy and lineup.
 - PDP support tile wording matches the approved simple labels/copy above.
 - PDP mobile keeps details/tabs reachable without horizontal page overflow; support tiles stack cleanly before the series lineup.
+
+V6 implementation plan and inspection standards live in `docs/superpowers/plans/2026-07-02-category-pdp-refinement-v6.md`. That plan captures the `ui-ux-pro-max` sub-agent review, the tests that must change from V5 assumptions, and the six-width GUI matrix required before closure.
+
+Additional V6 inspection details:
+
+- Category first-viewport proof must measure at least one product media box intersecting the initial `320` and `390` mobile viewport after data settles.
+- The mobile filter action must be a real shadcn/Lucide-backed control, not a decorative mockup circle, and it must keep focus return through the existing filter `Sheet`.
+- Do not copy the mockup's simplified hidden tab overflow if it would undo the existing PDP tab accessibility fixes.
+- PDP visual star summaries may use compact SVG/icon star rows only when backed by real `reviews[]` data and paired with a full accessible label.
+- Footer payment marks are part of the same polish follow-up: use verified local SVG/logo assets for PayPal, Visa, Mastercard, and only already-supported checkout options, with conservative eligibility wording and no unsupported payment claims.
 
 #### M16 Reference Polish Implementation Guidance
 

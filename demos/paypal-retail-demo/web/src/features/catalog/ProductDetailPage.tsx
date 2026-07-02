@@ -184,9 +184,9 @@ interface ProductDetailTab {
 }
 
 interface ProductReviewSummary {
-  readonly scoreLabel: string;
   readonly ariaLabel: string;
-  readonly countLabel: string;
+  readonly rating: number;
+  readonly reviewCount: number;
 }
 
 export function ProductDetailPage({
@@ -258,6 +258,28 @@ export function ProductDetailPage({
           ) : (
             <p>{data.introduction}</p>
           )}
+          {data.purchasable ? (
+            <section
+              className="product-detail-support"
+              aria-label="Product support"
+            >
+              {trustBadges.map((badge) => (
+                <div
+                  className="product-detail-support__item"
+                  data-support-item="true"
+                  key={badge.title}
+                >
+                  <Badge
+                    className="product-detail-support__badge"
+                    variant="secondary"
+                  >
+                    {badge.title}
+                  </Badge>
+                  <span>{badge.body}</span>
+                </div>
+              ))}
+            </section>
+          ) : null}
           {data.seriesLineup ? (
             <Card
               className="product-lineup"
@@ -358,14 +380,14 @@ export function ProductDetailPage({
       ? [
           {
             id: "reviews" as const,
-            label: "Customer reviews",
+            label: `Customer reviews (${data.reviews.length})`,
             content: (
               <>
                 <h3>Collector reviews</h3>
                 {reviewSummary ? (
                   <Card
                     className="product-review-summary-card"
-                    aria-label="Review summary"
+                    aria-label={reviewSummary.ariaLabel}
                     size="sm"
                   >
                     <CardHeader className="product-review-summary-card__header">
@@ -377,8 +399,12 @@ export function ProductDetailPage({
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="product-review-summary-card__content">
-                      <strong>{reviewSummary.scoreLabel}</strong>
-                      <span>{reviewSummary.countLabel}</span>
+                      <strong>
+                        <RatingStars rating={reviewSummary.rating} />
+                        <span className="product-rating-count">
+                          ({reviewSummary.reviewCount})
+                        </span>
+                      </strong>
                     </CardContent>
                   </Card>
                 ) : null}
@@ -393,8 +419,13 @@ export function ProductDetailPage({
                         <CardTitle className="product-review__title">
                           {review.title}
                         </CardTitle>
-                        <CardDescription className="product-review__meta">
-                          {review.ratingLabel}
+                        <CardDescription
+                          className="product-review__meta"
+                          aria-label={formatReviewRatingAria(
+                            review.ratingLabel,
+                          )}
+                        >
+                          <ReviewRatingStars ratingLabel={review.ratingLabel} />
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="product-review__content">
@@ -600,8 +631,12 @@ export function ProductDetailPage({
             className="product-rating-summary"
             aria-label={reviewSummary.ariaLabel}
           >
-            <strong>{reviewSummary.scoreLabel}</strong>
-            <span>{reviewSummary.countLabel}</span>
+            <strong>
+              <RatingStars rating={reviewSummary.rating} />
+              <span className="product-rating-count">
+                ({reviewSummary.reviewCount})
+              </span>
+            </strong>
           </div>
         ) : null}
         <div className="product-chip-row" aria-label="Product attributes">
@@ -737,27 +772,6 @@ export function ProductDetailPage({
                   )}
                 </div>
               </PayPalPaymentFrame>
-
-              <section
-                className="product-support-band"
-                aria-label="Product support"
-              >
-                {trustBadges.map((badge) => (
-                  <div
-                    className="product-support-band__item"
-                    data-support-item="true"
-                    key={badge.title}
-                  >
-                    <Badge
-                      className="product-support-band__badge"
-                      variant="secondary"
-                    >
-                      {badge.title}
-                    </Badge>
-                    <span>{badge.body}</span>
-                  </div>
-                ))}
-              </section>
             </>
           ) : (
             <Card
@@ -940,16 +954,102 @@ function buildProductReviewSummary(
   const average =
     parsedRatings.reduce((sum, rating) => sum + rating, 0) /
     parsedRatings.length;
-  const scoreLabel = `${average.toFixed(1)} / 5`;
   const reviewNoun =
     reviews.length === 1 ? "collector review" : "collector reviews";
-  const countLabel = `Based on ${reviews.length} ${reviewNoun}`;
 
   return {
-    scoreLabel,
-    countLabel,
     ariaLabel: `${average.toFixed(1)} out of 5 from ${reviews.length} ${reviewNoun}`,
+    rating: average,
+    reviewCount: reviews.length,
   };
+}
+
+function ReviewRatingStars({
+  ratingLabel,
+}: {
+  readonly ratingLabel: string;
+}): ReactNode {
+  const parsedRating = parseRatingLabel(ratingLabel);
+
+  if (parsedRating === null) {
+    return ratingLabel;
+  }
+
+  return <RatingStars rating={parsedRating} />;
+}
+
+function formatReviewRatingAria(ratingLabel: string): string {
+  const parsedRating = parseRatingLabel(ratingLabel);
+
+  if (parsedRating === null) {
+    return ratingLabel;
+  }
+
+  const starLabel = parsedRating === 1 ? "star" : "stars";
+
+  return `${formatRatingValue(parsedRating)} ${starLabel}`;
+}
+
+type RatingStarState = "filled" | "half" | "empty";
+
+const RATING_STAR_PATH =
+  "M12 2l2.92 6.62 7.08.62-5.36 4.66 1.6 6.95L12 17.22 5.76 20.85l1.6-6.95L2 9.24l7.08-.62L12 2z";
+
+function RatingStars({ rating }: { readonly rating: number }): ReactNode {
+  return (
+    <span
+      aria-hidden="true"
+      className="product-rating-stars"
+      data-rating-stars="true"
+    >
+      {getRatingStarStates(rating).map((state, index) => (
+        <svg
+          className="product-rating-star"
+          data-rating-star-state={state}
+          focusable="false"
+          key={`${state}-${index}`}
+          viewBox="0 0 24 24"
+        >
+          {state !== "filled" ? (
+            <path
+              className="product-rating-star__shape product-rating-star__shape--empty"
+              d={RATING_STAR_PATH}
+              data-rating-star-layer="empty"
+            />
+          ) : null}
+          {state !== "empty" ? (
+            <path
+              className={`product-rating-star__shape product-rating-star__shape--${state}`}
+              d={RATING_STAR_PATH}
+              data-rating-star-layer={state}
+            />
+          ) : null}
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function getRatingStarStates(rating: number): readonly RatingStarState[] {
+  const clampedRating = Math.min(5, Math.max(0, rating));
+  const filledStars = Math.floor(clampedRating);
+  const hasHalfStar = clampedRating > filledStars;
+
+  return Array.from({ length: 5 }, (_, index): RatingStarState => {
+    if (index < filledStars) {
+      return "filled";
+    }
+
+    if (index === filledStars && hasHalfStar) {
+      return "half";
+    }
+
+    return "empty";
+  });
+}
+
+function formatRatingValue(rating: number): string {
+  return Number.isInteger(rating) ? rating.toFixed(0) : rating.toFixed(1);
 }
 
 function parseRatingLabel(ratingLabel: string): number | null {
@@ -1057,19 +1157,19 @@ function ProductProgressiveImage({
 const defaultTrustBadges: readonly ProductTrustBadge[] = [
   {
     title: "PayPal checkout",
-    body: "Official PayPal surfaces render when eligible.",
+    body: "Official surfaces when eligible.",
   },
   {
     title: "Delivery express",
-    body: "Delivery checkout can start from this PDP.",
+    body: "Start delivery checkout here.",
   },
   {
     title: "Pay Later",
-    body: "Shown only for purchasable eligible products.",
+    body: "Shown for eligible products.",
   },
   {
     title: "Order recovery",
-    body: "Buyers can track or recover orders after checkout.",
+    body: "Track or recover after checkout.",
   },
 ];
 

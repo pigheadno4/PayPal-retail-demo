@@ -569,6 +569,33 @@ const buyerFooterColumns = [
   },
 ] as const;
 
+const buyerFooterPaymentMarks = [
+  {
+    label: "PayPal",
+    src: "/assets/paypal-logos/paypal-rebrand-default.svg",
+  },
+  {
+    label: "Pay Later",
+    src: "/assets/paypal-logos/paylater-rebrand-mark.svg",
+  },
+  {
+    label: "Visa",
+    src: "/assets/paypal-logos/visa.svg",
+  },
+  {
+    label: "Mastercard",
+    src: "/assets/paypal-logos/mastercard.svg",
+  },
+  {
+    label: "Apple Pay",
+    src: "/assets/paypal-logos/applepay-default.svg",
+  },
+  {
+    label: "Venmo",
+    src: "/assets/paypal-logos/venmo-rebrand-default.svg",
+  },
+] as const;
+
 function createPendingHomePageData(): HomePageData {
   return {
     ...defaultHomePageData,
@@ -3098,9 +3125,24 @@ function BuyerShell({
               </div>
             ))}
           </nav>
-          <p className="site-footer__support">
-            Secure PayPal checkout, pickup, and order recovery in one demo.
-          </p>
+          <div className="site-footer__commerce">
+            <p className="site-footer__support">
+              Secure PayPal checkout, pickup, and order recovery in one demo.
+            </p>
+            <section
+              className="site-footer__payment"
+              aria-label="Accepted checkout options"
+            >
+              <h3>Checkout options</h3>
+              <div className="site-footer__payment-marks">
+                {buyerFooterPaymentMarks.map((mark) => (
+                  <span className="site-footer__payment-mark" key={mark.label}>
+                    <img src={mark.src} alt={mark.label} loading="lazy" />
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
       </footer>
       <StatusRegion id="shell-status" className="sr-only">

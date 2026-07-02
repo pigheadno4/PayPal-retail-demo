@@ -114,6 +114,14 @@ describe("App shell", () => {
     expect(html).toContain(
       "Secure PayPal checkout, pickup, and order recovery",
     );
+    expect(html).toContain('aria-label="Accepted checkout options"');
+    expect(html).toContain('class="site-footer__payment-marks"');
+    expect(html).toContain("/assets/paypal-logos/paypal-rebrand-default.svg");
+    expect(html).toContain("/assets/paypal-logos/paylater-rebrand-mark.svg");
+    expect(html).toContain("/assets/paypal-logos/visa.svg");
+    expect(html).toContain("/assets/paypal-logos/mastercard.svg");
+    expect(html).toContain("/assets/paypal-logos/applepay-default.svg");
+    expect(html).toContain("/assets/paypal-logos/venmo-rebrand-default.svg");
     expect(html).toContain('aria-label="Open minicart"');
     expect(html).toContain('class="homepage-paylater-promo"');
     expect(html).toContain('class="paypal-provider-scope"');
