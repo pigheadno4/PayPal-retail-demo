@@ -100,7 +100,7 @@ describe("App buyer interactions", () => {
 
     await user.type(searchInput, "molly{enter}");
 
-    await screen.findByRole("heading", { name: "All products" });
+    await screen.findByRole("region", { name: "Products" });
     await waitFor(() => {
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
