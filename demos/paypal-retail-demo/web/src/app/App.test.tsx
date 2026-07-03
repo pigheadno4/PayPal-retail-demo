@@ -6,6 +6,7 @@ import type { ProductDetailPageData } from "../features/catalog/ProductDetailPag
 import type {
   CheckoutChoice,
   CheckoutPageData,
+  CheckoutPaymentReadiness,
   CheckoutSelectedPaymentMethod,
   CheckoutStep,
 } from "../features/checkout/CheckoutPage.js";
@@ -210,7 +211,7 @@ describe("App shell", () => {
     );
 
     expect(html).toContain('data-route-page="cart"');
-    expect(html).toContain("Shopping cart");
+    expect(html).toContain("<h1>Bag</h1>");
     expect(html).toContain("Labubu Have a Seat");
     expect(html).toContain(
       "Flexible payment options may be available for $25.98",
@@ -280,6 +281,41 @@ describe("App shell", () => {
     expect(html).toContain('data-paypal-sdk-method="paylater"');
     expect(html).toContain('data-paypal-sdk-status="loading"');
   });
+
+  it.each([
+    ["PayPal", "paypal"],
+    ["Pay Later", "paylater"],
+    ["Credit or debit card", "card"],
+  ] as const)(
+    "withholds the %s checkout provider scope while payment readiness has failed",
+    (_label, selectedPaymentMethod) => {
+      const html = renderToStaticMarkup(
+        <App
+          initialPathname="/checkout"
+          initialCheckout={checkoutData({
+            activeDeliveryStepId: "payment-method",
+            deliveryPaymentReadiness: {
+              state: "failed",
+              title: "Payment needs refresh",
+              body: "Retry checkout details before payment.",
+            },
+            selectedPaymentMethod,
+          })}
+        />,
+      );
+
+      expect(html).toContain("Payment needs refresh");
+      expect(html).toContain("Retry checkout details before payment.");
+      expect(html).not.toContain('data-paypal-sdk-page-type="checkout"');
+      expect(html).not.toContain(
+        `data-paypal-sdk-method="${selectedPaymentMethod}"`,
+      );
+      expect(html).not.toContain(
+        'data-payment-action-placement="order-summary"',
+      );
+      expect(html).not.toContain('class="checkout-choice__card-box"');
+    },
+  );
 
   it("renders the card checkout provider scope inside the payment step when card is selected", () => {
     const html = renderToStaticMarkup(
@@ -590,10 +626,12 @@ function expressReviewData(): ExpressReviewPageData {
 
 function checkoutData({
   activeDeliveryStepId,
+  deliveryPaymentReadiness,
   selectedPaymentMethod = "paypal",
   walletEligible = true,
 }: {
   readonly activeDeliveryStepId?: string;
+  readonly deliveryPaymentReadiness?: CheckoutPaymentReadiness;
   readonly selectedPaymentMethod?: CheckoutSelectedPaymentMethod;
   readonly walletEligible?: boolean;
 } = {}): CheckoutPageData {
@@ -661,6 +699,9 @@ function checkoutData({
     delivery: {
       label: "Delivery",
       checkoutDraftId: "draft_delivery_123",
+      ...(deliveryPaymentReadiness
+        ? { paymentReadiness: deliveryPaymentReadiness }
+        : {}),
       summary: {
         title: "Delivery order",
         contextLabel: "Ground delivery",

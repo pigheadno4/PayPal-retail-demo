@@ -143,9 +143,23 @@ export interface CheckoutValidationState {
   readonly messages: readonly CheckoutValidationMessage[];
 }
 
+export type CheckoutPaymentReadinessState =
+  | "ready"
+  | "syncing"
+  | "recalculating"
+  | "stale"
+  | "failed";
+
+export interface CheckoutPaymentReadiness {
+  readonly state: CheckoutPaymentReadinessState;
+  readonly title?: string;
+  readonly body?: string;
+}
+
 export interface CheckoutFulfillmentDraft {
   readonly label: string;
   readonly checkoutDraftId?: string;
+  readonly paymentReadiness?: CheckoutPaymentReadiness;
   readonly steps: readonly CheckoutStep[];
   readonly summary: CheckoutOrderSummary;
 }
@@ -255,6 +269,21 @@ const paymentMethodLogoByMethod: Partial<
 
 const checkoutSubmitTransitionDelayMs = 50;
 const checkoutMobilePaymentQuery = "(max-width: 760px)";
+const checkoutStepOrderByMode = {
+  delivery: [
+    "shipping-address",
+    "billing-address",
+    "shipping-options",
+    "payment-method",
+  ],
+  pickup: [
+    "pickup-location",
+    "store-selection",
+    "pickup-billing-address",
+    "pickup-date",
+    "pickup-payment-method",
+  ],
+} satisfies Record<CheckoutFulfillmentMode, readonly string[]>;
 
 type CheckoutFieldValue = string | boolean;
 
@@ -380,8 +409,14 @@ export function CheckoutPage({
     selectedPaymentMethod: activeSelectedPaymentMethod,
     totalLabel: activeSummary.totalLabel,
   };
+  const paymentReadinessMessage = getPaymentReadinessMessage({
+    draft: activeDraft,
+    isPaymentStepExpanded: activePaymentStepExpanded,
+    paymentContext: activePaymentContext,
+  });
   const paymentAction =
     !activePaymentStepExpanded ||
+    paymentReadinessMessage ||
     activePaymentContext.selectedPaymentMethod === "card" ||
     !activePaymentContext.selectedPaymentEligible
       ? null
@@ -391,6 +426,7 @@ export function CheckoutPage({
   const stickyPaymentAction = isMobilePaymentBar ? paymentAction : null;
   const cardPaymentBox =
     activePaymentStepExpanded &&
+    !paymentReadinessMessage &&
     activePaymentContext.selectedPaymentMethod === "card"
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
@@ -866,6 +902,11 @@ export function CheckoutPage({
                 {data.pickup.label}
               </TabsTrigger>
             </TabsList>
+            <CheckoutProgress
+              draft={activeDraft}
+              expandedStepId={expandedStepIds[activeMode]}
+              mode={activeMode}
+            />
 
             <CheckoutModePanel
               draft={pageData.delivery}
@@ -915,6 +956,7 @@ export function CheckoutPage({
         <CheckoutSummary
           summary={displayedSummary}
           paymentAction={summaryPaymentAction}
+          paymentReadinessMessage={paymentReadinessMessage}
         />
       </div>
 
@@ -986,6 +1028,95 @@ function useCheckoutMobilePaymentBar(): boolean {
   }, []);
 
   return matches;
+}
+
+function getPaymentReadinessMessage({
+  draft,
+  isPaymentStepExpanded,
+  paymentContext,
+}: {
+  readonly draft: CheckoutFulfillmentDraft;
+  readonly isPaymentStepExpanded: boolean;
+  readonly paymentContext: CheckoutPaymentActionContext;
+}) {
+  if (!isPaymentStepExpanded) {
+    return null;
+  }
+
+  if (!paymentContext.checkoutDraftId) {
+    return {
+      title: "Payment is syncing",
+      body: "Refresh checkout details before continuing.",
+    };
+  }
+
+  const readiness = draft.paymentReadiness;
+
+  if (!readiness || readiness.state === "ready") {
+    return null;
+  }
+
+  const fallbackMessage = paymentReadinessMessageByState[readiness.state];
+
+  return {
+    title: readiness.title ?? fallbackMessage.title,
+    body: readiness.body ?? fallbackMessage.body,
+  };
+}
+
+const paymentReadinessMessageByState: Record<
+  Exclude<CheckoutPaymentReadinessState, "ready">,
+  {
+    readonly title: string;
+    readonly body: string;
+  }
+> = {
+  failed: {
+    title: "Payment needs refresh",
+    body: "Refresh checkout details before continuing.",
+  },
+  recalculating: {
+    title: "Payment is recalculating",
+    body: "Updated totals are syncing before payment.",
+  },
+  stale: {
+    title: "Payment needs review",
+    body: "Review the updated checkout details before payment.",
+  },
+  syncing: {
+    title: "Payment is syncing",
+    body: "Refresh checkout details before continuing.",
+  },
+};
+
+function CheckoutProgress({
+  draft,
+  expandedStepId,
+  mode,
+}: {
+  readonly draft: CheckoutFulfillmentDraft;
+  readonly expandedStepId: string | null;
+  readonly mode: CheckoutFulfillmentMode;
+}) {
+  const activeStepId = expandedStepId ?? draft.steps[0]?.id ?? null;
+  const canonicalStepIds = checkoutStepOrderByMode[mode];
+  const activeIndex = Math.max(
+    canonicalStepIds.findIndex((stepId) => stepId === activeStepId),
+    0,
+  );
+  const activeStep =
+    draft.steps.find((step) => step.id === activeStepId) ?? draft.steps[0];
+  const modeLabel = mode === "delivery" ? "Delivery" : "Pickup";
+  const stepLabel = activeStep?.title ?? "Checkout";
+  const progressLabel = `${modeLabel} - ${stepLabel} - ${activeIndex + 1} of ${
+    canonicalStepIds.length
+  }`;
+
+  return (
+    <p className="checkout-progress" data-checkout-progress={mode}>
+      {progressLabel}
+    </p>
+  );
 }
 
 function CheckoutModePanel({
@@ -2291,9 +2422,14 @@ function CheckoutStepDetails({
 function CheckoutSummary({
   summary,
   paymentAction,
+  paymentReadinessMessage,
 }: {
   readonly summary: CheckoutOrderSummary;
   readonly paymentAction?: ReactNode;
+  readonly paymentReadinessMessage?: {
+    readonly title: string;
+    readonly body: string;
+  } | null;
 }) {
   const visibleItems = summary.items?.slice(0, 3) ?? [];
   const hiddenItemCount = Math.max((summary.items?.length ?? 0) - 3, 0);
@@ -2392,6 +2528,17 @@ function CheckoutSummary({
             data-payment-action-reserved-space="true"
           >
             {paymentAction}
+          </div>
+        </CardFooter>
+      ) : paymentReadinessMessage ? (
+        <CardFooter
+          className="checkout-summary__payment"
+          aria-label="Payment readiness"
+          aria-live="polite"
+        >
+          <div className="checkout-payment-readiness">
+            <strong>{paymentReadinessMessage.title}</strong>
+            <p>{paymentReadinessMessage.body}</p>
           </div>
         </CardFooter>
       ) : null}

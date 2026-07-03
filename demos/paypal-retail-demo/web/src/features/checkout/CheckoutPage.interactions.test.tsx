@@ -778,7 +778,7 @@ describe("CheckoutPage interactions", () => {
   it("submits the default selected pickup calendar date", async () => {
     const user = userEvent.setup();
     const draftUpdates: TestDraftUpdateRequest[] = [];
-    const selectedDateValue = new Date().toISOString().slice(0, 10);
+    const selectedDateValue = formatLocalDateValue(new Date());
 
     render(
       <CheckoutPage
@@ -899,6 +899,14 @@ async function waitForStepState(step: HTMLElement, state: string) {
   await waitFor(() => {
     expect(step.getAttribute("data-step-state")).toBe(state);
   });
+}
+
+function formatLocalDateValue(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 function loggedInPickupData(): CheckoutPageData {

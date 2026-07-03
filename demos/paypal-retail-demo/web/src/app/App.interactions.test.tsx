@@ -2682,7 +2682,7 @@ describe("App buyer interactions", () => {
       }),
     );
 
-    expect(screen.getByRole("heading", { name: "Shopping cart" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Bag" })).toBeTruthy();
     expect(globalThis.location.pathname).toBe("/cart");
     expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Opened cart.");
@@ -3434,7 +3434,7 @@ describe("App buyer interactions", () => {
     );
 
     const pickupDateStep = getStep("Pickup date");
-    const selectedPickupDate = new Date().toISOString().slice(0, 10);
+    const selectedPickupDate = formatLocalDateValue(new Date());
     await user.click(
       within(pickupDateStep).getByRole("button", {
         name: "Submit pickup date",
@@ -5478,6 +5478,14 @@ function captureApiResponse() {
       mismatches: [],
     },
   };
+}
+
+function formatLocalDateValue(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 function releasedProduct(): ProductDetailPageData {

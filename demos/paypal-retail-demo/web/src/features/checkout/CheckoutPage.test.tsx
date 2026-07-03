@@ -15,6 +15,7 @@ import {
   CheckoutPage,
   type CheckoutChoice,
   type CheckoutPageData,
+  type CheckoutPaymentReadiness,
   type CheckoutSelectedPaymentMethod,
   type CheckoutStep,
   type CheckoutValidationState,
@@ -54,6 +55,25 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Pickup date");
     expect(html).not.toContain("Idle");
     expect(html).not.toContain("Editing");
+  });
+
+  it("renders compact active checkout progress for the selected fulfillment flow", () => {
+    const deliveryHtml = renderToStaticMarkup(
+      <CheckoutPage data={checkoutData({ activeMode: "delivery" })} />,
+    );
+    const pickupHtml = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeMode: "pickup",
+          activePickupStepId: "pickup-date",
+        })}
+      />,
+    );
+
+    expect(deliveryHtml).toContain('data-checkout-progress="delivery"');
+    expect(deliveryHtml).toContain("Delivery - Shipping address - 1 of 4");
+    expect(pickupHtml).toContain('data-checkout-progress="pickup"');
+    expect(pickupHtml).toContain("Pickup - Pickup date - 4 of 5");
   });
 
   it("updates order summary context for the active fulfillment mode", () => {
@@ -304,6 +324,152 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-payment-action-reserved-space="true"');
   });
 
+  it("withholds selected provider actions while checkout readiness is missing", () => {
+    const renderPaymentAction = vi.fn((context) => (
+      <div
+        data-payment-action-placement="order-summary"
+        data-payment-checkout-draft-id={context.checkoutDraftId ?? ""}
+      >
+        Payment action
+      </div>
+    ));
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          deliveryCheckoutDraftId: null,
+          selectedPaymentMethod: "paypal",
+        })}
+        renderPaymentAction={renderPaymentAction}
+      />,
+    );
+
+    expect(renderPaymentAction).not.toHaveBeenCalled();
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
+    expect(html).not.toContain('data-payment-action-reserved-space="true"');
+    expect(html).toContain("Payment is syncing");
+    expect(html).toContain("Refresh checkout details before continuing.");
+  });
+
+  it.each([
+    [
+      "syncing",
+      "Payment is syncing",
+      "Refresh checkout details before continuing.",
+    ],
+    [
+      "recalculating",
+      "Payment is recalculating",
+      "Updated totals are syncing before payment.",
+    ],
+    [
+      "stale",
+      "Payment needs review",
+      "Review the updated checkout details before payment.",
+    ],
+  ] as const)(
+    "withholds selected provider actions while checkout readiness is %s",
+    (state, title, body) => {
+      const renderPaymentAction = vi.fn((context) => (
+        <div
+          data-payment-action-placement="order-summary"
+          data-payment-checkout-draft-id={context.checkoutDraftId ?? ""}
+        >
+          Payment action
+        </div>
+      ));
+      const html = renderToStaticMarkup(
+        <CheckoutPage
+          data={checkoutData({
+            activeDeliveryStepId: "payment-method",
+            deliveryPaymentReadiness: {
+              state,
+            },
+            selectedPaymentMethod: "paypal",
+          })}
+          renderPaymentAction={renderPaymentAction}
+        />,
+      );
+
+      expect(renderPaymentAction).not.toHaveBeenCalled();
+      expect(html).not.toContain(
+        'data-payment-action-placement="order-summary"',
+      );
+      expect(html).toContain(title);
+      expect(html).toContain(body);
+    },
+  );
+
+  it("withholds card fields while checkout payment readiness has failed", () => {
+    const renderCardPaymentBox = vi.fn((context) => (
+      <div
+        data-card-payment-box="true"
+        data-payment-checkout-draft-id={context.checkoutDraftId}
+      >
+        Card fields
+      </div>
+    ));
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          deliveryPaymentReadiness: {
+            state: "failed",
+            title: "Payment needs refresh",
+            body: "Retry checkout details before payment.",
+          },
+          selectedPaymentMethod: "card",
+        })}
+        renderCardPaymentBox={renderCardPaymentBox}
+      />,
+    );
+
+    expect(renderCardPaymentBox).not.toHaveBeenCalled();
+    expect(html).not.toContain('data-card-payment-box="true"');
+    expect(html).toContain("Payment needs refresh");
+    expect(html).toContain("Retry checkout details before payment.");
+  });
+
+  it("renders selected non-card payment only in the mobile sticky action", () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          addEventListener: () => undefined,
+          addListener: () => undefined,
+          dispatchEvent: () => false,
+          matches: query === "(max-width: 760px)",
+          media: query,
+          onchange: null,
+          removeEventListener: () => undefined,
+          removeListener: () => undefined,
+        }) as MediaQueryList,
+    );
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "paypal",
+        })}
+        renderPaymentAction={(context) => (
+          <div
+            data-payment-action-placement="selected-provider"
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Payment action
+          </div>
+        )}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Selected payment method")).toBeNull();
+
+    const stickyAction = screen.getByLabelText("Selected payment action");
+    expect(within(stickyAction).getByText("Payment action")).toBeTruthy();
+    expect(within(stickyAction).getByText("Secure checkout")).toBeTruthy();
+    expect(within(stickyAction).getByText("$25.98")).toBeTruthy();
+  });
+
   it("keeps the Pay Later row compact and leaves messaging beside the payment action", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
@@ -547,6 +713,71 @@ describe("CheckoutPage", () => {
       expect(within(orderSummary).getByText("$37.98")).toBeTruthy();
     });
   });
+
+  it("updates compact progress after submit and fulfillment tab changes", async () => {
+    const user = userEvent.setup();
+
+    render(<CheckoutPage data={checkoutData()} />);
+
+    expect(
+      screen.getByText("Delivery - Shipping address - 1 of 4"),
+    ).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit shipping address" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Delivery - Billing address - 2 of 4"),
+      ).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+
+    expect(screen.getByText("Pickup - Pickup location - 1 of 5")).toBeTruthy();
+  });
+
+  it("suspends selected provider actions when an upstream checkout section is edited", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CheckoutPage
+        data={checkoutData()}
+        renderPaymentAction={(context) => (
+          <div
+            data-payment-action-placement="order-summary"
+            data-payment-method={context.selectedPaymentMethod}
+          >
+            Payment action
+          </div>
+        )}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit shipping address" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Save billing address" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Submit shipping option" }),
+    );
+
+    expect(await screen.findByText("Payment action")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", { name: "Edit shipping address" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Payment action")).toBeNull();
+      expect(
+        screen.getByText("Delivery - Shipping address - 1 of 4"),
+      ).toBeTruthy();
+    });
+  });
 });
 
 function checkoutData(
@@ -554,6 +785,8 @@ function checkoutData(
     Pick<CheckoutPageData, "activeMode" | "modeLocked" | "validation"> & {
       readonly activeDeliveryStepId: string;
       readonly activePickupStepId: string;
+      readonly deliveryCheckoutDraftId: string | null;
+      readonly deliveryPaymentReadiness: CheckoutPaymentReadiness;
       readonly deliveryShippingLabel: string;
       readonly deliveryTotalLabel: string;
       readonly paymentChoices: readonly CheckoutChoice[];
@@ -651,7 +884,14 @@ function checkoutData(
       : {}),
     delivery: {
       label: "Delivery",
-      checkoutDraftId: "draft_delivery_123",
+      ...(overrides.deliveryPaymentReadiness
+        ? { paymentReadiness: overrides.deliveryPaymentReadiness }
+        : {}),
+      ...(overrides.deliveryCheckoutDraftId === undefined
+        ? { checkoutDraftId: "draft_delivery_123" }
+        : overrides.deliveryCheckoutDraftId === null
+          ? {}
+          : { checkoutDraftId: overrides.deliveryCheckoutDraftId }),
       summary: {
         title: "Delivery order",
         contextLabel: "Ground delivery",

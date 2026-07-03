@@ -94,7 +94,7 @@ describe("MinicartShell", () => {
     expect(html).toContain('aria-label="Minicart checkout"');
     expect(html).toContain('aria-label="Minicart summary"');
     expect(html).toContain("Shipping");
-    expect(html).toContain("Selected at checkout");
+    expect(html).toContain("Calculated after Delivery/Pickup");
     expect(html).toContain("Promo / estimated tax");
     expect(html).toContain("Cart subtotal");
     expect(html).toContain('href="/cart"');

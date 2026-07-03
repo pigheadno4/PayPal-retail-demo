@@ -86,11 +86,13 @@ export function CartPage({
 
   return (
     <div className="cart-page" data-visual-accent-scope="cart">
-      <header className="cart-hero">
-        <p className="homepage-eyebrow">Bag</p>
+      <header className="cart-hero" aria-label={data.title}>
+        <p className="homepage-eyebrow">Cart</p>
         <div>
-          <h1>{data.title}</h1>
-          <p>{itemCountLabel}</p>
+          <h1>Bag</h1>
+          <p>
+            {itemCountLabel} - {subtotalLabel} subtotal
+          </p>
         </div>
       </header>
 
@@ -100,6 +102,10 @@ export function CartPage({
             const quantity = resolveCartItemQuantity(
               item,
               effectiveQuantityOverrides,
+            );
+            const lineTotalLabel = formatCartAmount(
+              item.unitPriceCents * quantity,
+              data,
             );
 
             return (
@@ -125,6 +131,9 @@ export function CartPage({
                       <s>{item.regularPriceLabel}</s>
                     )}
                   </div>
+                  <span className="cart-item__line-total">
+                    Line total {lineTotalLabel}
+                  </span>
                   {item.unavailableReason ? (
                     <p className="cart-item__notice">
                       {item.unavailableReason}

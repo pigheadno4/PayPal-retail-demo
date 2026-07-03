@@ -3506,6 +3506,12 @@ a {
   color: var(--shell-muted);
 }
 
+.cart-hero h1,
+.checkout-hero h1 {
+  font-size: clamp(2rem, 3vw, 2.7rem);
+  line-height: 1.04;
+}
+
 .cart-items {
   display: grid;
   gap: 14px;
@@ -3600,6 +3606,12 @@ a {
   color: var(--shell-muted);
   font-size: 0.82rem;
   font-weight: 650;
+}
+
+.cart-item__line-total {
+  color: var(--shell-muted);
+  font-size: 0.82rem;
+  font-weight: 780;
 }
 
 .cart-quantity {
@@ -4476,6 +4488,31 @@ a {
   color: #8b817c;
 }
 
+.checkout-progress {
+  align-items: center;
+  background: #fff8f3;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-pill-radius);
+  color: var(--shell-ink);
+  display: flex;
+  font-size: 0.84rem;
+  font-weight: 850;
+  gap: 8px;
+  justify-content: center;
+  line-height: 1.25;
+  min-height: 40px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.checkout-progress::before {
+  background: var(--shell-accent);
+  border-radius: 999px;
+  content: "";
+  height: 8px;
+  width: 8px;
+}
+
 .checkout-panel {
   min-height: 0;
   overflow: visible;
@@ -4486,6 +4523,10 @@ a {
 }
 
 @media (max-width: 760px) {
+  .checkout-page {
+    padding-bottom: calc(128px + env(safe-area-inset-bottom));
+  }
+
   .checkout-tabs {
     border-radius: 999px;
     max-height: 52px;
@@ -5350,6 +5391,28 @@ a {
   min-height: 0;
 }
 
+.checkout-payment-readiness {
+  background: #fff8f3;
+  border: 1px solid
+    color-mix(in srgb, var(--shell-border), var(--shell-accent) 18%);
+  border-radius: var(--shell-compact-radius);
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.checkout-payment-readiness strong {
+  color: var(--shell-ink);
+  font-weight: 900;
+}
+
+.checkout-payment-readiness p {
+  color: var(--shell-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
 .checkout-trust-strip {
   background: #ffffff;
   border: 1px solid
@@ -5610,6 +5673,7 @@ a {
   left: 0;
   min-height: 78px;
   padding: 10px 14px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
   position: fixed;
   right: 0;
   z-index: 20;
@@ -5651,6 +5715,18 @@ a {
 
 .checkout-sticky-action .paylater-amount-message {
   min-height: 24px;
+}
+
+body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-action {
+  display: none;
+}
+
+body:has([data-slot="sheet-content"]) .checkout-sticky-action {
+  display: none;
+}
+
+body:has([data-slot="dialog-content"]) .checkout-sticky-action {
+  display: none;
 }
 
 .route-stage,

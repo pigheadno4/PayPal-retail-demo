@@ -8,12 +8,15 @@ describe("CartPage", () => {
   it("renders full cart items, quantity controls, amount-aware Pay Later, delivery express, checkout action, and pickup hint", () => {
     const html = renderToStaticMarkup(<CartPage data={cartData()} />);
 
-    expect(html).toContain("Shopping cart");
+    expect(html).toContain("<h1>Bag</h1>");
+    expect(html).toContain("2 items");
+    expect(html).toContain("$25.98 subtotal");
     expect(html).toContain('data-visual-accent-scope="cart"');
     expect(html).toContain("Labubu Have a Seat");
     expect(html).toContain('aria-label="Decrease Labubu Have a Seat quantity"');
     expect(html).toContain('aria-label="Increase Labubu Have a Seat quantity"');
     expect(html).toContain('aria-label="Labubu Have a Seat quantity"');
+    expect(html).toContain("Line total $12.99");
     expect(html).toMatch(
       /<div[^>]*data-slot="card"[^>]*class="[^"]*cart-summary/,
     );
@@ -27,12 +30,12 @@ describe("CartPage", () => {
       /<span[^>]*data-slot="badge"[^>]*data-variant="secondary"[^>]*>Blind Boxes<\/span>/,
     );
     expect(html).toContain("Shipping");
-    expect(html).toContain("Selected at checkout");
+    expect(html).toContain("Calculated after Delivery/Pickup");
     expect(html).toContain("Promo / estimated tax");
-    expect(html).toContain("Calculated at checkout");
+    expect(html).toContain("Calculated in checkout");
     expect(html).toContain("Cart subtotal");
     expect(html).toContain(
-      "Checkout total updates after delivery, promo, and tax are confirmed.",
+      "Checkout total updates after Delivery/Pickup, promo, and tax are confirmed.",
     );
     expect(html).toContain(
       "Flexible payment options may be available for $25.98",
@@ -65,7 +68,7 @@ describe("CartPage", () => {
     expect(html).toContain("0 items");
     expect(html).toContain("Your cart is empty");
     expect(html).toContain("Shipping");
-    expect(html).toContain("Selected at checkout");
+    expect(html).toContain("Calculated after Delivery/Pickup");
     expect(html).toContain('href="/products"');
     expect(html).toMatch(
       /<a href="\/products"[^>]*data-slot="button"[^>]*data-variant="outline"/,

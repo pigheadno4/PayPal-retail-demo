@@ -18,18 +18,19 @@ export function CartSummaryBreakdown({
     <dl className={classNames}>
       <div className="cart-summary-breakdown__line cart-summary-breakdown__line--muted">
         <dt>Shipping</dt>
-        <dd>Selected at checkout</dd>
+        <dd>Calculated after Delivery/Pickup</dd>
       </div>
       <div className="cart-summary-breakdown__line cart-summary-breakdown__line--muted">
         <dt>Promo / estimated tax</dt>
-        <dd>Calculated at checkout</dd>
+        <dd>Calculated in checkout</dd>
       </div>
       <div className="cart-summary-breakdown__total">
         <dt>Cart subtotal</dt>
         <dd>{subtotalLabel}</dd>
       </div>
       <p className="cart-summary-breakdown__note">
-        Checkout total updates after delivery, promo, and tax are confirmed.
+        Checkout total updates after Delivery/Pickup, promo, and tax are
+        confirmed.
       </p>
     </dl>
   );

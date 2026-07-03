@@ -1090,6 +1090,49 @@ Rules:
 - Mobile sticky bar reserves space for the selected method label, total, button, and any required Pay Later message without overlapping content.
 - Card payment never moves into the sticky bar; its pay button stays inside the card fields box.
 
+## Cart + Checkout A+ Polish Contract
+
+Approved direction: `A+ Compact Retail Flow`, selected on 2026-07-03 from the Superpowers visual companion mockup. The focused spec is `CART_CHECKOUT_A_PLUS_SPEC.md`.
+
+Cart A+:
+
+- Cart is product-first: item imagery, names, quantities, prices, fulfillment/status copy, and line amounts appear before payment education.
+- The full checkout CTA is visually dominant. Delivery express PayPal/Pay Later is a secondary path below it, not a competing first action.
+- Summary placeholder copy must be buyer-safe and specific, such as `Calculated after Delivery/Pickup` or `Calculated in checkout`; avoid vague `Next` labels.
+- Pay Later messaging stays near the cart amount/summary context and renders as official PayPal message content or a buyer-safe fallback only.
+- Mobile cart must keep item media visible in the first browsing pass before any large payment frame, Pay Later explanation, or long trust copy.
+- Checkout entry from cart must restore/refresh the active server cart binding, preserve cart count/minicart contents, and initialize checkout summary from the restored cart before payment selection.
+
+Checkout A+:
+
+- Keep the existing Delivery/Pickup tab architecture and separate accordion state machines.
+- Add compact progress context near the active checkout panel, such as `Delivery - Billing - 2 of 4`, without adding bulky status chips.
+- Order Summary must include product thumbnails, item quantities, item amounts, capped `+N more` copy for longer carts, promo state, shipping/tax state, and total.
+- Before the payment section is active and a method is selected, Order Summary has no reserved PayPal panel, no official provider placeholder, and no empty payment box.
+- A+ supersedes older checkout blank/payment-pending placeholder language. Do not render explanatory payment placeholder panels or reserved provider slots before payment unlock and selected method.
+- Collapsed submitted sections show concise buyer-readable summaries plus one accessible icon-only edit action.
+- If an upstream section is edited after payment selection, selected provider actions clear, hide, or become clearly pending until backend reconciliation completes and active totals are current.
+- Compact progress context updates after submit, edit, backtracking, and fulfillment-tab switches.
+- The bottom trust strip should be compact and limited to implemented capabilities: official provider-owned payment surfaces, recalculated totals, Delivery/Pickup choice, and order recovery.
+
+Mobile A+:
+
+- Mobile checkout keeps order context reachable during long forms through a compact summary, sticky total/action, or summary disclosure that does not cover fields.
+- Sticky action uses `env(safe-area-inset-bottom)` and matching page padding so it never covers form fields, PayPal messages, footer content, or modal controls.
+- Selected non-card payment shows exactly one sticky provider action on mobile.
+- Sticky actions are hidden, disabled, or repositioned while open dialogs/sheets, pickup store modal controls, focused form fields, validation targets, or mobile keyboard/safe-area constraints would otherwise compete with them.
+- Pay Later selected on mobile reserves stable space for both the official button and official message or buyer-safe fallback.
+- Card payment remains inline in the card fields box and never moves into the sticky bar.
+
+PayPal A+:
+
+- Do not copy visual mockup PayPal buttons literally. Runtime uses official SDK-rendered PayPal, Pay Later, wallet, and card surfaces.
+- Merchant CSS may size SDK custom elements and wrapper slots for stable layout, but must not style PayPal SDK internals, iframes, shadow DOM, or official button/message internals.
+- Ineligible wallet rows are hidden and leave no stale selected action or reserved slot.
+- Missing cart/draft binding blocks create-order with visible buyer-safe syncing/retry copy.
+- If cart binding, checkout draft, payment eligibility, or active totals are loading, stale, missing, failed, or recalculating, selected provider actions are hidden or disabled with buyer-safe retry/sync copy and no PayPal create-order call is made.
+- Pay Later amount, eligibility, official message, and fallback copy refresh after cart quantity, fulfillment, shipping, pickup store, pickup date, promo, tax, or selected-payment changes.
+
 Guests cannot save payment methods.
 
 Vaulting:
@@ -1335,7 +1378,7 @@ Order snapshots store addresses, item prices, fulfillment mode, inventory contex
 
 ## Visual QA Gates
 
-- Check responsive screenshots at 375px, 768px, 1024px, and 1440px.
+- Check responsive screenshots at 320px, 375px, 390/414px, 768px, 1024px, 1280px, and 1440px for page-polish slices that touch mobile cart, checkout, sticky payment actions, filters, or PDP purchase surfaces.
 - Required screenshot pages: homepage, category, PDP, cart, minicart, delivery checkout payment step, pickup checkout partial inventory step, express Review and Confirm, order confirmation, account order detail, and Admin order detail.
 - Verify POP MART profile reads as playful premium collectible retail, not a generic white/red ecommerce shell.
 - Verify the multi-accent palette is controlled and section-based: no page-wide rainbow effect, no generic blue/amber/cream inheritance, and no childish clutter.

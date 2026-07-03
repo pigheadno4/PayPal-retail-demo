@@ -438,6 +438,17 @@ describe("global storefront visual tokens", () => {
     const paylaterSdkMessageBlock = cssBlock(
       ".paylater-amount-message paypal-message",
     );
+    const checkoutProgressBlock = cssBlock(".checkout-progress");
+    const checkoutReadinessBlock = cssBlock(".checkout-payment-readiness");
+    const checkoutStickyActionBlock = cssBlock(".checkout-sticky-action");
+    const mobileCheckoutPageBlock = cssBlockContaining(
+      ".checkout-page",
+      "padding-bottom: calc(128px + env(safe-area-inset-bottom))",
+    );
+    const mobileCheckoutStickyActionBlock = cssBlockContaining(
+      ".checkout-sticky-action",
+      "env(safe-area-inset-bottom)",
+    );
 
     expect(globalCss).toContain(
       "grid-template-columns: minmax(0, 1fr) minmax(420px, 0.38fr);",
@@ -502,6 +513,39 @@ describe("global storefront visual tokens", () => {
     expect(paylaterAmountMessageBlock).toContain("min-height: 28px");
     expect(paylaterSdkMessageBlock).toContain("display: block");
     expect(paylaterSdkMessageBlock).toContain("min-height: 28px");
+    expect(checkoutProgressBlock).toContain("min-height: 40px");
+    expect(checkoutProgressBlock).toContain("font-size: 0.84rem");
+    expect(checkoutReadinessBlock).toContain("background: #fff8f3");
+    expect(checkoutReadinessBlock).toContain("border: 1px solid");
+    expect(checkoutStickyActionBlock).toContain("bottom: 0");
+    expect(mobileCheckoutPageBlock).toContain(
+      "padding-bottom: calc(128px + env(safe-area-inset-bottom))",
+    );
+    expect(mobileCheckoutStickyActionBlock).toContain(
+      "padding-bottom: calc(10px + env(safe-area-inset-bottom))",
+    );
+    expect(globalCss).toContain(
+      "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-action",
+    );
+    expect(
+      cssBlock(
+        "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-action",
+      ),
+    ).toContain("display: none");
+    expect(globalCss).toContain(
+      'body:has([data-slot="sheet-content"]) .checkout-sticky-action',
+    );
+    expect(
+      cssBlock('body:has([data-slot="sheet-content"]) .checkout-sticky-action'),
+    ).toContain("display: none");
+    expect(globalCss).toContain(
+      'body:has([data-slot="dialog-content"]) .checkout-sticky-action',
+    );
+    expect(
+      cssBlock(
+        'body:has([data-slot="dialog-content"]) .checkout-sticky-action',
+      ),
+    ).toContain("display: none");
     expect(globalCss).toContain("@container cart-payment (max-width: 340px)");
     expect(globalCss).toContain(".cart-item {\n    align-items: start;");
     expect(globalCss).toContain(
@@ -531,6 +575,9 @@ describe("global storefront visual tokens", () => {
 
   it("keeps cart and checkout visual accents on merchant-owned surfaces only", () => {
     const cartHeroBlock = cssBlock(".cart-hero");
+    const cartCheckoutHeadingBlock = cssBlock(
+      ".cart-hero h1,\n.checkout-hero h1",
+    );
     const cartHeroAccentBlock = cssBlock(".cart-hero::before");
     const cartItemBlock = cssBlock(".cart-item");
     const cartItemAccentBlock = cssBlock(".cart-item::before");
@@ -554,6 +601,9 @@ describe("global storefront visual tokens", () => {
 
     expect(cartHeroBlock).toContain("linear-gradient(135deg");
     expect(cartHeroBlock).toContain("overflow: hidden");
+    expect(cartCheckoutHeadingBlock).toContain(
+      "font-size: clamp(2rem, 3vw, 2.7rem)",
+    );
     expect(cartHeroAccentBlock).toContain("var(--shell-accent)");
     expect(cartItemBlock).toContain("transition:");
     expect(cartItemAccentBlock).toContain("color-mix");
