@@ -469,6 +469,44 @@ describe("payment action failure handling", () => {
     ).toBeUndefined();
   });
 
+  it("reports Pay Later message timeout fallback as info instead of warning", () => {
+    vi.useFakeTimers();
+    const infoSpy = vi.spyOn(console, "info");
+    const warnSpy = vi.spyOn(console, "warn");
+    paypalSdkMockState.payLaterMessageReady = false;
+
+    render(
+      <PayLaterAmountMessage
+        amountLabel="$69.68"
+        buyerCountry="US"
+        currencyCode="USD"
+        placement="order-summary"
+      />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(2201);
+    });
+
+    expect(document.querySelector("paypal-message")).toBeTruthy();
+    expect(
+      document.querySelector(".paylater-amount-message__fallback")?.textContent,
+    ).toBe(
+      "Pay Later messaging is temporarily unavailable for $69.68. Select Pay Later to review PayPal-hosted options and terms.",
+    );
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[paypal-retail-demo] Pay Later message fallback shown",
+      {
+        amount: "69.68",
+        buyerCountry: "US",
+        currencyCode: "USD",
+        placement: "order-summary",
+        reason: "timeout",
+      },
+    );
+  });
+
   it("applies official Pay Later content for storefront message placements", async () => {
     paypalSdkMockState.payLaterMessageReady = true;
     paypalSdkMockState.payLaterMessageContent = {

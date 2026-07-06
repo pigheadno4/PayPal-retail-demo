@@ -8,6 +8,9 @@ describe("CartPage", () => {
   it("renders full cart items, quantity controls, amount-aware Pay Later, delivery express, checkout action, and pickup hint", () => {
     const html = renderToStaticMarkup(<CartPage data={cartData()} />);
 
+    expect(html).toContain('class="cart-status"');
+    expect(html).toContain('data-cart-density="compact"');
+    expect(html).not.toContain('class="cart-hero"');
     expect(html).toContain("<h1>Bag</h1>");
     expect(html).toContain("2 items");
     expect(html).toContain("$25.98 subtotal");

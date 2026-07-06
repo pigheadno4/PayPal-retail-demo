@@ -7,6 +7,7 @@ This file contains long-lived guardrails for this demo. Feature requirements bel
 - Preserve the confirmed POP MART-style retail demo purpose and mixed business/technical audience.
 - Keep buyer UI retail-first; PayPal branding belongs in official payment surfaces, not hero/nav marketing.
 - Frontend work must follow the implementation-grade UI/UX contracts in `DESIGN.md`; do not extend the generic red/white shell when a page contract requires POP MART collectible retail language.
+- Before planning Home, Category, PDP, Cart, Minicart, Checkout, Account, or order-confirmation polish, run `ui-ux-pro-max` as retrieval: design-system first, then targeted UX/style/typography/shadcn or React searches, then 2-3 synthesized options or mockups for user selection before implementation tasks.
 - Treat POP MART assets as customer-specific and not reusable outside this demo.
 - Keep the generic MochiToy Studio profile public-safe and fictional.
 - Use TypeScript for web, server, shared modules, tests, and seed tooling.

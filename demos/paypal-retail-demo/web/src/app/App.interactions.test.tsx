@@ -1580,7 +1580,7 @@ describe("App buyer interactions", () => {
     const minicart = screen.getByLabelText("Minicart");
     await user.click(within(minicart).getByRole("link", { name: "Checkout" }));
 
-    await screen.findByRole("heading", { name: "Delivery or Pickup" });
+    await findCheckoutStatus();
     await waitFor(() => {
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
@@ -1674,9 +1674,7 @@ describe("App buyer interactions", () => {
 
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Delivery or Pickup" }),
-      ).toBeTruthy();
+      expectCheckoutStatus();
     });
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
@@ -1795,9 +1793,7 @@ describe("App buyer interactions", () => {
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Delivery or Pickup" }),
-      ).toBeTruthy();
+      expectCheckoutStatus();
       expect(
         screen.getByRole("button", { name: "Open minicart" }).textContent,
       ).toContain("2");
@@ -1922,9 +1918,7 @@ describe("App buyer interactions", () => {
 
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Delivery or Pickup" }),
-      ).toBeTruthy();
+      expectCheckoutStatus();
     });
     const shippingStep = getStep("Shipping address");
     await user.click(
@@ -2639,9 +2633,7 @@ describe("App buyer interactions", () => {
     await user.click(screen.getByRole("link", { name: "Go to checkout" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Delivery or Pickup" }),
-      ).toBeTruthy();
+      expectCheckoutStatus();
     });
     expect(
       screen.getByRole("button", { name: "Open minicart" }).textContent,
@@ -2696,9 +2688,7 @@ describe("App buyer interactions", () => {
       }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Delivery or Pickup" }),
-    ).toBeTruthy();
+    expectCheckoutStatus();
     expect(globalThis.location.pathname).toBe("/checkout");
     expect(getShellStatusText()).toContain("Opened checkout.");
   });
@@ -2723,9 +2713,7 @@ describe("App buyer interactions", () => {
       }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Delivery or Pickup" }),
-    ).toBeTruthy();
+    expectCheckoutStatus();
     expect(globalThis.location.pathname).toBe("/checkout");
     expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Opened checkout.");
@@ -3174,11 +3162,13 @@ describe("App buyer interactions", () => {
     );
 
     const shippingStep = getStep("Shipping address");
-    await user.clear(within(shippingStep).getByLabelText("Full name"));
+    await user.clear(within(shippingStep).getByLabelText("First name"));
     await user.type(
-      within(shippingStep).getByLabelText("Full name"),
-      "Jordan Li",
+      within(shippingStep).getByLabelText("First name"),
+      "Jordan",
     );
+    await user.clear(within(shippingStep).getByLabelText("Last name"));
+    await user.type(within(shippingStep).getByLabelText("Last name"), "Li");
     await user.click(
       within(shippingStep).getByRole("button", {
         name: "Submit shipping address",
@@ -3222,7 +3212,9 @@ describe("App buyer interactions", () => {
     await waitFor(() => {
       expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
     });
-    expect(within(orderSummary).getAllByText("SAVE10")).toHaveLength(2);
+    expect(
+      within(orderSummary).getAllByText("-$4.00 promo (SAVE10)"),
+    ).toHaveLength(2);
     await waitForStepState(shippingStep, "saved");
 
     const billingStep = getStep("Billing address");
@@ -3297,7 +3289,7 @@ describe("App buyer interactions", () => {
     );
 
     await waitForStepState(shippingStep, "blocked");
-    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByLabelText("First name")).toBeTruthy();
     expect(within(shippingStep).getByRole("alert").textContent).toContain(
       "We could not save Shipping address. Please try again.",
     );
@@ -3415,7 +3407,9 @@ describe("App buyer interactions", () => {
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
     });
-    expect(within(orderSummary).getAllByText("PICKUP5")).toHaveLength(2);
+    expect(
+      within(orderSummary).getAllByText("-$4.00 promo (PICKUP5)"),
+    ).toHaveLength(2);
     expect(within(orderSummary).getByText("$13.49")).toBeTruthy();
 
     const billingStep = getStep("Billing address");
@@ -3489,14 +3483,17 @@ describe("App buyer interactions", () => {
       }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Delivery or Pickup" }),
-    ).toBeTruthy();
+    expectCheckoutStatus();
 
     await advanceDeliveryCheckoutToPayment(user);
 
     const paymentStep = getStep("Payment method");
     expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    const paypalRadio = within(paymentStep).getByRole("radio", {
+      name: "PayPal",
+    }) as HTMLInputElement;
+    expect(paypalRadio.checked).toBe(false);
+    await user.click(paypalRadio);
     expect(
       (
         within(paymentStep).getByRole("radio", {
@@ -3582,6 +3579,11 @@ describe("App buyer interactions", () => {
 
     const paymentStep = getStep("Payment method");
     expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    const paypalRadio = within(paymentStep).getByRole("radio", {
+      name: "PayPal",
+    }) as HTMLInputElement;
+    expect(paypalRadio.checked).toBe(false);
+    await user.click(paypalRadio);
     expect(
       (
         within(paymentStep).getByRole("radio", {
@@ -4210,6 +4212,16 @@ async function advanceDeliveryCheckoutToPayment(
     }),
   );
   await waitForStepState(shippingOptionsStep, "saved");
+}
+
+async function findCheckoutStatus() {
+  await screen.findByRole("heading", { name: "Secure checkout" });
+  expectCheckoutStatus();
+}
+
+function expectCheckoutStatus() {
+  expect(screen.getByRole("heading", { name: "Secure checkout" })).toBeTruthy();
+  expect(screen.getByText("Delivery or Pickup")).toBeTruthy();
 }
 
 function getStep(title: string): HTMLElement {

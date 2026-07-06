@@ -86,14 +86,15 @@ export function CartPage({
 
   return (
     <div className="cart-page" data-visual-accent-scope="cart">
-      <header className="cart-hero" aria-label={data.title}>
-        <p className="homepage-eyebrow">Cart</p>
-        <div>
-          <h1>Bag</h1>
-          <p>
-            {itemCountLabel} - {subtotalLabel} subtotal
-          </p>
-        </div>
+      <header
+        className="cart-status"
+        data-cart-density="compact"
+        aria-label={data.title}
+      >
+        <h1>Bag</h1>
+        <p>
+          {itemCountLabel} - {subtotalLabel} subtotal
+        </p>
       </header>
 
       <section className="cart-items" aria-label="Cart items">

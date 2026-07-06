@@ -290,11 +290,12 @@ function PayLaterManagedAmountMessage({
         if (currentState !== "loading") {
           return currentState;
         }
-        console.warn("[paypal-retail-demo] Pay Later message timed out", {
+        console.info("[paypal-retail-demo] Pay Later message fallback shown", {
           amount: amount ?? null,
           buyerCountry,
           currencyCode,
           placement,
+          reason: "timeout",
         });
         return "fallback";
       });

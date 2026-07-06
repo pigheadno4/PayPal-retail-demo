@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useEffect, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CheckoutPage,
   type CheckoutChoice,
+  type CheckoutDraftUpdateRequest,
   type CheckoutPageData,
   type CheckoutPaymentReadiness,
   type CheckoutSelectedPaymentMethod,
@@ -30,6 +32,8 @@ describe("CheckoutPage", () => {
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 
+    expect(html).toContain('class="checkout-status"');
+    expect(html).not.toContain('class="checkout-hero"');
     expect(html).toContain('data-slot="tabs"');
     expect(html).toContain('data-visual-accent-scope="checkout"');
     expect(html).toContain('data-slot="tabs-list"');
@@ -102,7 +106,7 @@ describe("CheckoutPage", () => {
 
     expect(html).toContain('aria-label="Checkout breadcrumb"');
     expect(html).toContain("Secure checkout");
-    expect(html).toContain("Confirm fulfillment, review totals");
+    expect(html).toContain("Delivery or Pickup");
     expect(html).toContain("Labubu Have a Seat");
     expect(html).toContain("Hirono Little Mischief");
     expect(html).toContain("Qty 1");
@@ -160,11 +164,14 @@ describe("CheckoutPage", () => {
   it("renders only the active Delivery shipping section before accordion progression", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 
-    expect(html).toContain("Full name");
+    expect(html).toContain("First name");
+    expect(html).toContain("Last name");
     expect(html).toContain("Street address");
+    expect(html).toContain("Apt, suite, or building");
     expect(html).toContain("City");
     expect(html).toContain("State");
     expect(html).toContain("ZIP code");
+    expect(html).toContain("Phone number");
     expect(html).toContain("Submit shipping address");
     expect(html).not.toContain("Save billing address");
     expect(html).not.toContain("Standard shipping");
@@ -259,6 +266,36 @@ describe("CheckoutPage", () => {
     );
   });
 
+  it("scrolls the mobile validation focus target above the sticky summary", async () => {
+    mockMobileCheckoutViewport();
+    const { restore, scrollIntoView } = mockElementScrollIntoView();
+    const validation: CheckoutValidationState = {
+      summaryMessage: "Shipping address needs attention.",
+      focusStepId: "shipping-address",
+      messages: [
+        {
+          id: "shipping-address-city-error",
+          stepId: "shipping-address",
+          fieldLabel: "City",
+          message: "City is required before shipping options can be quoted.",
+        },
+      ],
+    };
+
+    try {
+      render(<CheckoutPage data={checkoutData({ validation })} />);
+
+      await waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          block: "end",
+          inline: "nearest",
+        });
+      });
+    } finally {
+      restore();
+    }
+  });
+
   it("withholds the Order Summary payment action before the payment step is active", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
@@ -290,8 +327,25 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-slot="field"');
     expect(html).toContain('data-slot="field-label"');
     expect(html).toContain('data-slot="input"');
-    expect(html).toContain('autoComplete="name"');
+    expect(html).toContain("First name");
+    expect(html).toContain('autoComplete="given-name"');
+    expect(html).toContain("Last name");
+    expect(html).toContain('autoComplete="family-name"');
+    expect(html).toContain("Street address");
+    expect(html).toContain('autoComplete="address-line1"');
+    expect(html).toContain("Apt, suite, or building");
+    expect(html).toContain('autoComplete="address-line2"');
+    expect(html).toContain("City");
+    expect(html).toContain('autoComplete="address-level2"');
+    expect(html).toContain("State");
+    expect(html).toContain('data-slot="select"');
+    expect(html).toContain('data-slot="select-trigger"');
+    expect(html).toContain("ZIP code");
     expect(html).toContain('autoComplete="postal-code"');
+    expect(html).toContain('inputMode="numeric"');
+    expect(html).toContain("Phone number");
+    expect(html).toContain('autoComplete="tel"');
+    expect(html).toContain('inputMode="tel"');
     expect(html).toContain('required=""');
     expect(html).toContain("Required to continue this checkout step.");
   });
@@ -302,6 +356,7 @@ describe("CheckoutPage", () => {
         data={checkoutData({
           activeMode: "pickup",
           activePickupStepId: "pickup-payment-method",
+          selectedPaymentMethod: "paypal",
         })}
         renderPaymentAction={(context) => (
           <div
@@ -430,20 +485,45 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Retry checkout details before payment.");
   });
 
-  it("renders selected non-card payment only in the mobile sticky action", () => {
-    vi.spyOn(window, "matchMedia").mockImplementation(
-      (query: string) =>
-        ({
-          addEventListener: () => undefined,
-          addListener: () => undefined,
-          dispatchEvent: () => false,
-          matches: query === "(max-width: 760px)",
-          media: query,
-          onchange: null,
-          removeEventListener: () => undefined,
-          removeListener: () => undefined,
-        }) as MediaQueryList,
+  it("keeps the mobile sticky summary neutral until the buyer selects a payment method", () => {
+    mockMobileCheckoutViewport();
+    const renderPaymentAction = vi.fn(() => (
+      <div data-payment-action-placement="selected-provider">
+        Payment action
+      </div>
+    ));
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: null,
+        })}
+        renderPaymentAction={renderPaymentAction}
+      />,
     );
+
+    expect(renderPaymentAction).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Selected payment method")).toBeNull();
+
+    const stickySummary = screen.getByLabelText("Checkout summary");
+    expect(
+      within(stickySummary).getByRole("button", {
+        name: "Review order details",
+      }),
+    ).toBeTruthy();
+    expect(within(stickySummary).getByText("Total")).toBeTruthy();
+    expect(within(stickySummary).getByText("$25.98")).toBeTruthy();
+    expect(
+      within(stickySummary)
+        .getByRole("button", { name: "Choose payment" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(within(stickySummary).queryByText("Labubu Have a Seat")).toBeNull();
+  });
+
+  it("renders selected non-card payment only in the mobile sticky summary", () => {
+    mockMobileCheckoutViewport();
 
     render(
       <CheckoutPage
@@ -464,10 +544,100 @@ describe("CheckoutPage", () => {
 
     expect(screen.queryByLabelText("Selected payment method")).toBeNull();
 
-    const stickyAction = screen.getByLabelText("Selected payment action");
-    expect(within(stickyAction).getByText("Payment action")).toBeTruthy();
-    expect(within(stickyAction).getByText("Secure checkout")).toBeTruthy();
-    expect(within(stickyAction).getByText("$25.98")).toBeTruthy();
+    const stickySummary = screen.getByLabelText("Checkout summary");
+    expect(within(stickySummary).getByText("Payment action")).toBeTruthy();
+    expect(within(stickySummary).getByText("Total")).toBeTruthy();
+    expect(within(stickySummary).getByText("$25.98")).toBeTruthy();
+    expect(
+      within(stickySummary).getByRole("button", {
+        name: "Review order details",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("opens mobile order details in a shadcn bottom sheet from the sticky grabber", async () => {
+    mockMobileCheckoutViewport();
+    const user = userEvent.setup();
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          deliveryShippingLabel: "$6.50",
+          deliveryTotalLabel: "$43.00",
+          selectedPaymentMethod: "paypal",
+        })}
+        renderPaymentAction={() => (
+          <div data-payment-action-placement="selected-provider">
+            Pay with PayPal
+          </div>
+        )}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: "Review order details",
+    });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.getAttribute("aria-controls")).toBe(
+      "checkout-order-details-sheet",
+    );
+
+    await user.click(trigger);
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Order details",
+    });
+    const closeHandle = within(dialog).getByRole("button", {
+      name: "Close order details",
+    });
+
+    expect(dialog.getAttribute("data-slot")).toBe("sheet-content");
+    expect(dialog.getAttribute("data-side")).toBe("bottom");
+    expect(dialog.id).toBe("checkout-order-details-sheet");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.getAttribute("aria-controls")).toBe(dialog.id);
+    expect(closeHandle.getAttribute("data-slot")).toBe("sheet-close");
+    expect(within(dialog).getByText("Labubu Have a Seat")).toBeTruthy();
+    expect(within(dialog).getByText("Merchandise subtotal")).toBeTruthy();
+    expect(within(dialog).getByText("Shipping")).toBeTruthy();
+    expect(within(dialog).getByText("$5.00")).toBeTruthy();
+    expect(within(dialog).getByText("Total")).toBeTruthy();
+    expect(within(dialog).getByText("$41.50")).toBeTruthy();
+    expect(within(dialog).getByText("Pay with PayPal")).toBeTruthy();
+
+    await user.click(closeHandle);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Order details" }),
+      ).toBeNull();
+    });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+
+    await user.click(trigger);
+    await screen.findByRole("dialog", { name: "Order details" });
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Order details" }),
+      ).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
+
+    await user.click(trigger);
+    await screen.findByRole("dialog", { name: "Order details" });
+    const overlay = document.querySelector<HTMLElement>(
+      '[data-slot="sheet-overlay"]',
+    );
+    expect(overlay).not.toBeNull();
+    await user.click(overlay as HTMLElement);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Order details" }),
+      ).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("keeps the Pay Later row compact and leaves messaging beside the payment action", () => {
@@ -476,6 +646,7 @@ describe("CheckoutPage", () => {
         data={checkoutData({
           activeDeliveryStepId: "payment-method",
           activeMode: "delivery",
+          selectedPaymentMethod: null,
         })}
       />,
     );
@@ -524,6 +695,78 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Card fields");
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('class="checkout-sticky-action"');
+  });
+
+  it("scrolls focused billing inputs above the mobile sticky summary", async () => {
+    mockMobileCheckoutViewport();
+    const { restore, scrollIntoView } = mockElementScrollIntoView();
+    const user = userEvent.setup();
+
+    try {
+      render(
+        <CheckoutPage
+          data={checkoutData({ activeDeliveryStepId: "billing-address" })}
+        />,
+      );
+
+      await user.click(screen.getByLabelText("Same as shipping"));
+      const billingStreetInput = screen.getByLabelText(
+        "Billing street address",
+      );
+      scrollIntoView.mockClear();
+
+      billingStreetInput.focus();
+
+      await waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          block: "end",
+          inline: "nearest",
+        });
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it("scrolls selected card fields above the mobile sticky summary after render", async () => {
+    mockMobileCheckoutViewport();
+    const { restore, scrollBy, scrollIntoView } = mockElementScrollIntoView();
+    const restoreRects = mockCheckoutStickyOverlapRects();
+    const user = userEvent.setup();
+
+    try {
+      render(
+        <CheckoutPage
+          data={checkoutData({
+            activeDeliveryStepId: "payment-method",
+            selectedPaymentMethod: null,
+          })}
+          renderCardPaymentBox={() => <AsyncCardPaymentBox />}
+        />,
+      );
+
+      await user.click(
+        screen.getByRole("radio", {
+          name: /Credit or debit card/,
+        }),
+      );
+
+      expect(screen.getByText("Card number")).toBeTruthy();
+      await waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({
+          block: "end",
+          inline: "nearest",
+        });
+      });
+      expect(scrollBy).toHaveBeenCalledWith({
+        behavior: "auto",
+        left: 0,
+        top: 67,
+      });
+    } finally {
+      restoreRects();
+      restore();
+    }
   });
 
   it("passes save-for-future eligibility only for supported selected methods", () => {
@@ -687,6 +930,54 @@ describe("CheckoutPage", () => {
     );
   });
 
+  it("queues delivery draft updates when billing is submitted before shipping save settles", async () => {
+    const user = userEvent.setup();
+    let resolveShippingUpdate: ((value: CheckoutPageData) => void) | undefined;
+    const shippingUpdatedData = checkoutData({
+      activeDeliveryStepId: "billing-address",
+      deliveryTotalLabel: "$75.63",
+    });
+    const billingUpdatedData = checkoutData({
+      activeDeliveryStepId: "shipping-options",
+      deliveryTotalLabel: "$75.63",
+    });
+    const onDraftUpdate = vi.fn(
+      (request: CheckoutDraftUpdateRequest, _currentData: CheckoutPageData) => {
+        if (request.type === "delivery_shipping_address") {
+          return new Promise<CheckoutPageData>((resolve) => {
+            resolveShippingUpdate = resolve;
+          });
+        }
+
+        return Promise.resolve(billingUpdatedData);
+      },
+    );
+
+    render(
+      <CheckoutPage data={checkoutData()} onDraftUpdate={onDraftUpdate} />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit shipping address" }),
+    );
+    expect(onDraftUpdate).toHaveBeenCalledTimes(1);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Save billing address" }),
+    );
+    expect(onDraftUpdate).toHaveBeenCalledTimes(1);
+
+    resolveShippingUpdate?.(shippingUpdatedData);
+
+    await waitFor(() => {
+      expect(onDraftUpdate).toHaveBeenCalledTimes(2);
+    });
+    expect(onDraftUpdate.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ type: "delivery_billing_address" }),
+    );
+    expect(onDraftUpdate.mock.calls[1]?.[1]).toBe(shippingUpdatedData);
+  });
+
   it("reflects the selected shipping option in the order summary before submit", async () => {
     const user = userEvent.setup();
 
@@ -743,7 +1034,7 @@ describe("CheckoutPage", () => {
 
     render(
       <CheckoutPage
-        data={checkoutData()}
+        data={checkoutData({ selectedPaymentMethod: "paypal" })}
         renderPaymentAction={(context) => (
           <div
             data-payment-action-placement="order-summary"
@@ -792,23 +1083,28 @@ function checkoutData(
       readonly paymentChoices: readonly CheckoutChoice[];
       readonly pickupStoreMode: "guest" | "preselected";
       readonly saveForFutureEligible: boolean;
-      readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
+      readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | null;
     }
   > = {},
 ): CheckoutPageData {
-  const selectedPaymentMethod = overrides.selectedPaymentMethod ?? "paypal";
+  const selectedPaymentMethod =
+    overrides.selectedPaymentMethod === null
+      ? undefined
+      : overrides.selectedPaymentMethod;
   const selectedPaymentLabel =
-    selectedPaymentMethod === "paylater"
-      ? "Pay Later selected"
-      : selectedPaymentMethod === "card"
-        ? "Credit or debit card selected"
-        : selectedPaymentMethod === "apple_pay"
-          ? "Apple Pay selected"
-          : selectedPaymentMethod === "google_pay"
-            ? "Google Pay selected"
-            : selectedPaymentMethod === "venmo"
-              ? "Venmo selected"
-              : "PayPal selected";
+    selectedPaymentMethod === undefined
+      ? "Choose payment method"
+      : selectedPaymentMethod === "paylater"
+        ? "Pay Later selected"
+        : selectedPaymentMethod === "card"
+          ? "Credit or debit card selected"
+          : selectedPaymentMethod === "apple_pay"
+            ? "Apple Pay selected"
+            : selectedPaymentMethod === "google_pay"
+              ? "Google Pay selected"
+              : selectedPaymentMethod === "venmo"
+                ? "Venmo selected"
+                : "PayPal selected";
 
   const deliverySteps: readonly CheckoutStep[] = [
     {
@@ -925,7 +1221,7 @@ function checkoutData(
         taxLabel: "Calculated before payment",
         totalLabel: overrides.deliveryTotalLabel ?? "$25.98",
         selectedPaymentLabel,
-        selectedPaymentMethod,
+        ...(selectedPaymentMethod ? { selectedPaymentMethod } : {}),
         ...(overrides.saveForFutureEligible === undefined
           ? {}
           : { saveForFutureEligible: overrides.saveForFutureEligible }),
@@ -959,7 +1255,7 @@ function checkoutData(
         taxLabel: "Calculated before payment",
         totalLabel: "$12.99",
         selectedPaymentLabel,
-        selectedPaymentMethod,
+        ...(selectedPaymentMethod ? { selectedPaymentMethod } : {}),
         ...(overrides.saveForFutureEligible === undefined
           ? {}
           : { saveForFutureEligible: overrides.saveForFutureEligible }),
@@ -979,6 +1275,140 @@ function checkoutData(
   return overrides.validation
     ? { ...data, validation: overrides.validation }
     : data;
+}
+
+function mockMobileCheckoutViewport() {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        addEventListener: () => undefined,
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        matches: query === "(max-width: 760px)",
+        media: query,
+        onchange: null,
+        removeEventListener: () => undefined,
+        removeListener: () => undefined,
+      }) as MediaQueryList,
+  );
+}
+
+function AsyncCardPaymentBox() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
+  if (!ready) {
+    return <div data-card-loading="true">Loading card fields</div>;
+  }
+
+  return (
+    <form className="card-fields-checkout-action">
+      <label>
+        Card number
+        <input />
+      </label>
+    </form>
+  );
+}
+
+function mockElementScrollIntoView(): {
+  readonly restore: () => void;
+  readonly scrollBy: ReturnType<typeof vi.fn>;
+  readonly scrollIntoView: ReturnType<typeof vi.fn>;
+} {
+  const originalScrollBy = window.scrollBy;
+  const originalScrollIntoView = window.Element.prototype.scrollIntoView;
+  const scrollBy = vi.fn();
+  const scrollIntoView = vi.fn();
+
+  Object.defineProperty(window, "scrollBy", {
+    configurable: true,
+    value: scrollBy,
+  });
+  Object.defineProperty(window.Element.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView,
+  });
+
+  return {
+    restore: () => {
+      if (originalScrollBy) {
+        Object.defineProperty(window, "scrollBy", {
+          configurable: true,
+          value: originalScrollBy,
+        });
+      } else {
+        Reflect.deleteProperty(window, "scrollBy");
+      }
+
+      if (originalScrollIntoView) {
+        Object.defineProperty(window.Element.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        Reflect.deleteProperty(window.Element.prototype, "scrollIntoView");
+      }
+    },
+    scrollBy,
+    scrollIntoView,
+  };
+}
+
+function mockCheckoutStickyOverlapRects(): () => void {
+  const originalGetBoundingClientRect =
+    window.Element.prototype.getBoundingClientRect;
+  Object.defineProperty(window.Element.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: function getMockedBoundingClientRect(this: Element) {
+      if (this instanceof Element) {
+        if (this.classList.contains("checkout-sticky-summary")) {
+          return rectFromBounds({
+            bottom: 844,
+            height: 115,
+            left: 0,
+            right: 390,
+            top: 729,
+            width: 390,
+          });
+        }
+
+        if (this.classList.contains("card-fields-checkout-action")) {
+          return rectFromBounds({
+            bottom: 780,
+            height: 305,
+            left: 57,
+            right: 333,
+            top: 475,
+            width: 276,
+          });
+        }
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    },
+  });
+
+  return () => {
+    Object.defineProperty(window.Element.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: originalGetBoundingClientRect,
+    });
+  };
+}
+
+function rectFromBounds(
+  rect: Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">,
+) {
+  return {
+    ...rect,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => rect,
+  };
 }
 
 function moveStepFirst(

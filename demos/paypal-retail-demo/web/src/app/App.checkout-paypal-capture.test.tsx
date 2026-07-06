@@ -26,10 +26,18 @@ import type {
 } from "../api/client.js";
 import type { BuyerAuthClient } from "../features/account/authClient.js";
 import type { CartData } from "../features/cart/cartModel.js";
+import {
+  defaultCheckoutPageData,
+  type CheckoutPageData,
+  type CheckoutPaymentReadiness,
+} from "../features/checkout/CheckoutPage.js";
 import { App } from "./App.js";
 
 const cardFieldsMockState = vi.hoisted(() => ({
   submit: vi.fn<(orderId: string) => Promise<void>>(() => Promise.resolve()),
+}));
+const paypalButtonMockState = vi.hoisted(() => ({
+  createOrderCallbacks: vi.fn<() => void>(),
 }));
 
 vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
@@ -51,6 +59,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
       <button
         data-presentation-mode={presentationMode}
         onClick={() => {
+          paypalButtonMockState.createOrderCallbacks();
           void createOrder().then(async ({ orderId }) => {
             await onApprove?.({
               orderId,
@@ -154,6 +163,8 @@ beforeAll(() => {
 beforeEach(() => {
   cardFieldsMockState.submit.mockReset();
   cardFieldsMockState.submit.mockResolvedValue(undefined);
+  paypalButtonMockState.createOrderCallbacks.mockReset();
+  setCheckoutMobileViewport(false);
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: createMemoryStorage(),
@@ -167,6 +178,42 @@ afterEach(() => {
 });
 
 describe("App checkout PayPal capture", () => {
+  it("keeps payment-ready checkout neutral until a method is selected", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const paymentStep = getStep("Payment method");
+    expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      (
+        within(paymentStep).getByRole("radio", {
+          name: /PayPal/,
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+    expect(screen.queryByRole("button", { name: "Mock PayPal" })).toBeNull();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+  });
+
   it("captures approved checkout PayPal orders and shows confirmation", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -205,6 +252,7 @@ describe("App checkout PayPal capture", () => {
     );
 
     await advanceDeliveryCheckoutToPayment(user);
+    await user.click(screen.getByRole("radio", { name: /PayPal/ }));
 
     const orderSummary = screen.getByRole("complementary", {
       name: "Order summary",
@@ -213,9 +261,33 @@ describe("App checkout PayPal capture", () => {
       name: "Mock PayPal",
     });
 
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+
     await user.click(paypalButton);
 
     await waitFor(() => {
+      expect(paypalButtonMockState.createOrderCallbacks).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            checkout_draft_id: "11111111-1111-4111-8111-111111111111",
+            method: "paypal",
+          },
+          method: "post",
+          path: "/api/paypal/orders/delivery",
+          query: {
+            market: "US",
+          },
+        }),
+      );
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
           method: "get",
@@ -244,6 +316,536 @@ describe("App checkout PayPal capture", () => {
     expect(
       screen.getByRole("button", { name: "Open minicart" }).textContent,
     ).toContain("0");
+  });
+
+  it("creates exactly one selected Pay Later order from the current checkout draft", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse({
+          paymentMethodLabel: "Pay Later",
+          paymentSessionId: "payment_session_paylater_checkout",
+          paypalOrderId: "PAYPAL_ORDER_PAYLATER_CHECKOUT",
+        }),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_after_paylater_capture",
+          cartPublicId: "cart_public_after_paylater_capture",
+        }),
+      ],
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000011",
+          payment_session_id: "payment_session_paylater_checkout",
+          paypal_order_id: "PAYPAL_ORDER_PAYLATER_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-paylater-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_PAYLATER_CHECKOUT/capture":
+          captureApiResponse({
+            paymentSessionId: "payment_session_paylater_checkout",
+            paypalOrderId: "PAYPAL_ORDER_PAYLATER_CHECKOUT",
+          }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /Pay Later/,
+      }),
+    );
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    const payLaterButton = await within(orderSummary).findByRole("button", {
+      name: "Mock PayPal",
+    });
+
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+
+    await user.click(payLaterButton);
+
+    await waitFor(() => {
+      expect(paypalButtonMockState.createOrderCallbacks).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            checkout_draft_id: "11111111-1111-4111-8111-111111111111",
+            method: "paylater",
+          },
+          method: "post",
+          path: "/api/paypal/orders/delivery",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_PAYLATER_CHECKOUT/capture",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+    });
+  });
+
+  it.each([
+    [
+      "recalculating",
+      "Payment is recalculating",
+      "Updated totals are syncing before payment.",
+    ],
+    [
+      "failed",
+      "Payment needs refresh",
+      "Refresh checkout details before continuing.",
+    ],
+  ] as const)(
+    "withholds checkout provider requests and callbacks while mapped readiness is %s",
+    async (state, title, body) => {
+      const user = userEvent.setup();
+      const apiClient = createRecordingApiClient({
+        postResponseByPath: {
+          "/api/paypal/orders/delivery": {
+            merchant_order_id: "DO-20260624-000017",
+            payment_session_id: "payment_session_readiness_blocked_checkout",
+            paypal_order_id: "PAYPAL_ORDER_READINESS_BLOCKED_CHECKOUT",
+            paypal_order_status: "CREATED",
+            paypal_request_id: "request-create-readiness-blocked-checkout",
+          },
+        },
+      });
+
+      render(
+        <App
+          apiClient={apiClient}
+          authClient={createNullAuthClient()}
+          initialCart={singleItemCart({ quantity: 1 })}
+          initialPathname="/checkout"
+          initialCheckout={checkoutWithOpenPaymentReadiness({
+            state,
+          })}
+        />,
+      );
+
+      const paymentStep = getStep("Payment method");
+      const paypalRadio = within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }) as HTMLInputElement;
+      await user.click(paypalRadio);
+      const orderSummary = screen.getByRole("complementary", {
+        name: "Order summary",
+      });
+
+      await waitFor(() => {
+        expect(paypalRadio.checked).toBe(true);
+        expect(within(orderSummary).getByText(title)).toBeTruthy();
+        expect(within(orderSummary).getByText(body)).toBeTruthy();
+      });
+      expect(screen.queryByRole("button", { name: "Mock PayPal" })).toBeNull();
+      expect(queryCheckoutStickyPaymentAction()).toBeNull();
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(0);
+      expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+    },
+  );
+
+  it("suspends mobile sticky provider requests and callbacks while an upstream input is focused", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000018",
+          payment_session_id: "payment_session_focused_input_checkout",
+          paypal_order_id: "PAYPAL_ORDER_FOCUSED_INPUT_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-focused-input-checkout",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+
+    const billingStep = getStep("Billing address");
+    await user.click(
+      within(billingStep).getByRole("button", {
+        name: "Edit billing address",
+      }),
+    );
+    await user.click(within(billingStep).getByLabelText("Same as shipping"));
+    const billingStreetInput = within(billingStep).getByLabelText(
+      "Billing street address",
+    );
+    await user.click(billingStreetInput);
+
+    expect(document.activeElement).toBe(billingStreetInput);
+    expect(queryCheckoutStickyPaymentAction()).toBeNull();
+    expect(getCheckoutStickyChoosePaymentButton().disabled).toBe(true);
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+  });
+
+  it("suspends the mobile sticky provider action while the mobile menu is open", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000012",
+          payment_session_id: "payment_session_suspended_checkout",
+          paypal_order_id: "PAYPAL_ORDER_SUSPENDED_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-suspended-checkout",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Open mobile menu" }));
+
+    expect(
+      screen.getByRole("navigation", { name: "Mobile menu" }),
+    ).toBeTruthy();
+    expect(queryCheckoutStickySummary()).toBeNull();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+  });
+
+  it("suspends the mobile sticky provider action while the minicart sheet is open", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000013",
+          payment_session_id: "payment_session_minicart_suspended_checkout",
+          paypal_order_id: "PAYPAL_ORDER_MINICART_SUSPENDED_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-minicart-suspended-checkout",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+
+    expect(screen.getByLabelText("Minicart")).toBeTruthy();
+    expect(queryCheckoutStickySummary()).toBeNull();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+  });
+
+  it("suspends the mobile sticky provider action while the sign-in dialog is open", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000014",
+          payment_session_id: "payment_session_auth_suspended_checkout",
+          paypal_order_id: "PAYPAL_ORDER_AUTH_SUSPENDED_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-auth-suspended-checkout",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(screen.getByRole("dialog", { name: "Sign in" })).toBeTruthy();
+    expect(queryCheckoutStickySummary()).toBeNull();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+  });
+
+  it("creates one mobile sheet order only after reviewing details and tapping the provider action", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse({
+          paymentSessionId: "payment_session_sheet_checkout",
+          paypalOrderId: "PAYPAL_ORDER_SHEET_CHECKOUT",
+        }),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_after_sheet_capture",
+          cartPublicId: "cart_public_after_sheet_capture",
+        }),
+      ],
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000015",
+          payment_session_id: "payment_session_sheet_checkout",
+          paypal_order_id: "PAYPAL_ORDER_SHEET_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-sheet-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_SHEET_CHECKOUT/capture":
+          captureApiResponse({
+            paymentSessionId: "payment_session_sheet_checkout",
+            paypalOrderId: "PAYPAL_ORDER_SHEET_CHECKOUT",
+          }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+
+    await user.click(
+      within(getCheckoutStickySummary()).getByRole("button", {
+        name: "Review order details",
+      }),
+    );
+
+    const orderDetailsSheet = await screen.findByRole("dialog", {
+      name: "Order details",
+    });
+    expect(queryCheckoutStickyPaymentAction()).toBeNull();
+    expect(orderDetailsSheet.textContent).toContain("1 item - Ground delivery");
+    const sheetPayPalButton = await within(orderDetailsSheet).findByRole(
+      "button",
+      {
+        name: "Mock PayPal",
+      },
+    );
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+
+    await user.click(sheetPayPalButton);
+
+    await waitFor(() => {
+      expect(paypalButtonMockState.createOrderCallbacks).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            checkout_draft_id: "11111111-1111-4111-8111-111111111111",
+            method: "paypal",
+          },
+          method: "post",
+          path: "/api/paypal/orders/delivery",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_SHEET_CHECKOUT/capture",
+          query: {
+            market: "US",
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByRole("heading", { name: "Thank you!" })).toBeTruthy();
+  });
+
+  it("does not create mobile provider orders when the reviewed sheet is opened and closed without payment", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000016",
+          payment_session_id: "payment_session_sheet_closed_checkout",
+          paypal_order_id: "PAYPAL_ORDER_SHEET_CLOSED_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-sheet-closed-checkout",
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
+
+    await user.click(
+      within(getCheckoutStickySummary()).getByRole("button", {
+        name: "Review order details",
+      }),
+    );
+    const orderDetailsSheet = await screen.findByRole("dialog", {
+      name: "Order details",
+    });
+
+    await user.click(
+      within(orderDetailsSheet).getByRole("button", {
+        name: "Close order details",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Order details" }),
+      ).toBeNull();
+    });
+    expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
   });
 
   it("captures approved checkout card field orders and shows confirmation", async () => {
@@ -298,6 +900,19 @@ describe("App checkout PayPal capture", () => {
         name: /Credit or debit card/,
       }),
     );
+    expect(
+      document.querySelector(".checkout-sticky-summary [data-payment-method]"),
+    ).toBeNull();
+    expect(
+      within(paymentStep).getByRole("button", {
+        name: "Pay by card",
+      }),
+    ).toBeTruthy();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+    expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+
     await user.click(
       await within(paymentStep).findByRole("button", {
         name: "Pay by card",
@@ -307,6 +922,23 @@ describe("App checkout PayPal capture", () => {
     await waitFor(() => {
       expect(cardFieldsMockState.submit).toHaveBeenCalledWith(
         "PAYPAL_ORDER_CARD_CHECKOUT",
+      );
+      expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            checkout_draft_id: "11111111-1111-4111-8111-111111111111",
+            method: "card",
+          }),
+          method: "post",
+          path: "/api/paypal/orders/delivery",
+          query: {
+            market: "US",
+          },
+        }),
       );
       expect(apiClient.calls).toContainEqual(
         expect.objectContaining({
@@ -378,10 +1010,68 @@ function getStep(title: string): HTMLElement {
   return step;
 }
 
+function getCheckoutStickySummary(): HTMLElement {
+  const summary = queryCheckoutStickySummary();
+
+  if (!summary) {
+    throw new Error("Expected checkout sticky summary to be mounted");
+  }
+
+  return summary as HTMLElement;
+}
+
+function queryCheckoutStickySummary(): Element | null {
+  return document.querySelector(".checkout-sticky-summary");
+}
+
+function queryCheckoutStickyPaymentAction(): Element | null {
+  return document.querySelector(
+    ".checkout-sticky-summary [data-payment-method]",
+  );
+}
+
+function getCheckoutStickyChoosePaymentButton(): HTMLButtonElement {
+  const button = document.querySelector(
+    ".checkout-sticky-summary__choose-payment",
+  );
+
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error("Expected checkout sticky summary to show Choose payment");
+  }
+
+  return button;
+}
+
 async function waitForStepState(step: HTMLElement, state: string) {
   await waitFor(() => {
     expect(step.getAttribute("data-step-state")).toBe(state);
   });
+}
+
+function setCheckoutMobileViewport(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string) =>
+      ({
+        addEventListener: () => undefined,
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        matches,
+        media: query,
+        onchange: null,
+        removeEventListener: () => undefined,
+        removeListener: () => undefined,
+      }) as MediaQueryList,
+  });
+}
+
+function countCreateOrderRequests(
+  apiClient: { readonly calls: readonly RecordingApiCall[] },
+  path: "/api/paypal/orders/delivery" | "/api/paypal/orders/bopis",
+) {
+  return apiClient.calls.filter(
+    (call) => call.method === "post" && call.path === path,
+  ).length;
 }
 
 function createRecordingApiClient(
@@ -604,7 +1294,45 @@ function emptyCartApiResponse({
   };
 }
 
-function checkoutDraftApiResponse() {
+function checkoutWithOpenPaymentReadiness(
+  paymentReadiness: CheckoutPaymentReadiness,
+): CheckoutPageData {
+  const paymentStep = defaultCheckoutPageData.delivery.steps.find(
+    (step) => step.id === "payment-method",
+  );
+
+  if (!paymentStep) {
+    throw new Error("Default checkout data is missing the payment step");
+  }
+
+  return {
+    ...defaultCheckoutPageData,
+    delivery: {
+      ...defaultCheckoutPageData.delivery,
+      checkoutDraftId: "11111111-1111-4111-8111-111111111111",
+      paymentReadiness,
+      steps: [
+        {
+          ...paymentStep,
+          state: "editing",
+        },
+        ...defaultCheckoutPageData.delivery.steps.filter(
+          (step) => step.id !== "payment-method",
+        ),
+      ],
+    },
+  };
+}
+
+function checkoutDraftApiResponse({
+  paymentReadiness,
+}: {
+  readonly paymentReadiness?: {
+    readonly state: "ready" | "syncing" | "recalculating" | "stale" | "failed";
+    readonly title?: string;
+    readonly body?: string;
+  };
+} = {}) {
   return {
     draft: {
       id: "11111111-1111-4111-8111-111111111111",
@@ -612,6 +1340,7 @@ function checkoutDraftApiResponse() {
       fulfillment_mode: "delivery",
       status: "draft",
       active_step: "shipping_option",
+      ...(paymentReadiness ? { payment_readiness: paymentReadiness } : {}),
       delivery: {
         shipping_address: null,
         billing_address: null,

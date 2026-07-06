@@ -76,11 +76,13 @@ describe("CheckoutPage interactions", () => {
     );
 
     const shippingStep = getStep("Shipping address");
-    await user.clear(within(shippingStep).getByLabelText("Full name"));
+    await user.clear(within(shippingStep).getByLabelText("First name"));
     await user.type(
-      within(shippingStep).getByLabelText("Full name"),
-      "Jordan Li",
+      within(shippingStep).getByLabelText("First name"),
+      "Jordan",
     );
+    await user.clear(within(shippingStep).getByLabelText("Last name"));
+    await user.type(within(shippingStep).getByLabelText("Last name"), "Li");
     await user.click(
       within(shippingStep).getByRole("button", {
         name: "Submit shipping address",
@@ -98,8 +100,14 @@ describe("CheckoutPage interactions", () => {
     });
     expect(draftUpdates[0]?.fields).toContainEqual(
       expect.objectContaining({
-        label: "Full name",
-        value: "Jordan Li",
+        label: "First name",
+        value: "Jordan",
+      }),
+    );
+    expect(draftUpdates[0]?.fields).toContainEqual(
+      expect.objectContaining({
+        label: "Last name",
+        value: "Li",
       }),
     );
     await waitForStepState(shippingStep, "saved");
@@ -208,7 +216,7 @@ describe("CheckoutPage interactions", () => {
       expect(shippingStep.getAttribute("data-step-state")).toBe("saving");
       expect(within(shippingStep).queryByText("Saving")).toBeNull();
       expect(within(shippingStep).getByText("Taylor Chen")).toBeTruthy();
-      expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+      expect(within(shippingStep).queryByLabelText("First name")).toBeNull();
       const editShippingButton = within(shippingStep).getByRole("button", {
         name: "Edit shipping address",
       }) as HTMLButtonElement;
@@ -234,13 +242,124 @@ describe("CheckoutPage interactions", () => {
       });
 
       expect(shippingStep.getAttribute("data-step-state")).toBe("saved");
-      expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+      expect(within(shippingStep).queryByLabelText("First name")).toBeNull();
       expect(billingStep.getAttribute("data-step-state")).toBe("editing");
       expect(
         within(billingStep).getByLabelText("Same as shipping"),
       ).toBeTruthy();
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it("opens Billing within 250ms while a slow shipping draft update continues", () => {
+    vi.useFakeTimers();
+
+    try {
+      const draftUpdatePromise = new Promise<CheckoutPageData>(() => undefined);
+      const onDraftUpdate = vi.fn(
+        (_request: TestDraftUpdateRequest): Promise<CheckoutPageData> =>
+          draftUpdatePromise,
+      );
+
+      render(<CheckoutPage onDraftUpdate={onDraftUpdate} />);
+
+      const shippingStep = getStep("Shipping address");
+      const billingStep = getStep("Billing address");
+
+      fireEvent.change(within(shippingStep).getByLabelText("First name"), {
+        target: { value: "Jordan" },
+      });
+      fireEvent.change(within(shippingStep).getByLabelText("Last name"), {
+        target: { value: "Li" },
+      });
+      fireEvent.change(within(shippingStep).getByLabelText("Phone number"), {
+        target: { value: "(212) 555-0188" },
+      });
+      fireEvent.click(
+        within(shippingStep).getByRole("button", {
+          name: "Submit shipping address",
+        }),
+      );
+
+      expect(onDraftUpdate).toHaveBeenCalledTimes(1);
+      expect(onDraftUpdate.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ label: "First name", value: "Jordan" }),
+            expect.objectContaining({ label: "Last name", value: "Li" }),
+            expect.objectContaining({
+              label: "Phone number",
+              value: "(212) 555-0188",
+            }),
+          ]),
+          type: "delivery_shipping_address",
+        }),
+      );
+      expect(shippingStep.getAttribute("data-step-state")).toBe("saving");
+      expect(billingStep.getAttribute("data-step-state")).toBe("idle");
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(shippingStep.getAttribute("data-step-state")).toBe(
+        "recalculating",
+      );
+      expect(billingStep.getAttribute("data-step-state")).toBe("editing");
+      expect(
+        within(billingStep).getByLabelText("Same as shipping"),
+      ).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens the shipping state dropdown with shadcn select options", async () => {
+    const user = userEvent.setup();
+    const elementPrototype = window.Element
+      .prototype as typeof window.Element.prototype & {
+      hasPointerCapture?: (pointerId: number) => boolean;
+      scrollIntoView?: () => void;
+    };
+    const originalHasPointerCapture = elementPrototype.hasPointerCapture;
+    const originalScrollIntoView = elementPrototype.scrollIntoView;
+    elementPrototype.hasPointerCapture = () => false;
+    elementPrototype.scrollIntoView = () => undefined;
+
+    try {
+      render(<CheckoutPage />);
+
+      const shippingStep = getStep("Shipping address");
+      const stateSelect = within(shippingStep).getByRole("combobox", {
+        name: "State",
+      });
+
+      expect(stateSelect.getAttribute("data-slot")).toBe("select-trigger");
+
+      await user.click(stateSelect);
+
+      expect(
+        await screen.findByRole("option", {
+          name: "NY",
+        }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("option", {
+          name: "CA",
+        }),
+      ).toBeTruthy();
+    } finally {
+      if (originalHasPointerCapture) {
+        elementPrototype.hasPointerCapture = originalHasPointerCapture;
+      } else {
+        Reflect.deleteProperty(elementPrototype, "hasPointerCapture");
+      }
+      if (originalScrollIntoView) {
+        elementPrototype.scrollIntoView = originalScrollIntoView;
+      } else {
+        Reflect.deleteProperty(elementPrototype, "scrollIntoView");
+      }
     }
   });
 
@@ -263,7 +382,7 @@ describe("CheckoutPage interactions", () => {
     );
 
     await waitForStepState(shippingStep, "blocked");
-    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByLabelText("First name")).toBeTruthy();
     expect(within(shippingStep).getByRole("alert").textContent).toContain(
       "We could not save Shipping address. Please try again.",
     );
@@ -282,7 +401,7 @@ describe("CheckoutPage interactions", () => {
     const shippingOptionsStep = getStep("Shipping options");
     const paymentStep = getStep("Payment method");
 
-    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByLabelText("First name")).toBeTruthy();
     expect(within(billingStep).queryByLabelText("Same as shipping")).toBeNull();
     expect(
       within(shippingOptionsStep).queryByRole("radio", {
@@ -302,7 +421,7 @@ describe("CheckoutPage interactions", () => {
     );
     await waitForStepState(shippingStep, "saved");
 
-    expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+    expect(within(shippingStep).queryByLabelText("First name")).toBeNull();
     expect(within(billingStep).getByLabelText("Same as shipping")).toBeTruthy();
     expect(
       within(shippingOptionsStep).queryByRole("radio", {
@@ -321,7 +440,7 @@ describe("CheckoutPage interactions", () => {
       }),
     );
 
-    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByLabelText("First name")).toBeTruthy();
     expect(within(billingStep).queryByLabelText("Same as shipping")).toBeNull();
   });
 
@@ -331,12 +450,17 @@ describe("CheckoutPage interactions", () => {
     render(<CheckoutPage />);
 
     const shippingStep = getStep("Shipping address");
-    const fullName = within(shippingStep).getByLabelText(
-      "Full name",
+    const firstName = within(shippingStep).getByLabelText(
+      "First name",
+    ) as HTMLInputElement;
+    const lastName = within(shippingStep).getByLabelText(
+      "Last name",
     ) as HTMLInputElement;
 
-    await user.clear(fullName);
-    await user.type(fullName, "Jordan Li");
+    await user.clear(firstName);
+    await user.type(firstName, "Jordan");
+    await user.clear(lastName);
+    await user.type(lastName, "Li");
     await user.click(
       within(shippingStep).getByRole("button", {
         name: "Submit shipping address",
@@ -345,7 +469,7 @@ describe("CheckoutPage interactions", () => {
     await waitForStepState(shippingStep, "saved");
 
     expect(shippingStep.getAttribute("data-step-state")).toBe("saved");
-    expect(within(shippingStep).queryByLabelText("Full name")).toBeNull();
+    expect(within(shippingStep).queryByLabelText("First name")).toBeNull();
     expect(within(shippingStep).getByText("Jordan Li")).toBeTruthy();
 
     const billingStep = getStep("Billing address");
@@ -359,7 +483,7 @@ describe("CheckoutPage interactions", () => {
     );
 
     expect(shippingStep.getAttribute("data-step-state")).toBe("editing");
-    expect(within(shippingStep).getByLabelText("Full name")).toBeTruthy();
+    expect(within(shippingStep).getByLabelText("First name")).toBeTruthy();
     expect(
       within(shippingStep).queryByRole("button", {
         name: "Edit shipping address",
@@ -453,6 +577,12 @@ describe("CheckoutPage interactions", () => {
     await advanceDeliveryToPayment(user);
 
     const paymentStep = getStep("Payment method");
+    expect(screen.queryByText("Selected paypal")).toBeNull();
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
     expect(screen.getByText("Selected paypal")).toBeTruthy();
 
     await user.click(
@@ -638,6 +768,11 @@ describe("CheckoutPage interactions", () => {
 
     const paymentStep = getStep("Payment method");
     expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
     expect(screen.getByText("Selected paypal")).toBeTruthy();
   });
 
@@ -758,6 +893,11 @@ describe("CheckoutPage interactions", () => {
 
     const paymentStep = getStep("Payment method");
     expect(paymentStep.getAttribute("data-step-state")).toBe("editing");
+    await user.click(
+      within(paymentStep).getByRole("radio", {
+        name: /PayPal/,
+      }),
+    );
     expect(screen.getByText("Selected paypal")).toBeTruthy();
 
     await user.click(

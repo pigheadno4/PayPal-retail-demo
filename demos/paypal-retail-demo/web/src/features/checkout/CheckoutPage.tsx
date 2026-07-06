@@ -30,7 +30,23 @@ import {
 } from "@/components/ui/field";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import {
@@ -62,10 +78,16 @@ export interface CheckoutStep {
 
 export interface CheckoutField {
   readonly label: string;
-  readonly type: "text" | "checkbox";
+  readonly type: "text" | "checkbox" | "select";
   readonly value?: string;
   readonly placeholder?: string;
   readonly checked?: boolean;
+  readonly options?: readonly CheckoutFieldOption[];
+}
+
+export interface CheckoutFieldOption {
+  readonly label: string;
+  readonly value: string;
 }
 
 export interface CheckoutChoice {
@@ -177,7 +199,7 @@ export interface CheckoutPaymentActionContext {
   readonly checkoutDraftId: string | null;
   readonly saveForFutureEligible: boolean;
   readonly selectedPaymentEligible: boolean;
-  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | undefined;
   readonly totalLabel: string;
 }
 
@@ -203,6 +225,7 @@ export interface CheckoutPageProps {
   readonly renderCardPaymentBox?: (
     context: CheckoutPaymentActionContext,
   ) => ReactNode;
+  readonly suppressMobileStickySummary?: boolean;
 }
 
 export type CheckoutDraftUpdateType =
@@ -268,7 +291,30 @@ const paymentMethodLogoByMethod: Partial<
 };
 
 const checkoutSubmitTransitionDelayMs = 50;
+const checkoutFieldRequiredDescription =
+  "Required to continue this checkout step.";
 const checkoutMobilePaymentQuery = "(max-width: 760px)";
+const checkoutStickyScrollOptions: ScrollIntoViewOptions = {
+  block: "end",
+  inline: "nearest",
+};
+const checkoutStickyOverlapGapPx = 16;
+const checkoutStickyClearanceSelector = [
+  "[data-focus-target='true']",
+  "[data-slot='checkbox']",
+  ".checkout-field input",
+  ".checkout-field__select",
+  ".checkout-field--checkbox",
+  ".checkout-choice__card-box",
+  ".checkout-choice__message",
+  ".card-fields-checkout-action",
+  ".card-fields-checkout-action__hosted-field",
+  ".payment-action-failure",
+].join(",");
+const checkoutStickyCardSelectors = [
+  ".card-fields-checkout-action",
+  ".checkout-choice__card-box",
+] as const;
 const checkoutStepOrderByMode = {
   delivery: [
     "shipping-address",
@@ -292,6 +338,7 @@ export function CheckoutPage({
   onDraftUpdate,
   renderPaymentAction,
   renderCardPaymentBox,
+  suppressMobileStickySummary = false,
 }: CheckoutPageProps) {
   const [currentData, setCurrentData] = useState(data);
   const pageData = currentData;
@@ -324,6 +371,7 @@ export function CheckoutPage({
       Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
     >
   >({});
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
   const [pickupStoreModalOpen, setPickupStoreModalOpen] = useState(false);
   const [selectedPickupStoreName, setSelectedPickupStoreName] = useState<
     string | null
@@ -355,7 +403,18 @@ export function CheckoutPage({
           : [],
       ),
   );
+  const currentDataRef = useRef(currentData);
+  const draftUpdateQueuesRef = useRef<
+    Record<
+      CheckoutFulfillmentMode,
+      Promise<CheckoutPageData | undefined> | null
+    >
+  >({
+    delivery: null,
+    pickup: null,
+  });
   const focusTargetRef = useRef<HTMLElement | null>(null);
+  const checkoutPageRef = useRef<HTMLDivElement | null>(null);
   const pickupStoreTriggerRef = useRef<HTMLElement | null>(null);
   const submitTransitionTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const activeDraft =
@@ -378,12 +437,13 @@ export function CheckoutPage({
     activeMode,
     expandedStepIds,
   );
-  const activeBaseSummary = activePaymentStepExpanded
-    ? withSelectedPaymentSummary(
-        activeDraft.summary,
-        activeSelectedPaymentMethod,
-      )
-    : withPendingPaymentSummary(activeDraft.summary);
+  const activeBaseSummary =
+    activePaymentStepExpanded && activeSelectedPaymentMethod
+      ? withSelectedPaymentSummary(
+          activeDraft.summary,
+          activeSelectedPaymentMethod,
+        )
+      : withPendingPaymentSummary(activeDraft.summary);
   const activeSummary =
     activeMode === "delivery"
       ? withSelectedDeliveryShippingSummary(
@@ -395,16 +455,16 @@ export function CheckoutPage({
           ),
         )
       : activeBaseSummary;
-  const activeSelectedPaymentEligible = isSelectedPaymentMethodEligible(
-    activeDraft,
-    activeSelectedPaymentMethod,
-  );
+  const activeSelectedPaymentEligible = activeSelectedPaymentMethod
+    ? isSelectedPaymentMethodEligible(activeDraft, activeSelectedPaymentMethod)
+    : false;
   const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
     checkoutDraftId: activeDraft.checkoutDraftId ?? null,
-    saveForFutureEligible:
-      activeSelectedPaymentEligible &&
-      isSaveForFutureEligible(activeSummary, activeSelectedPaymentMethod),
+    saveForFutureEligible: activeSelectedPaymentMethod
+      ? activeSelectedPaymentEligible &&
+        isSaveForFutureEligible(activeSummary, activeSelectedPaymentMethod)
+      : false,
     selectedPaymentEligible: activeSelectedPaymentEligible,
     selectedPaymentMethod: activeSelectedPaymentMethod,
     totalLabel: activeSummary.totalLabel,
@@ -417,19 +477,22 @@ export function CheckoutPage({
   const paymentAction =
     !activePaymentStepExpanded ||
     paymentReadinessMessage ||
+    !activePaymentContext.selectedPaymentMethod ||
     activePaymentContext.selectedPaymentMethod === "card" ||
     !activePaymentContext.selectedPaymentEligible
       ? null
       : renderPaymentAction?.(activePaymentContext);
   const isMobilePaymentBar = useCheckoutMobilePaymentBar();
   const summaryPaymentAction = isMobilePaymentBar ? null : paymentAction;
-  const stickyPaymentAction = isMobilePaymentBar ? paymentAction : null;
+  const stickySummaryPaymentAction = isMobilePaymentBar ? paymentAction : null;
   const cardPaymentBox =
     activePaymentStepExpanded &&
     !paymentReadinessMessage &&
     activePaymentContext.selectedPaymentMethod === "card"
       ? renderCardPaymentBox?.(activePaymentContext)
       : null;
+  const stickyClearanceEnabled =
+    isMobilePaymentBar && !suppressMobileStickySummary && !orderDetailsOpen;
   const pickupStoreCards = getPickupStoreCards(pageData.pickup);
   const selectedPickupStore = getPickupStoreByName(
     pickupStoreCards,
@@ -441,14 +504,30 @@ export function CheckoutPage({
       : activeSummary;
 
   useEffect(() => {
+    currentDataRef.current = currentData;
+  }, [currentData]);
+
+  useEffect(() => {
     setCurrentData(data);
   }, [data]);
 
   useEffect(() => {
     if (pageData.validation?.focusStepId) {
-      focusTargetRef.current?.focus();
+      const focusTarget = focusTargetRef.current;
+
+      focusTarget?.focus();
+
+      if (stickyClearanceEnabled) {
+        scrollCheckoutTargetIntoView(focusTarget ?? null);
+      }
     }
-  }, [activeMode, pageData.validation?.focusStepId]);
+  }, [activeMode, pageData.validation?.focusStepId, stickyClearanceEnabled]);
+
+  useCheckoutStickyClearance({
+    enabled: stickyClearanceEnabled,
+    rootRef: checkoutPageRef,
+    selectedPaymentMethod: activeSelectedPaymentMethod,
+  });
 
   useEffect(
     () => () => {
@@ -578,15 +657,52 @@ export function CheckoutPage({
   async function applyDraftUpdate(
     request: CheckoutDraftUpdateRequest,
   ): Promise<CheckoutPageData | undefined> {
-    const updatedData = await onDraftUpdate?.(request, currentData);
+    const previousUpdate =
+      draftUpdateQueuesRef.current[request.fulfillmentMode];
+    const runUpdate = async (): Promise<CheckoutPageData | undefined> => {
+      const updatedData = await onDraftUpdate?.(
+        request,
+        currentDataRef.current,
+      );
 
-    if (updatedData) {
+      if (!updatedData) {
+        return undefined;
+      }
+
+      currentDataRef.current = updatedData;
       setCurrentData(updatedData);
-      return updatedData;
-    }
 
-    return undefined;
+      return updatedData;
+    };
+    const nextUpdate = previousUpdate
+      ? previousUpdate.then(runUpdate)
+      : runUpdate();
+
+    draftUpdateQueuesRef.current[request.fulfillmentMode] = nextUpdate;
+
+    void nextUpdate
+      .catch(() => undefined)
+      .then(() => {
+        if (
+          draftUpdateQueuesRef.current[request.fulfillmentMode] === nextUpdate
+        ) {
+          draftUpdateQueuesRef.current[request.fulfillmentMode] = null;
+        }
+      });
+
+    return nextUpdate;
   }
+
+  function clearQueuedDraftUpdates() {
+    draftUpdateQueuesRef.current.delivery = null;
+    draftUpdateQueuesRef.current.pickup = null;
+  }
+
+  useEffect(() => {
+    return () => {
+      clearQueuedDraftUpdates();
+    };
+  }, []);
 
   async function savePickupLocationAndOpenStoreModal(
     step: CheckoutStep,
@@ -686,11 +802,19 @@ export function CheckoutPage({
       return nextStepIds;
     });
 
+    const shouldOpenNextWhileSaving = stepId === "shipping-address";
     const recalculatingTimerId = setTimeout(() => {
       setStepStateOverrides((currentStates) => ({
         ...currentStates,
+        ...(shouldOpenNextWhileSaving ? { [nextStepId]: "editing" } : {}),
         [stepId]: "recalculating",
       }));
+      if (shouldOpenNextWhileSaving) {
+        setExpandedStepIds((currentStepIds) => ({
+          ...currentStepIds,
+          [mode]: nextStepId,
+        }));
+      }
     }, checkoutSubmitTransitionDelayMs);
     submitTransitionTimersRef.current.push(recalculatingTimerId);
 
@@ -720,6 +844,7 @@ export function CheckoutPage({
         clearTimeout(recalculatingTimerId);
         setStepStateOverrides((currentStates) => ({
           ...currentStates,
+          ...(shouldOpenNextWhileSaving ? { [nextStepId]: "idle" } : {}),
           [stepId]: "blocked",
         }));
         setExpandedStepIds((currentStepIds) => ({
@@ -844,20 +969,20 @@ export function CheckoutPage({
   }
 
   return (
-    <div className="checkout-page" data-visual-accent-scope="checkout">
-      <header className="checkout-hero">
+    <div
+      className="checkout-page"
+      data-visual-accent-scope="checkout"
+      ref={checkoutPageRef}
+    >
+      <header className="checkout-status" aria-label="Secure checkout">
         <nav aria-label="Checkout breadcrumb" className="checkout-breadcrumb">
           <a href="/">Home</a>
           <span aria-hidden="true">/</span>
           <span>Secure checkout</span>
         </nav>
-        <p className="homepage-eyebrow">Secure checkout</p>
-        <div className="checkout-hero__headline">
-          <h1>Delivery or Pickup</h1>
-          <p>
-            Confirm fulfillment, review totals, then continue with the eligible
-            PayPal payment surface.
-          </p>
+        <div className="checkout-status__title">
+          <h1>Secure checkout</h1>
+          <p>Delivery or Pickup</p>
         </div>
         {pageData.modeLocked ? (
           <p className="checkout-lock-notice">
@@ -978,19 +1103,13 @@ export function CheckoutPage({
         />
       ) : null}
 
-      {stickyPaymentAction ? (
-        <div
-          className="checkout-sticky-action"
-          aria-label="Selected payment action"
-        >
-          <div className="checkout-sticky-action__meta">
-            <span>Secure checkout</span>
-            <strong>{activeSummary.totalLabel}</strong>
-          </div>
-          <div className="checkout-sticky-action__slot">
-            {stickyPaymentAction}
-          </div>
-        </div>
+      {isMobilePaymentBar && !suppressMobileStickySummary ? (
+        <CheckoutMobileStickySummary
+          summary={displayedSummary}
+          paymentAction={stickySummaryPaymentAction}
+          open={orderDetailsOpen}
+          onOpenChange={setOrderDetailsOpen}
+        />
       ) : null}
     </div>
   );
@@ -1028,6 +1147,141 @@ function useCheckoutMobilePaymentBar(): boolean {
   }, []);
 
   return matches;
+}
+
+function useCheckoutStickyClearance({
+  enabled,
+  rootRef,
+  selectedPaymentMethod,
+}: {
+  readonly enabled: boolean;
+  readonly rootRef: RefObject<HTMLElement | null>;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | undefined;
+}) {
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    const root = rootRef.current;
+
+    if (!root) {
+      return undefined;
+    }
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof HTMLElement) || !root.contains(target)) {
+        return;
+      }
+
+      if (target.closest(".checkout-sticky-summary, .checkout-order-sheet")) {
+        return;
+      }
+
+      const scrollTarget = target.closest<HTMLElement>(
+        checkoutStickyClearanceSelector,
+      );
+
+      scrollCheckoutTargetIntoView(scrollTarget ?? null);
+    };
+
+    root.addEventListener("focusin", handleFocusIn);
+
+    return () => {
+      root.removeEventListener("focusin", handleFocusIn);
+    };
+  }, [enabled, rootRef]);
+
+  useEffect(() => {
+    if (!enabled || selectedPaymentMethod !== "card") {
+      return undefined;
+    }
+
+    const root = rootRef.current;
+
+    if (!root) {
+      return undefined;
+    }
+
+    let stickyRetryTimerId: number | null = null;
+    const scrollCardTarget = () => {
+      scrollCheckoutTargetIntoView(findCheckoutStickyCardTarget(root));
+    };
+    const scheduleCardScroll = () => {
+      if (stickyRetryTimerId) {
+        window.clearTimeout(stickyRetryTimerId);
+      }
+
+      stickyRetryTimerId = window.setTimeout(() => {
+        stickyRetryTimerId = null;
+        scrollCardTarget();
+      }, 0);
+    };
+    const observer =
+      typeof window.MutationObserver === "function"
+        ? new window.MutationObserver(scheduleCardScroll)
+        : null;
+
+    scrollCardTarget();
+    scheduleCardScroll();
+    observer?.observe(root, { childList: true, subtree: true });
+
+    return () => {
+      if (stickyRetryTimerId) {
+        window.clearTimeout(stickyRetryTimerId);
+      }
+
+      observer?.disconnect();
+    };
+  }, [enabled, rootRef, selectedPaymentMethod]);
+}
+
+function findCheckoutStickyCardTarget(root: HTMLElement): HTMLElement | null {
+  for (const selector of checkoutStickyCardSelectors) {
+    const target = root.querySelector<HTMLElement>(selector);
+
+    if (target) {
+      return target;
+    }
+  }
+
+  return null;
+}
+
+function scrollCheckoutTargetIntoView(target: HTMLElement | null) {
+  if (typeof target?.scrollIntoView !== "function") {
+    return;
+  }
+
+  target.scrollIntoView(checkoutStickyScrollOptions);
+
+  const stickySummary = document.querySelector<HTMLElement>(
+    ".checkout-sticky-summary",
+  );
+
+  if (!stickySummary || typeof window.scrollBy !== "function") {
+    return;
+  }
+
+  const targetRect = target.getBoundingClientRect();
+  const stickyRect = stickySummary.getBoundingClientRect();
+
+  if (!targetRect.height || !stickyRect.height || targetRect.bottom <= 0) {
+    return;
+  }
+
+  const overlap =
+    targetRect.bottom - stickyRect.top + checkoutStickyOverlapGapPx;
+
+  if (overlap > 0) {
+    window.scrollBy({
+      behavior: "auto",
+      left: 0,
+      top: overlap,
+    });
+  }
 }
 
 function getPaymentReadinessMessage({
@@ -1152,7 +1406,7 @@ function CheckoutModePanel({
   readonly collapsedStepIds: ReadonlySet<string>;
   readonly choiceSelections: Readonly<Record<string, string>>;
   readonly selectedPickupStoreName: string | null;
-  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | undefined;
   readonly onFieldChange: (
     stepId: string,
     label: string,
@@ -1422,12 +1676,8 @@ function getSelectedPaymentMethodForMode(
   selectedPaymentMethods: Readonly<
     Partial<Record<CheckoutFulfillmentMode, CheckoutSelectedPaymentMethod>>
   >,
-): CheckoutSelectedPaymentMethod {
-  return (
-    selectedPaymentMethods[mode] ??
-    draft.summary.selectedPaymentMethod ??
-    "paypal"
-  );
+): CheckoutSelectedPaymentMethod | undefined {
+  return selectedPaymentMethods[mode] ?? draft.summary.selectedPaymentMethod;
 }
 
 function withSelectedPaymentSummary(
@@ -1640,7 +1890,9 @@ function CheckoutStepSummary({
 }) {
   const summaryFields =
     step.fields?.filter(
-      (field) => field.type === "text" && Boolean(field.value),
+      (field) =>
+        (field.type === "text" || field.type === "select") &&
+        Boolean(field.value),
     ) ?? [];
   const summaryLines = getCheckoutStepSummaryLines(step, summaryFields);
   const selectedChoices =
@@ -1725,9 +1977,16 @@ function getCheckoutStepSummaryLines(
   );
 
   if (step.id === "shipping-address") {
+    const recipientName =
+      compactSummaryLines([
+        fieldValueByLabel.get("First name"),
+        fieldValueByLabel.get("Last name"),
+      ]).join(" ") || fieldValueByLabel.get("Full name");
+
     return compactSummaryLines([
-      fieldValueByLabel.get("Full name"),
+      recipientName,
       fieldValueByLabel.get("Street address"),
+      fieldValueByLabel.get("Apt, suite, or building"),
       compactSummaryLines([
         fieldValueByLabel.get("City"),
         fieldValueByLabel.get("State"),
@@ -1989,6 +2248,14 @@ function isCheckoutFieldRequired(
 function getCheckoutFieldAutocomplete(label: string): string | undefined {
   const normalizedLabel = label.toLowerCase();
 
+  if (normalizedLabel.includes("first name")) {
+    return "given-name";
+  }
+
+  if (normalizedLabel.includes("last name")) {
+    return "family-name";
+  }
+
   if (normalizedLabel.includes("full name")) {
     return "name";
   }
@@ -2037,11 +2304,15 @@ function getCheckoutFieldInputMode(
     return "tel";
   }
 
-  if (
-    normalizedLabel.includes("zip") ||
-    normalizedLabel.includes("postal") ||
-    normalizedLabel.includes("postcode")
-  ) {
+  if (normalizedLabel.includes("postcode")) {
+    return "text";
+  }
+
+  if (normalizedLabel.includes("zip")) {
+    return "numeric";
+  }
+
+  if (normalizedLabel.includes("postal")) {
     return "text";
   }
 
@@ -2075,10 +2346,30 @@ function getCheckoutFieldDescription(
   }
 
   if (isCheckoutFieldRequired(stepId, field)) {
-    return "Required to continue this checkout step.";
+    return checkoutFieldRequiredDescription;
   }
 
   return null;
+}
+
+function getCheckoutFieldClassName(field: CheckoutField): string {
+  const normalizedLabel = field.label.toLowerCase();
+  const classNames = ["checkout-field"];
+
+  if (
+    normalizedLabel.includes("street") ||
+    normalizedLabel.includes("apt") ||
+    normalizedLabel.includes("suite") ||
+    normalizedLabel.includes("building")
+  ) {
+    classNames.push("checkout-field--wide");
+  }
+
+  if (normalizedLabel.includes("phone")) {
+    classNames.push("checkout-field--phone");
+  }
+
+  return classNames.join(" ");
 }
 
 function CheckoutPickupDateCalendar({
@@ -2214,6 +2505,7 @@ function CheckoutStepDetails({
               (message) => message.fieldLabel === field.label,
             );
             const fieldId = getCheckoutFieldInputId(step.id, field.label);
+            const fieldLabelId = `${fieldId}-label`;
             const fieldRequired = isCheckoutFieldRequired(step.id, field);
             const fieldDescription = getCheckoutFieldDescription(
               step.id,
@@ -2241,7 +2533,7 @@ function CheckoutStepDetails({
 
             return (
               <Field
-                className="checkout-field"
+                className={getCheckoutFieldClassName(field)}
                 data-invalid={validationMessage ? "true" : undefined}
                 key={field.label}
               >
@@ -2252,29 +2544,72 @@ function CheckoutStepDetails({
                       : "checkout-field-label"
                   }
                   htmlFor={fieldId}
+                  id={fieldLabelId}
                 >
                   {field.label}
                 </FieldLabel>
-                <Input
-                  id={fieldId}
-                  aria-describedby={validationMessage?.id}
-                  aria-invalid={validationMessage ? true : undefined}
-                  autoComplete={getCheckoutFieldAutocomplete(field.label)}
-                  inputMode={getCheckoutFieldInputMode(field.label)}
-                  onChange={(event) => {
-                    onFieldChange(
-                      step.id,
-                      field.label,
-                      event.currentTarget.value,
-                    );
-                  }}
-                  placeholder={field.placeholder}
-                  required={fieldRequired}
-                  type={getCheckoutFieldType(field.label)}
-                  value={field.value ?? ""}
-                />
+                {field.type === "select" ? (
+                  <div
+                    className="checkout-field__select-shell"
+                    data-slot="select"
+                  >
+                    <Select
+                      onValueChange={(value) => {
+                        onFieldChange(step.id, field.label, value);
+                      }}
+                      value={field.value ?? ""}
+                    >
+                      <SelectTrigger
+                        aria-describedby={validationMessage?.id}
+                        aria-invalid={validationMessage ? true : undefined}
+                        aria-labelledby={fieldLabelId}
+                        aria-required={fieldRequired}
+                        className="checkout-field__select"
+                        id={fieldId}
+                      >
+                        <SelectValue
+                          placeholder={field.placeholder ?? field.label}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(field.options ?? []).map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <Input
+                    id={fieldId}
+                    aria-describedby={validationMessage?.id}
+                    aria-invalid={validationMessage ? true : undefined}
+                    autoComplete={getCheckoutFieldAutocomplete(field.label)}
+                    inputMode={getCheckoutFieldInputMode(field.label)}
+                    onChange={(event) => {
+                      onFieldChange(
+                        step.id,
+                        field.label,
+                        event.currentTarget.value,
+                      );
+                    }}
+                    placeholder={field.placeholder}
+                    required={fieldRequired}
+                    type={getCheckoutFieldType(field.label)}
+                    value={field.value ?? ""}
+                  />
+                )}
                 {fieldDescription ? (
-                  <FieldDescription>{fieldDescription}</FieldDescription>
+                  <FieldDescription
+                    className={
+                      fieldDescription === checkoutFieldRequiredDescription
+                        ? "checkout-field__sr-description"
+                        : undefined
+                    }
+                  >
+                    {fieldDescription}
+                  </FieldDescription>
                 ) : null}
                 {validationMessage ? (
                   <FormFieldError id={validationMessage.id}>
@@ -2431,9 +2766,6 @@ function CheckoutSummary({
     readonly body: string;
   } | null;
 }) {
-  const visibleItems = summary.items?.slice(0, 3) ?? [];
-  const hiddenItemCount = Math.max((summary.items?.length ?? 0) - 3, 0);
-
   return (
     <Card
       className="checkout-summary"
@@ -2450,73 +2782,7 @@ function CheckoutSummary({
         </CardDescription>
       </CardHeader>
       <CardContent className="checkout-summary__content">
-        {visibleItems.length ? (
-          <div className="checkout-summary__items" aria-label="Checkout items">
-            {visibleItems.map((item) => (
-              <div className="checkout-summary__item" key={item.id}>
-                <img src={item.imagePath} alt={item.imageAlt} loading="lazy" />
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>{item.detailLabel}</span>
-                  <Badge variant="secondary">Qty {item.quantity}</Badge>
-                </div>
-                <b>{item.amountLabel}</b>
-              </div>
-            ))}
-            {hiddenItemCount > 0 ? (
-              <p className="checkout-summary__more-items">
-                +{hiddenItemCount} more checkout item
-                {hiddenItemCount === 1 ? "" : "s"}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {summary.readyItemsLabel ? (
-          <div className="checkout-summary__split">
-            <strong>{summary.readyItemsLabel}</strong>
-            <span>{summary.unavailableItemsLabel}</span>
-            {summary.partialInventoryNote ? (
-              <p>{summary.partialInventoryNote}</p>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="checkout-summary__promo-panel">
-          <div>
-            <Badge variant="outline">Offer status</Badge>
-            <strong>{summary.promoLabel}</strong>
-          </div>
-          <p>
-            {summary.promoHelpLabel ??
-              "Offers are checked against saved fulfillment details before payment."}
-          </p>
-        </div>
-        <Separator className="checkout-summary__separator" />
-        <dl>
-          <div>
-            <dt>Merchandise subtotal</dt>
-            <dd>{summary.subtotalLabel}</dd>
-          </div>
-          <div>
-            <dt>Promo</dt>
-            <dd>{summary.promoLabel}</dd>
-          </div>
-          {summary.shippingLabel ? (
-            <div>
-              <dt>Shipping</dt>
-              <dd>{summary.shippingLabel}</dd>
-            </div>
-          ) : null}
-          {summary.taxLabel ? (
-            <div>
-              <dt>Estimated tax</dt>
-              <dd>{summary.taxLabel}</dd>
-            </div>
-          ) : null}
-          <div className="checkout-summary__total-row">
-            <dt>Total</dt>
-            <dd>{summary.totalLabel}</dd>
-          </div>
-        </dl>
+        <CheckoutOrderBreakdown summary={summary} itemLimit={3} />
       </CardContent>
       {paymentAction ? (
         <CardFooter
@@ -2544,6 +2810,197 @@ function CheckoutSummary({
       ) : null}
     </Card>
   );
+}
+
+function CheckoutOrderBreakdown({
+  summary,
+  itemLimit,
+}: {
+  readonly summary: CheckoutOrderSummary;
+  readonly itemLimit?: number;
+}) {
+  const limit = itemLimit ?? 3;
+  const visibleItems = summary.items?.slice(0, limit) ?? [];
+  const hiddenItemCount = Math.max((summary.items?.length ?? 0) - limit, 0);
+
+  return (
+    <>
+      {visibleItems.length ? (
+        <div className="checkout-summary__items" aria-label="Checkout items">
+          {visibleItems.map((item) => (
+            <div className="checkout-summary__item" key={item.id}>
+              <img src={item.imagePath} alt={item.imageAlt} loading="lazy" />
+              <div>
+                <strong>{item.name}</strong>
+                <span>{item.detailLabel}</span>
+                <Badge variant="secondary">Qty {item.quantity}</Badge>
+              </div>
+              <b>{item.amountLabel}</b>
+            </div>
+          ))}
+          {hiddenItemCount > 0 ? (
+            <p className="checkout-summary__more-items">
+              +{hiddenItemCount} more checkout item
+              {hiddenItemCount === 1 ? "" : "s"}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {summary.readyItemsLabel ? (
+        <div className="checkout-summary__split">
+          <strong>{summary.readyItemsLabel}</strong>
+          <span>{summary.unavailableItemsLabel}</span>
+          {summary.partialInventoryNote ? (
+            <p>{summary.partialInventoryNote}</p>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="checkout-summary__promo-panel">
+        <div>
+          <Badge variant="outline">Offer status</Badge>
+          <strong>{summary.promoLabel}</strong>
+        </div>
+        <p>
+          {summary.promoHelpLabel ??
+            "Offers are checked against saved fulfillment details before payment."}
+        </p>
+      </div>
+      <Separator className="checkout-summary__separator" />
+      <dl>
+        <div>
+          <dt>Merchandise subtotal</dt>
+          <dd>{summary.subtotalLabel}</dd>
+        </div>
+        <div>
+          <dt>Promo</dt>
+          <dd>{summary.promoLabel}</dd>
+        </div>
+        {summary.shippingLabel ? (
+          <div>
+            <dt>Shipping</dt>
+            <dd>{summary.shippingLabel}</dd>
+          </div>
+        ) : null}
+        {summary.taxLabel ? (
+          <div>
+            <dt>Estimated tax</dt>
+            <dd>{summary.taxLabel}</dd>
+          </div>
+        ) : null}
+        <div className="checkout-summary__total-row">
+          <dt>Total</dt>
+          <dd>{summary.totalLabel}</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
+
+function CheckoutMobileStickySummary({
+  summary,
+  paymentAction,
+  open,
+  onOpenChange,
+}: {
+  readonly summary: CheckoutOrderSummary;
+  readonly paymentAction?: ReactNode;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const promoLabel = getStickyPromoLabel(summary.promoLabel);
+  const itemCount =
+    summary.items?.reduce((count, item) => count + item.quantity, 0) ?? 0;
+  const itemCountLabel = itemCount === 1 ? "1 item" : `${itemCount} items`;
+  const renderChoosePaymentButton = () => (
+    <Button
+      className="checkout-sticky-summary__choose-payment"
+      disabled
+      type="button"
+      variant="secondary"
+    >
+      Choose payment
+    </Button>
+  );
+  const stickyPaymentControl =
+    paymentAction && !open ? paymentAction : renderChoosePaymentButton();
+  const sheetPaymentControl = paymentAction ?? renderChoosePaymentButton();
+  const handleOpenChange = (nextOpen: boolean) => {
+    onOpenChange(nextOpen);
+
+    if (!nextOpen) {
+      window.setTimeout(() => triggerRef.current?.focus(), 0);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <div className="checkout-sticky-summary" aria-label="Checkout summary">
+        <SheetTrigger asChild>
+          <button
+            ref={triggerRef}
+            aria-controls="checkout-order-details-sheet"
+            aria-expanded={open}
+            aria-label="Review order details"
+            className="checkout-sticky-summary__grabber"
+            type="button"
+          >
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+          </button>
+        </SheetTrigger>
+        <div className="checkout-sticky-summary__total">
+          <span>Total</span>
+          <strong>{summary.totalLabel}</strong>
+          {promoLabel ? <em>{promoLabel}</em> : null}
+        </div>
+        <div className="checkout-sticky-summary__action">
+          {stickyPaymentControl}
+        </div>
+      </div>
+      <SheetContent
+        className="checkout-order-sheet"
+        id="checkout-order-details-sheet"
+        side="bottom"
+        showCloseButton={false}
+      >
+        <SheetClose asChild>
+          <button
+            aria-label="Close order details"
+            className="checkout-order-sheet__handle"
+            type="button"
+          >
+            <span aria-hidden="true" />
+          </button>
+        </SheetClose>
+        <SheetHeader className="checkout-order-sheet__header">
+          <SheetTitle>Order details</SheetTitle>
+          <SheetDescription>
+            {itemCountLabel} - {summary.contextLabel}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="checkout-order-sheet__content">
+          <CheckoutOrderBreakdown
+            summary={summary}
+            itemLimit={summary.items?.length ?? 0}
+          />
+        </div>
+        <div className="checkout-order-sheet__payment">
+          {sheetPaymentControl}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function getStickyPromoLabel(promoLabel: string): string | null {
+  const normalizedPromoLabel = promoLabel.trim();
+
+  if (!normalizedPromoLabel || /^no promo/i.test(normalizedPromoLabel)) {
+    return null;
+  }
+
+  return normalizedPromoLabel;
 }
 
 function CheckoutTrustStrip() {
@@ -2584,7 +3041,7 @@ function CheckoutTrustStrip() {
 
 function withDefaultStepDetails(
   step: CheckoutStep,
-  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+  selectedPaymentMethod?: CheckoutSelectedPaymentMethod,
 ): CheckoutStep {
   const defaults = defaultStepDetailsById[step.id];
 
@@ -2639,7 +3096,7 @@ function withDefaultStepDetails(
 function normalizePaymentChoices(
   stepId: string,
   choices: readonly CheckoutChoice[] | undefined,
-  selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+  selectedPaymentMethod?: CheckoutSelectedPaymentMethod,
 ): readonly CheckoutChoice[] | undefined {
   if (
     !choices ||
@@ -2766,18 +3223,48 @@ const deliveryBillingAddressFields: readonly CheckoutField[] = [
   },
 ];
 
+const usStateOptions: readonly CheckoutFieldOption[] = [
+  { label: "AL", value: "AL" },
+  { label: "AK", value: "AK" },
+  { label: "AZ", value: "AZ" },
+  { label: "AR", value: "AR" },
+  { label: "CA", value: "CA" },
+  { label: "CO", value: "CO" },
+  { label: "CT", value: "CT" },
+  { label: "DC", value: "DC" },
+  { label: "FL", value: "FL" },
+  { label: "GA", value: "GA" },
+  { label: "IL", value: "IL" },
+  { label: "MA", value: "MA" },
+  { label: "NJ", value: "NJ" },
+  { label: "NY", value: "NY" },
+  { label: "PA", value: "PA" },
+  { label: "TX", value: "TX" },
+  { label: "WA", value: "WA" },
+];
+
 const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
   "shipping-address": {
     fields: [
       {
-        label: "Full name",
+        label: "First name",
         type: "text",
-        value: "Taylor Chen",
+        value: "Taylor",
+      },
+      {
+        label: "Last name",
+        type: "text",
+        value: "Chen",
       },
       {
         label: "Street address",
         type: "text",
         value: "88 Spring Street",
+      },
+      {
+        label: "Apt, suite, or building",
+        type: "text",
+        value: "Apt 5B",
       },
       {
         label: "City",
@@ -2786,13 +3273,19 @@ const defaultStepDetailsById: Record<string, Partial<CheckoutStep>> = {
       },
       {
         label: "State",
-        type: "text",
+        options: usStateOptions,
+        type: "select",
         value: "NY",
       },
       {
         label: "ZIP code",
         type: "text",
         value: "10012",
+      },
+      {
+        label: "Phone number",
+        type: "text",
+        value: "(212) 555-0188",
       },
     ],
     primaryActionLabel: "Submit shipping address",
@@ -3015,8 +3508,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         "Eligible promos appear here after checkout details match.",
       taxLabel: "Calculated before payment",
       totalLabel: "$25.98",
-      selectedPaymentLabel: "PayPal selected",
-      selectedPaymentMethod: "paypal",
+      selectedPaymentLabel: "Choose payment method",
     },
     steps: [
       {
@@ -3068,8 +3560,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         "Eligible pickup promos appear after a store is selected.",
       taxLabel: "Calculated before payment",
       totalLabel: "$12.99",
-      selectedPaymentLabel: "PayPal selected",
-      selectedPaymentMethod: "paypal",
+      selectedPaymentLabel: "Choose payment method",
     },
     steps: [
       {

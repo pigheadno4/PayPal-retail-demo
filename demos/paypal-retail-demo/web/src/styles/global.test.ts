@@ -108,6 +108,7 @@ describe("global storefront visual tokens", () => {
     );
     expect(globalCss).toContain("overflow: visible;");
     expect(siteHeaderBlock).toContain("z-index: 40");
+    expect(cssBlock(".skip-link")).toContain("z-index: 45");
     expect(trustIconBlock).toContain("border-radius: 999px");
     expect(productCtaBlock).toContain("display: inline-flex");
     expect(categoryArrowBlock).toContain("width: 30px");
@@ -401,6 +402,10 @@ describe("global storefront visual tokens", () => {
     const quantityControlBlock = cssBlock(
       ".cart-quantity button,\n.cart-quantity input",
     );
+    const quantityInputBlock = cssBlockContaining(
+      ".cart-quantity input",
+      "appearance: textfield",
+    );
     const minicartQuantityBlock = cssBlock(".minicart-item__quantity");
     const minicartQuantityControlBlock = cssBlock(
       ".minicart-item__quantity button,\n.minicart-item__quantity input",
@@ -440,13 +445,31 @@ describe("global storefront visual tokens", () => {
     );
     const checkoutProgressBlock = cssBlock(".checkout-progress");
     const checkoutReadinessBlock = cssBlock(".checkout-payment-readiness");
-    const checkoutStickyActionBlock = cssBlock(".checkout-sticky-action");
+    const checkoutStickySummaryBlock = cssBlock(".checkout-sticky-summary");
+    const checkoutStickyGrabberBlock = cssBlock(
+      ".checkout-sticky-summary__grabber",
+    );
+    const checkoutStickyViewportClearanceBlock = cssBlock(
+      "html:has(.checkout-sticky-summary)",
+    );
+    const checkoutStickyFieldClearanceBlock = cssBlock(
+      ".checkout-field input:focus,\n  .checkout-field__select:focus,\n  .checkout-choice__card-box,\n  .checkout-choice__message,\n  .card-fields-checkout-action",
+    );
+    const checkoutOrderSheetBlock = cssBlock(
+      '.checkout-order-sheet[data-side="bottom"]',
+    );
+    const checkoutOrderSheetHandleBlock = cssBlock(
+      ".checkout-order-sheet__handle",
+    );
+    const checkoutOrderSheetRowsBlock = cssBlock(
+      ".checkout-order-sheet dl div",
+    );
     const mobileCheckoutPageBlock = cssBlockContaining(
       ".checkout-page",
-      "padding-bottom: calc(128px + env(safe-area-inset-bottom))",
+      "padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
     );
-    const mobileCheckoutStickyActionBlock = cssBlockContaining(
-      ".checkout-sticky-action",
+    const mobileCheckoutStickySummaryBlock = cssBlockContaining(
+      ".checkout-sticky-summary",
       "env(safe-area-inset-bottom)",
     );
 
@@ -467,6 +490,15 @@ describe("global storefront visual tokens", () => {
     expect(quantityBlock).toContain("grid-template-columns: 44px");
     expect(quantityControlBlock).toContain("min-height: 44px");
     expect(quantityControlBlock).toContain("min-width: 44px");
+    expect(quantityInputBlock).toContain("appearance: textfield");
+    expect(quantityInputBlock).toContain("-moz-appearance: textfield");
+    expect(globalCss).toContain(
+      ".cart-quantity input::-webkit-outer-spin-button",
+    );
+    expect(globalCss).toContain(
+      ".cart-quantity input::-webkit-inner-spin-button",
+    );
+    expect(globalCss).toContain("-webkit-appearance: none");
     expect(minicartQuantityBlock).toContain("grid-template-columns: 44px");
     expect(minicartQuantityControlBlock).toContain("min-height: 44px");
     expect(minicartQuantityControlBlock).toContain("min-width: 44px");
@@ -517,33 +549,49 @@ describe("global storefront visual tokens", () => {
     expect(checkoutProgressBlock).toContain("font-size: 0.84rem");
     expect(checkoutReadinessBlock).toContain("background: #fff8f3");
     expect(checkoutReadinessBlock).toContain("border: 1px solid");
-    expect(checkoutStickyActionBlock).toContain("bottom: 0");
-    expect(mobileCheckoutPageBlock).toContain(
-      "padding-bottom: calc(128px + env(safe-area-inset-bottom))",
+    expect(checkoutStickySummaryBlock).toContain("bottom: 0");
+    expect(checkoutStickySummaryBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
     );
-    expect(mobileCheckoutStickyActionBlock).toContain(
-      "padding-bottom: calc(10px + env(safe-area-inset-bottom))",
+    expect(checkoutStickyGrabberBlock).toContain("position: absolute");
+    expect(checkoutStickyGrabberBlock).toContain("transform: translateX(-50%)");
+    expect(checkoutStickyGrabberBlock).toContain("height: 44px");
+    expect(checkoutStickyGrabberBlock).toContain("min-width: 112px");
+    expect(checkoutStickyViewportClearanceBlock).toContain(
+      "scroll-padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
+    );
+    expect(checkoutStickyFieldClearanceBlock).toContain(
+      "scroll-margin-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
+    );
+    expect(checkoutOrderSheetBlock).toContain("border-radius: 20px 20px 0 0");
+    expect(checkoutOrderSheetBlock).toContain("max-height: min(78dvh, 640px)");
+    expect(checkoutOrderSheetBlock).toContain("overflow-y: auto");
+    expect(checkoutOrderSheetHandleBlock).toContain("min-height: 44px");
+    expect(checkoutOrderSheetHandleBlock).toContain("min-width: 44px");
+    expect(checkoutOrderSheetRowsBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
+    );
+    expect(checkoutOrderSheetRowsBlock).toContain("align-items: center");
+    expect(mobileCheckoutPageBlock).toContain(
+      "padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
+    );
+    expect(mobileCheckoutStickySummaryBlock).toContain(
+      "padding-bottom: calc(12px + env(safe-area-inset-bottom))",
     );
     expect(globalCss).toContain(
-      "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-action",
+      "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-summary",
     );
     expect(
       cssBlock(
-        "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-action",
+        "body:has(.site-header__mobile-menu:not([hidden])) .checkout-sticky-summary",
       ),
     ).toContain("display: none");
     expect(globalCss).toContain(
-      'body:has([data-slot="sheet-content"]) .checkout-sticky-action',
-    );
-    expect(
-      cssBlock('body:has([data-slot="sheet-content"]) .checkout-sticky-action'),
-    ).toContain("display: none");
-    expect(globalCss).toContain(
-      'body:has([data-slot="dialog-content"]) .checkout-sticky-action',
+      'body:has([data-slot="dialog-content"]) .checkout-sticky-summary',
     );
     expect(
       cssBlock(
-        'body:has([data-slot="dialog-content"]) .checkout-sticky-action',
+        'body:has([data-slot="dialog-content"]) .checkout-sticky-summary',
       ),
     ).toContain("display: none");
     expect(globalCss).toContain("@container cart-payment (max-width: 340px)");
@@ -574,11 +622,10 @@ describe("global storefront visual tokens", () => {
   });
 
   it("keeps cart and checkout visual accents on merchant-owned surfaces only", () => {
-    const cartHeroBlock = cssBlock(".cart-hero");
-    const cartCheckoutHeadingBlock = cssBlock(
-      ".cart-hero h1,\n.checkout-hero h1",
-    );
-    const cartHeroAccentBlock = cssBlock(".cart-hero::before");
+    const cartStatusBlock = cssBlock(".cart-status");
+    const cartStatusHeadingBlock = cssBlock(".cart-status h1");
+    const checkoutStatusBlock = cssBlock(".checkout-status");
+    const checkoutStatusHeadingBlock = cssBlock(".checkout-status h1");
     const cartItemBlock = cssBlock(".cart-item");
     const cartItemAccentBlock = cssBlock(".cart-item::before");
     const cartSummaryBlock = cssBlock(".cart-summary");
@@ -589,8 +636,6 @@ describe("global storefront visual tokens", () => {
       '.cart-summary__header [data-slot="card-description"]',
     );
     const cartFrameBlock = cssBlock(".cart-paypal-frame");
-    const checkoutHeroBlock = cssBlock(".checkout-hero");
-    const checkoutHeroAccentBlock = cssBlock(".checkout-hero::before");
     const checkoutStepBlock = cssBlock(".checkout-step");
     const checkoutStepAccentBlock = cssBlock(".checkout-step::before");
     const checkoutSummaryBlock = cssBlock(".checkout-summary");
@@ -599,20 +644,25 @@ describe("global storefront visual tokens", () => {
     );
     const checkoutSlotBlock = cssBlock(".checkout-summary__slot");
 
-    expect(cartHeroBlock).toContain("linear-gradient(135deg");
-    expect(cartHeroBlock).toContain("overflow: hidden");
-    expect(cartCheckoutHeadingBlock).toContain(
-      "font-size: clamp(2rem, 3vw, 2.7rem)",
+    expect(globalCss).not.toContain(".cart-hero");
+    expect(globalCss).not.toContain(".checkout-hero");
+    expect(globalCss).not.toContain(".checkout-summary {\n    order: -1;");
+    expect(cartStatusBlock).toContain("display: flex");
+    expect(cartStatusBlock).toContain("padding: 0");
+    expect(cartStatusHeadingBlock).toContain(
+      "font-size: clamp(1.25rem, 2vw, 1.55rem)",
     );
-    expect(cartHeroAccentBlock).toContain("var(--shell-accent)");
+    expect(checkoutStatusBlock).toContain("display: flex");
+    expect(checkoutStatusBlock).toContain("padding: 0");
+    expect(checkoutStatusHeadingBlock).toContain(
+      "font-size: clamp(1.25rem, 2vw, 1.6rem)",
+    );
     expect(cartItemBlock).toContain("transition:");
     expect(cartItemAccentBlock).toContain("color-mix");
     expect(cartSummaryBlock).toContain("linear-gradient(180deg");
     expect(cartSummaryBlock).toContain("overflow: hidden");
     expect(cartSummaryAccentBlock).toContain("var(--pm-candy-pink)");
     expect(cartSummaryDescriptionBlock).toContain("var(--shell-accent)");
-    expect(checkoutHeroBlock).toContain("linear-gradient(135deg");
-    expect(checkoutHeroAccentBlock).toContain("var(--pm-candy-pink)");
     expect(checkoutStepBlock).toContain("transition:");
     expect(checkoutStepAccentBlock).toContain("var(--shell-border)");
     expect(globalCss).toContain(

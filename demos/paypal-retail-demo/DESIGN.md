@@ -68,6 +68,22 @@ This section is the frontend source of truth. Frontend work must follow these ru
 - If implementation discovers a design gap, update this file first, then update tasks/tests.
 - Do not treat a rendered component as complete unless it matches the page contract, state contract, and visual language here.
 
+### Retrieval-Backed Design Exploration
+
+For customer-facing UI polish, do not jump straight from feedback to implementation tasks. Use `ui-ux-pro-max` as the first design phase:
+
+1. Analyze the request for product type, style keywords, industry, page context, and stack.
+2. Run the required design-system retrieval first, using the page and product context. Example query shape: `e-commerce collectible retail checkout playful premium shadcn React`.
+3. Run targeted follow-up searches as needed:
+   - `ux` for flow, hierarchy, mobile behavior, accessibility, z-index, and loading/error states.
+   - `style` for visual-direction alternatives and anti-patterns.
+   - `typography` for font scale, weight, and sophistication.
+   - `shadcn` or `react` for implementation-specific component guidance.
+4. Synthesize 2-3 distinct options or mockups before writing implementation tasks. Each option should describe layout, visual hierarchy, typography/spacing, mobile behavior, tradeoffs, and inspection criteria.
+5. After the user selects a direction, convert that option into `DESIGN.md` updates, `IMPLEMENTATION_TASKS.md` rows, `tracking/test-cases.md` acceptance criteria, and browser inspection standards.
+
+If a Claude review is unavailable in the current environment, do not block the design phase; compensate by using the retrieval workflow more faithfully and by making the alternatives explicit before implementation planning.
+
 ### Chosen POP MART Direction
 
 Use `ui-ux-pro-max` as a reference, but do not copy every generated recommendation blindly. For this demo:
@@ -1074,10 +1090,10 @@ Payment section uses radio-first layout.
 
 Rules:
 
-- PayPal selected by default if eligible.
+- Round 2 checkout has no selected payment method by default. PayPal can be the first eligible row, but the buyer must explicitly select a method before any official provider action or create-order path is available.
 - PayPal selected: standalone official PayPal button under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
-- Pay Later radio row stays compact with brand/logo labeling only; amount-aware Pay Later messaging belongs with the selected Pay Later action under Order Summary or the mobile sticky payment surface.
-- Pay Later selected: standalone official Pay Later button with the official amount-aware Pay Later message directly below it under Order Summary on desktop/tablet, or inside the mobile sticky payment bar on mobile.
+- Pay Later radio row stays compact with brand/logo labeling only; amount-aware Pay Later messaging belongs with the selected Pay Later action under Order Summary, inside expanded mobile order details, or inside the inline payment section.
+- Pay Later selected: standalone official Pay Later button with the official amount-aware Pay Later message directly below it under Order Summary on desktop/tablet; on mobile Round 2, the collapsed sticky summary stays limited to total, promo, and current action, while the Pay Later message appears in expanded order details or inline payment content unless a provider-owned component requires it inside the action slot.
 - Apple Pay selected: official Apple Pay button under Order Summary when eligible.
 - Google Pay selected: official Google Pay button under Order Summary when eligible.
 - Venmo selected: official Venmo button under Order Summary when eligible.
@@ -1087,7 +1103,7 @@ Rules:
 - Selected Pay Later action reserves stable space for PayPal message rendering and shows buyer-safe fallback copy if PayPal presentment content is unavailable or renders empty.
 - Mobile: selected non-card action appears in sticky bottom payment bar.
 - Mobile sticky bar shows only one selected non-card payment action at a time.
-- Mobile sticky bar reserves space for the selected method label, total, button, and any required Pay Later message without overlapping content.
+- Mobile Round 2 sticky bar reserves space for total, directly stacked promo, the grabber trigger, and one current action state without overlapping content. It does not add separate selected-method label rows or merchant Pay Later explanation rows in the collapsed state.
 - Card payment never moves into the sticky bar; its pay button stays inside the card fields box.
 
 ## Cart + Checkout A+ Polish Contract
@@ -1123,6 +1139,29 @@ Mobile A+:
 - Sticky actions are hidden, disabled, or repositioned while open dialogs/sheets, pickup store modal controls, focused form fields, validation targets, or mobile keyboard/safe-area constraints would otherwise compete with them.
 - Pay Later selected on mobile reserves stable space for both the official button and official message or buyer-safe fallback.
 - Card payment remains inline in the card fields box and never moves into the sticky bar.
+
+Round 2 cart/checkout refinement:
+
+- The approved mobile checkout disclosure target is v5 grabber-only: the collapsed sticky summary uses a neutral handle integrated into the sticky surface, no arrow/caret badge, no item thumbnails/copy, no trust copy, and a measured 44px interactive area. The visible handle can remain compact, but the focusable/clickable trigger rect must satisfy the 44px mobile hit target.
+- The collapsed sticky summary shows only total, directly stacked promo amount text when present, and the current payment action state. Before payment selection the action is neutral/disabled; after selected non-card payment and settled totals it renders exactly one selected provider action; card stays inline.
+- Settled/current totals means the active fulfillment mode has a checkout draft ID, the latest successful draft update/recalculation response has been applied to the displayed summary, no checkout step is saving or recalculating, no draft update request is pending, and `paymentReadiness` is absent or `ready`.
+- Expanded order details use the existing shadcn `Sheet` with `side="bottom"` for the first implementation. The sheet lists item rows, subtotal, promo, shipping method/cost, tax, and total, keeps the payment action reachable when ready, traps focus, closes by Escape/scrim/handle, returns focus to the trigger, and respects reduced motion. The close handle can stay visually slim, but the `Close order details` button must keep a 44px minimum hit target. Future deploy closure must directly inspect or test `aria-expanded`, `aria-controls`, Escape close, scrim close, handle close, close-handle hit target, and focus return rather than relying only on Radix inheritance.
+- Do not fake drag-to-close. True drag gesture support requires an explicitly approved Drawer/Vaul-style dependency; otherwise the grabber is a tap target and visual affordance only.
+- Mobile checkout first viewport must focus on the buyer task rather than repeating the cart summary: fulfillment switch, active progress, and shipping address controls/saved summary appear before any expanded order details.
+- Delivery/Pickup is a real shadcn-style `Tabs`/segmented switch, not a passive chip. It preserves separate Delivery/Pickup state and remains keyboard reachable.
+- Delivery shipping address collects first name, last name, street address, optional apartment/suite/building, city, state select, ZIP/postcode, and phone with visible labels, autocomplete, input modes, inline errors, and narrow-width stacking.
+- Delivery checkout includes a Shipping method section between Billing address and Payment method in initial, saved, payment-ready, and selected-payment states.
+- Saving shipping advances the buyer to Billing within 250ms after client validation while showing recalculating/pending totals if backend shipping, tax, or promo has not settled; payment remains disabled until totals are current. Save failure returns focus and inline error copy to Shipping address. Same-mode draft updates must serialize through the latest applied draft data so a fast Billing save cannot overwrite a still-saving Shipping address response.
+- Promo UI stays truthful: no fake manual activation, no inert promo input, and no color-only discount state. Real discounts appear as signed amount text under total in the collapsed sticky summary and inside expanded order details. If a selected promo code is also shown, it is secondary to the amount; code-only display such as `SAVE10` fails when `discount_minor > 0`.
+- Cart Round 2 reduces the oversized cart header/title into compact bag status, keeps item imagery visible in the first mobile pass, and hides native number input spinner controls because merchant decrement/increment controls already exist.
+- Typography for cart/checkout should follow the compact ecommerce-clean direction from the `ui-ux-pro-max` retrieval: lighter utility weights, smaller transactional headings, readable body sizing, and no hero-scale type inside form panels or sticky surfaces. Adding a new Google Font is optional and should be avoided if it creates dependency/loading risk; deployed density is the acceptance gate.
+- Create-order safety must be proved by provider counts and request/callback counts: blocked states produce zero create-order calls, while selected PayPal or Pay Later with settled/current totals produces exactly one create-order call when the buyer activates the provider action.
+- 2026-07-04 sub-agent UI/UX review verdict: local Round 2 polish is ready with caveats. The sticky disclosure and promo-display caveats now have local evidence: focused tests cover the 44px/112px trigger contract, stable `aria-expanded`/`aria-controls`, handle/Escape/scrim close, focus return, and amount-first promo mapping; Playwright MCP measured the rendered 390px grabber at `112 x 44`, and the API-backed checkpoint later measured the expanded `Close order details` handle at `390 x 44`. The selected-provider browser request/callback caveat was later closed locally for PayPal and Pay Later; deploy-quality caveats remain hosted smoke, recalculation/failure rows, discount visual proof, and broader sticky/fixed overlap proof.
+- 2026-07-04 follow-up design QA verdict: `Ready with caveats`. The current visible direction should be preserved: compact retail typography, sparse sticky summary, shadcn `Tabs` for Delivery/Pickup, and shadcn bottom `Sheet` for order details. Do not reopen hero/title density, font replacement, or custom drawer gestures unless final hosted screenshots still show a measurable issue. The next proof must be behavioral plus visual: `draftId`, readiness, totals, provider counts, create-order request/callback counts, viewport screenshots, focus return, and sticky overlap checks.
+- 2026-07-05 API-backed checkpoint: screenshots and `metrics.json` under `/private/tmp/paypal-retail-cart-checkout-round2-api-backed-20260705/` prove populated cart density at 320/390/1440 plus 390px checkout billing-active, shipping-method-visible, payment-ready/no-method, selected PayPal, expanded order details, collapsed-again, selected Pay Later, selected Pay Later with mobile menu/minicart/sign-in overlays, selected Card, and focused billing input visual states. Metrics record zero horizontal overflow, zero create-order requests before buyer activation, overlay sticky-summary suppression, a `112 x 44` sticky grabber, and a `390 x 44` expanded `Close order details` handle. The checkpoint also caught and fixed a Shipping/Billing draft-update race by queueing same-mode draft updates. A follow-up sub-agent review found the checkpoint still contained route-noise console errors (`Homepage products load failed`) and ambiguous page-level `providerCount`; future evidence must either eliminate that noise or triage it per route/action, and must report provider nodes by surface. This checkpoint should not be treated as deploy closure because remaining proof still needs hosted smoke, richer selected-method/readiness/request-callback metrics, recalculation/failure rows, discount visual proof, positive create-order browser activation metrics, and broader rect-based sticky/fixed overlap evidence.
+- 2026-07-05 focused API-backed rerun: the same evidence directory was refreshed with route-scoped `/cart` seeding, surface-scoped provider buckets (`checkoutSticky`, `orderSheet`, `inlineCard`, `minicart`, `messageOnly`, `other`), payment-method attribution from create-order request bodies, and browser callback metrics from app `console.info` SDK callback logs. Selected PayPal activation produced exactly one `paypal` delivery create-order request delta and one PayPal callback delta; selected Pay Later activation produced exactly one `paylater` delivery create-order request delta and one Pay Later callback delta. Blocked/no-method/card/overlay/focused-input rows stayed at zero request/callback deltas, overlay rows kept checkout sticky summary unmounted, and the latest focused run has zero console warnings/errors. Remaining caveats are no hosted smoke in this rerun, still-missing recalculation/failure/discount visual rows, and broader rect-based sticky/fixed overlap proof.
+- 2026-07-05 sub-agent follow-up: expanded Sheet layering should keep modal/Sheet overlay and content above the skip link. The skip link remains above the site header for keyboard access but below shadcn Sheet/Dialog layers, preventing it from appearing over the order-details Sheet.
+- Final cart/checkout deploy-quality screenshots must show selected PayPal, selected Pay Later, selected Card, expanded order details, collapsed-again focus return, recalculating totals, failed totals/save, focused input, and open menu/dialog/sheet states at mobile widths. Sticky/fixed UI cannot overlap focused inputs, provider buttons/messages, Sheet controls, footer content, validation errors, or dialog controls; checkout sticky summary should be unmounted while mobile menu, minicart Sheet, or sign-in dialog owns the mobile surface.
 
 PayPal A+:
 
@@ -1187,10 +1226,10 @@ Shipping fee is excluded from promo and tax calculations.
 ### Promo UX
 
 - Inline in Order Summary.
-- "Add promo code" collapsed behind link.
+- "Add promo code" is visible only when manual promo evaluate/apply/remove is fully wired, accessible, and covered by tests; otherwise show truthful auto-offer/no-promo status.
 - One eligible promo set auto-applies, buyer can remove/change.
 - Multiple valid sets show recommended best option and alternatives.
-- Manual code shows accepted/rejected/conflict result.
+- Manual code shows accepted/rejected/conflict result only when manual promo entry is enabled.
 - Recalculation states should use plain language such as "Checking offers for this address..." and must not block unrelated form edits.
 - Buyer-facing promo explanations stay concise; Admin Portal shows detailed selected/rejected promo reasons.
 

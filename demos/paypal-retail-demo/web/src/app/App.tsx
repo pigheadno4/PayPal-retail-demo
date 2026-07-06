@@ -3039,6 +3039,11 @@ function BuyerShell({
           guestOrderStatus={guestOrderStatus}
           savedPayments={savedPayments}
           savedPaymentsStatus={savedPaymentsStatus}
+          suppressCheckoutPaymentActions={
+            isMobileMenuOpen ||
+            currentMinicartState !== "closed" ||
+            currentAuthModalState !== "closed"
+          }
           onCreateAddress={handleCreateAddress}
           onDeleteAddress={handleDeleteAddress}
           onDeleteReview={handleDeleteReview}
@@ -3222,6 +3227,7 @@ function RouteStage({
   guestOrderStatus,
   savedPayments,
   savedPaymentsStatus,
+  suppressCheckoutPaymentActions,
   onCreateAddress,
   onDeleteAddress,
   onDeleteReview,
@@ -3263,6 +3269,7 @@ function RouteStage({
   readonly guestOrderStatus: "error" | "idle" | "loading" | "ready";
   readonly savedPayments: readonly AccountSavedPaymentMethodView[];
   readonly savedPaymentsStatus: "error" | "idle" | "loading" | "ready";
+  readonly suppressCheckoutPaymentActions: boolean;
   readonly onCreateAddress: (
     address: AccountAddressMutationInput,
   ) => Promise<void>;
@@ -3325,8 +3332,15 @@ function RouteStage({
       <CheckoutPage
         data={checkoutData}
         onDraftUpdate={onCheckoutDraftUpdate}
-        renderCardPaymentBox={renderCardPaymentBox}
-        renderPaymentAction={renderCheckoutPaymentAction}
+        suppressMobileStickySummary={suppressCheckoutPaymentActions}
+        renderCardPaymentBox={
+          suppressCheckoutPaymentActions ? () => null : renderCardPaymentBox
+        }
+        renderPaymentAction={
+          suppressCheckoutPaymentActions
+            ? () => null
+            : renderCheckoutPaymentAction
+        }
       />
     );
   }
@@ -5056,8 +5070,13 @@ async function sendCheckoutDraftUpdate(
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/shipping-address`,
         buildAddressBody(request.fields, config, {
+          addressLine2Label: "Apt, suite, or building",
           cityLabel: "City",
+          firstNameLabel: "First name",
+          fallbackNameLabel: "Full name",
+          lastNameLabel: "Last name",
           nameLabel: "Full name",
+          phoneLabel: "Phone number",
           postalCodeLabel: "ZIP code",
           stateLabel: "State",
           streetLabel: "Street address",
@@ -5224,6 +5243,7 @@ function buildBillingAddressBody(
   return {
     address: buildAddressBody(fields, config, {
       cityLabel: "Billing city",
+      fallbackNameLabel: "Full name",
       nameLabel: "Full name",
       postalCodeLabel: "Billing ZIP code",
       stateLabel: "State",
@@ -5239,32 +5259,77 @@ function buildAddressBody(
   config: StorefrontRuntimeConfig,
   labels: {
     readonly nameLabel: string;
+    readonly firstNameLabel?: string;
+    readonly lastNameLabel?: string;
+    readonly fallbackNameLabel?: string;
     readonly streetLabel: string;
+    readonly addressLine2Label?: string;
     readonly cityLabel: string;
     readonly stateLabel: string;
     readonly postalCodeLabel: string;
+    readonly phoneLabel?: string;
   },
 ) {
   return {
     address_line1: getSubmittedFieldValue(fields, labels.streetLabel),
-    address_line2: null,
+    address_line2: getOptionalSubmittedFieldValue(
+      fields,
+      labels.addressLine2Label,
+    ),
     city: getSubmittedFieldValue(fields, labels.cityLabel),
     country_code: config.market.code,
     county: null,
-    phone: null,
+    phone: getOptionalSubmittedFieldValue(fields, labels.phoneLabel),
     postal_code: getSubmittedFieldValue(fields, labels.postalCodeLabel),
-    recipient_name:
-      getSubmittedFieldValue(fields, labels.nameLabel) || "Pickup buyer",
+    recipient_name: getSubmittedRecipientName(fields, labels),
     state: getSubmittedFieldValue(fields, labels.stateLabel) || null,
   };
 }
 
+function getSubmittedRecipientName(
+  fields: readonly CheckoutSubmittedField[],
+  labels: {
+    readonly nameLabel: string;
+    readonly firstNameLabel?: string;
+    readonly lastNameLabel?: string;
+    readonly fallbackNameLabel?: string;
+  },
+): string {
+  const splitName = [
+    getSubmittedFieldValue(fields, labels.firstNameLabel),
+    getSubmittedFieldValue(fields, labels.lastNameLabel),
+  ]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .join(" ");
+
+  return (
+    splitName ||
+    getSubmittedFieldValue(fields, labels.nameLabel) ||
+    getSubmittedFieldValue(fields, labels.fallbackNameLabel) ||
+    "Pickup buyer"
+  );
+}
+
 function getSubmittedFieldValue(
   fields: readonly CheckoutSubmittedField[],
-  label: string,
+  label: string | undefined,
 ): string {
+  if (!label) {
+    return "";
+  }
+
   const value = fields.find((field) => field.label === label)?.value;
   return typeof value === "string" ? value : "";
+}
+
+function getOptionalSubmittedFieldValue(
+  fields: readonly CheckoutSubmittedField[],
+  label: string | undefined,
+): string | null {
+  const value = getSubmittedFieldValue(fields, label).trim();
+
+  return value.length > 0 ? value : null;
 }
 
 function getSubmittedBooleanFieldValue(

@@ -4,6 +4,8 @@ import type {
   CheckoutFulfillmentDraft,
   CheckoutOrderSummary,
   CheckoutPageData,
+  CheckoutPaymentReadiness,
+  CheckoutPaymentReadinessState,
   CheckoutStep,
   CheckoutStoreCard,
   CheckoutStoreInventoryLine,
@@ -18,9 +20,16 @@ export interface CheckoutDraftDto {
   readonly fulfillment_mode: "delivery" | "pickup";
   readonly active_step?: string;
   readonly delivery?: CheckoutDeliveryDraftDto;
+  readonly payment_readiness?: CheckoutPaymentReadinessDto | null;
   readonly pickup?: CheckoutPickupDraftDto;
   readonly summary?: CheckoutSummaryDto;
   readonly promo?: CheckoutPromoDto;
+}
+
+export interface CheckoutPaymentReadinessDto {
+  readonly state: CheckoutPaymentReadinessState;
+  readonly title?: string | null;
+  readonly body?: string | null;
 }
 
 export interface CheckoutDeliveryDraftDto {
@@ -34,10 +43,12 @@ export interface CheckoutDeliveryDraftDto {
 export interface CheckoutAddressDto {
   readonly recipient_name?: string | null;
   readonly address_line1?: string | null;
+  readonly address_line2?: string | null;
   readonly city?: string | null;
   readonly state?: string | null;
   readonly postal_code?: string | null;
   readonly country_code?: string | null;
+  readonly phone?: string | null;
 }
 
 export interface CheckoutShippingOptionDto {
@@ -141,9 +152,17 @@ function reconcileDeliveryDraft(
   currentDraft: CheckoutFulfillmentDraft,
   draft: CheckoutDraftDto,
 ): CheckoutFulfillmentDraft {
+  const paymentReadiness = reconcilePaymentReadiness(
+    currentDraft.paymentReadiness,
+    draft.payment_readiness,
+  );
+  const { paymentReadiness: _currentPaymentReadiness, ...baseDraft } =
+    currentDraft;
+
   return {
-    ...currentDraft,
+    ...baseDraft,
     checkoutDraftId: draft.id,
+    ...(paymentReadiness ? { paymentReadiness } : {}),
     summary: draft.summary
       ? reconcileSummary(currentDraft.summary, draft.summary, draft.promo)
       : currentDraft.summary,
@@ -159,9 +178,17 @@ function reconcilePickupDraft(
   currentDraft: CheckoutFulfillmentDraft,
   draft: CheckoutDraftDto,
 ): CheckoutFulfillmentDraft {
+  const paymentReadiness = reconcilePaymentReadiness(
+    currentDraft.paymentReadiness,
+    draft.payment_readiness,
+  );
+  const { paymentReadiness: _currentPaymentReadiness, ...baseDraft } =
+    currentDraft;
+
   return {
-    ...currentDraft,
+    ...baseDraft,
     checkoutDraftId: draft.id,
+    ...(paymentReadiness ? { paymentReadiness } : {}),
     summary: reconcilePickupSummary(
       draft.summary
         ? reconcileSummary(currentDraft.summary, draft.summary, draft.promo)
@@ -185,6 +212,25 @@ function reconcileSummary(
       ? { shippingLabel: formatMinor(summary.shipping_minor, summary) }
       : {}),
     totalLabel: formatMinor(summary.total_minor, summary),
+  };
+}
+
+function reconcilePaymentReadiness(
+  currentReadiness: CheckoutPaymentReadiness | undefined,
+  readiness: CheckoutPaymentReadinessDto | null | undefined,
+): CheckoutPaymentReadiness | undefined {
+  if (readiness === undefined) {
+    return currentReadiness;
+  }
+
+  if (!readiness) {
+    return undefined;
+  }
+
+  return {
+    state: readiness.state,
+    ...(readiness.title ? { title: readiness.title } : {}),
+    ...(readiness.body ? { body: readiness.body } : {}),
   };
 }
 
@@ -295,16 +341,29 @@ function reconcilePickupSteps(
 function mapAddressFields(
   address: CheckoutAddressDto,
 ): readonly CheckoutField[] {
+  const nameParts = splitRecipientName(address.recipient_name ?? "");
+  const stateValue = address.state ?? "";
+
   return [
     {
-      label: "Full name",
+      label: "First name",
       type: "text",
-      value: address.recipient_name ?? "",
+      value: nameParts.firstName,
+    },
+    {
+      label: "Last name",
+      type: "text",
+      value: nameParts.lastName,
     },
     {
       label: "Street address",
       type: "text",
       value: address.address_line1 ?? "",
+    },
+    {
+      label: "Apt, suite, or building",
+      type: "text",
+      value: address.address_line2 ?? "",
     },
     {
       label: "City",
@@ -313,15 +372,68 @@ function mapAddressFields(
     },
     {
       label: "State",
-      type: "text",
-      value: address.state ?? "",
+      options: getStateOptionsWithFallback(stateValue),
+      type: "select",
+      value: stateValue,
     },
     {
       label: "ZIP code",
       type: "text",
       value: address.postal_code ?? "",
     },
+    {
+      label: "Phone number",
+      type: "text",
+      value: address.phone ?? "",
+    },
   ];
+}
+
+function splitRecipientName(name: string): {
+  readonly firstName: string;
+  readonly lastName: string;
+} {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length <= 1) {
+    return {
+      firstName: parts[0] ?? "",
+      lastName: "",
+    };
+  }
+
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function getStateOptionsWithFallback(
+  stateValue: string,
+): readonly { readonly label: string; readonly value: string }[] {
+  const options = [
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DC",
+    "FL",
+    "GA",
+    "IL",
+    "MA",
+    "NJ",
+    "NY",
+    "PA",
+    "TX",
+    "WA",
+  ].map((state) => ({ label: state, value: state }));
+
+  return stateValue && !options.some((option) => option.value === stateValue)
+    ? [{ label: stateValue, value: stateValue }, ...options]
+    : options;
 }
 
 function mapShippingChoice(
@@ -400,12 +512,15 @@ function formatPromoLabel(
 ): string {
   const selectedCodes = promo?.selected_codes ?? [];
 
-  if (selectedCodes.length) {
-    return selectedCodes.join(" + ");
+  if (summary.discount_minor > 0) {
+    const discountLabel = `-${formatMinor(summary.discount_minor, summary)} promo`;
+    return selectedCodes.length
+      ? `${discountLabel} (${selectedCodes.join(" + ")})`
+      : discountLabel;
   }
 
-  if (summary.discount_minor > 0) {
-    return `-${formatMinor(summary.discount_minor, summary)}`;
+  if (selectedCodes.length) {
+    return selectedCodes.join(" + ");
   }
 
   return "No promo applied";
