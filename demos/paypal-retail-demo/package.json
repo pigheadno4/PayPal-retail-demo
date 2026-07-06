@@ -24,6 +24,7 @@
     "format": "prettier --write \"*.{js,json,ts}\" \"tools/**/*.js\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
     "format:check": "prettier --check \"*.{js,json,ts}\" \"tools/**/*.js\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
     "evidence:round2:checkout-readiness": "playwright-cli --raw run-code --filename=tools/round2-checkout-readiness-evidence.playwright.js",
+    "evidence:round2:hosted-smoke": "playwright-cli --raw run-code --filename=tools/round2-hosted-checkout-smoke.playwright.js",
     "verify": "npm run typecheck && npm test && npm run lint && npm run format:check"
   },
   "dependencies": {

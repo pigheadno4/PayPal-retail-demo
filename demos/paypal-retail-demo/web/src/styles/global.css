@@ -8051,6 +8051,12 @@ p {
     padding: 0 16px;
   }
 
+  body:has(.checkout-sticky-summary) .site-footer {
+    padding-bottom: calc(
+      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)
+    );
+  }
+
   .site-footer__newsletter {
     gap: 14px;
     grid-template-columns: 1fr;

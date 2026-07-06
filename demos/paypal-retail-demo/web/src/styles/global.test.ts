@@ -452,6 +452,9 @@ describe("global storefront visual tokens", () => {
     const checkoutStickyViewportClearanceBlock = cssBlock(
       "html:has(.checkout-sticky-summary)",
     );
+    const checkoutStickyFooterClearanceBlock = cssBlock(
+      "body:has(.checkout-sticky-summary) .site-footer",
+    );
     const checkoutStickyFieldClearanceBlock = cssBlock(
       ".checkout-field input:focus,\n  .checkout-field__select:focus,\n  .checkout-choice__card-box,\n  .checkout-choice__message,\n  .card-fields-checkout-action",
     );
@@ -559,6 +562,9 @@ describe("global storefront visual tokens", () => {
     expect(checkoutStickyGrabberBlock).toContain("min-width: 112px");
     expect(checkoutStickyViewportClearanceBlock).toContain(
       "scroll-padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
+    );
+    expect(checkoutStickyFooterClearanceBlock).toContain(
+      "padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
     );
     expect(checkoutStickyFieldClearanceBlock).toContain(
       "scroll-margin-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
