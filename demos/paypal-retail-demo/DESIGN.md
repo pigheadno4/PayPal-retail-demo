@@ -84,6 +84,14 @@ For customer-facing UI polish, do not jump straight from feedback to implementat
 
 If a Claude review is unavailable in the current environment, do not block the design phase; compensate by using the retrieval workflow more faithfully and by making the alternatives explicit before implementation planning.
 
+When `ui-ux-pro-max` is requested for a design or implementation-plan review, the review output must be a retrieval-backed design packet rather than a short opinion summary:
+
+- Include the design-system query plus the targeted `ux`, `style`, `typography`, and `shadcn`/`react` retrievals used.
+- Group findings by priority: `P0` for conversion/accessibility/flow blockers, `P1` for high-impact polish, and `P2` for refinements.
+- For each finding, name the affected page/component, explain why it matters, recommend a concrete fix, and define the inspection standard.
+- Preserve user-selected mockups/options as binding input, including rejected alternatives and the reason they were rejected.
+- Before runtime edits, convert accepted findings into implementation tasks and acceptance criteria; unresolved findings stay visible in tracking rather than disappearing into chat.
+
 ### Chosen POP MART Direction
 
 Use `ui-ux-pro-max` as a reference, but do not copy every generated recommendation blindly. For this demo:

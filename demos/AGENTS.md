@@ -27,7 +27,7 @@ The canonical step-by-step lifecycle lives in `NEW_DEMO_PROTOCOL.md`. Start ther
 ## Milestone Close Gates
 - For user-facing UI, rendered screens or component shells are not enough to mark a milestone complete.
 - For customer-facing or sales-facing UI, `DESIGN.md` must be implementation-grade before coding: tokens, component contracts, detailed page specs, UX-flow contracts, state contracts, responsive rules, and visual QA gates.
-- For customer-facing UI polish or redesign, use `ui-ux-pro-max` as a design retrieval workflow before implementation planning: generate a design system first, run targeted UX/style/typography/stack searches as needed, then synthesize multiple options or mockups before coding.
+- For customer-facing UI polish or redesign, use `ui-ux-pro-max` as a real design retrieval workflow before implementation planning: run the design-system search first, run targeted UX/style/typography/stack searches, and synthesize options or mockups before coding. A valid review must include a priority-ranked design packet (`P0` must fix, `P1` high-impact polish, `P2` refinement) with concrete findings, affected surfaces, recommendations, and inspection criteria; do not satisfy this rule with a generic taste-based paragraph.
 - Before closing a frontend slice, verify the touched UI against `DESIGN.md`; if the implementation only follows generic styling or shell layout, keep the item open.
 - Before checking a milestone item as done, every visible user action must be wired to real state/API behavior, disabled with a clear reason, or explicitly recorded as deferred.
 - Before moving phases, list every unchecked item in the active and previous milestone and give each one a disposition: complete, deferred, blocked, or removed.
