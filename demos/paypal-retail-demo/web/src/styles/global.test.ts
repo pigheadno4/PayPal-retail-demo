@@ -449,6 +449,15 @@ describe("global storefront visual tokens", () => {
     const checkoutStickyGrabberBlock = cssBlock(
       ".checkout-sticky-summary__grabber",
     );
+    const checkoutSelectedPaymentSlotBlock = cssBlock(
+      ".checkout-summary__slot,\n.checkout-sticky-summary__action,\n.checkout-order-sheet__payment",
+    );
+    const checkoutSelectedPaymentProviderScopeBlock = cssBlock(
+      ".checkout-summary__slot > .paypal-provider-scope,\n.checkout-sticky-summary__action > .paypal-provider-scope,\n.checkout-order-sheet__payment > .paypal-provider-scope",
+    );
+    const checkoutSelectedPaymentProviderActionBlock = cssBlock(
+      ".checkout-summary__slot .paypal-standalone-action,\n.checkout-summary__slot .paylater-standalone-action,\n.checkout-sticky-summary__action .paypal-standalone-action,\n.checkout-sticky-summary__action .paylater-standalone-action,\n.checkout-order-sheet__payment .paypal-standalone-action,\n.checkout-order-sheet__payment .paylater-standalone-action",
+    );
     const checkoutModalBlock = cssBlock(".checkout-modal");
     const siteHeaderBlock = cssBlock(".site-header");
     const checkoutStickyViewportClearanceBlock = cssBlock(
@@ -562,6 +571,29 @@ describe("global storefront visual tokens", () => {
     expect(checkoutStickyGrabberBlock).toContain("transform: translateX(-50%)");
     expect(checkoutStickyGrabberBlock).toContain("height: 44px");
     expect(checkoutStickyGrabberBlock).toContain("min-width: 112px");
+    expect(checkoutSelectedPaymentSlotBlock).toContain("justify-self: stretch");
+    expect(checkoutSelectedPaymentSlotBlock).toContain("min-inline-size: 0");
+    expect(checkoutSelectedPaymentSlotBlock).toContain("width: 100%");
+    expect(checkoutSelectedPaymentProviderScopeBlock).toContain(
+      "display: grid",
+    );
+    expect(checkoutSelectedPaymentProviderScopeBlock).toContain(
+      "justify-self: stretch",
+    );
+    expect(checkoutSelectedPaymentProviderScopeBlock).toContain(
+      "min-inline-size: 0",
+    );
+    expect(checkoutSelectedPaymentProviderScopeBlock).toContain("width: 100%");
+    expect(checkoutSelectedPaymentProviderActionBlock).toContain(
+      "justify-self: stretch",
+    );
+    expect(checkoutSelectedPaymentProviderActionBlock).toContain(
+      "max-inline-size: 100%",
+    );
+    expect(checkoutSelectedPaymentProviderActionBlock).toContain(
+      "min-inline-size: 0",
+    );
+    expect(checkoutSelectedPaymentProviderActionBlock).toContain("width: 100%");
     expect(siteHeaderBlock).toContain("z-index: 40");
     expect(checkoutModalBlock).toContain("z-index: 50");
     expect(checkoutStickyViewportClearanceBlock).toContain(

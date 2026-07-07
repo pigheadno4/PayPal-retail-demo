@@ -5533,6 +5533,35 @@ a {
   width: 100%;
 }
 
+.checkout-summary__slot,
+.checkout-sticky-summary__action,
+.checkout-order-sheet__payment {
+  justify-self: stretch;
+  min-inline-size: 0;
+  width: 100%;
+}
+
+.checkout-summary__slot > .paypal-provider-scope,
+.checkout-sticky-summary__action > .paypal-provider-scope,
+.checkout-order-sheet__payment > .paypal-provider-scope {
+  display: grid;
+  justify-self: stretch;
+  min-inline-size: 0;
+  width: 100%;
+}
+
+.checkout-summary__slot .paypal-standalone-action,
+.checkout-summary__slot .paylater-standalone-action,
+.checkout-sticky-summary__action .paypal-standalone-action,
+.checkout-sticky-summary__action .paylater-standalone-action,
+.checkout-order-sheet__payment .paypal-standalone-action,
+.checkout-order-sheet__payment .paylater-standalone-action {
+  justify-self: stretch;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  width: 100%;
+}
+
 .wallet-checkout-action__google-pay {
   display: grid;
   min-height: 44px;

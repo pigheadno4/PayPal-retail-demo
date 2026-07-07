@@ -174,6 +174,7 @@ Round 3 implementation tasks:
    - Normalize selected PayPal and Pay Later action slot dimensions.
    - Keep official provider surfaces full-width inside the shared slot.
    - Acceptance: CSS tests and browser metrics compare selected PayPal and Pay Later action rects.
+   - 2026-07-07 local implementation: checkout selected-payment slots now share merchant-owned width/fill rules for the desktop summary slot, collapsed sticky action, expanded order-sheet payment slot, direct PayPal provider scope, and PayPal/Pay Later standalone action wrappers. Focused CSS and CheckoutPage tests passed; browser rect comparison remains part of the Round 3 evidence helper.
 
 6. Evidence helper and hosted smoke.
    - Add a Round 3 helper that captures pickup picker, cancel fallback, mobile drawer, billing latency, promo discount, and payment-width states.

@@ -222,7 +222,7 @@
 - Consumes: selected PayPal/Pay Later provider action slots and official SDK custom element sizing.
 - Produces: a stable payment action slot width for PayPal and Pay Later, including mobile drawer/sticky and expanded drawer.
 
-- [ ] **Step 1: Write failing CSS tests**
+- [x] **Step 1: Write failing CSS tests**
 
   Assert the mobile selected payment action slot uses one stable track or full-width row for PayPal and Pay Later, and official custom elements fill the slot without intrinsic/autofit width.
 
@@ -230,15 +230,17 @@
 
   Expected before implementation: FAIL if PayPal and Pay Later rely on different slot widths.
 
-- [ ] **Step 2: Normalize action slot sizing**
+- [x] **Step 2: Normalize action slot sizing**
 
   Use a shared wrapper class for selected non-card provider actions. Keep merchant styling on the wrapper only. Ensure `paypal-button`, `paypal-pay-later-button`, and their checkout wrappers fill the same width.
 
-- [ ] **Step 3: Verify Task 5**
+- [x] **Step 3: Verify Task 5**
 
   Run: `npm test -- web/src/styles/global.test.ts web/src/features/checkout/CheckoutPage.test.tsx`
 
   Expected: PASS, with selected PayPal and Pay Later sharing the same action slot contract.
+
+  Result: PASS on 2026-07-07. The failing-first style test first failed on the missing shared checkout selected-payment slot contract, then passed after adding merchant-owned width/fill rules for `.checkout-summary__slot`, `.checkout-sticky-summary__action`, `.checkout-order-sheet__payment`, their direct `.paypal-provider-scope` child, and PayPal/Pay Later standalone action wrappers. Verification passed `npm test -- web/src/styles/global.test.ts` (`19` tests) and `npm test -- web/src/styles/global.test.ts web/src/features/checkout/CheckoutPage.test.tsx` (`55` tests). Browser rect comparison remains open for the Round 3 evidence helper.
 
 ## Task 6: App-Level Payment Readiness Regression Proof
 
