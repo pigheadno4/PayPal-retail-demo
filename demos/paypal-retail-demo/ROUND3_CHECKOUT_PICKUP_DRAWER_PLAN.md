@@ -182,7 +182,7 @@
 - Consumes: backend `POST /api/checkout/drafts/:id/promos/evaluate`, `POST /api/checkout/drafts/:id/promos/apply`, and `DELETE /api/checkout/drafts/:id/promos/:code`.
 - Produces: buyer-visible promo state that is either truthful no-promo, real auto/recommended discount, or real manual-code result if manual entry remains enabled.
 
-- [ ] **Step 1: Write failing API mapping tests**
+- [x] **Step 1: Write failing API mapping tests**
 
   Assert evaluate/apply/remove clients map backend success, rejected promo, and network failure into typed frontend states without inventing discounts.
 
@@ -190,7 +190,7 @@
 
   Expected before implementation: FAIL if checkout UI has no typed evaluate/apply/remove path.
 
-- [ ] **Step 2: Write failing UI tests for real discount activation**
+- [x] **Step 2: Write failing UI tests for real discount activation**
 
   With a mocked backend discount response, assert the collapsed drawer, expanded drawer, and desktop summary show the signed discount amount under total. With no selected discount, assert `No promo applied` or equivalent truthful status. No fake inert input may render.
 
@@ -198,15 +198,17 @@
 
   Expected before implementation: FAIL where promo never activates or only code text appears.
 
-- [ ] **Step 3: Implement real promo orchestration**
+- [x] **Step 3: Implement real promo orchestration**
 
   On draft readiness after shipping/pickup inputs are sufficient, call evaluate/apply only through the real backend path selected for this demo. If auto-apply is used, write copy such as `Best offer applied` only after the backend returns a selected evaluation with `discount_minor > 0`. If no automatic apply is chosen, show truthful no-promo status and keep manual promo entry hidden unless it is fully wired.
 
-- [ ] **Step 4: Verify Task 4**
+- [x] **Step 4: Verify Task 4**
 
   Run: `npm test -- web/src/features/checkout/checkoutDraftApi.test.ts web/src/features/checkout/CheckoutPage.test.tsx`
 
   Expected: PASS, with no fake promo path and signed discount display when backend returns a real discount.
+
+  Result: PASS on 2026-07-07 for the focused implemented surface. `npm test -- web/src/features/checkout/CheckoutPage.test.tsx` passed `36` tests with explicit signed-promo assertions in the collapsed mobile drawer and expanded order-details sheet. `npm test -- web/src/features/checkout/checkoutDraftApi.test.ts web/src/features/checkout/CheckoutPage.test.tsx web/src/app/App.interactions.test.tsx` passed `109` tests after the failing-first promo route/orchestration tests went red/green. Coverage proves typed evaluate/apply/remove calls, zero-discount/rejected evaluation no-apply behavior, network-failure no-fake-discount behavior, collapsed/expanded drawer amount-first display, and App-level delivery draft recalculation calling backend evaluate/apply before showing `-$4.00 promo (SAVE10)`.
 
 ## Task 5: Payment CTA Width Normalization
 

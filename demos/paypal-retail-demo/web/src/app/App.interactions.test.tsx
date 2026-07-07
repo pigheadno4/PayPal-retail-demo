@@ -3258,6 +3258,94 @@ describe("App buyer interactions", () => {
     expect(within(orderSummary).getByText("$5.00")).toBeTruthy();
   });
 
+  it("activates recommended checkout promos from backend evaluation before showing the discount", async () => {
+    const user = userEvent.setup();
+    const draftWithoutPromo = checkoutDraftApiResponse({
+      discountMinor: 0,
+      fulfillmentMode: "delivery",
+      id: deliveryDraftUuid,
+      promoLabel: "SAVE10",
+      promoStatus: "pending",
+      recommendedPromoCodes: [],
+      selectedPromoCodes: [],
+      totalMinor: 3525,
+    });
+    const draftWithAppliedPromo = checkoutDraftApiResponse({
+      discountMinor: 400,
+      fulfillmentMode: "delivery",
+      id: deliveryDraftUuid,
+      promoLabel: "SAVE10",
+      recommendedPromoCodes: ["SAVE10"],
+      selectedPromoCodes: ["SAVE10"],
+      totalMinor: 3125,
+    });
+    const apiClient = createRecordingApiClient({
+      patchResponse: draftWithoutPromo,
+      postResponseByPath: {
+        "/api/checkout/drafts": draftWithoutPromo,
+        [`/api/checkout/drafts/${deliveryDraftUuid}/promos/apply`]:
+          draftWithAppliedPromo,
+        [`/api/checkout/drafts/${deliveryDraftUuid}/promos/evaluate`]: {
+          promo: {
+            merchandise_discount_minor: 400,
+            recommended_set: ["SAVE10"],
+            rejected: [],
+            selected_set: [],
+          },
+        },
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            manual_codes: [],
+          },
+          method: "post",
+          path: `/api/checkout/drafts/${deliveryDraftUuid}/promos/evaluate`,
+          query: { market: "US" },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            manual_codes: [],
+            selected_codes: ["SAVE10"],
+          },
+          method: "post",
+          path: `/api/checkout/drafts/${deliveryDraftUuid}/promos/apply`,
+          query: { market: "US" },
+        }),
+      );
+    });
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    await waitFor(() => {
+      expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
+    });
+    expect(
+      within(orderSummary).getAllByText("-$4.00 promo (SAVE10)"),
+    ).toHaveLength(2);
+  });
+
   it("keeps checkout section open when the App checkout draft API call fails", async () => {
     const user = userEvent.setup();
     const consoleError = vi
@@ -5329,12 +5417,17 @@ function emptyCartApiResponse({
 }
 
 function checkoutDraftApiResponse({
+  discountMinor = 400,
   fulfillmentMode,
   id,
   pickupStores = [],
   promoLabel,
+  promoStatus,
+  recommendedPromoCodes,
+  selectedPromoCodes,
   totalMinor,
 }: {
+  readonly discountMinor?: number;
   readonly fulfillmentMode: "delivery" | "pickup";
   readonly id?: string;
   readonly pickupStores?: readonly {
@@ -5350,8 +5443,14 @@ function checkoutDraftApiResponse({
     readonly unavailable_items_count: number;
   }[];
   readonly promoLabel: string;
+  readonly promoStatus?: string;
+  readonly recommendedPromoCodes?: readonly string[];
+  readonly selectedPromoCodes?: readonly string[];
   readonly totalMinor: number;
 }) {
+  const resolvedRecommendedPromoCodes = recommendedPromoCodes ?? [promoLabel];
+  const resolvedSelectedPromoCodes = selectedPromoCodes ?? [promoLabel];
+
   return {
     draft: {
       id:
@@ -5395,16 +5494,18 @@ function checkoutDraftApiResponse({
       summary: {
         item_count: 1,
         merchandise_subtotal_minor: 2598,
-        discount_minor: 400,
+        discount_minor: discountMinor,
         tax_minor: 227,
         shipping_minor: 500,
         total_minor: totalMinor,
         currency_code: "USD",
       },
       promo: {
-        status: "selected",
-        recommended_codes: [promoLabel],
-        selected_codes: [promoLabel],
+        status:
+          promoStatus ??
+          (resolvedSelectedPromoCodes.length ? "selected" : "pending"),
+        recommended_codes: resolvedRecommendedPromoCodes,
+        selected_codes: resolvedSelectedPromoCodes,
       },
     },
   };

@@ -87,6 +87,7 @@ import {
   reconcileCheckoutDataFromDraftResponse,
   type CheckoutDraftApiResponse,
 } from "../features/checkout/checkoutDraftApi.js";
+import { activateRecommendedCheckoutPromos } from "../features/checkout/promoActivation.js";
 import {
   defaultExpressReviewPageData,
   ExpressReviewPage,
@@ -2165,8 +2166,17 @@ function BuyerShell({
         nextData,
         response,
       );
-      setCurrentCheckoutData(reconciledData);
-      return reconciledData;
+      const promoReconciledData = await activateCheckoutDraftPromosIfEligible({
+        apiClient,
+        authSession: currentAuthSession,
+        cart: currentCart,
+        config,
+        data: reconciledData,
+        draftId,
+        response,
+      });
+      setCurrentCheckoutData(promoReconciledData);
+      return promoReconciledData;
     } catch (error) {
       console.error("[paypal-retail-demo] Checkout draft update failed", {
         error,
@@ -5210,6 +5220,65 @@ async function ensureCheckoutDraft({
     draftId: serverDraftId,
     nextData,
   };
+}
+
+async function activateCheckoutDraftPromosIfEligible({
+  apiClient,
+  authSession,
+  cart,
+  config,
+  data,
+  draftId,
+  response,
+}: {
+  readonly apiClient: ApiClient;
+  readonly authSession: BuyerAuthSession | null | undefined;
+  readonly cart: CartData;
+  readonly config: StorefrontRuntimeConfig;
+  readonly data: CheckoutPageData;
+  readonly draftId: string;
+  readonly response: CheckoutDraftApiResponse;
+}): Promise<CheckoutPageData> {
+  if (!shouldEvaluateCheckoutDraftPromos(response)) {
+    return data;
+  }
+
+  const requestOptions = buildCartRequestOptions(cart, authSession);
+  const promoResult = await activateRecommendedCheckoutPromos({
+    apiClient,
+    draftId,
+    query: {
+      market: config.market.code,
+    },
+    ...(requestOptions ? { requestOptions } : {}),
+  });
+
+  if (promoResult.status === "applied") {
+    return reconcileCheckoutDataFromDraftResponse(data, promoResult.response);
+  }
+
+  if (promoResult.status === "failed") {
+    console.warn("[paypal-retail-demo] Checkout promo activation failed", {
+      error: promoResult.error,
+    });
+  }
+
+  return data;
+}
+
+function shouldEvaluateCheckoutDraftPromos(
+  response: CheckoutDraftApiResponse,
+): boolean {
+  const draft = response.draft;
+
+  if (!draft) {
+    return false;
+  }
+
+  const selectedCodes = draft.promo?.selected_codes ?? [];
+  const discountMinor = draft.summary?.discount_minor ?? 0;
+
+  return !selectedCodes.length && discountMinor <= 0;
 }
 
 function isServerCheckoutDraftId(

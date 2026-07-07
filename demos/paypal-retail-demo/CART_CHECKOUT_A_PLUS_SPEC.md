@@ -168,6 +168,7 @@ Round 3 implementation tasks:
    - Wire typed frontend calls to the existing backend promo evaluate/apply/remove APIs or keep manual promo hidden and show no-promo status.
    - If a real discount is selected, render signed amount text under total in collapsed and expanded drawer states.
    - Acceptance: API/UI tests prove no fake promo path, no code-only discount display, and real discount display after backend success.
+   - 2026-07-07 local implementation: App checkout draft updates now call typed frontend promo evaluate/apply helpers and display signed promo text only from the apply response. Zero-discount/rejected evaluations stay no-promo, and activation failures do not invent discounts. Focused local tests now prove the collapsed mobile drawer, expanded order-details sheet, and App order summary surfaces; browser/API-backed visual rows remain part of the Round 3 evidence helper.
 
 5. Payment CTA width.
    - Normalize selected PayPal and Pay Later action slot dimensions.

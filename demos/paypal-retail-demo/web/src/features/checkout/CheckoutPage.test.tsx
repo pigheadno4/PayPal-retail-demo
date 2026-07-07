@@ -581,6 +581,8 @@ describe("CheckoutPage", () => {
       <CheckoutPage
         data={checkoutData({
           activeDeliveryStepId: "payment-method",
+          deliveryPromoLabel: "-$4.00 promo (SAVE10)",
+          deliveryTotalLabel: "$31.25",
           selectedPaymentMethod: "paypal",
         })}
         renderPaymentAction={(context) => (
@@ -599,7 +601,10 @@ describe("CheckoutPage", () => {
     const stickySummary = screen.getByLabelText("Checkout summary");
     expect(within(stickySummary).getByText("Payment action")).toBeTruthy();
     expect(within(stickySummary).getByText("Total")).toBeTruthy();
-    expect(within(stickySummary).getByText("$25.98")).toBeTruthy();
+    expect(within(stickySummary).getByText("$31.25")).toBeTruthy();
+    expect(
+      within(stickySummary).getByText("-$4.00 promo (SAVE10)"),
+    ).toBeTruthy();
     expect(
       within(stickySummary).getByRole("button", {
         name: "Review order details",
@@ -615,8 +620,9 @@ describe("CheckoutPage", () => {
       <CheckoutPage
         data={checkoutData({
           activeDeliveryStepId: "payment-method",
-          deliveryShippingLabel: "$6.50",
-          deliveryTotalLabel: "$43.00",
+          deliveryPromoLabel: "-$4.00 promo (SAVE10)",
+          deliveryShippingLabel: "$5.00",
+          deliveryTotalLabel: "$41.50",
           selectedPaymentMethod: "paypal",
         })}
         renderPaymentAction={() => (
@@ -652,6 +658,9 @@ describe("CheckoutPage", () => {
     expect(closeHandle.getAttribute("data-slot")).toBe("sheet-close");
     expect(within(dialog).getByText("Labubu Have a Seat")).toBeTruthy();
     expect(within(dialog).getByText("Merchandise subtotal")).toBeTruthy();
+    expect(within(dialog).getAllByText("-$4.00 promo (SAVE10)")).toHaveLength(
+      2,
+    );
     expect(within(dialog).getByText("Shipping")).toBeTruthy();
     expect(within(dialog).getByText("$5.00")).toBeTruthy();
     expect(within(dialog).getByText("Total")).toBeTruthy();
@@ -1130,6 +1139,8 @@ function checkoutData(
       readonly activePickupStepId: string;
       readonly deliveryCheckoutDraftId: string | null;
       readonly deliveryPaymentReadiness: CheckoutPaymentReadiness;
+      readonly deliveryPromoHelpLabel: string;
+      readonly deliveryPromoLabel: string;
       readonly deliveryShippingLabel: string;
       readonly deliveryTotalLabel: string;
       readonly paymentChoices: readonly CheckoutChoice[];
@@ -1264,8 +1275,9 @@ function checkoutData(
           },
         ],
         subtotalLabel: "$25.98",
-        promoLabel: "No promo applied",
+        promoLabel: overrides.deliveryPromoLabel ?? "No promo applied",
         promoHelpLabel:
+          overrides.deliveryPromoHelpLabel ??
           "Eligible promos appear here after checkout details match.",
         ...(overrides.deliveryShippingLabel
           ? { shippingLabel: overrides.deliveryShippingLabel }
