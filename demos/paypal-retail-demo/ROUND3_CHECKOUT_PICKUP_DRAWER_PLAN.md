@@ -246,14 +246,14 @@
 
 **Files:**
 - Modify: `demos/paypal-retail-demo/web/src/app/App.checkout-paypal-capture.test.tsx`
-- Modify: `demos/paypal-retail-demo/web/src/app/App.interactions.test.tsx`
-- Modify: `demos/paypal-retail-demo/web/src/features/checkout/CheckoutPage.tsx`
+- Verify: `demos/paypal-retail-demo/web/src/app/App.interactions.test.tsx`
+- No runtime changes required unless the regression tests expose a leak.
 
 **Interfaces:**
 - Consumes: selected payment method, mobile drawer state, pickup picker state, checkout readiness, provider create-order callbacks, and app-level request instrumentation.
 - Produces: proof that Round 3 drawer/picker/promo changes do not reopen blocked create-order paths.
 
-- [ ] **Step 1: Write failing App-level blocked-state tests**
+- [x] **Step 1: Write failing App-level blocked-state tests**
 
   Prove zero PayPal create-order requests and zero SDK create-order callbacks for no-method, recalculating, failed, focused input, open pickup picker, open expanded order drawer, open mobile menu, open minicart Sheet, open sign-in dialog, selected Card, and stale/missing draft states.
 
@@ -261,19 +261,21 @@
 
   Expected before implementation: FAIL if any new drawer/picker state allows a provider action to remain active.
 
-- [ ] **Step 2: Write selected-provider activation tests**
+- [x] **Step 2: Write selected-provider activation tests**
 
   Prove selected PayPal and selected Pay Later with settled/current totals each produce exactly one method-attributed create-order request and one matching SDK callback when activated from the collapsed drawer, and exactly one when activated from the expanded drawer. Opening and closing the drawer without activating payment must keep counts at zero.
 
-- [ ] **Step 3: Implement or adjust App-level guards**
+- [x] **Step 3: Implement or adjust App-level guards**
 
   If tests expose a leak, ensure picker open, drawer open-without-payment, overlays, focused inputs, stale totals, failed totals, and selected Card states suppress sticky/drawer provider callbacks. Preserve existing selected PayPal/Pay Later success paths.
 
-- [ ] **Step 4: Verify Task 6**
+- [x] **Step 4: Verify Task 6**
 
   Run: `npm test -- web/src/app/App.checkout-paypal-capture.test.tsx web/src/app/App.interactions.test.tsx`
 
   Expected: PASS, with zero/one request and callback counts matching the Round 2 contract.
+
+  Result: PASS on 2026-07-07 (`86` tests). `App.checkout-paypal-capture.test.tsx` now covers stale and syncing readiness, missing checkout draft, collapsed mobile drawer activation for selected PayPal and Pay Later, expanded drawer activation for Pay Later, and selected-PayPal pickup picker suppression after returning upstream from Pickup payment. Existing coverage remains green for no method, recalculating, failed, focused upstream input, open mobile menu, minicart Sheet, sign-in dialog, selected Card inline/no sticky provider behavior, expanded drawer PayPal activation, and open/close drawer without payment. The first red pass exposed only test fixture gaps (`formatLocalDateValue` missing and empty pickup ZIP summary), so no runtime readiness guard changes were needed. Browser/API-backed request and callback deltas remain open in the Round 3 evidence helper.
 
 ## Task 7: Round 3 Evidence Helper And Documentation Closure
 
