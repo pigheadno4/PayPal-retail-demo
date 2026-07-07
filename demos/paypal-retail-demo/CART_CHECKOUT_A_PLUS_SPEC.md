@@ -180,6 +180,7 @@ Round 3 implementation tasks:
 6. Evidence helper and hosted smoke.
    - Add a Round 3 helper that captures pickup picker, cancel fallback, mobile drawer, billing latency, promo discount, and payment-width states.
    - Acceptance: local API-backed evidence passes before runtime close; hosted evidence stays open until deployment if not immediately available.
+   - 2026-07-07 helper implementation: `tools/round3-checkout-pickup-drawer-evidence.playwright.js` and `npm run evidence:round3:checkout-pickup-drawer` now exist. The helper explicitly records pickup picker open/cancel/confirm, preselected Pickup summary, drawer collapsed/expanded/collapsed-again, billing latency/failure, signed promo state, selected PayPal/Pay Later/Apple Pay/Google Pay/Venmo/Card, selected-action rect parity, provider buckets, header overlap, horizontal overflow, create-order request/callback deltas, and route-scoped console/response triage. Static helper registration, lint, and typecheck pass; full API-backed evidence remains the open deploy-quality gate.
 
 Round 3 acceptance criteria:
 

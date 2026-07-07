@@ -1,5 +1,9 @@
 # Progress
 
+## 2026-07-07
+
+- Continued Round 3 with the deploy-quality evidence helper slice. Added `tools/round3-checkout-pickup-drawer-evidence.playwright.js` and `npm run evidence:round3:checkout-pickup-drawer`. The helper records explicit rows for pickup picker open at 320/390/414/1440, pickup cancel, pickup confirm, preselected Pickup store summary, Delivery billing latency, Delivery billing failure, payment-ready no-method, selected PayPal/Pay Later/Apple Pay/Google Pay/Venmo, expanded drawer rows for those providers, collapsed drawer focus-return state, and selected Card inline. Metrics include `selectedProviderRects`, `pickerHeaderOverlap`, `storeSummaryHasContinue`, `drawerTrigger`, `billingTransitionMs`, `createOrderRequests`, `providerCounts`, horizontal overflow, sticky occlusion targets, request/callback deltas, and route-scoped console/response triage. Updated the Round 3 plan, UX contract, design notes, implementation tasks, todos, and test cases to reflect helper/script completion while keeping full API-backed evidence open. Verification passed `npm test -- server/tests/evidenceScripts.test.ts`, `npm run lint`, and `npm run typecheck`.
+
 ## 2026-07-04
 
 - Continued Cart + Checkout A+ Delivery selected-payment QA in the in-app browser with an API-backed cart restored on `/checkout`.

@@ -295,7 +295,7 @@
 - Consumes: implemented checkout UI and API-backed local/hosted route.
 - Produces: repeatable evidence for local and hosted deploy quality.
 
-- [ ] **Step 1: Build the evidence helper**
+- [x] **Step 1: Build the evidence helper**
 
   Capture and measure:
   - Pickup ZIP submit opens store picker above header at 320, 390/414, and 1440
@@ -310,9 +310,13 @@
   - billing submit opens next step within 250ms while totals remain disabled until current
   - real promo discount appears only after backend evaluate/apply succeeds
 
-- [ ] **Step 2: Add package script**
+  Result: PASS on 2026-07-07. Added `tools/round3-checkout-pickup-drawer-evidence.playwright.js` with explicit rows for pickup picker open/cancel/confirm, preselected Pickup store summary, billing latency/failure, payment-ready no-method, selected PayPal/Pay Later/Apple Pay/Google Pay/Venmo/Card, collapsed/expanded drawer states, selected-action rect parity, provider buckets, header overlap, store continuation absence, billing transition timing, and create-order request/callback deltas. Static helper registration coverage passed `npm test -- server/tests/evidenceScripts.test.ts`.
+
+- [x] **Step 2: Add package script**
 
   Add `evidence:round3:checkout-pickup-drawer` to run the helper against the current Playwright page origin or a supplied hosted origin, following the Round 2 helper pattern.
+
+  Result: PASS on 2026-07-07. Added `npm run evidence:round3:checkout-pickup-drawer`. The helper defaults to `PAYPAL_RETAIL_EVIDENCE_BASE_URL`, the current `/cart` or `/checkout` Playwright page origin, or `http://127.0.0.1:5173`.
 
 - [ ] **Step 3: Run verification**
 
@@ -327,9 +331,13 @@
 
   Expected: all pass. If hosted deploy is not available yet, record local evidence as local-only and leave hosted smoke open.
 
+  Partial result on 2026-07-07: helper registration, `npm run lint`, and `npm run typecheck` pass. Full `npm run evidence:round3:checkout-pickup-drawer` remains open until the local API-backed app is running with the required env/secrets or hosted deploy evidence is intentionally captured.
+
 - [ ] **Step 4: Update tracking**
 
   Mark each Round 3 row complete only after the exact evidence exists. Include evidence paths and any remaining hosted/wallet/card caveats in `tracking/progress.md`.
+
+  Partial result on 2026-07-07: tracking now records that the helper/script exist and are statically verified. The evidence row remains open until the helper completes with screenshots/metrics.
 
 ## Acceptance Criteria
 
