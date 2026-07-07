@@ -358,6 +358,7 @@ export function CheckoutPage({
       ? {
           "pickup-location": "saved",
           "store-selection": "saved",
+          "pickup-billing-address": "editing",
         }
       : {},
   );
@@ -395,7 +396,7 @@ export function CheckoutPage({
   >(() => ({
     delivery: data.delivery.steps[0]?.id ?? null,
     pickup: pickupStartsWithPreselectedStore
-      ? null
+      ? "pickup-billing-address"
       : (data.pickup.steps[0]?.id ?? null),
   }));
   const [collapsedStepIds, setCollapsedStepIds] = useState<ReadonlySet<string>>(
@@ -1569,7 +1570,6 @@ function CheckoutModePanel({
                       step={stepWithDetails}
                       mode={mode}
                       onStepEdit={onStepEdit}
-                      onStepSubmit={onStepSubmit}
                     />
                   ) : null}
                 </CardContent>
@@ -1933,7 +1933,6 @@ function CheckoutStepSummary({
   step,
   mode,
   onStepEdit,
-  onStepSubmit,
 }: {
   readonly step: CheckoutStep;
   readonly mode: CheckoutFulfillmentMode;
@@ -1941,7 +1940,6 @@ function CheckoutStepSummary({
     step: CheckoutStep,
     mode: CheckoutFulfillmentMode,
   ) => void;
-  readonly onStepSubmit: (step: CheckoutStep) => void;
 }) {
   const summaryFields =
     step.fields?.filter(
@@ -2007,18 +2005,6 @@ function CheckoutStepSummary({
       >
         <PencilIcon aria-hidden="true" />
       </Button>
-      {mode === "pickup" &&
-      step.id === "store-selection" &&
-      selectedStores.length ? (
-        <Button
-          className="checkout-step__summary-action"
-          onClick={() => onStepSubmit(step)}
-          type="button"
-          variant="secondary"
-        >
-          Continue with this store
-        </Button>
-      ) : null}
     </div>
   );
 }
@@ -2997,18 +2983,23 @@ function CheckoutMobileStickySummary({
             aria-controls="checkout-order-details-sheet"
             aria-expanded={open}
             aria-label="Review order details"
-            className="checkout-sticky-summary__grabber"
+            className="checkout-sticky-summary__review"
             type="button"
           >
-            <span aria-hidden="true" />
-            <span aria-hidden="true" />
+            <span
+              className="checkout-sticky-summary__grabber"
+              aria-hidden="true"
+            >
+              <span />
+              <span />
+            </span>
+            <span className="checkout-sticky-summary__total">
+              <span>Total</span>
+              <strong>{summary.totalLabel}</strong>
+              {promoLabel ? <em>{promoLabel}</em> : null}
+            </span>
           </button>
         </SheetTrigger>
-        <div className="checkout-sticky-summary__total">
-          <span>Total</span>
-          <strong>{summary.totalLabel}</strong>
-          {promoLabel ? <em>{promoLabel}</em> : null}
-        </div>
         <div className="checkout-sticky-summary__action">
           {stickyPaymentControl}
         </div>

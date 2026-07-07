@@ -236,6 +236,25 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Submit pickup store");
   });
 
+  it("starts preselected Pickup at billing without a redundant store continue button", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeMode: "pickup",
+          pickupStoreMode: "preselected",
+        })}
+      />,
+    );
+
+    expect(html).toContain("POP MART Soho");
+    expect(html).toContain("Partial inventory");
+    expect(html).toContain("Billing address");
+    expect(html).toContain("Billing street address");
+    expect(html).toContain("Save billing address");
+    expect(html).toContain('aria-label="Change store"');
+    expect(html).not.toContain("Continue with this store");
+  });
+
   it("announces checkout validation errors and marks the first invalid field as the focus target", () => {
     const validation: CheckoutValidationState = {
       summaryMessage: "Shipping address needs attention.",

@@ -140,10 +140,10 @@ Round 3 keeps the Round 2 density, readiness, and provider-safety contracts, but
 - Pickup store picker layering: the ZIP/postcode store picker must appear above the sticky site header/navigation at mobile and desktop widths. Store cards, picker header, picker footer/actions, and scrollbars must not be hidden beneath the header.
 - Pickup cancel fallback: canceling or dismissing the picker before a store is confirmed must return the buyer to the Pickup location section for re-submit. It must not reveal the ranked store list inline in Store selection, and it must not commit a pending store.
 - Mobile order details ownership: the mobile bottom drawer/sheet owns order details. The main mobile checkout page must not duplicate the same item/totals detail card while the collapsed drawer is present. Desktop/tablet can keep the side summary.
-- Drawer interaction: collapsed mobile drawer shows only total, directly stacked signed promo line when present, and the current action state. Expanded drawer uses shadcn bottom `Sheet` semantics with item rows, subtotal, promo, shipping, tax, total, focus trap, Escape/scrim/handle close, focus return, and reachable selected payment action.
+- Drawer interaction: collapsed mobile drawer shows only total, directly stacked signed promo line when present, and the current action state. The drawer opens from the summary surface/passive handle; do not render a separate expand button that competes with payment actions. Expanded drawer uses shadcn bottom `Sheet` semantics with item rows, subtotal, promo, shipping, tax, total, focus trap, Escape/scrim/handle close, focus return, and reachable selected payment action.
 - Billing progression: Delivery billing submit opens Shipping method within 250ms after client validation; Pickup billing submit opens Pickup date within 250ms after client validation. Pending totals show recalculating/current-state copy, and payment remains blocked until the latest draft response is applied.
 - Promo activation: visible discounts must be backed by the real backend promo evaluate/apply/remove path. If automatic application is implemented, the UI may show a concise applied-offer state only after the backend returns a selected evaluation with `discount_minor > 0`. If no discount is selected, the UI shows truthful no-promo status.
-- Payment action sizing: selected PayPal and selected Pay Later use the same action-slot width in the collapsed mobile drawer, expanded drawer, and desktop/tablet summary where applicable. Merchant CSS may size wrappers and custom elements, but must not style provider internals.
+- Payment action sizing: selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo use the same action-slot width and height in the collapsed mobile drawer, expanded drawer, and desktop/tablet summary where applicable. Merchant CSS may size wrappers and custom elements, but must not style provider internals. Compact sticky/order-sheet action slots must not let Pay Later financing-message copy make Pay Later taller than the wallet/provider action buttons.
 
 Round 3 implementation tasks:
 
@@ -151,6 +151,7 @@ Round 3 implementation tasks:
    - Raise or replace the custom picker layer with shadcn Dialog/Sheet semantics so it sits above `.site-header`.
    - Add explicit close reasons: confirm, cancel, and dismiss.
    - On cancel/dismiss before confirmation, reopen Pickup location, collapse/dormant Store selection, clear pending modal selection only, and keep inline store cards suppressed.
+   - When Pickup already has a selected store, start the buyer at Billing and keep Store selection as an editable summary only; do not show a redundant `Continue with this store` action.
    - Acceptance: mobile and desktop screenshots show no header overlap; tests prove cancel returns to Pickup location and no inline store cards mount.
 
 2. Mobile drawer owns order details.
@@ -171,10 +172,10 @@ Round 3 implementation tasks:
    - 2026-07-07 local implementation: App checkout draft updates now call typed frontend promo evaluate/apply helpers and display signed promo text only from the apply response. Zero-discount/rejected evaluations stay no-promo, and activation failures do not invent discounts. Focused local tests now prove the collapsed mobile drawer, expanded order-details sheet, and App order summary surfaces; browser/API-backed visual rows remain part of the Round 3 evidence helper.
 
 5. Payment CTA width.
-   - Normalize selected PayPal and Pay Later action slot dimensions.
+   - Normalize selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo action slot dimensions.
    - Keep official provider surfaces full-width inside the shared slot.
-   - Acceptance: CSS tests and browser metrics compare selected PayPal and Pay Later action rects.
-   - 2026-07-07 local implementation: checkout selected-payment slots now share merchant-owned width/fill rules for the desktop summary slot, collapsed sticky action, expanded order-sheet payment slot, direct PayPal provider scope, and PayPal/Pay Later standalone action wrappers. Focused CSS and CheckoutPage tests passed; browser rect comparison remains part of the Round 3 evidence helper.
+   - Acceptance: CSS tests and browser metrics compare selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo action rects.
+   - 2026-07-07 local implementation: checkout selected-payment slots now share merchant-owned width/fill rules for the desktop summary slot, collapsed sticky action, expanded order-sheet payment slot, direct PayPal provider scope, PayPal/Pay Later standalone action wrappers, and wallet action wrappers. Compact sticky/order-sheet slots suppress Pay Later financing-message height so Pay Later matches Venmo/Apple Pay/Google Pay action geometry. Focused CSS and CheckoutPage tests passed; browser rect comparison remains part of the Round 3 evidence helper.
 
 6. Evidence helper and hosted smoke.
    - Add a Round 3 helper that captures pickup picker, cancel fallback, mobile drawer, billing latency, promo discount, and payment-width states.
@@ -186,19 +187,20 @@ Round 3 acceptance criteria:
 - Cancel/dismiss before store confirmation returns to Pickup location for re-submit and hides inline store cards.
 - Confirmed store selection advances normally and preserves BOPIS payment semantics.
 - Mobile checkout does not duplicate order detail content outside the drawer; desktop/tablet still have a summary.
-- Collapsed drawer contains only total, signed promo, and current action state.
+- Collapsed drawer contains only total, signed promo, and current action state; the summary surface/passive handle opens details with no separate expand button.
 - Expanded drawer closes by Escape, scrim, and handle; returns focus to trigger; traps focus while open.
 - Billing submit opens the next task within 250ms after client validation for both Delivery and Pickup.
 - Payment remains disabled until active totals are settled/current after billing, promo, shipping, tax, and pickup recalculation.
 - Promo discounts appear only from real backend promo state and render as signed amount text.
-- PayPal and Pay Later selected action slots have matching width and no intrinsic/autofit regression.
+- PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected action slots have matching width/height and no intrinsic/autofit regression.
+- Preselected Pickup store summaries omit redundant continuation CTAs and keep Billing as the next active buyer task.
 - All Round 2 readiness/create-order guards still pass.
 
 Round 3 inspection standard:
 
-- Required mobile evidence states: Pickup ZIP submitted with picker open, picker canceled, picker confirmed, mobile checkout initial, billing slow-save pending, billing failure, selected PayPal collapsed drawer, selected Pay Later collapsed drawer, expanded drawer, collapsed focus-return, real promo discount, and selected Card inline/no drawer provider action.
+- Required mobile evidence states: Pickup ZIP submitted with picker open, picker canceled, picker confirmed, preselected Pickup store summary, mobile checkout initial, billing slow-save pending, billing failure, selected PayPal collapsed drawer, selected Pay Later collapsed drawer, selected Apple Pay collapsed drawer, selected Google Pay collapsed drawer, selected Venmo collapsed drawer, expanded drawer, collapsed focus-return, real promo discount, and selected Card inline/no drawer provider action.
 - Required widths: 320, 390/414, and 1440 for pickup picker and checkout drawer; add 768/1024/1280 if shared shell CSS changes.
-- Metrics must record route/state, viewport, screenshot path, header overlap, horizontal overflow, drawer/sticky overlap, active section, selected method, provider counts by surface, create-order request/callback deltas, displayed total/promo/shipping/tax labels, picker close reason, and billing transition timing.
+- Metrics must record route/state, viewport, screenshot path, header overlap, horizontal overflow, drawer/sticky overlap, active section, selected method, selected provider action rects, provider counts by surface, create-order request/callback deltas, displayed total/promo/shipping/tax labels, picker close reason, store summary continuation absence, drawer trigger/expanded state, and billing transition timing.
 - Console errors are blockers unless the row intentionally exercises a buyer-visible failed save path with scoped recovery evidence. Warnings must be route/action scoped.
 
 ## Payment And PayPal Contract

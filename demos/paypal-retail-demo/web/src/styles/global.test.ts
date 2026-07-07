@@ -446,6 +446,9 @@ describe("global storefront visual tokens", () => {
     const checkoutProgressBlock = cssBlock(".checkout-progress");
     const checkoutReadinessBlock = cssBlock(".checkout-payment-readiness");
     const checkoutStickySummaryBlock = cssBlock(".checkout-sticky-summary");
+    const checkoutStickyReviewBlock = cssBlock(
+      ".checkout-sticky-summary__review",
+    );
     const checkoutStickyGrabberBlock = cssBlock(
       ".checkout-sticky-summary__grabber",
     );
@@ -456,7 +459,13 @@ describe("global storefront visual tokens", () => {
       ".checkout-summary__slot > .paypal-provider-scope,\n.checkout-sticky-summary__action > .paypal-provider-scope,\n.checkout-order-sheet__payment > .paypal-provider-scope",
     );
     const checkoutSelectedPaymentProviderActionBlock = cssBlock(
-      ".checkout-summary__slot .paypal-standalone-action,\n.checkout-summary__slot .paylater-standalone-action,\n.checkout-sticky-summary__action .paypal-standalone-action,\n.checkout-sticky-summary__action .paylater-standalone-action,\n.checkout-order-sheet__payment .paypal-standalone-action,\n.checkout-order-sheet__payment .paylater-standalone-action",
+      ".checkout-summary__slot .paypal-standalone-action,\n.checkout-summary__slot .paylater-standalone-action,\n.checkout-summary__slot .wallet-checkout-action,\n.checkout-sticky-summary__action .paypal-standalone-action,\n.checkout-sticky-summary__action .paylater-standalone-action,\n.checkout-sticky-summary__action .wallet-checkout-action,\n.checkout-order-sheet__payment .paypal-standalone-action,\n.checkout-order-sheet__payment .paylater-standalone-action,\n.checkout-order-sheet__payment .wallet-checkout-action",
+    );
+    const compactSelectedPaymentActionBlock = cssBlock(
+      ".checkout-sticky-summary .paypal-standalone-action,\n.checkout-sticky-summary .paylater-standalone-action,\n.checkout-sticky-summary .wallet-checkout-action,\n.checkout-order-sheet__payment .paypal-standalone-action,\n.checkout-order-sheet__payment .paylater-standalone-action,\n.checkout-order-sheet__payment .wallet-checkout-action",
+    );
+    const compactPaylaterMessageBlock = cssBlock(
+      ".checkout-sticky-summary .paylater-amount-message,\n.checkout-order-sheet__payment .paylater-amount-message",
     );
     const checkoutModalBlock = cssBlock(".checkout-modal");
     const siteHeaderBlock = cssBlock(".site-header");
@@ -565,12 +574,20 @@ describe("global storefront visual tokens", () => {
     expect(checkoutReadinessBlock).toContain("border: 1px solid");
     expect(checkoutStickySummaryBlock).toContain("bottom: 0");
     expect(checkoutStickySummaryBlock).toContain(
-      "grid-template-columns: minmax(0, 1fr) auto",
+      "grid-template-columns: minmax(0, 1fr) minmax(156px, min(46vw, 220px))",
     );
+    expect(checkoutStickyReviewBlock).toContain("cursor: pointer");
+    expect(checkoutStickyReviewBlock).toContain("display: grid");
+    expect(checkoutStickyReviewBlock).toContain("min-height: 54px");
+    expect(checkoutStickyReviewBlock).toContain("text-align: left");
+    expect(checkoutStickyGrabberBlock).toContain("background: transparent");
+    expect(checkoutStickyGrabberBlock).toContain("border: 0");
+    expect(checkoutStickyGrabberBlock).toContain("box-shadow: none");
     expect(checkoutStickyGrabberBlock).toContain("position: absolute");
     expect(checkoutStickyGrabberBlock).toContain("transform: translateX(-50%)");
-    expect(checkoutStickyGrabberBlock).toContain("height: 44px");
-    expect(checkoutStickyGrabberBlock).toContain("min-width: 112px");
+    expect(checkoutStickyGrabberBlock).toContain("height: 18px");
+    expect(checkoutStickyGrabberBlock).toContain("min-width: 88px");
+    expect(checkoutStickyGrabberBlock).toContain("pointer-events: none");
     expect(checkoutSelectedPaymentSlotBlock).toContain("justify-self: stretch");
     expect(checkoutSelectedPaymentSlotBlock).toContain("min-inline-size: 0");
     expect(checkoutSelectedPaymentSlotBlock).toContain("width: 100%");
@@ -594,6 +611,9 @@ describe("global storefront visual tokens", () => {
       "min-inline-size: 0",
     );
     expect(checkoutSelectedPaymentProviderActionBlock).toContain("width: 100%");
+    expect(compactSelectedPaymentActionBlock).toContain("min-height: 52px");
+    expect(compactSelectedPaymentActionBlock).toContain("padding: 0");
+    expect(compactPaylaterMessageBlock).toContain("display: none");
     expect(siteHeaderBlock).toContain("z-index: 40");
     expect(checkoutModalBlock).toContain("z-index: 50");
     expect(checkoutStickyViewportClearanceBlock).toContain(

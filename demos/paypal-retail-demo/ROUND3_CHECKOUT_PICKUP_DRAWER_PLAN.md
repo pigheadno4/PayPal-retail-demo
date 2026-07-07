@@ -219,28 +219,30 @@
 - Modify: `demos/paypal-retail-demo/web/src/features/checkout/CheckoutPage.test.tsx`
 
 **Interfaces:**
-- Consumes: selected PayPal/Pay Later provider action slots and official SDK custom element sizing.
-- Produces: a stable payment action slot width for PayPal and Pay Later, including mobile drawer/sticky and expanded drawer.
+- Consumes: selected PayPal, Pay Later, wallet, and card-adjacent provider action slots plus official SDK custom element sizing.
+- Produces: a stable selected-payment action slot width and height for PayPal, Pay Later, Apple Pay, Google Pay, and Venmo in the collapsed mobile drawer/sticky action, expanded drawer, and desktop/tablet summary where applicable.
 
 - [x] **Step 1: Write failing CSS tests**
 
-  Assert the mobile selected payment action slot uses one stable track or full-width row for PayPal and Pay Later, and official custom elements fill the slot without intrinsic/autofit width.
+  Assert the mobile selected payment action slot uses one stable track or full-width row for PayPal, Pay Later, Apple Pay, Google Pay, and Venmo, and official custom elements fill the slot without intrinsic/autofit width.
 
   Run: `npm test -- web/src/styles/global.test.ts`
 
-  Expected before implementation: FAIL if PayPal and Pay Later rely on different slot widths.
+  Expected before implementation: FAIL if any selected provider action relies on different slot width, intrinsic custom-element width, or Pay Later message height in the compact payment-action slot.
 
 - [x] **Step 2: Normalize action slot sizing**
 
-  Use a shared wrapper class for selected non-card provider actions. Keep merchant styling on the wrapper only. Ensure `paypal-button`, `paypal-pay-later-button`, and their checkout wrappers fill the same width.
+  Use a shared wrapper class for selected non-card provider actions. Keep merchant styling on the wrapper only. Ensure `paypal-button`, `paypal-pay-later-button`, `apple-pay-button`, `venmo-button`, and the Google Pay button fill the same width and height. In compact sticky/order-sheet payment action slots, hide non-action Pay Later financing text so it does not make Pay Later taller than Venmo/Apple Pay.
 
 - [x] **Step 3: Verify Task 5**
 
   Run: `npm test -- web/src/styles/global.test.ts web/src/features/checkout/CheckoutPage.test.tsx`
 
-  Expected: PASS, with selected PayPal and Pay Later sharing the same action slot contract.
+  Expected: PASS, with selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo sharing the same action slot contract.
 
   Result: PASS on 2026-07-07. The failing-first style test first failed on the missing shared checkout selected-payment slot contract, then passed after adding merchant-owned width/fill rules for `.checkout-summary__slot`, `.checkout-sticky-summary__action`, `.checkout-order-sheet__payment`, their direct `.paypal-provider-scope` child, and PayPal/Pay Later standalone action wrappers. Verification passed `npm test -- web/src/styles/global.test.ts` (`19` tests) and `npm test -- web/src/styles/global.test.ts web/src/features/checkout/CheckoutPage.test.tsx` (`55` tests). Browser rect comparison remains open for the Round 3 evidence helper.
+
+  Follow-up result: after mobile QA showed wallet CTAs still rendered with different widths/heights, the slot contract was broadened to `.wallet-checkout-action`, Apple Pay, Google Pay, and Venmo, while compact Pay Later financing copy is suppressed inside sticky/order-sheet action slots. The collapsed drawer visual handle is now passive chrome inside the summary trigger, not a separate expand button. Preselected Pickup store summaries no longer render a redundant `Continue with this store` action; the flow starts at Billing with only the change-store edit affordance.
 
 ## Task 6: App-Level Payment Readiness Regression Proof
 
@@ -302,7 +304,9 @@
   - mobile checkout first viewport has no duplicated full order details
   - collapsed drawer shows total and signed promo line
   - expanded drawer opens/closes by trigger, Escape, and scrim
-  - selected PayPal and Pay Later action slots have matching width
+  - selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo action slots have matching width and height in collapsed and expanded mobile payment slots
+  - collapsed drawer opens from the summary surface/passive handle and has no separate expand button
+  - preselected Pickup store summary has no `Continue with this store` action and starts the buyer at Billing
   - billing submit opens next step within 250ms while totals remain disabled until current
   - real promo discount appears only after backend evaluate/apply succeeds
 
@@ -334,10 +338,12 @@
 - Confirming a store commits only the selected store and advances through the approved Pickup flow without exposing duplicate background store lists.
 - Mobile checkout main content no longer duplicates the order detail summary when the bottom drawer is active; desktop/tablet summary remains visible.
 - Collapsed mobile drawer shows only total, signed promo amount when present, and the current payment action state.
+- Collapsed drawer opens from the summary surface and passive handle; there is no separate expand button competing with payment actions.
 - Expanded drawer uses shadcn bottom `Sheet` semantics, closes by trigger/Escape/scrim, traps focus, returns focus to the trigger, and keeps payment action reachable.
 - Billing submit opens the next task shell within 250ms after client validation for Delivery and Pickup; failed billing returns focus/error to Billing; payment remains disabled until active totals are current.
 - Promo activation is real: no fake/inert promo input, no code-only discount display when discount amount exists, and no buyer-visible discount unless backend evaluation/apply returns one.
-- Selected PayPal and selected Pay Later payment buttons use the same action slot width in mobile collapsed drawer, expanded drawer, and desktop/tablet summary where applicable.
+- Selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo payment buttons use the same action slot width and height in mobile collapsed drawer, expanded drawer, and desktop/tablet summary where applicable.
+- Preselected Pickup store summaries do not show redundant continuation CTAs; the only visible control is the store change/edit affordance, and Billing is the next active buyer task.
 - Provider actions still obey Round 2 readiness gates: no create-order call while cart/draft/eligibility/shipping/tax/promo/totals are missing, stale, failed, loading, or recalculating.
 - App-level tests prove blocked states produce zero create-order requests/callbacks, and selected PayPal/Pay Later with settled/current totals produce exactly one method-attributed request/callback when activated from collapsed and expanded drawer states.
-- Evidence helper records screenshot path, viewport, route/state, console/response issues, horizontal overflow, header overlap, sticky/drawer overlap, selected method, provider surface counts, create-order request/callback counts, displayed total/promo/shipping/tax labels, picker state, drawer state, and billing transition timing.
+- Evidence helper records screenshot path, viewport, route/state, console/response issues, horizontal overflow, header overlap, sticky/drawer overlap, selected method, provider surface counts, selected provider button rects, create-order request/callback counts, displayed total/promo/shipping/tax labels, picker state, preselected-store summary state, drawer trigger/expanded state, and billing transition timing.

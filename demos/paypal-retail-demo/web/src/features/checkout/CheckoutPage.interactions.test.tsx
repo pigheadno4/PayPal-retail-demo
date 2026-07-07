@@ -1104,17 +1104,10 @@ describe("CheckoutPage interactions", () => {
     const storeSelectionStep = getStep("Store selection");
     expect(within(storeSelectionStep).getByText("POP MART Soho")).toBeTruthy();
     expect(
-      within(getStep("Billing address")).queryByLabelText(
-        "Billing street address",
-      ),
-    ).toBeNull();
-
-    await user.click(
-      within(storeSelectionStep).getByRole("button", {
+      within(storeSelectionStep).queryByRole("button", {
         name: "Continue with this store",
       }),
-    );
-    await waitForStepState(storeSelectionStep, "saved");
+    ).toBeNull();
 
     expect(screen.queryByRole("dialog")).toBeNull();
 

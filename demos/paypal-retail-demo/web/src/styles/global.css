@@ -5552,10 +5552,13 @@ a {
 
 .checkout-summary__slot .paypal-standalone-action,
 .checkout-summary__slot .paylater-standalone-action,
+.checkout-summary__slot .wallet-checkout-action,
 .checkout-sticky-summary__action .paypal-standalone-action,
 .checkout-sticky-summary__action .paylater-standalone-action,
+.checkout-sticky-summary__action .wallet-checkout-action,
 .checkout-order-sheet__payment .paypal-standalone-action,
-.checkout-order-sheet__payment .paylater-standalone-action {
+.checkout-order-sheet__payment .paylater-standalone-action,
+.checkout-order-sheet__payment .wallet-checkout-action {
   justify-self: stretch;
   max-inline-size: 100%;
   min-inline-size: 0;
@@ -5576,6 +5579,7 @@ a {
   font-weight: 900;
   min-height: 44px;
   padding: 0 14px;
+  width: 100%;
 }
 
 .wallet-checkout-action__google-pay-button:disabled {
@@ -5745,7 +5749,7 @@ a {
   box-shadow: 0 -12px 34px rgb(25 25 25 / 0.12);
   display: none;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(156px, min(46vw, 220px));
   left: 0;
   min-height: 82px;
   padding: 14px 16px 12px;
@@ -5755,19 +5759,34 @@ a {
   z-index: 20;
 }
 
+.checkout-sticky-summary__review {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: start;
+  min-height: 54px;
+  min-width: 0;
+  padding: 0;
+  position: relative;
+  text-align: left;
+}
+
 .checkout-sticky-summary__grabber {
   align-items: center;
-  background: var(--shell-panel);
-  border: 1px solid var(--shell-border);
-  border-radius: 999px;
-  box-shadow: 0 -4px 14px rgb(25 25 25 / 0.08);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   display: inline-flex;
   gap: 8px;
-  height: 44px;
+  height: 18px;
   justify-content: center;
   left: 50%;
-  min-width: 112px;
-  padding: 0 16px;
+  min-width: 88px;
+  padding: 0;
+  pointer-events: none;
   position: absolute;
   top: -24px;
   transform: translateX(-50%);
@@ -5810,13 +5829,17 @@ a {
 .checkout-sticky-summary__action {
   align-content: center;
   display: grid;
-  min-width: min(46vw, 220px);
+  inline-size: 100%;
+  min-width: 0;
 }
 
 .checkout-sticky-summary .paypal-standalone-action,
 .checkout-sticky-summary .paylater-standalone-action,
+.checkout-sticky-summary .wallet-checkout-action,
 .checkout-order-sheet__payment .paypal-standalone-action,
-.checkout-order-sheet__payment .paylater-standalone-action {
+.checkout-order-sheet__payment .paylater-standalone-action,
+.checkout-order-sheet__payment .wallet-checkout-action {
+  min-height: 52px;
   padding: 0;
 }
 
@@ -5825,9 +5848,25 @@ a {
   gap: 5px;
 }
 
+.checkout-sticky-summary .paypal-standalone-action paypal-button,
+.checkout-sticky-summary .paylater-standalone-action paypal-pay-later-button,
+.checkout-sticky-summary .wallet-checkout-action apple-pay-button,
+.checkout-sticky-summary .wallet-checkout-action venmo-button,
+.checkout-sticky-summary .wallet-checkout-action__google-pay-button,
+.checkout-order-sheet__payment .paypal-standalone-action paypal-button,
+.checkout-order-sheet__payment
+  .paylater-standalone-action
+  paypal-pay-later-button,
+.checkout-order-sheet__payment .wallet-checkout-action apple-pay-button,
+.checkout-order-sheet__payment .wallet-checkout-action venmo-button,
+.checkout-order-sheet__payment .wallet-checkout-action__google-pay-button {
+  min-height: 52px;
+  width: 100%;
+}
+
 .checkout-sticky-summary .paylater-amount-message,
 .checkout-order-sheet__payment .paylater-amount-message {
-  min-height: 24px;
+  display: none;
 }
 
 .checkout-sticky-summary__choose-payment {
