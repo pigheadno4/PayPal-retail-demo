@@ -406,6 +406,9 @@ export function CheckoutPage({
           : [],
       ),
   );
+  const [submitFocusStepId, setSubmitFocusStepId] = useState<string | null>(
+    null,
+  );
   const currentDataRef = useRef(currentData);
   const draftUpdateQueuesRef = useRef<
     Record<
@@ -517,7 +520,7 @@ export function CheckoutPage({
   }, [data]);
 
   useEffect(() => {
-    if (pageData.validation?.focusStepId) {
+    if (pageData.validation?.focusStepId || submitFocusStepId) {
       const focusTarget = focusTargetRef.current;
 
       focusTarget?.focus();
@@ -526,7 +529,12 @@ export function CheckoutPage({
         scrollCheckoutTargetIntoView(focusTarget ?? null);
       }
     }
-  }, [activeMode, pageData.validation?.focusStepId, stickyClearanceEnabled]);
+  }, [
+    activeMode,
+    pageData.validation?.focusStepId,
+    stickyClearanceEnabled,
+    submitFocusStepId,
+  ]);
 
   useCheckoutStickyClearance({
     enabled: stickyClearanceEnabled,
@@ -718,6 +726,7 @@ export function CheckoutPage({
       const { [stepId]: _removedMessage, ...nextMessages } = currentMessages;
       return nextMessages;
     });
+    setSubmitFocusStepId(null);
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [stepId]: "saving",
@@ -777,6 +786,7 @@ export function CheckoutPage({
         ...currentMessages,
         [stepId]: `We could not save ${step.title}. Please try again.`,
       }));
+      setSubmitFocusStepId(stepId);
     }
   }
 
@@ -791,6 +801,7 @@ export function CheckoutPage({
       const { [stepId]: _removedMessage, ...nextMessages } = currentMessages;
       return nextMessages;
     });
+    setSubmitFocusStepId(null);
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       [stepId]: "saving",
@@ -807,7 +818,10 @@ export function CheckoutPage({
       return nextStepIds;
     });
 
-    const shouldOpenNextWhileSaving = stepId === "shipping-address";
+    const shouldOpenNextWhileSaving =
+      stepId === "shipping-address" ||
+      stepId === "billing-address" ||
+      stepId === "pickup-billing-address";
     const recalculatingTimerId = setTimeout(() => {
       setStepStateOverrides((currentStates) => ({
         ...currentStates,
@@ -845,6 +859,7 @@ export function CheckoutPage({
 
           return nextStepIds;
         });
+        setSubmitFocusStepId(null);
       } catch {
         clearTimeout(recalculatingTimerId);
         setStepStateOverrides((currentStates) => ({
@@ -866,6 +881,7 @@ export function CheckoutPage({
           ...currentMessages,
           [stepId]: `We could not save ${stepTitle}. Please try again.`,
         }));
+        setSubmitFocusStepId(stepId);
       }
     })();
   }
@@ -1068,6 +1084,7 @@ export function CheckoutPage({
               active={activeMode === "delivery"}
               validation={pageData.validation}
               focusTargetRef={focusTargetRef}
+              submitFocusStepId={submitFocusStepId}
               fieldValues={fieldValues}
               submitErrorMessages={submitErrorMessages}
               stepStateOverrides={stepStateOverrides}
@@ -1089,6 +1106,7 @@ export function CheckoutPage({
               active={activeMode === "pickup"}
               validation={pageData.validation}
               focusTargetRef={focusTargetRef}
+              submitFocusStepId={submitFocusStepId}
               fieldValues={fieldValues}
               submitErrorMessages={submitErrorMessages}
               stepStateOverrides={stepStateOverrides}
@@ -1412,6 +1430,7 @@ function CheckoutModePanel({
   active,
   validation,
   focusTargetRef,
+  submitFocusStepId,
   fieldValues,
   submitErrorMessages,
   stepStateOverrides,
@@ -1432,6 +1451,7 @@ function CheckoutModePanel({
   readonly active: boolean;
   readonly validation: CheckoutValidationState | undefined;
   readonly focusTargetRef: RefObject<HTMLElement | null>;
+  readonly submitFocusStepId: string | null;
   readonly fieldValues: Readonly<Record<string, CheckoutFieldValue>>;
   readonly submitErrorMessages: Readonly<Record<string, string>>;
   readonly stepStateOverrides: Readonly<Record<string, CheckoutStepState>>;
@@ -1502,7 +1522,9 @@ function CheckoutModePanel({
             ...validationMessages.map((message) => message.id),
             submitErrorId,
           );
-          const isFocusTarget = validation?.focusStepId === step.id;
+          const isFocusTarget =
+            validation?.focusStepId === step.id ||
+            submitFocusStepId === step.id;
 
           return (
             <article

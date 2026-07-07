@@ -146,15 +146,15 @@
 - Consumes: existing `saveStepAndEditNext`, draft update queue, payment readiness, shipping method/pickup date next-step logic.
 - Produces: optimistic next-section opening for billing steps with skeleton or pending totals state while backend recalculation settles.
 
-- [ ] **Step 1: Write failing latency tests**
+- [x] **Step 1: Write failing latency tests**
 
   Simulate a slow billing draft update. Delivery billing submit should open Shipping method within 250ms after client validation. Pickup billing submit should open Pickup date within 250ms after client validation. Payment remains disabled until latest draft response applies.
 
   Run: `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx`
 
-  Expected before implementation: FAIL because billing waits for the backend response.
+  Result: FAIL confirmed before implementation because Delivery billing did not open Shipping options and Pickup billing did not open Pickup date while the slow billing draft update was still pending. The final tests cover both slow Delivery and slow Pickup billing saves plus blocked Payment method state.
 
-- [ ] **Step 2: Implement billing optimistic progression**
+- [x] **Step 2: Implement billing optimistic progression**
 
   Extend the existing optimistic progression behavior beyond shipping-address:
   - delivery `billing-address` opens `shipping-method` shell within 250ms
@@ -163,11 +163,11 @@
   - keep selected provider actions hidden/disabled until totals are current
   - on failure, return focus and inline error to Billing address
 
-- [ ] **Step 3: Verify Task 3**
+- [x] **Step 3: Verify Task 3**
 
   Run: `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx web/src/features/checkout/CheckoutPage.test.tsx`
 
-  Expected: PASS, including slow-response and failure rollback paths.
+  Result: PASS on 2026-07-07. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx` passed `24` tests, including slow-response, literal focus return, and failure rollback paths for Delivery and Pickup billing. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx web/src/features/checkout/CheckoutPage.test.tsx` passed `60` checkout tests. Browser/API-backed timing evidence remains open in Task 7.
 
 ## Task 4: Real Promo Activation Path
 

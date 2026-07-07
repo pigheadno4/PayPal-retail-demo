@@ -315,6 +315,270 @@ describe("CheckoutPage interactions", () => {
     }
   });
 
+  it("opens Shipping options within 250ms while a slow billing draft update continues", async () => {
+    const user = userEvent.setup();
+    const draftUpdatePromise = new Promise<CheckoutPageData>(() => undefined);
+    const onDraftUpdate = vi.fn((request: TestDraftUpdateRequest) => {
+      if (request.type === "delivery_billing_address") {
+        return draftUpdatePromise;
+      }
+
+      return undefined;
+    });
+
+    render(<CheckoutPage onDraftUpdate={onDraftUpdate} />);
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+    await waitForStepState(shippingStep, "saved");
+
+    vi.useFakeTimers();
+
+    try {
+      const billingStep = getStep("Billing address");
+      const shippingOptionsStep = getStep("Shipping options");
+
+      fireEvent.click(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      );
+
+      expect(onDraftUpdate).toHaveBeenCalledTimes(2);
+      expect(onDraftUpdate.mock.calls[1]?.[0]).toEqual(
+        expect.objectContaining({
+          fulfillmentMode: "delivery",
+          type: "delivery_billing_address",
+        }),
+      );
+      expect(billingStep.getAttribute("data-step-state")).toBe("saving");
+      expect(shippingOptionsStep.getAttribute("data-step-state")).toBe("idle");
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(billingStep.getAttribute("data-step-state")).toBe("recalculating");
+      expect(shippingOptionsStep.getAttribute("data-step-state")).toBe(
+        "editing",
+      );
+      expect(
+        within(shippingOptionsStep).getByRole("radio", {
+          name: /Standard shipping/,
+        }),
+      ).toBeTruthy();
+      expect(getStep("Payment method").getAttribute("data-step-state")).toBe(
+        "idle",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens Pickup date within 250ms while a slow pickup billing draft update continues", async () => {
+    const user = userEvent.setup();
+    const draftUpdatePromise = new Promise<CheckoutPageData>(() => undefined);
+    const onDraftUpdate = vi.fn((request: TestDraftUpdateRequest) => {
+      if (request.type === "pickup_billing_address") {
+        return draftUpdatePromise;
+      }
+
+      return undefined;
+    });
+
+    render(<CheckoutPage onDraftUpdate={onDraftUpdate} />);
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+    await choosePickupStore(user, "POP MART Covent Garden");
+    const billingStep = getStep("Billing address");
+    await waitForStepState(billingStep, "editing");
+
+    vi.useFakeTimers();
+
+    try {
+      const billingStep = getStep("Billing address");
+      const pickupDateStep = getStep("Pickup date");
+
+      fireEvent.click(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      );
+
+      expect(onDraftUpdate).toHaveBeenCalledTimes(3);
+      expect(onDraftUpdate.mock.calls[2]?.[0]).toEqual(
+        expect.objectContaining({
+          fulfillmentMode: "pickup",
+          type: "pickup_billing_address",
+        }),
+      );
+      expect(billingStep.getAttribute("data-step-state")).toBe("saving");
+      expect(pickupDateStep.getAttribute("data-step-state")).toBe("idle");
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(billingStep.getAttribute("data-step-state")).toBe("recalculating");
+      expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
+      expect(
+        within(pickupDateStep).getByRole("button", {
+          name: "Submit pickup date",
+        }),
+      ).toBeTruthy();
+      expect(getStep("Payment method").getAttribute("data-step-state")).toBe(
+        "idle",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to Delivery billing when a slow billing draft update fails", async () => {
+    const user = userEvent.setup();
+    let rejectDraftUpdate!: (error: Error) => void;
+    const draftUpdatePromise = new Promise<CheckoutPageData>(
+      (_resolve, reject) => {
+        rejectDraftUpdate = reject;
+      },
+    );
+    const onDraftUpdate = vi.fn((request: TestDraftUpdateRequest) => {
+      if (request.type === "delivery_billing_address") {
+        return draftUpdatePromise;
+      }
+
+      return undefined;
+    });
+
+    render(<CheckoutPage onDraftUpdate={onDraftUpdate} />);
+
+    const shippingStep = getStep("Shipping address");
+    await user.click(
+      within(shippingStep).getByRole("button", {
+        name: "Submit shipping address",
+      }),
+    );
+    await waitForStepState(shippingStep, "saved");
+
+    vi.useFakeTimers();
+
+    try {
+      const billingStep = getStep("Billing address");
+      const shippingOptionsStep = getStep("Shipping options");
+
+      fireEvent.click(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(shippingOptionsStep.getAttribute("data-step-state")).toBe(
+        "editing",
+      );
+
+      await act(async () => {
+        rejectDraftUpdate(new Error("Billing save failed"));
+        await draftUpdatePromise.catch(() => undefined);
+      });
+
+      expect(billingStep.getAttribute("data-step-state")).toBe("blocked");
+      expect(shippingOptionsStep.getAttribute("data-step-state")).toBe("idle");
+      expect(getStep("Payment method").getAttribute("data-step-state")).toBe(
+        "idle",
+      );
+      expect(
+        within(billingStep).getByText(
+          "We could not save Billing address. Please try again.",
+        ),
+      ).toBeTruthy();
+      expect(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      ).toBeTruthy();
+      expect(document.activeElement).toBe(billingStep);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to Pickup billing when a slow pickup billing draft update fails", async () => {
+    const user = userEvent.setup();
+    let rejectDraftUpdate!: (error: Error) => void;
+    const draftUpdatePromise = new Promise<CheckoutPageData>(
+      (_resolve, reject) => {
+        rejectDraftUpdate = reject;
+      },
+    );
+    const onDraftUpdate = vi.fn((request: TestDraftUpdateRequest) => {
+      if (request.type === "pickup_billing_address") {
+        return draftUpdatePromise;
+      }
+
+      return undefined;
+    });
+
+    render(<CheckoutPage onDraftUpdate={onDraftUpdate} />);
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+    await choosePickupStore(user, "POP MART Covent Garden");
+    const billingStep = getStep("Billing address");
+    await waitForStepState(billingStep, "editing");
+
+    vi.useFakeTimers();
+
+    try {
+      const billingStep = getStep("Billing address");
+      const pickupDateStep = getStep("Pickup date");
+
+      fireEvent.click(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(pickupDateStep.getAttribute("data-step-state")).toBe("editing");
+
+      await act(async () => {
+        rejectDraftUpdate(new Error("Pickup billing save failed"));
+        await draftUpdatePromise.catch(() => undefined);
+      });
+
+      expect(billingStep.getAttribute("data-step-state")).toBe("blocked");
+      expect(pickupDateStep.getAttribute("data-step-state")).toBe("idle");
+      expect(getStep("Payment method").getAttribute("data-step-state")).toBe(
+        "idle",
+      );
+      expect(
+        within(billingStep).getByText(
+          "We could not save Billing address. Please try again.",
+        ),
+      ).toBeTruthy();
+      expect(
+        within(billingStep).getByRole("button", {
+          name: "Save billing address",
+        }),
+      ).toBeTruthy();
+      expect(document.activeElement).toBe(billingStep);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens the shipping state dropdown with shadcn select options", async () => {
     const user = userEvent.setup();
     const elementPrototype = window.Element
