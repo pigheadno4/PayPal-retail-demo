@@ -1171,6 +1171,19 @@ Round 2 cart/checkout refinement:
 - 2026-07-05 sub-agent follow-up: expanded Sheet layering should keep modal/Sheet overlay and content above the skip link. The skip link remains above the site header for keyboard access but below shadcn Sheet/Dialog layers, preventing it from appearing over the order-details Sheet.
 - Final cart/checkout deploy-quality screenshots must show selected PayPal, selected Pay Later, selected Card, expanded order details, collapsed-again focus return, recalculating totals, failed totals/save, focused input, and open menu/dialog/sheet states at mobile widths. Sticky/fixed UI cannot overlap focused inputs, provider buttons/messages, Sheet controls, footer content, validation errors, or dialog controls; checkout sticky summary should be unmounted while mobile menu, minicart Sheet, or sign-in dialog owns the mobile surface.
 
+Round 3 checkout pickup and drawer repair:
+
+- Approved direction is Option A from the 2026-07-07 visual companion: mobile checkout remains task-first, while order details live in a single bottom drawer/sheet. Do not reintroduce a mobile main-page order-detail card that duplicates the drawer.
+- Pickup ZIP/postcode submission opens a store picker above the sticky site header and nav. Store-picker content, actions, and scroll regions must not sit under the header at mobile or desktop widths.
+- Canceling or dismissing the pickup store picker before selecting a store returns the buyer to Pickup location for re-submit, keeps Store selection dormant, hides inline store cards, and does not commit a pending store.
+- Confirming a pickup store advances the approved Pickup flow without changing BOPIS capture-at-checkout semantics or PayPal Create Order pickup fields.
+- Collapsed mobile drawer shows only total, signed promo amount when present, and the current payment action state. It does not show item descriptions, thumbnails, explanatory payment text, trust copy, or selected-method label rows.
+- Expanded mobile drawer uses shadcn `Sheet side="bottom"` semantics for order details, closes by Escape/scrim/handle, traps focus, returns focus to the trigger, keeps the payment action reachable when ready, and remains below Dialog/Sheet layer rules rather than custom low-z-index modal CSS.
+- Delivery billing submit should open Shipping method within 250ms after client validation; Pickup billing submit should open Pickup date within 250ms after client validation. While the backend settles, the next task shell and totals show pending/recalculating state, and selected provider actions stay disabled until totals are current.
+- Promo discounts in checkout must be backend-backed. A buyer-visible discount appears only after real promo evaluate/apply state returns `discount_minor > 0`; the amount is primary and signed, with promo codes secondary if shown. No fake or inert promo input should be visible.
+- Selected PayPal and Pay Later actions should occupy the same merchant-owned action slot width in the collapsed drawer, expanded drawer, and desktop/tablet summary where applicable. Official provider internals remain untouched.
+- Round 3 deploy-quality evidence must include pickup picker open/cancel/confirm, mobile drawer collapsed/expanded/collapsed-again, slow and failed billing submit, real promo discount, selected PayPal, selected Pay Later, selected Card inline, and header/drawer overlap metrics at 320, 390/414, and 1440.
+
 PayPal A+:
 
 - Do not copy visual mockup PayPal buttons literally. Runtime uses official SDK-rendered PayPal, Pay Later, wallet, and card surfaces.

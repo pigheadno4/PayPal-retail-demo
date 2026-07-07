@@ -5163,7 +5163,7 @@ a {
   justify-content: center;
   padding: 18px;
   position: fixed;
-  z-index: 30;
+  z-index: 50;
 }
 
 .checkout-pickup-calendar {

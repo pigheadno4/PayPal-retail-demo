@@ -315,6 +315,7 @@ const checkoutStickyCardSelectors = [
   ".card-fields-checkout-action",
   ".checkout-choice__card-box",
 ] as const;
+type PickupStorePickerCloseReason = "cancel" | "confirm" | "dismiss";
 const checkoutStepOrderByMode = {
   delivery: [
     "shipping-address",
@@ -373,6 +374,8 @@ export function CheckoutPage({
   >({});
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
   const [pickupStoreModalOpen, setPickupStoreModalOpen] = useState(false);
+  const [suppressInlinePickupStoreCards, setSuppressInlinePickupStoreCards] =
+    useState(false);
   const [selectedPickupStoreName, setSelectedPickupStoreName] = useState<
     string | null
   >(() =>
@@ -502,6 +505,8 @@ export function CheckoutPage({
     activeMode === "pickup"
       ? withSelectedPickupStoreSummary(activeSummary, selectedPickupStore)
       : activeSummary;
+  const showCheckoutSummary =
+    !isMobilePaymentBar || suppressMobileStickySummary;
 
   useEffect(() => {
     currentDataRef.current = currentData;
@@ -919,9 +924,32 @@ export function CheckoutPage({
     setPickupStoreModalOpen(true);
   }
 
-  function closePickupStoreModal() {
+  function closePickupStoreModal(reason: PickupStorePickerCloseReason) {
     setPickupStoreModalOpen(false);
-    pickupStoreTriggerRef.current?.focus();
+
+    if (reason !== "confirm" && !selectedPickupStoreName) {
+      setPendingPickupStoreName(null);
+      setSuppressInlinePickupStoreCards(true);
+      setStepStateOverrides((currentStates) => ({
+        ...currentStates,
+        "pickup-location": "editing",
+        "store-selection": "idle",
+      }));
+      setExpandedStepIds((currentStepIds) => ({
+        ...currentStepIds,
+        pickup: "pickup-location",
+      }));
+      setCollapsedStepIds((currentStepIds) => {
+        const nextStepIds = new Set(currentStepIds);
+        nextStepIds.delete("pickup-location");
+        nextStepIds.delete("store-selection");
+        return nextStepIds;
+      });
+    }
+
+    if (reason === "dismiss" || selectedPickupStoreName) {
+      pickupStoreTriggerRef.current?.focus();
+    }
   }
 
   function savePickupStoreAndEditBilling(storeNameOverride?: string) {
@@ -938,6 +966,7 @@ export function CheckoutPage({
     if (nextStoreName) {
       setSelectedPickupStoreName(nextStoreName);
     }
+    setSuppressInlinePickupStoreCards(false);
 
     void applyDraftUpdate({
       draftId: pageData.pickup.checkoutDraftId ?? null,
@@ -948,7 +977,7 @@ export function CheckoutPage({
       type: "pickup_store",
     });
 
-    setPickupStoreModalOpen(false);
+    closePickupStoreModal("confirm");
     setStepStateOverrides((currentStates) => ({
       ...currentStates,
       "pickup-billing-address": "editing",
@@ -1073,16 +1102,20 @@ export function CheckoutPage({
               onStepEdit={editStep}
               onStepSubmit={submitStep}
               cardPaymentBox={activeMode === "pickup" ? cardPaymentBox : null}
-              suppressInlineStoreCards={pickupStoreModalOpen}
+              suppressInlineStoreCards={
+                pickupStoreModalOpen || suppressInlinePickupStoreCards
+              }
             />
           </Tabs>
         </section>
 
-        <CheckoutSummary
-          summary={displayedSummary}
-          paymentAction={summaryPaymentAction}
-          paymentReadinessMessage={paymentReadinessMessage}
-        />
+        {showCheckoutSummary ? (
+          <CheckoutSummary
+            summary={displayedSummary}
+            paymentAction={summaryPaymentAction}
+            paymentReadinessMessage={paymentReadinessMessage}
+          />
+        ) : null}
       </div>
 
       <CheckoutTrustStrip />
@@ -2112,7 +2145,7 @@ function PickupStoreModal({
 }: {
   readonly stores: readonly CheckoutStoreCard[];
   readonly selectedStoreName: string | null;
-  readonly onClose: () => void;
+  readonly onClose: (reason: PickupStorePickerCloseReason) => void;
   readonly onChoose: (storeName: string) => void;
   readonly onConfirm: () => void;
   readonly onSelect: (storeName: string) => void;
@@ -2131,7 +2164,7 @@ function PickupStoreModal({
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();
-          onClose();
+          onClose("dismiss");
         }
       }}
       role="dialog"
@@ -2146,7 +2179,7 @@ function PickupStoreModal({
             type="button"
             aria-label="Close pickup store picker"
             className="checkout-modal__close"
-            onClick={onClose}
+            onClick={() => onClose("dismiss")}
           >
             <XIcon aria-hidden="true" />
           </button>
@@ -2207,7 +2240,7 @@ function PickupStoreModal({
           })}
         </div>
         <footer className="checkout-modal__actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={() => onClose("cancel")}>
             Cancel
           </button>
           <button type="button" onClick={onConfirm}>

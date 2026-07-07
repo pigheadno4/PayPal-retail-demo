@@ -449,6 +449,8 @@ describe("global storefront visual tokens", () => {
     const checkoutStickyGrabberBlock = cssBlock(
       ".checkout-sticky-summary__grabber",
     );
+    const checkoutModalBlock = cssBlock(".checkout-modal");
+    const siteHeaderBlock = cssBlock(".site-header");
     const checkoutStickyViewportClearanceBlock = cssBlock(
       "html:has(.checkout-sticky-summary)",
     );
@@ -560,6 +562,8 @@ describe("global storefront visual tokens", () => {
     expect(checkoutStickyGrabberBlock).toContain("transform: translateX(-50%)");
     expect(checkoutStickyGrabberBlock).toContain("height: 44px");
     expect(checkoutStickyGrabberBlock).toContain("min-width: 112px");
+    expect(siteHeaderBlock).toContain("z-index: 40");
+    expect(checkoutModalBlock).toContain("z-index: 50");
     expect(checkoutStickyViewportClearanceBlock).toContain(
       "scroll-padding-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
     );

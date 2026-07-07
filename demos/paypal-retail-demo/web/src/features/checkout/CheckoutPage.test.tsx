@@ -522,6 +522,58 @@ describe("CheckoutPage", () => {
     expect(within(stickySummary).queryByText("Labubu Have a Seat")).toBeNull();
   });
 
+  it("makes the mobile bottom drawer the only order detail surface", () => {
+    mockMobileCheckoutViewport();
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: null,
+        })}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("complementary", { name: "Order summary" }),
+    ).toBeNull();
+
+    const stickySummary = screen.getByLabelText("Checkout summary");
+    expect(
+      within(stickySummary).getByRole("button", {
+        name: "Review order details",
+      }),
+    ).toBeTruthy();
+    expect(within(stickySummary).getByText("Total")).toBeTruthy();
+    expect(within(stickySummary).getByText("$25.98")).toBeTruthy();
+    expect(within(stickySummary).queryByText("Labubu Have a Seat")).toBeNull();
+    expect(
+      within(stickySummary).queryByText("Merchandise subtotal"),
+    ).toBeNull();
+  });
+
+  it("keeps the full mobile order summary when the sticky drawer is suppressed", () => {
+    mockMobileCheckoutViewport();
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: null,
+        })}
+        suppressMobileStickySummary
+      />,
+    );
+
+    expect(screen.queryByLabelText("Checkout summary")).toBeNull();
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    expect(within(orderSummary).getByText("Labubu Have a Seat")).toBeTruthy();
+    expect(within(orderSummary).getByText("Merchandise subtotal")).toBeTruthy();
+  });
+
   it("renders selected non-card payment only in the mobile sticky summary", () => {
     mockMobileCheckoutViewport();
 

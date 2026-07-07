@@ -682,6 +682,112 @@ describe("CheckoutPage interactions", () => {
     ).toBeTruthy();
   });
 
+  it("returns Pickup cancel to location entry without exposing inline store cards", async () => {
+    const user = userEvent.setup();
+    const draftUpdates: TestDraftUpdateRequest[] = [];
+
+    render(
+      createElement(CheckoutPage, {
+        onDraftUpdate: async (request: TestDraftUpdateRequest) => {
+          draftUpdates.push(request);
+        },
+      } as Record<string, unknown>),
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    expect(within(storeDialog).getByText("POP MART Soho")).toBeTruthy();
+    await user.click(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Covent Garden/,
+      }),
+    );
+
+    await user.click(
+      within(storeDialog).getByRole("button", { name: "Cancel" }),
+    );
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    const pickupLocationStep = getStep("Pickup location");
+    expect(pickupLocationStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+    ).toBeTruthy();
+
+    const storeSelectionStep = getStep("Store selection");
+    expect(storeSelectionStep.getAttribute("data-step-state")).toBe("idle");
+    expect(within(storeSelectionStep).queryByText("POP MART Soho")).toBeNull();
+    expect(
+      within(storeSelectionStep).queryByRole("button", {
+        name: /Select this store|Use selected store/,
+      }),
+    ).toBeNull();
+    expect(draftUpdates).toContainEqual(
+      expect.objectContaining({
+        type: "pickup_location",
+      }),
+    );
+    expect(draftUpdates).not.toContainEqual(
+      expect.objectContaining({
+        type: "pickup_store",
+      }),
+    );
+  });
+
+  it("returns guest Pickup dismiss to location entry without exposing inline store cards", async () => {
+    const user = userEvent.setup();
+    const draftUpdates: TestDraftUpdateRequest[] = [];
+
+    render(
+      createElement(CheckoutPage, {
+        onDraftUpdate: async (request: TestDraftUpdateRequest) => {
+          draftUpdates.push(request);
+        },
+      } as Record<string, unknown>),
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Pickup" }));
+    await openPickupStoreModalFromGuestZip(user, "SW1A 1AA");
+
+    const storeDialog = screen.getByRole("dialog", {
+      name: "Choose pickup store",
+    });
+    await user.click(
+      within(storeDialog).getByRole("radio", {
+        name: /POP MART Covent Garden/,
+      }),
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    const pickupLocationStep = getStep("Pickup location");
+    expect(pickupLocationStep.getAttribute("data-step-state")).toBe("editing");
+    expect(
+      within(pickupLocationStep).getByLabelText("ZIP or postcode"),
+    ).toBeTruthy();
+
+    const storeSelectionStep = getStep("Store selection");
+    expect(storeSelectionStep.getAttribute("data-step-state")).toBe("idle");
+    expect(within(storeSelectionStep).queryByText("POP MART Soho")).toBeNull();
+    expect(draftUpdates).toContainEqual(
+      expect.objectContaining({
+        type: "pickup_location",
+      }),
+    );
+    expect(draftUpdates).not.toContainEqual(
+      expect.objectContaining({
+        type: "pickup_store",
+      }),
+    );
+  });
+
   it("starts logged-in Pickup with a preselected store and returns focus after closing Change store", async () => {
     const user = userEvent.setup();
 
