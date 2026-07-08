@@ -162,6 +162,7 @@ Round 3 implementation tasks:
 3. Billing progression.
    - Extend the existing optimistic progression model to billing steps.
    - Show the next task shell within 250ms while backend totals settle.
+   - Keep dependent submit actions disabled while the prior draft update is still saving/recalculating, so fast buyers cannot submit static fallback choices before backend-backed totals/options reconcile.
    - On failure, return focus/error to Billing and keep provider actions blocked.
    - Acceptance: interaction tests simulate slow and failed billing saves for Delivery and Pickup.
 
@@ -191,6 +192,7 @@ Round 3 acceptance criteria:
 - Collapsed drawer contains only total, signed promo, and current action state; the summary surface/passive handle opens details with no separate expand button.
 - Expanded drawer closes by Escape, scrim, and handle; returns focus to trigger; traps focus while open.
 - Billing submit opens the next task within 250ms after client validation for both Delivery and Pickup.
+- Dependent section submits stay disabled while their upstream section is saving/recalculating; Delivery shipping option submit must never send static fallback IDs such as `ship_standard` to a live seeded backend before backend-backed shipping options are reconciled.
 - Payment remains disabled until active totals are settled/current after billing, promo, shipping, tax, and pickup recalculation.
 - Promo discounts appear only from real backend promo state and render as signed amount text.
 - PayPal, Pay Later, Apple Pay, Google Pay, and Venmo selected action slots have matching width/height and no intrinsic/autofit regression.
@@ -201,7 +203,7 @@ Round 3 inspection standard:
 
 - Required mobile evidence states: Pickup ZIP submitted with picker open, picker canceled, picker confirmed, preselected Pickup store summary, mobile checkout initial, billing slow-save pending, billing failure, selected PayPal collapsed drawer, selected Pay Later collapsed drawer, selected Apple Pay collapsed drawer, selected Google Pay collapsed drawer, selected Venmo collapsed drawer, expanded drawer, collapsed focus-return, real promo discount, and selected Card inline/no drawer provider action.
 - Required widths: 320, 390/414, and 1440 for pickup picker and checkout drawer; add 768/1024/1280 if shared shell CSS changes.
-- Metrics must record route/state, viewport, screenshot path, header overlap, horizontal overflow, drawer/sticky overlap, active section, selected method, selected provider action rects, provider counts by surface, create-order request/callback deltas, displayed total/promo/shipping/tax labels, picker close reason, store summary continuation absence, drawer trigger/expanded state, and billing transition timing.
+- Metrics must record route/state, viewport, screenshot path, header overlap, horizontal overflow, drawer/sticky overlap, active section, selected method, selected provider action rects, provider counts by surface, create-order request/callback deltas, displayed total/promo/shipping/tax labels, picker close reason, store summary continuation absence, drawer trigger/expanded state, dependent-submit disabled state during upstream recalculation, and billing transition timing.
 - Console errors are blockers unless the row intentionally exercises a buyer-visible failed save path with scoped recovery evidence. Warnings must be route/action scoped.
 
 ## Payment And PayPal Contract

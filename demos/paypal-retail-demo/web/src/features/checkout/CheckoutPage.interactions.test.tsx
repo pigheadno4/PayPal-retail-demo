@@ -371,6 +371,11 @@ describe("CheckoutPage interactions", () => {
           name: /Standard shipping/,
         }),
       ).toBeTruthy();
+      expect(
+        within(shippingOptionsStep).getByRole("button", {
+          name: "Submit shipping option",
+        }) as HTMLButtonElement,
+      ).toHaveProperty("disabled", true);
       expect(getStep("Payment method").getAttribute("data-step-state")).toBe(
         "idle",
       );

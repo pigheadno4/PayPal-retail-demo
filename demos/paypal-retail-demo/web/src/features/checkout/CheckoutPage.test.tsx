@@ -1010,7 +1010,7 @@ describe("CheckoutPage", () => {
     );
   });
 
-  it("queues delivery draft updates when billing is submitted before shipping save settles", async () => {
+  it("blocks dependent billing submit until shipping save settles", async () => {
     const user = userEvent.setup();
     let resolveShippingUpdate: ((value: CheckoutPageData) => void) | undefined;
     const shippingUpdatedData = checkoutData({
@@ -1042,12 +1042,25 @@ describe("CheckoutPage", () => {
     );
     expect(onDraftUpdate).toHaveBeenCalledTimes(1);
 
-    await user.click(
-      await screen.findByRole("button", { name: "Save billing address" }),
-    );
+    const pendingBillingButton = (await screen.findByRole("button", {
+      name: "Save billing address",
+    })) as HTMLButtonElement;
+    expect(pendingBillingButton).toHaveProperty("disabled", true);
+    await user.click(pendingBillingButton);
     expect(onDraftUpdate).toHaveBeenCalledTimes(1);
 
     resolveShippingUpdate?.(shippingUpdatedData);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "Save billing address",
+        }) as HTMLButtonElement,
+      ).toHaveProperty("disabled", false);
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Save billing address" }),
+    );
 
     await waitFor(() => {
       expect(onDraftUpdate).toHaveBeenCalledTimes(2);

@@ -156,18 +156,7 @@ async function round3CheckoutPickupDrawerEvidence(page) {
         rowId: "pickup-picker-confirm-390",
         route: "/checkout",
         checkpoint: await runAction(async () => {
-          await page
-            .getByRole("button", {
-              name: /Use selected store|Select this store/,
-            })
-            .first()
-            .click();
-          await page
-            .getByRole("button", { name: "Confirm pickup store" })
-            .click();
-          await page
-            .getByRole("button", { name: "Save billing address" })
-            .waitFor({ state: "visible", timeout: 20000 });
+          await commitPickupStoreSelection();
         }),
         expectedText: ["Store selection", "Billing address"],
         assertions: {
@@ -392,9 +381,30 @@ async function round3CheckoutPickupDrawerEvidence(page) {
         })
         .catch(() => undefined);
       await page.waitForFunction(
-        () =>
-          document.body.innerText.includes("Secure checkout") &&
-          document.body.innerText.includes("Molly Blind Boxes 2"),
+        () => {
+          const isCheckoutEvidenceReady = () => {
+            const bodyText = document.body.innerText;
+            const hasCheckoutShell =
+              bodyText.includes("Secure checkout") ||
+              Boolean(document.querySelector(".checkout-status"));
+            const hasCheckoutAction = [
+              ...document.querySelectorAll("button"),
+            ].some((button) =>
+              /Submit shipping address|Save billing address|Submit shipping option|Find pickup stores/.test(
+                button.textContent ?? "",
+              ),
+            );
+            const hasCheckoutInput = Boolean(
+              document.querySelector(
+                "#shipping-address-first-name, #pickup-location-zip-or-postcode",
+              ),
+            );
+
+            return hasCheckoutShell && (hasCheckoutAction || hasCheckoutInput);
+          };
+
+          return isCheckoutEvidenceReady();
+        },
         { timeout: 20000 },
       );
 
@@ -423,6 +433,30 @@ async function round3CheckoutPickupDrawerEvidence(page) {
       await page.getByRole("button", { name: "Find pickup stores" }).click();
       await page
         .getByRole("dialog", { name: "Choose pickup store" })
+        .waitFor({ state: "visible", timeout: 20000 });
+    }
+
+    async function commitPickupStoreSelection() {
+      await page
+        .getByRole("button", {
+          name: /Use selected store|Select this store/,
+        })
+        .first()
+        .click();
+
+      const confirmButton = page.getByRole("button", {
+        name: "Confirm pickup store",
+      });
+
+      try {
+        await confirmButton.waitFor({ state: "visible", timeout: 1500 });
+        await confirmButton.click();
+      } catch {
+        // Some deployed builds commit immediately when a store card is chosen.
+      }
+
+      await page
+        .getByRole("button", { name: "Save billing address" })
         .waitFor({ state: "visible", timeout: 20000 });
     }
 

@@ -160,6 +160,7 @@
   - delivery `billing-address` opens `shipping-method` shell within 250ms
   - pickup `pickup-billing-address` opens `pickup-date` shell within 250ms
   - show recalculating/pending totals copy while the request is in flight
+  - keep dependent primary submit actions disabled while the preceding draft update is saving/recalculating, so optimistic shells do not submit stale fallback choices
   - keep selected provider actions hidden/disabled until totals are current
   - on failure, return focus and inline error to Billing address
 
@@ -167,7 +168,7 @@
 
   Run: `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx web/src/features/checkout/CheckoutPage.test.tsx`
 
-  Result: PASS on 2026-07-07. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx` passed `24` tests, including slow-response, literal focus return, and failure rollback paths for Delivery and Pickup billing. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx web/src/features/checkout/CheckoutPage.test.tsx` passed `60` checkout tests. Browser/API-backed timing evidence remains open in Task 7.
+  Result: PASS on 2026-07-07. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx` passed `24` tests, including slow-response, literal focus return, and failure rollback paths for Delivery and Pickup billing. `npm test -- web/src/features/checkout/CheckoutPage.interactions.test.tsx web/src/features/checkout/CheckoutPage.test.tsx` passed `60` checkout tests. A later hosted evidence run exposed that fast-clicking the optimistic Shipping options shell could submit static fallback `ship_standard` before backend-backed shipping options reconciled; the follow-up test now proves `Submit shipping option` is disabled while Billing is still recalculating. Browser/API-backed timing evidence remains open in Task 7.
 
 ## Task 4: Real Promo Activation Path
 
@@ -331,7 +332,7 @@
 
   Expected: all pass. If hosted deploy is not available yet, record local evidence as local-only and leave hosted smoke open.
 
-  Partial result on 2026-07-07: helper registration, `npm run lint`, and `npm run typecheck` pass. Full `npm run evidence:round3:checkout-pickup-drawer` remains open until the local API-backed app is running with the required env/secrets or hosted deploy evidence is intentionally captured.
+  Partial result on 2026-07-07: helper registration, `npm run lint`, and `npm run typecheck` pass. Initial hosted execution exposed and fixed helper assumptions around product-name checkout readiness and optional pickup confirmation. It also exposed the optimistic Shipping option stale-submit race, now blocked locally by disabled dependent submits. Full `npm run evidence:round3:checkout-pickup-drawer` remains open until the patched code is deployed or the local API-backed app is running with the required env/secrets.
 
 - [ ] **Step 4: Update tracking**
 
@@ -348,10 +349,10 @@
 - Collapsed mobile drawer shows only total, signed promo amount when present, and the current payment action state.
 - Collapsed drawer opens from the summary surface and passive handle; there is no separate expand button competing with payment actions.
 - Expanded drawer uses shadcn bottom `Sheet` semantics, closes by trigger/Escape/scrim, traps focus, returns focus to the trigger, and keeps payment action reachable.
-- Billing submit opens the next task shell within 250ms after client validation for Delivery and Pickup; failed billing returns focus/error to Billing; payment remains disabled until active totals are current.
+- Billing submit opens the next task shell within 250ms after client validation for Delivery and Pickup; dependent submit actions stay disabled while the upstream draft update is saving/recalculating; failed billing returns focus/error to Billing; payment remains disabled until active totals are current.
 - Promo activation is real: no fake/inert promo input, no code-only discount display when discount amount exists, and no buyer-visible discount unless backend evaluation/apply returns one.
 - Selected PayPal, Pay Later, Apple Pay, Google Pay, and Venmo payment buttons use the same action slot width and height in mobile collapsed drawer, expanded drawer, and desktop/tablet summary where applicable.
 - Preselected Pickup store summaries do not show redundant continuation CTAs; the only visible control is the store change/edit affordance, and Billing is the next active buyer task.
 - Provider actions still obey Round 2 readiness gates: no create-order call while cart/draft/eligibility/shipping/tax/promo/totals are missing, stale, failed, loading, or recalculating.
 - App-level tests prove blocked states produce zero create-order requests/callbacks, and selected PayPal/Pay Later with settled/current totals produce exactly one method-attributed request/callback when activated from collapsed and expanded drawer states.
-- Evidence helper records screenshot path, viewport, route/state, console/response issues, horizontal overflow, header overlap, sticky/drawer overlap, selected method, provider surface counts, selected provider button rects, create-order request/callback counts, displayed total/promo/shipping/tax labels, picker state, preselected-store summary state, drawer trigger/expanded state, and billing transition timing.
+- Evidence helper records screenshot path, viewport, route/state, console/response issues, horizontal overflow, header overlap, sticky/drawer overlap, selected method, provider surface counts, selected provider button rects, create-order request/callback counts, displayed total/promo/shipping/tax labels, picker state, preselected-store summary state, drawer trigger/expanded state, dependent-submit disabled state during upstream recalculation, and billing transition timing.

@@ -1526,6 +1526,12 @@ function CheckoutModePanel({
           const isFocusTarget =
             validation?.focusStepId === step.id ||
             submitFocusStepId === step.id;
+          const primaryActionDisabled =
+            isCheckoutPrimaryActionBlockedByPendingDependency(
+              mode,
+              step.id,
+              stepStateOverrides,
+            );
 
           return (
             <article
@@ -1558,6 +1564,7 @@ function CheckoutModePanel({
                       step={stepWithDetails}
                       cardPaymentBox={cardPaymentBox}
                       suppressInlineStoreCards={suppressInlineStoreCards}
+                      primaryActionDisabled={primaryActionDisabled}
                       submitErrorMessage={submitErrorMessage}
                       submitErrorId={submitErrorId}
                       validationMessages={validationMessages}
@@ -1631,6 +1638,38 @@ function withInteractiveChoiceSelection(
     })),
   };
 }
+
+function isCheckoutPrimaryActionBlockedByPendingDependency(
+  mode: CheckoutFulfillmentMode,
+  stepId: string,
+  stepStateOverrides: Readonly<Record<string, CheckoutStepState>>,
+): boolean {
+  const dependencies =
+    checkoutPrimaryActionPendingDependencies[mode][stepId] ?? [];
+
+  return dependencies.some((dependencyStepId) => {
+    const dependencyState = stepStateOverrides[dependencyStepId];
+
+    return dependencyState === "saving" || dependencyState === "recalculating";
+  });
+}
+
+const checkoutPrimaryActionPendingDependencies: Record<
+  CheckoutFulfillmentMode,
+  Record<string, readonly string[]>
+> = {
+  delivery: {
+    "billing-address": ["shipping-address"],
+    "shipping-options": ["billing-address"],
+    "payment-method": ["shipping-options"],
+  },
+  pickup: {
+    "store-selection": ["pickup-location"],
+    "pickup-billing-address": ["store-selection"],
+    "pickup-date": ["pickup-billing-address"],
+    "pickup-payment-method": ["pickup-date"],
+  },
+};
 
 function withEditableFieldValues(
   step: CheckoutStep,
@@ -2500,6 +2539,7 @@ function CheckoutStepDetails({
   step,
   cardPaymentBox,
   suppressInlineStoreCards,
+  primaryActionDisabled,
   submitErrorMessage,
   submitErrorId,
   validationMessages,
@@ -2510,6 +2550,7 @@ function CheckoutStepDetails({
   readonly step: CheckoutStep;
   readonly cardPaymentBox?: ReactNode;
   readonly suppressInlineStoreCards: boolean;
+  readonly primaryActionDisabled: boolean;
   readonly submitErrorMessage?: string | undefined;
   readonly submitErrorId?: string | undefined;
   readonly validationMessages: readonly CheckoutValidationMessage[];
@@ -2785,6 +2826,7 @@ function CheckoutStepDetails({
       {step.primaryActionLabel ? (
         <Button
           className="checkout-step__action"
+          disabled={primaryActionDisabled}
           type="button"
           onClick={() => onStepSubmit(step)}
         >

@@ -52,5 +52,11 @@ describe("evidence scripts", () => {
     ]) {
       expect(helperSource).toContain(requiredMetric);
     }
+
+    expect(helperSource).not.toContain(
+      'document.body.innerText.includes("Molly Blind Boxes 2")',
+    );
+    expect(helperSource).toContain("isCheckoutEvidenceReady");
+    expect(helperSource).toContain("commitPickupStoreSelection");
   });
 });
