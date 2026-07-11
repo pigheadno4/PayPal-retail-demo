@@ -5307,8 +5307,12 @@ a {
   border-radius: 6px;
   cursor: pointer;
   font-weight: 900;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 12px;
+}
+
+.checkout-modal__actions button {
+  white-space: nowrap;
 }
 
 .checkout-modal__header button,
@@ -5629,6 +5633,12 @@ a {
   width: 100%;
 }
 
+.paypal-provider-runtime {
+  display: grid;
+  min-inline-size: 0;
+  width: 100%;
+}
+
 .checkout-summary__slot .paypal-standalone-action,
 .checkout-summary__slot .paylater-standalone-action,
 .checkout-summary__slot .wallet-checkout-action,
@@ -5695,7 +5705,14 @@ a {
   min-height: 50px;
   min-width: 0;
   overflow: hidden;
-  padding: 10px;
+  padding: 2px 8px;
+  width: 100%;
+}
+
+.card-fields-checkout-action__hosted-field paypal-hosted-card-field {
+  display: block;
+  height: 44px;
+  min-height: 44px;
   width: 100%;
 }
 
@@ -5943,6 +5960,18 @@ a {
 
 .checkout-sticky-summary__choose-payment {
   min-height: 52px;
+  width: 100%;
+}
+
+.checkout-payment-loading {
+  background: #f2efec;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-compact-radius);
+  color: var(--shell-muted);
+  font-size: 0.84rem;
+  font-weight: 850;
+  min-height: 52px;
+  padding: 0 12px;
   width: 100%;
 }
 
@@ -9238,6 +9267,18 @@ p {
 
   .checkout-sticky-summary__action {
     min-width: 0;
+  }
+
+  .checkout-modal__actions {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.8fr) minmax(0, 1.6fr);
+  }
+
+  .checkout-modal__actions button {
+    font-size: 0.82rem;
+    min-width: 0;
+    padding-inline: 8px;
+    width: 100%;
   }
 
   .checkout-store-card__heading {

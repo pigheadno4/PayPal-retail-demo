@@ -290,6 +290,13 @@ const paymentMethodLogoByMethod: Partial<
   },
 };
 
+const paymentMethodsWithWordmarkLogo = new Set<CheckoutSelectedPaymentMethod>([
+  "paypal",
+  "paylater",
+  "apple_pay",
+  "venmo",
+]);
+
 const checkoutSubmitTransitionDelayMs = 50;
 const checkoutFieldRequiredDescription =
   "Required to continue this checkout step.";
@@ -2751,10 +2758,18 @@ function CheckoutStepDetails({
             const paymentLogo = choice.method
               ? paymentMethodLogoByMethod[choice.method]
               : null;
+            const logoCarriesVisibleLabel = Boolean(
+              choice.method &&
+              paymentLogo &&
+              paymentMethodsWithWordmarkLogo.has(choice.method),
+            );
 
             return (
               <label
                 className="checkout-choice"
+                data-payment-method-label-visibility={
+                  logoCarriesVisibleLabel ? "logo" : "text"
+                }
                 data-payment-method-row={choice.method}
                 key={choice.label}
               >
@@ -2776,7 +2791,13 @@ function CheckoutStepDetails({
                     />
                   ) : null}
                   <span className="checkout-choice__copy">
-                    <strong>{choice.label}</strong>
+                    <strong
+                      className={
+                        logoCarriesVisibleLabel ? "sr-only" : undefined
+                      }
+                    >
+                      {choice.label}
+                    </strong>
                     {choice.description ? (
                       <small>{choice.description}</small>
                     ) : null}

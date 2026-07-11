@@ -1,9 +1,29 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { CreateInstanceOptions } from "@paypal/paypal-js/sdk-v6";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const sdkMockState = vi.hoisted(() => ({
+  loadingStatus: "resolved",
+}));
+
+vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+
+  return {
+    INSTANCE_LOADING_STATE: {
+      PENDING: "pending",
+      REJECTED: "rejected",
+      RESOLVED: "resolved",
+    },
+    PayPalProvider: ({ children }: { readonly children: React.ReactNode }) => (
+      <div data-testid="paypal-provider">{children}</div>
+    ),
+    usePayPal: () => ({ loadingStatus: sdkMockState.loadingStatus }),
+  };
+});
 
 import type { ApiClient, ApiQueryParams } from "../../api/client.js";
 import {
@@ -14,10 +34,75 @@ import {
 } from "./PayPalSdkProviderScope.js";
 
 afterEach(() => {
+  sdkMockState.loadingStatus = "resolved";
   cleanup();
 });
 
 describe("PayPalSdkProviderScope", () => {
+  it("renders an actionable visual fallback while checkout SDK config loads", () => {
+    const html = renderToStaticMarkup(
+      <PayPalSdkProviderScope
+        configRequest={{
+          market: "US",
+          pageType: "checkout",
+          flow: "standard",
+          method: "paypal",
+        }}
+        fallback={
+          <button data-payment-loading-fallback="paypal" disabled type="button">
+            Loading PayPal
+          </button>
+        }
+        providerKey="paypal:sandbox:pending"
+      >
+        <span>Ready action</span>
+      </PayPalSdkProviderScope>,
+    );
+
+    expect(html).toContain('data-payment-loading-fallback="paypal"');
+    expect(html).toContain("Loading PayPal");
+    expect(html).not.toContain("Ready action");
+  });
+
+  it("keeps the visual fallback mounted until the PayPal runtime resolves", () => {
+    sdkMockState.loadingStatus = "pending";
+    const renderScope = () => (
+      <PayPalSdkProviderScope
+        configRequest={{
+          market: "US",
+          pageType: "checkout",
+          flow: "standard",
+          method: "paypal",
+        }}
+        fallback={
+          <button data-payment-loading-fallback="paypal" disabled type="button">
+            Preparing PayPal
+          </button>
+        }
+        initialSdkConfig={sdkConfig()}
+        providerKey={sdkConfig().provider_key}
+      >
+        <span data-testid="ready-action">Ready action</span>
+      </PayPalSdkProviderScope>
+    );
+
+    const { rerender } = render(renderScope());
+
+    expect(
+      document.querySelector('[data-paypal-sdk-runtime-status="pending"]'),
+    ).not.toBeNull();
+    expect(screen.queryByText("Preparing PayPal")).not.toBeNull();
+    expect(screen.queryByTestId("ready-action")).toBeNull();
+
+    sdkMockState.loadingStatus = "resolved";
+    rerender(renderScope());
+
+    expect(
+      document.querySelector('[data-paypal-sdk-runtime-status="resolved"]'),
+    ).not.toBeNull();
+    expect(screen.queryByText("Preparing PayPal")).toBeNull();
+    expect(screen.queryByTestId("ready-action")).not.toBeNull();
+  });
   it("builds the backend SDK config query from the active payment surface", () => {
     expect(
       buildPayPalSdkConfigQuery({

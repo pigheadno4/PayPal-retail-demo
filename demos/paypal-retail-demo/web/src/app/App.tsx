@@ -5588,6 +5588,16 @@ function renderCheckoutPaymentAction({
         flow: "standard",
         method: context.selectedPaymentMethod,
       }}
+      fallback={
+        <button
+          className="checkout-payment-loading"
+          data-payment-loading-fallback={context.selectedPaymentMethod}
+          disabled
+          type="button"
+        >
+          Preparing {formatCheckoutPaymentMethod(context.selectedPaymentMethod)}
+        </button>
+      }
     >
       {isWallet ? (
         <WalletCheckoutAction
@@ -5623,6 +5633,28 @@ function renderCheckoutPaymentAction({
       )}
     </PayPalSdkProviderScope>
   );
+}
+
+function formatCheckoutPaymentMethod(
+  method: Exclude<
+    CheckoutPaymentActionContext["selectedPaymentMethod"],
+    undefined
+  >,
+): string {
+  switch (method) {
+    case "apple_pay":
+      return "Apple Pay";
+    case "card":
+      return "card payment";
+    case "google_pay":
+      return "Google Pay";
+    case "paylater":
+      return "Pay Later";
+    case "paypal":
+      return "PayPal";
+    case "venmo":
+      return "Venmo";
+  }
 }
 
 function isWalletPaymentMethod(

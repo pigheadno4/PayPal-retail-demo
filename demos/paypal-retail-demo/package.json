@@ -26,7 +26,7 @@
     "evidence:round2:checkout-readiness": "playwright-cli --raw run-code --filename=tools/round2-checkout-readiness-evidence.playwright.js",
     "evidence:round2:hosted-smoke": "playwright-cli --raw run-code --filename=tools/round2-hosted-checkout-smoke.playwright.js",
     "evidence:round3:checkout-pickup-drawer": "playwright-cli --raw run-code --filename=tools/round3-checkout-pickup-drawer-evidence.playwright.js",
-    "evidence:round4:auth-minicart-checkout": "playwright-cli --raw run-code --filename=tools/round4-auth-minicart-checkout-evidence.playwright.js",
+    "evidence:round4:auth-minicart-checkout": "node tools/run-round4-auth-minicart-checkout-evidence.mjs",
     "verify": "npm run typecheck && npm test && npm run lint && npm run format:check"
   },
   "dependencies": {

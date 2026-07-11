@@ -644,6 +644,9 @@ describe("global storefront visual tokens", () => {
     const checkoutSelectedPaymentProviderScopeBlock = cssBlock(
       ".checkout-summary__slot > .paypal-provider-scope,\n.checkout-sticky-summary__action > .paypal-provider-scope,\n.checkout-order-sheet__payment > .paypal-provider-scope",
     );
+    const checkoutSelectedPaymentRuntimeBlock = cssBlock(
+      ".paypal-provider-runtime",
+    );
     const checkoutSelectedPaymentProviderActionBlock = cssBlock(
       ".checkout-summary__slot .paypal-standalone-action,\n.checkout-summary__slot .paylater-standalone-action,\n.checkout-summary__slot .wallet-checkout-action,\n.checkout-sticky-summary__action .paypal-standalone-action,\n.checkout-sticky-summary__action .paylater-standalone-action,\n.checkout-sticky-summary__action .wallet-checkout-action,\n.checkout-order-sheet__payment .paypal-standalone-action,\n.checkout-order-sheet__payment .paylater-standalone-action,\n.checkout-order-sheet__payment .wallet-checkout-action",
     );
@@ -828,6 +831,9 @@ describe("global storefront visual tokens", () => {
       "min-inline-size: 0",
     );
     expect(checkoutSelectedPaymentProviderScopeBlock).toContain("width: 100%");
+    expect(checkoutSelectedPaymentRuntimeBlock).toContain("display: grid");
+    expect(checkoutSelectedPaymentRuntimeBlock).toContain("min-inline-size: 0");
+    expect(checkoutSelectedPaymentRuntimeBlock).toContain("width: 100%");
     expect(checkoutSelectedPaymentProviderActionBlock).toContain(
       "justify-self: stretch",
     );

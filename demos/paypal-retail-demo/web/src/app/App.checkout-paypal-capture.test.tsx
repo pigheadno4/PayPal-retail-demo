@@ -79,6 +79,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
     INSTANCE_LOADING_STATE: {
       PENDING: "pending",
       REJECTED: "rejected",
+      RESOLVED: "resolved",
     },
     PayLaterOneTimePaymentButton: MockPayPalButton,
     PayPalCardCvvField: ({

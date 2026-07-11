@@ -288,6 +288,10 @@ If a width is intentionally omitted for a surface, the evidence report must mark
 
 - Email, password, and register input/button width delta is `0-2px` at measured widths.
 - Interactive controls touched by this slice have 44px minimum hit targets unless native provider surfaces control their own dimensions.
+- Selected PayPal and Pay Later rows require `data-paypal-sdk-status="ready"`, a nonzero official-element rectangle, and a nonzero visible shadow-control rectangle in the active sticky/summary placement; attached-only custom elements fail.
+- Card proof measures the actual `paypal-hosted-card-field` controls, not only their merchant-owned 50px containers, and requires each field to be at least 44px tall.
+- Checkout rows require at least one visible checkout-scoped contrast sample; `null` or an empty sample set fails the row.
+- Payment wordmark rows expose one visible method name, and the 320px pickup footer measures one-line `Confirm pickup store` plus 44px Cancel/Confirm targets.
 - Expanded order sheet top padding before title content remains under `24px`.
 - Minicart first viewport contains header, at least one product row, and the Checkout action before Pay Later or express copy dominates.
 - Page-level horizontal overflow is `0` at required mobile widths.
@@ -301,6 +305,7 @@ If a width is intentionally omitted for a surface, the evidence report must mark
 - [x] Console errors are hard failures. Warnings must be triaged with route, viewport, state, and reason.
 - [x] No `/favicon.ico` 404 appears in the evidence logs.
 - [ ] Hosted smoke remains open until the patched build is deployed and the same rows pass on Render.
+- [ ] Hosted closure additionally requires visible hydrated provider geometry, nonempty checkout contrast samples, measured target rectangles, one-line 320px pickup confirmation, and deployed asset identifiers in the persisted report.
 
 **Local Evidence Result (2026-07-11):**
 
@@ -326,6 +331,8 @@ If a width is intentionally omitted for a surface, the evidence report must mark
 - [x] No Round 4 task is marked complete while a P0/P1 finding remains unresolved.
 
 **Final Review Result (2026-07-11):** read-only `ui-ux-pro-max` reviewer `Pasteur` (`019f4e7a-a903-70e3-898f-78f0942faa86`) first inspected the 31-row evidence set and found no open findings. Pre-release reviewer `Dewey` (`019f4ec7-922e-7ca2-9748-2fb41aa21609`) then identified placement-scoping, visible Pickup-state capture, Auth initial-focus assertion, and router-drift gaps. After the helper, tests, evidence, and router were corrected, Dewey inspected all 40 workspace-visible JPEGs and the final metrics report and returned no P0, P1, or P2 findings. The diff is safe to commit/push; hosted Render smoke remains the separate post-deploy gate.
+
+**Hosted Review Correction (2026-07-11):** the first Render review kept the hosted gate open after finding an attached-but-unpainted PayPal action, empty checkout contrast samples, hardcoded rather than measured touch-target reporting, a wrapped 320px pickup confirmation, and duplicated visible PayPal branding. The correction adds a visible SDK-loading fallback, single visible wordmark labels, 44px hosted Card Fields, ready/shadow-control provider waits and geometry, checkout-scoped contrast sampling, real target rectangles, one-line pickup action proof, and a Node evidence runner that persists `metrics.json`. The follow-up reviewer then found one P1 timing gap: the fallback disappeared after configuration but before runtime hydration. Runtime now keeps the fallback through `pending`, replaces it atomically only at `data-paypal-sdk-runtime-status="resolved"`, and the helper requires that state. It also directly samples sticky total/promo and sheet breakdown/item text. A fresh local 31-row/40-image matrix passes with no missing or failed rows, and reviewer `Mendel` (`019f5019-d909-7340-9d66-e96b40ad94c6`) reports no unresolved P0/P1/P2 findings. At 320px the expanded provider may require contained sheet scrolling, but it must be runtime-resolved, hydrated, 44px+, and reachable. Deployment plus a fresh hosted reviewer verdict remain required.
 
 ## Hard Blockers
 

@@ -18,9 +18,14 @@ describe("evidence scripts", () => {
       "round4-auth-minicart-checkout-evidence.playwright.js",
     );
     const helperSource = readProjectFile(helperPath);
+    const runnerPath = join(
+      "tools",
+      "run-round4-auth-minicart-checkout-evidence.mjs",
+    );
+    const runnerSource = readProjectFile(runnerPath);
 
     expect(packageJson.scripts).toMatchObject({
-      "evidence:round4:auth-minicart-checkout": `playwright-cli --raw run-code --filename=${helperPath}`,
+      "evidence:round4:auth-minicart-checkout": `node ${runnerPath}`,
     });
 
     for (const rowId of [
@@ -84,6 +89,9 @@ describe("evidence scripts", () => {
       "screenshotPixelMetrics",
       "nearBlackPixelRatio",
       "mockupComparison",
+      "selectedPaymentAction",
+      "touchTargets",
+      "minimumMeasuredTouchTarget",
     ]) {
       expect(helperSource).toContain(requiredMetric);
     }
@@ -99,6 +107,12 @@ describe("evidence scripts", () => {
     expect(helperSource).toContain("quantityControls.length === 0");
     expect(helperSource).toContain("sample.scope === expected.contrastScope");
     expect(helperSource).toContain("measureScreenshotPixels");
+    expect(runnerSource).toContain("playwright-cli");
+    expect(runnerSource).toContain('spawnSync("playwright-cli", ["list"]');
+    expect(runnerSource).toContain("PAYPAL_RETAIL_EVIDENCE_BASE_URL");
+    expect(runnerSource).toContain("writeFileSync");
+    expect(runnerSource).toContain("JSON.stringify(report, null, 2)");
+    expect(runnerSource).toContain("report.summary.failedRows.length > 0");
     expect(helperSource).toContain("screenshotPixelMetrics.suspicious");
     expect(helperSource).toContain('type: "jpeg"');
     expect(helperSource).toContain("quality: 95");
@@ -114,6 +128,31 @@ describe("evidence scripts", () => {
     expect(helperSource).toContain(
       "[data-payment-action-placement][data-payment-method='${method}'] ${officialSelector}",
     );
+    expect(helperSource).toContain('data-paypal-sdk-status="ready"');
+    expect(helperSource).toContain(
+      'data-paypal-sdk-runtime-status="resolved"',
+    );
+    expect(helperSource).toContain("shadowRoot?.querySelector");
+    expect(helperSource).toContain("selectedPaymentAction.visible");
+    expect(helperSource).toContain("selectedPaymentAction.officialRect");
+    expect(helperSource).toContain(
+      'selectedPaymentAction.runtimeStatus !== "resolved"',
+    );
+    expect(helperSource).toContain('contrastScope: "checkout"');
+    expect(helperSource).toContain(".checkout-payment-readiness p");
+    expect(helperSource).toContain(".checkout-trust-strip__item p");
+    expect(helperSource).toContain(".checkout-sticky-summary__total > span");
+    expect(helperSource).toContain(".checkout-sticky-summary__total > em");
+    expect(helperSource).toContain(".checkout-order-sheet dt");
+    expect(helperSource).toContain(
+      ".checkout-order-sheet .checkout-summary__item span",
+    );
+    expect(helperSource).toContain('[data-slot="dialog-close"]');
+    expect(helperSource).toContain(".checkout-modal__actions button");
+    expect(helperSource).toContain('"paypal-button"');
+    expect(helperSource).toContain('"paypal-pay-later-button"');
+    expect(helperSource).toContain('"paypal-hosted-card-field"');
+    expect(helperSource).toContain("minimumMeasuredTouchTarget < 44");
     expect(helperSource).toContain('pickupInventoryStates.includes("empty")');
     expect(helperSource).toContain("await resetEvidenceRoutes()");
     expect(helperSource).toContain("postCloseFocusedElement?.ariaLabel");

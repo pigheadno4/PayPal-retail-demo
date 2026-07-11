@@ -154,6 +154,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       rowId: "checkout-payment-method-390",
       checkpoint: markCheckpoint(),
       expected: {
+        contrastScope: "checkout",
         checkoutPayment: "none",
       },
     }),
@@ -163,6 +164,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       rowId: "checkout-safeguards-payment-ready-390",
       checkpoint: markCheckpoint(),
       expected: {
+        contrastScope: "checkout",
         checkoutPayment: "none",
         safeguards: true,
       },
@@ -189,6 +191,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       rowId: "checkout-payment-method-768",
       checkpoint: markCheckpoint(),
       expected: {
+        contrastScope: "checkout",
         checkoutPayment: "none",
       },
     }),
@@ -202,6 +205,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       rowId: "desktop-auth-minicart-checkout-1440",
       checkpoint: markCheckpoint(),
       expected: {
+        contrastScope: "checkout",
         checkoutPayment: "none",
         safeguards: true,
       },
@@ -218,13 +222,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
 
   await screenshotAnalyzerPage.close();
 
-  if (missingRows.length > 0 || failedRows.length > 0) {
-    throw new Error(
-      `Round 4 evidence failed: ${JSON.stringify({ missingRows, failedRows })}`,
-    );
-  }
-
-  return {
+  const report = {
     baseUrl,
     outputPrefix,
     deployment,
@@ -237,6 +235,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       failedRows,
     },
   };
+  return report;
 
   async function resetEvidenceRoutes() {
     for (const routePattern of [
@@ -543,7 +542,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     return await collectRow({
       rowId: `pickup-store-picker-inventory-${width}`,
       checkpoint,
-      expected: { pickupInventory: "picker" },
+      expected: {
+        contrastScope: "pickup",
+        pickupInventory: "picker",
+        touchTargets: true,
+      },
       extras: { pickupStateScreenshots },
     });
   }
@@ -653,17 +656,70 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await page
       .getByText(readyText)
       .waitFor({ state: "visible", timeout: 20000 });
+    const placementSelector =
+      method === "card"
+        ? ".checkout-choice__card-box"
+        : (page.viewportSize()?.width ?? 1440) <= 760
+          ? ".checkout-sticky-summary__action"
+          : ".checkout-summary__slot";
+    await waitForOfficialPaymentAction(method, placementSelector);
+  }
+
+  async function waitForOfficialPaymentAction(method, placementSelector) {
     const officialSelector = {
       paypal: "paypal-button",
       paylater: "paypal-pay-later-button",
       card: "paypal-hosted-card-field",
     }[method];
-    await page
-      .locator(
-        `[data-payment-action-placement][data-payment-method='${method}'] ${officialSelector}`,
-      )
-      .first()
-      .waitFor({ state: "attached", timeout: 20000 });
+    const officialLocator = page.locator(
+      `${placementSelector} [data-paypal-sdk-status="ready"] [data-paypal-sdk-runtime-status="resolved"] [data-payment-action-placement][data-payment-method='${method}'] ${officialSelector}`,
+    );
+
+    if (method === "card") {
+      await officialLocator
+        .first()
+        .waitFor({ state: "visible", timeout: 20000 });
+      await page.waitForFunction(
+        ({ placementSelector, officialSelector }) =>
+          [
+            ...document.querySelectorAll(
+              `${placementSelector} [data-paypal-sdk-status="ready"] [data-paypal-sdk-runtime-status="resolved"] ${officialSelector}`,
+            ),
+          ].filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          }).length === 3,
+        { placementSelector, officialSelector },
+        { timeout: 20000 },
+      );
+      return;
+    }
+
+    await page.waitForFunction(
+      ({ method, placementSelector, officialSelector }) => {
+        const scope = document.querySelector(
+          `${placementSelector} [data-paypal-sdk-status="ready"] [data-paypal-sdk-runtime-status="resolved"]`,
+        );
+        const official = scope?.querySelector(
+          `[data-payment-action-placement][data-payment-method='${method}'] ${officialSelector}`,
+        );
+        const shadowControl = official?.shadowRoot?.querySelector(
+          "button, [role='button'], iframe",
+        );
+        const officialRect = official?.getBoundingClientRect();
+        const controlRect = shadowControl?.getBoundingClientRect();
+        return Boolean(
+          officialRect &&
+          officialRect.width > 0 &&
+          officialRect.height > 0 &&
+          controlRect &&
+          controlRect.width > 0 &&
+          controlRect.height > 0,
+        );
+      },
+      { method, placementSelector, officialSelector },
+      { timeout: 20000 },
+    );
   }
 
   async function collectSelectedPaymentRow(method, width = 390) {
@@ -672,7 +728,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     return await collectRow({
       rowId: `checkout-selected-${method}-${width}`,
       checkpoint,
-      expected: { checkoutPayment: method },
+      expected: {
+        checkoutPayment: method,
+        contrastScope: "checkout",
+        touchTargets: true,
+      },
     });
   }
 
@@ -682,10 +742,23 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await page
       .getByRole("button", { name: "Close order details" })
       .waitFor({ state: "visible", timeout: 10000 });
+    const selectedMethod = await page
+      .locator("[data-payment-method-row]:has(input:checked)")
+      .getAttribute("data-payment-method-row");
+    if (selectedMethod === "paypal" || selectedMethod === "paylater") {
+      await waitForOfficialPaymentAction(
+        selectedMethod,
+        ".checkout-order-sheet__payment",
+      );
+    }
     return await collectRow({
       rowId: `checkout-expanded-order-sheet-${width}`,
       checkpoint,
-      expected: { orderSheet: true },
+      expected: {
+        contrastScope: "checkout",
+        orderSheet: true,
+        touchTargets: true,
+      },
     });
   }
 
@@ -766,7 +839,10 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     const row = await collectRow({
       rowId: `checkout-${state}-readiness-390`,
       checkpoint,
-      expected: { readiness: readiness.title },
+      expected: {
+        contrastScope: "checkout",
+        readiness: readiness.title,
+      },
     });
     await page.unroute("**/api/checkout/drafts/**/shipping-option**");
     return row;
@@ -834,8 +910,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       stickyOverlapCount: metrics.stickyOverlapCount,
       providerCounts: metrics.providerCounts,
       officialProviderNodes: metrics.officialProviderNodes,
+      selectedPaymentAction: metrics.selectedPaymentAction,
       contrastSamples: metrics.contrastSamples,
       minimumContrastRatio: metrics.minimumContrastRatio,
+      touchTargets: metrics.touchTargets,
+      minimumMeasuredTouchTarget: metrics.minimumMeasuredTouchTarget,
       inputButtonWidthDelta: metrics.inputButtonWidthDelta,
       passwordToggle: metrics.passwordToggle,
       passwordAutocomplete: metrics.passwordAutocomplete,
@@ -883,6 +962,14 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     ) {
       row.failures.push(
         `Transaction body/helper contrast fell to ${row.minimumContrastRatio}.`,
+      );
+    }
+    if (
+      typeof row.minimumMeasuredTouchTarget === "number" &&
+      row.minimumMeasuredTouchTarget < 44
+    ) {
+      row.failures.push(
+        `A measured interactive target fell to ${row.minimumMeasuredTouchTarget}px.`,
       );
     }
   }
@@ -1004,6 +1091,17 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       if (expected.pickupInventory === "picker" && row.pickerHeaderOverlap) {
         row.failures.push("The pickup picker is covered by the site header.");
       }
+      const confirmPickupTarget = row.touchTargets.find(
+        (target) => target.name === "Confirm pickup store",
+      );
+      if (
+        expected.pickupInventory === "picker" &&
+        (!confirmPickupTarget || confirmPickupTarget.renderedLines > 1.2)
+      ) {
+        row.failures.push(
+          "Confirm pickup store was missing or wrapped beyond one line.",
+        );
+      }
       if (
         expected.pickupInventory === "picker" &&
         (!row.metrics.pickupInventoryStates.includes("full") ||
@@ -1060,6 +1158,20 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       ) {
         row.failures.push(
           "Selected PayPal did not render one sticky PayPal provider.",
+        );
+      }
+      if (
+        (expected.checkoutPayment === "paypal" ||
+          expected.checkoutPayment === "paylater" ||
+          expected.checkoutPayment === "card") &&
+        (row.selectedPaymentAction.providerStatus !== "ready" ||
+          row.selectedPaymentAction.runtimeStatus !== "resolved" ||
+          !row.selectedPaymentAction.visible ||
+          !row.selectedPaymentAction.officialRect ||
+          !row.selectedPaymentAction.inViewport)
+      ) {
+        row.failures.push(
+          `Selected ${expected.checkoutPayment} action was not visibly hydrated.`,
         );
       }
       if (
@@ -1129,6 +1241,14 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         row.failures.push("Order sheet handle is smaller than 44px.");
       }
       if (
+        row.selectedPaymentAction.runtimeStatus !== "resolved" ||
+        !row.selectedPaymentAction.visible
+      ) {
+        row.failures.push(
+          "Expanded order sheet did not contain a visibly hydrated payment action.",
+        );
+      }
+      if (
         !row.handleBackground ||
         row.handleBackground === "transparent" ||
         row.handleBackground === "rgba(0, 0, 0, 0)"
@@ -1140,6 +1260,15 @@ async function round4AuthMinicartCheckoutEvidence(page) {
           `Order sheet title top padding is ${row.metrics.orderSheet.topPadding}px.`,
         );
       }
+    }
+    if (
+      expected.touchTargets &&
+      (row.touchTargets.length === 0 ||
+        row.touchTargets.some((target) => !target.meetsTouchTarget))
+    ) {
+      row.failures.push(
+        "Required visible controls did not all meet the 44px touch target.",
+      );
     }
     if (expected.safeguards && !row.metrics.safeguards.compact) {
       row.failures.push(
@@ -1365,9 +1494,19 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         : [];
       const providerCounts = getProviderCounts();
       const officialProviderNodes = getOfficialProviderNodes();
+      const selectedPaymentAction = getSelectedPaymentAction();
       const contrastSamples = getContrastSamples();
       const minimumContrastRatio = contrastSamples.length
         ? Math.min(...contrastSamples.map((sample) => sample.ratio))
+        : null;
+      const touchTargets = getTouchTargets();
+      const minimumMeasuredTouchTarget = touchTargets.length
+        ? Math.min(
+            ...touchTargets.flatMap((target) => [
+              target.rect.width,
+              target.rect.height,
+            ]),
+          )
         : null;
       const selectedPaymentRow = document.querySelector(
         "[data-payment-method-row][data-selected='true'], [data-payment-method-row]:has(input:checked)",
@@ -1398,8 +1537,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         stickyOverlapCount,
         providerCounts,
         officialProviderNodes,
+        selectedPaymentAction,
         contrastSamples,
         minimumContrastRatio,
+        touchTargets,
+        minimumMeasuredTouchTarget,
         inputButtonWidthDelta,
         invalidEmailError: Boolean(
           dialog
@@ -1501,6 +1643,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
               ? orderSheetTitleRect.top - orderSheetRect.top
               : null,
           minimumTouchTarget: 44,
+          minimumMeasuredTouchTarget,
           minicartFirstViewport: Boolean(
             minicartProduct &&
             minicartCheckout &&
@@ -1628,6 +1771,139 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         return { ...totals, byPlacement };
       }
 
+      function getSelectedPaymentAction() {
+        const selectedRow = document.querySelector(
+          "[data-payment-method-row]:has(input:checked)",
+        );
+        const method = selectedRow?.getAttribute("data-payment-method-row");
+        const placement =
+          method === "card"
+            ? document.querySelector(".checkout-choice__card-box")
+            : (document.querySelector(".checkout-order-sheet__payment") ??
+              (window.innerWidth <= 760
+                ? document.querySelector(".checkout-sticky-summary__action")
+                : document.querySelector(".checkout-summary__slot")));
+        const wrapper = method
+          ? placement?.querySelector(
+              `[data-payment-action-placement][data-payment-method='${method}']`,
+            )
+          : null;
+        const officialSelector =
+          method === "paypal"
+            ? "paypal-button"
+            : method === "paylater"
+              ? "paypal-pay-later-button"
+              : method === "card"
+                ? "paypal-hosted-card-field"
+                : method === "apple_pay"
+                  ? "apple-pay-button"
+                  : method === "venmo"
+                    ? "venmo-button"
+                    : method === "google_pay"
+                      ? ".wallet-checkout-action__google-pay-button"
+                      : null;
+        const official = officialSelector
+          ? wrapper?.querySelector(officialSelector)
+          : null;
+        const wrapperRect = wrapper?.getBoundingClientRect() ?? null;
+        const officialRect = official?.getBoundingClientRect() ?? null;
+        const shadowControl = official?.shadowRoot?.querySelector(
+          "button, [role='button'], iframe",
+        );
+        const controlRect = shadowControl?.getBoundingClientRect() ?? null;
+        const providerScope = wrapper?.closest(".paypal-provider-scope");
+        const runtimeScope = wrapper?.closest(
+          "[data-paypal-sdk-runtime-status]",
+        );
+        const visible = Boolean(
+          wrapperRect &&
+          officialRect &&
+          wrapperRect.width > 0 &&
+          wrapperRect.height > 0 &&
+          officialRect.width > 0 &&
+          officialRect.height > 0 &&
+          (method === "card" ||
+            method === "google_pay" ||
+            (controlRect && controlRect.width > 0 && controlRect.height > 0)),
+        );
+
+        return {
+          method: method ?? null,
+          providerStatus:
+            providerScope?.getAttribute("data-paypal-sdk-status") ?? null,
+          runtimeStatus:
+            runtimeScope?.getAttribute("data-paypal-sdk-runtime-status") ??
+            null,
+          wrapperRect: wrapperRect ? toPlainRect(wrapperRect) : null,
+          officialRect: officialRect ? toPlainRect(officialRect) : null,
+          controlRect: controlRect ? toPlainRect(controlRect) : null,
+          inViewport: Boolean(
+            visible &&
+            officialRect &&
+            isVisible(officialRect) &&
+            (method === "card" ||
+              method === "google_pay" ||
+              (controlRect && isVisible(controlRect))),
+          ),
+          visible,
+        };
+      }
+
+      function getTouchTargets() {
+        const selectors = [
+          '[data-slot="dialog-close"]',
+          ".auth-modal__password-toggle",
+          ".minicart-item__quantity button",
+          ".minicart-item__quantity input",
+          ".checkout-modal__header button",
+          ".checkout-modal__actions button",
+          ".checkout-choice",
+          ".checkout-order-sheet__handle",
+          "paypal-button",
+          "paypal-pay-later-button",
+          "paypal-hosted-card-field",
+          "apple-pay-button",
+          "venmo-button",
+          ".wallet-checkout-action__google-pay-button",
+        ];
+        const targets = [];
+
+        for (const selector of selectors) {
+          for (const element of document.querySelectorAll(selector)) {
+            const rect = element.getBoundingClientRect();
+            if (!isVisible(rect)) continue;
+            const textLineTops = new Set();
+            const textWalker = document.createTreeWalker(
+              element,
+              window.NodeFilter.SHOW_TEXT,
+            );
+            let textNode = textWalker.nextNode();
+            while (textNode) {
+              if (textNode.textContent?.trim()) {
+                const range = document.createRange();
+                range.selectNodeContents(textNode);
+                for (const lineRect of range.getClientRects()) {
+                  textLineTops.add(Math.round(lineRect.top));
+                }
+              }
+              textNode = textWalker.nextNode();
+            }
+            targets.push({
+              selector,
+              name:
+                element.getAttribute("aria-label") ??
+                element.textContent?.trim().replace(/\s+/g, " ") ??
+                "",
+              rect: toPlainRect(rect),
+              renderedLines: Math.max(1, textLineTops.size),
+              meetsTouchTarget: rect.width >= 44 && rect.height >= 44,
+            });
+          }
+        }
+
+        return targets;
+      }
+
       function getPaymentPlacementBucket(node) {
         return node.closest(".checkout-sticky-summary")
           ? "checkoutSticky"
@@ -1652,6 +1928,23 @@ async function round4AuthMinicartCheckoutEvidence(page) {
           { selector: ".minicart-item__meta", scope: "minicart" },
           { selector: ".minicart-paylater p", scope: "minicart" },
           { selector: ".checkout-step p", scope: "checkout" },
+          { selector: ".checkout-step__description", scope: "checkout" },
+          { selector: ".checkout-choice small", scope: "checkout" },
+          { selector: ".checkout-payment-readiness p", scope: "checkout" },
+          { selector: ".checkout-trust-strip__item p", scope: "checkout" },
+          {
+            selector: ".checkout-sticky-summary__total > span",
+            scope: "checkout",
+          },
+          {
+            selector: ".checkout-sticky-summary__total > em",
+            scope: "checkout",
+          },
+          { selector: ".checkout-order-sheet dt", scope: "checkout" },
+          {
+            selector: ".checkout-order-sheet .checkout-summary__item span",
+            scope: "checkout",
+          },
           { selector: ".checkout-summary__description", scope: "checkout" },
           { selector: ".checkout-store-card__route", scope: "pickup" },
           {

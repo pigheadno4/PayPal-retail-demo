@@ -27,6 +27,19 @@ import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
 
+vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
+  const actual = await vi.importActual<
+    typeof import("@paypal/react-paypal-js/sdk-v6")
+  >("@paypal/react-paypal-js/sdk-v6");
+
+  return {
+    ...actual,
+    usePayPal: () => ({
+      loadingStatus: actual.INSTANCE_LOADING_STATE.RESOLVED,
+    }),
+  };
+});
+
 const deliveryDraftUuid = "11111111-1111-4111-8111-111111111111";
 const pickupDraftUuid = "22222222-2222-4222-8222-222222222222";
 

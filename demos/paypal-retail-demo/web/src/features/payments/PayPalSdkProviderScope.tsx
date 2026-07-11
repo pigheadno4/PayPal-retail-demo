@@ -205,11 +205,13 @@ export function PayPalSdkProviderScope({
           key={loadState.config.provider_key}
           {...buildPayPalProviderOptions(loadState.config)}
         >
-          <PayPalSdkStatusRegion
+          <PayPalSdkRuntimeBoundary
+            fallback={fallback}
             methodLabel={methodLabel}
             statusId={`${statusIdBase}-runtime-status`}
-          />
-          {children}
+          >
+            {children}
+          </PayPalSdkRuntimeBoundary>
         </PayPalProvider>
       ) : null}
     </section>
@@ -246,31 +248,48 @@ export function buildPayPalProviderOptions(
     : options;
 }
 
-function PayPalSdkStatusRegion({
+function PayPalSdkRuntimeBoundary({
+  children,
+  fallback,
   methodLabel,
   statusId,
 }: {
+  readonly children: ReactNode;
+  readonly fallback?: ReactNode;
   readonly methodLabel: string;
   readonly statusId: string;
 }) {
   const paypal = usePayPal();
-  const isLoading = paypal.loadingStatus === INSTANCE_LOADING_STATE.PENDING;
   const isRejected = paypal.loadingStatus === INSTANCE_LOADING_STATE.REJECTED;
+  const isResolved = paypal.loadingStatus === INSTANCE_LOADING_STATE.RESOLVED;
+  const runtimeStatus = isRejected
+    ? "rejected"
+    : isResolved
+      ? "resolved"
+      : "pending";
 
   if (isRejected) {
     return (
-      <StatusRegion id={statusId} tone="assertive">
-        {methodLabel} payment option failed to initialize.
-      </StatusRegion>
+      <div data-paypal-sdk-runtime-status={runtimeStatus}>
+        <StatusRegion id={statusId} tone="assertive">
+          {methodLabel} payment option failed to initialize.
+        </StatusRegion>
+      </div>
     );
   }
 
   return (
-    <StatusRegion id={statusId} className="sr-only">
-      {isLoading
-        ? `${methodLabel} payment option loading.`
-        : `${methodLabel} payment option ready.`}
-    </StatusRegion>
+    <div
+      className="paypal-provider-runtime"
+      data-paypal-sdk-runtime-status={runtimeStatus}
+    >
+      <StatusRegion id={statusId} className="sr-only">
+        {isResolved
+          ? `${methodLabel} payment option ready.`
+          : `${methodLabel} payment option loading.`}
+      </StatusRegion>
+      {isResolved || !fallback ? children : fallback}
+    </div>
   );
 }
 

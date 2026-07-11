@@ -384,6 +384,36 @@ describe("CheckoutPage", () => {
     expect(html).toContain("Required to continue this checkout step.");
   });
 
+  it("shows each branded payment method name once in the visible choice row", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          paymentChoices: [
+            { label: "PayPal", method: "paypal" },
+            { label: "Pay Later", method: "paylater" },
+            { label: "Credit or debit card", method: "card" },
+            { label: "Apple Pay", method: "apple_pay" },
+            { label: "Google Pay", method: "google_pay" },
+            { label: "Venmo", method: "venmo" },
+          ],
+        })}
+      />,
+    );
+
+    for (const method of ["paypal", "paylater", "apple_pay", "venmo"]) {
+      expect(html).toContain(
+        `data-payment-method-label-visibility="logo" data-payment-method-row="${method}"`,
+      );
+    }
+    expect(html).toContain(
+      'data-payment-method-label-visibility="text" data-payment-method-row="card"',
+    );
+    expect(html).toContain(
+      'data-payment-method-label-visibility="text" data-payment-method-row="google_pay"',
+    );
+  });
+
   it("renders the selected payment action inside Order Summary with active draft context", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage

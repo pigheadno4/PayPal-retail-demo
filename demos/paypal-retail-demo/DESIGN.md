@@ -1453,7 +1453,7 @@ Typography/token foundation:
 
 - Transaction surfaces use the scoped `--transaction-heading-font`, `--transaction-body-font`, `--transaction-heading-weight`, `--transaction-strong-weight`, and `--transaction-body-weight` layer rather than a whole-site font swap.
 - The scoped transaction layer applies only to Auth modal panels, Minicart Sheet, checkout workflow/summary/sticky/order-sheet surfaces, checkout modal panels, and owned pickup/store-card text. Home, Category, PDP, and product-merchandising typography remain governed by their existing page contracts.
-- Transaction headings target the 650-780 weight band; transaction body/helper copy targets the 500-650 band. Final Round 4 browser evidence proves 320px fitting, favicon `200`, zero console/response issue rows, and `65` parsed body/helper contrast samples across Auth, Checkout, Minicart, and Pickup with a `4.60:1` minimum.
+- Transaction headings target the 650-780 weight band; transaction body/helper copy targets the 500-650 band. Final corrected Round 4 browser evidence proves 320px fitting, favicon `200`, zero console/response issue rows, and `127` parsed body/helper contrast samples across Auth, Checkout, Minicart, and Pickup with a `4.60:1` minimum.
 
 Auth:
 
@@ -1478,18 +1478,25 @@ Checkout:
 - Selected PayPal, Pay Later, Apple Pay, Google Pay, Venmo, and card action-slot width/height parity from Round 3 must not regress.
 - Selected PayPal and selected Pay Later positive activation proof remains required after polish: each must produce exactly one method-attributed create-order request and one matching SDK callback when totals are settled and the buyer explicitly activates the provider.
 - Runtime payment evidence must prove official PayPal/provider surfaces are SDK/custom elements or approved wrappers. The static mockup's PayPal-like blocks are visual reference only and must not replace official runtime surfaces.
+- A selected provider is not visually ready merely because its custom element is attached. The active placement must expose a `ready` provider scope, `data-paypal-sdk-runtime-status="resolved"`, a nonzero official-element rectangle, and a nonzero visible shadow control (or corresponding hosted-field geometry). While SDK configuration or runtime hydration is pending, the active payment placement displays a full-width disabled `Preparing ...` control. The official provider action replaces it atomically only after runtime status is `resolved`; no blank interval or simultaneous fallback/provider display is allowed.
+- Branded payment rows show one visible method name. Wordmark assets for PayPal, Pay Later, Apple Pay, and Venmo must not be followed by a duplicate visible text label; hidden text remains available to the accessible label.
+- Merchant-owned Card Fields containers and the actual `paypal-hosted-card-field` controls both preserve a 44px minimum interactive height.
+- At 320px, the expanded order sheet may use contained vertical scrolling. The selected provider must be runtime-resolved, visibly hydrated, at least 44px high, and reachable inside the sheet; initial-viewport visibility is not required.
 
 Pickup inventory rows:
 
 - Item inventory rows use a compact row/grid contract: item name and requested quantity line-clamped to two lines, availability/status right-aligned on larger widths, and narrow-mobile status allowed to move below without squeezing names into vertical stacks.
 - Full/partial/sold-out states remain text-labelled and are not color-only.
+- At 320px, pickup modal Cancel and Confirm actions remain at least 44px tall; `Confirm pickup store` stays on one line without horizontal overflow.
 - 2026-07-10 local evidence note: modal picker and inline preselected-store cards share `PickupStoreInventoryRows`; desktop/tablet rows use a constrained two-column grid, sub-520px rows move status below the two-line name, narrow store headings stack the distance badge without clipping, and draft mapping labels zero-available stores `Sold out`. Picker/preselected evidence at 320/390/1440 records no heading, item-row, or page overflow and no header overlap.
 
 Evidence:
 
 - Round 4 evidence must include a surface-by-width matrix across 320, 375, 390/414, 768, 1024, and 1440 where applicable. Any omitted width must be marked not applicable with a reason.
 - Mockup comparison must record measurable values: input/button width deltas, 44px touch target rects, order-sheet top padding, first viewport content presence, horizontal overflow, sticky/modal overlap counts, and focused element after close.
-- Final local Round 4 evidence is stored under `/private/tmp/paypal-retail-round4-local-auth-minicart-checkout-evidence/`, with a review-visible ignored copy under `.playwright-cli/round4-local-auth-minicart-checkout-evidence/`: `31` required rows and `40` quality-95 JPEG screenshots (including dedicated full/partial/sold-out Pickup captures at 320/390/1440) plus `metrics.json` report no failed/missing/issue rows, a `4.60:1` minimum parsed contrast ratio, asserted Auth initial focus, product-specific named quantity controls, placement-scoped official PayPal/Pay Later/Card Fields nodes, visible order-sheet grabber color, provider surface buckets, and explicit reasons for omitted representative widths. Read-only `ui-ux-pro-max` review found no unresolved P0/P1/P2 findings and unblocked local closure. Hosted Render smoke remains required after deploy.
+- Evidence fails closed when a required contrast scope has no visible samples, when the measured minimum target is below 44px, or when a selected provider lacks runtime-resolved visible geometry. Checkout contrast evidence directly samples the sticky total label, promotional deduction, order-sheet breakdown labels, and item metadata; every visible sample must meet WCAG AA `4.5:1`. A hardcoded target, global custom-element count, container-only contrast sample, or attached-but-empty SDK element cannot close deploy quality.
+- The evidence command uses a Node runner around the isolated Playwright helper, writes `metrics.json` before applying the report gate, and preserves inspectable failed or passing evidence without shell-redirection dependence.
+- Final corrected local Round 4 evidence is stored under `/private/tmp/paypal-retail-round4-local-auth-minicart-checkout-evidence/`, with a review-visible ignored copy under `.playwright-cli/round4-local-auth-minicart-checkout-evidence/`: `31` required rows and `40` quality-95 JPEG screenshots (including dedicated full/partial/sold-out Pickup captures at 320/390/1440) plus `metrics.json` report no failed/missing/issue rows, `127` direct contrast samples with a `4.60:1` minimum, asserted Auth initial focus, product-specific named quantity controls, placement-scoped official PayPal/Pay Later/Card Fields nodes, runtime-resolved selected actions, visible order-sheet grabber color, provider surface buckets, and explicit reasons for omitted representative widths. Read-only `ui-ux-pro-max` follow-up review found no unresolved P0/P1/P2 findings and marked the correction safe to commit/deploy for hosted verification. Hosted Render smoke remains required after deploy.
 
 Round 4 hard blockers:
 
@@ -1501,6 +1508,7 @@ Round 4 hard blockers:
 - Expanded order sheet keeps large blank top space or loses close/focus-return behavior.
 - Checkout safeguards compete with payment in mobile payment-ready state.
 - Evidence contains favicon 404, console errors, horizontal overflow, sticky/modal overlap, or untriaged warning noise.
+- Hosted evidence shows a blank selected-provider action, null checkout contrast, duplicate visible method wordmarks, wrapped 320px pickup confirmation, or missing measured touch-target rectangles.
 
 ## Visual QA Gates
 
