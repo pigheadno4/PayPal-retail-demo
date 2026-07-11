@@ -117,12 +117,16 @@ describe("CheckoutPage", () => {
     expect(html).not.toContain("Promo calculating");
     expect(html).toContain("Estimated tax");
     expect(html).toContain("Calculated before payment");
-    expect(html).toContain("Official payment surfaces");
-    expect(html).toContain("Totals reconciled");
+    expect(html).toContain("Secure payments");
+    expect(html).toContain("Final totals");
     expect(html).toContain("Delivery or pickup");
     expect(html).toContain("Order recovery");
+    expect(html).not.toContain("Official payment surfaces");
+    expect(html).not.toContain("Totals reconciled");
+    expect(html).not.toContain("Radio-first payment method wall");
     expect(html).toContain('data-visual-accent="commerce-summary"');
     expect(html).toContain('data-visual-accent="trust-strip"');
+    expect(html).toContain('data-density="mobile-compact"');
     expect(html).toContain('data-slot="badge"');
     expect(html).toContain('data-slot="separator"');
   });
@@ -227,6 +231,10 @@ describe("CheckoutPage", () => {
     expect(html).toContain('data-inventory-state="full"');
     expect(html).toContain("checkout-store-card__inventory-lines");
     expect(html).toContain('aria-label="Pickup inventory for POP MART Soho"');
+    expect(html).toContain("checkout-store-card__inventory-name");
+    expect(html).toContain("checkout-store-card__inventory-status");
+    expect(html).toContain('data-inventory-kind="available"');
+    expect(html).toContain('data-inventory-kind="unavailable"');
     expect(html).toContain("Labubu Have a Seat");
     expect(html).toContain("Hirono Little Mischief");
     expect(html).toContain("In stock");
@@ -248,6 +256,13 @@ describe("CheckoutPage", () => {
 
     expect(html).toContain("POP MART Soho");
     expect(html).toContain("Partial inventory");
+    expect(html).toContain('aria-label="Pickup inventory for POP MART Soho"');
+    expect(html).toContain("checkout-step__selected-store");
+    expect(html).toContain("checkout-store-card__inventory-name");
+    expect(html).toContain("Labubu Have a Seat x 1");
+    expect(html).toContain("Hirono Little Mischief x 1");
+    expect(html).toContain("In stock");
+    expect(html).toContain("Sold out");
     expect(html).toContain("Billing address");
     expect(html).toContain("Billing street address");
     expect(html).toContain("Save billing address");
@@ -541,6 +556,60 @@ describe("CheckoutPage", () => {
     expect(within(stickySummary).queryByText("Labubu Have a Seat")).toBeNull();
   });
 
+  it("keeps mobile payment readiness copy visible in the collapsed and expanded drawer", async () => {
+    mockMobileCheckoutViewport();
+    const user = userEvent.setup();
+    const renderPaymentAction = vi.fn(() => (
+      <div data-payment-action-placement="selected-provider">
+        Payment action
+      </div>
+    ));
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          deliveryPaymentReadiness: {
+            state: "recalculating",
+            title: "Payment is recalculating",
+            body: "Updated totals are syncing before payment.",
+          },
+          selectedPaymentMethod: "paypal",
+        })}
+        renderPaymentAction={renderPaymentAction}
+      />,
+    );
+
+    expect(renderPaymentAction).not.toHaveBeenCalled();
+    const stickySummary = screen.getByLabelText("Checkout summary");
+    expect(
+      within(stickySummary).getByText("Payment is recalculating"),
+    ).toBeTruthy();
+    expect(
+      within(stickySummary).getByText(
+        "Updated totals are syncing before payment.",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(stickySummary).queryByRole("button", { name: "Choose payment" }),
+    ).toBeNull();
+
+    await user.click(
+      within(stickySummary).getByRole("button", {
+        name: "Review order details",
+      }),
+    );
+    const orderSheet = screen.getByRole("dialog", { name: "Order details" });
+    expect(
+      within(orderSheet).getByText("Payment is recalculating"),
+    ).toBeTruthy();
+    expect(
+      within(orderSheet).getByText(
+        "Updated totals are syncing before payment.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("makes the mobile bottom drawer the only order detail surface", () => {
     mockMobileCheckoutViewport();
 
@@ -675,6 +744,10 @@ describe("CheckoutPage", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(trigger.getAttribute("aria-controls")).toBe(dialog.id);
     expect(closeHandle.getAttribute("data-slot")).toBe("sheet-close");
+    expect(closeHandle.textContent).toBe("");
+    expect(
+      dialog.querySelector(".checkout-order-sheet__handle span"),
+    ).not.toBeNull();
     expect(within(dialog).getByText("Labubu Have a Seat")).toBeTruthy();
     expect(within(dialog).getByText("Merchandise subtotal")).toBeTruthy();
     expect(within(dialog).getAllByText("-$4.00 promo (SAVE10)")).toHaveLength(
@@ -1224,7 +1297,7 @@ function checkoutData(
       id: "payment-method",
       title: "Payment method",
       state: "idle",
-      body: "Radio-first payment method wall renders here.",
+      body: "Choose a payment method.",
       ...(overrides.paymentChoices
         ? { choices: overrides.paymentChoices }
         : {}),
@@ -1259,7 +1332,7 @@ function checkoutData(
       id: "pickup-payment-method",
       title: "Payment method",
       state: "idle",
-      body: "Pickup payment method wall renders here.",
+      body: "Choose a payment method.",
       ...(overrides.paymentChoices
         ? { choices: overrides.paymentChoices }
         : {}),

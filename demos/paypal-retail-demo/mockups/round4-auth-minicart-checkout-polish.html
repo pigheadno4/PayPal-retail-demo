@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Round 4 Auth, Minicart, Checkout Polish Mockup</title>
+    <style>
+      :root {
+        --ink: #171717;
+        --muted: #67615f;
+        --line: #eadfda;
+        --paper: #fffaf6;
+        --panel: #ffffff;
+        --accent: #f42434;
+        --accent-dark: #c91628;
+        --pickup: #3bc88b;
+        --gold: #e2b950;
+        --paypal: #ffc439;
+        --venmo: #1683f3;
+        --shadow: 0 20px 50px rgb(23 23 23 / 0.14);
+        font-family:
+          "Nunito Sans",
+          "Avenir Next",
+          Inter,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #f6eee9;
+        color: var(--ink);
+        margin: 0;
+      }
+
+      main {
+        display: grid;
+        gap: 28px;
+        margin: 0 auto;
+        max-width: 1280px;
+        padding: 34px 22px 52px;
+      }
+
+      h1,
+      h2,
+      h3,
+      strong,
+      button {
+        font-family:
+          Rubik,
+          "Varela Round",
+          "Nunito Sans",
+          system-ui,
+          sans-serif;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 4.2rem);
+        line-height: 0.95;
+        margin: 0;
+        max-width: 900px;
+      }
+
+      p {
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hero {
+        display: grid;
+        gap: 14px;
+      }
+
+      .board {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      }
+
+      .card {
+        background: color-mix(in srgb, var(--panel) 94%, var(--paper));
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 18px;
+        padding: 22px;
+      }
+
+      .card h2 {
+        font-size: 1.08rem;
+        margin: 0;
+      }
+
+      .phone {
+        background:
+          radial-gradient(circle at 50% 0%, rgb(255 255 255 / 0.96), transparent 28%),
+          #fff8f3;
+        border: 10px solid #111111;
+        border-radius: 46px;
+        box-shadow: 0 22px 46px rgb(0 0 0 / 0.24);
+        margin: 0 auto;
+        max-width: 388px;
+        min-height: 710px;
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+      }
+
+      .phone-bar {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        padding: 20px 22px 12px;
+      }
+
+      .notch {
+        background: #070707;
+        border-radius: 999px;
+        height: 28px;
+        width: 98px;
+      }
+
+      .phone-body {
+        display: grid;
+        gap: 16px;
+        padding: 18px;
+      }
+
+      .modal {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: 0 18px 38px rgb(23 23 23 / 0.12);
+        display: grid;
+        gap: 18px;
+        margin-top: 44px;
+        padding: 22px;
+      }
+
+      .modal-head {
+        align-items: start;
+        display: grid;
+        gap: 6px;
+        grid-template-columns: minmax(0, 1fr) 44px;
+      }
+
+      .modal-head h3 {
+        font-size: 1.55rem;
+        margin: 0;
+      }
+
+      .icon-btn {
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink);
+        display: inline-flex;
+        height: 44px;
+        justify-content: center;
+        width: 44px;
+      }
+
+      .form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        color: var(--ink);
+        display: grid;
+        font-size: 0.86rem;
+        font-weight: 850;
+        gap: 7px;
+      }
+
+      input,
+      .input-shell,
+      .email-pill {
+        background: #fffdfa;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        color: var(--ink);
+        font: inherit;
+        min-height: 52px;
+        padding: 0 16px;
+        width: 100%;
+      }
+
+      .input-shell {
+        align-items: center;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) 44px;
+        padding-right: 6px;
+      }
+
+      .input-shell input {
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        min-height: auto;
+        padding: 0;
+      }
+
+      .terms-row {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        font-weight: 720;
+        gap: 10px;
+        line-height: 1.35;
+      }
+
+      .terms-row input {
+        border-radius: 8px;
+        flex: 0 0 22px;
+        min-height: 22px;
+        padding: 0;
+        width: 22px;
+      }
+
+      .primary {
+        background: var(--accent);
+        border: 0;
+        border-radius: 999px;
+        box-shadow: 0 12px 22px rgb(244 36 52 / 0.22);
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 850;
+        min-height: 52px;
+        width: 100%;
+      }
+
+      .secondary {
+        background: #fffdfa;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink);
+        min-height: 48px;
+        width: 100%;
+      }
+
+      .email-pill {
+        align-items: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .edit-link {
+        background: transparent;
+        border: 0;
+        color: var(--accent-dark);
+        font-weight: 850;
+      }
+
+      .sheet {
+        background: #ffffff;
+        border-left: 4px solid var(--accent);
+        border-radius: 24px 0 0 24px;
+        box-shadow: -16px 0 40px rgb(23 23 23 / 0.16);
+        display: grid;
+        gap: 16px;
+        min-height: 650px;
+        padding: 20px;
+      }
+
+      .sheet-head {
+        align-items: center;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) 44px;
+      }
+
+      .sheet-head h3 {
+        font-size: 1.45rem;
+        margin: 0;
+      }
+
+      .item {
+        align-items: center;
+        background: #fffaf6;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 74px minmax(0, 1fr);
+        padding: 10px;
+      }
+
+      .thumb {
+        background:
+          radial-gradient(circle at 50% 34%, #ffd5c7 0 16%, transparent 17%),
+          radial-gradient(circle at 46% 62%, #ef9a57 0 18%, transparent 19%),
+          #f6ded1;
+        border-radius: 16px;
+        height: 74px;
+        width: 74px;
+      }
+
+      .item-copy {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+      }
+
+      .item-copy strong {
+        display: -webkit-box;
+        font-size: 1rem;
+        line-height: 1.18;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .chip {
+        background: #f2efec;
+        border-radius: 999px;
+        color: var(--muted);
+        display: inline-flex;
+        font-size: 0.78rem;
+        font-weight: 800;
+        justify-self: start;
+        padding: 4px 10px;
+      }
+
+      .qty {
+        align-items: center;
+        display: grid;
+        gap: 6px;
+        grid-template-columns: 44px 52px 44px;
+        margin-top: 4px;
+      }
+
+      .qty button,
+      .qty span {
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        display: inline-flex;
+        font-weight: 850;
+        height: 44px;
+        justify-content: center;
+      }
+
+      .cart-sticky {
+        align-self: end;
+        background: linear-gradient(180deg, #ffffff 0%, #fff6ee 100%);
+        border-top: 1px solid var(--line);
+        display: grid;
+        gap: 12px;
+        margin: auto -20px -20px;
+        padding: 16px 20px 22px;
+      }
+
+      .total-row {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .total-row strong {
+        font-size: 1.28rem;
+      }
+
+      .payment-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pay-row,
+      .store-line {
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        min-height: 58px;
+        padding: 10px 14px;
+      }
+
+      .radio {
+        border: 3px solid #1677ff;
+        border-radius: 999px;
+        height: 22px;
+        position: relative;
+        width: 22px;
+      }
+
+      .radio::after {
+        background: #1677ff;
+        border-radius: 999px;
+        content: "";
+        height: 8px;
+        left: 4px;
+        position: absolute;
+        top: 4px;
+        width: 8px;
+      }
+
+      .bottom-bar {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 22px 22px 0 0;
+        bottom: 0;
+        box-shadow: 0 -16px 34px rgb(23 23 23 / 0.12);
+        display: grid;
+        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) minmax(142px, 48%);
+        left: 0;
+        padding: 18px;
+        position: absolute;
+        right: 0;
+      }
+
+      .grabber {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        box-shadow: 0 8px 22px rgb(23 23 23 / 0.1);
+        display: flex;
+        gap: 8px;
+        height: 34px;
+        justify-content: center;
+        left: 50%;
+        padding-top: 15px;
+        position: absolute;
+        top: -18px;
+        transform: translateX(-50%);
+        width: 84px;
+      }
+
+      .grabber span {
+        background: var(--line);
+        border-radius: 99px;
+        height: 3px;
+        width: 24px;
+      }
+
+      .paypal-button {
+        align-items: center;
+        background: var(--paypal);
+        border-radius: 12px;
+        color: #053087;
+        display: flex;
+        font-weight: 900;
+        justify-content: center;
+        min-height: 52px;
+      }
+
+      .discount {
+        color: #087a49;
+        display: block;
+        font-weight: 900;
+      }
+
+      .order-sheet {
+        background: #ffffff;
+        border-radius: 22px 22px 0 0;
+        bottom: 0;
+        box-shadow: 0 -20px 46px rgb(23 23 23 / 0.18);
+        display: grid;
+        left: 0;
+        position: absolute;
+        right: 0;
+      }
+
+      .sheet-grabber {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        min-height: 34px;
+        padding-top: 14px;
+      }
+
+      .sheet-grabber span {
+        background: #d8d0ca;
+        border-radius: 999px;
+        height: 4px;
+        width: 40px;
+      }
+
+      .sheet-title {
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        gap: 3px;
+        padding: 2px 22px 14px;
+      }
+
+      .summary-lines {
+        display: grid;
+        gap: 10px;
+        padding: 18px 22px;
+      }
+
+      .summary-lines div {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .trust-row {
+        align-items: center;
+        background: #fffaf3;
+        border: 1px solid #efd7a7;
+        border-radius: 16px;
+        color: var(--muted);
+        display: flex;
+        font-size: 0.82rem;
+        gap: 10px;
+        padding: 10px 12px;
+      }
+
+      .store-card {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-left: 5px solid var(--pickup);
+        border-radius: 18px;
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+      }
+
+      .store-meta {
+        align-items: start;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .inventory {
+        display: grid;
+        gap: 8px;
+      }
+
+      .store-line {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .store-line span:first-child {
+        display: -webkit-box;
+        font-weight: 850;
+        line-height: 1.2;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .limited {
+        color: #8c3d18;
+        font-weight: 900;
+        text-align: right;
+      }
+
+      .available {
+        color: #087a49;
+        font-weight: 900;
+        text-align: right;
+      }
+
+      .ac {
+        background: rgb(255 255 255 / 0.74);
+        border: 1px dashed var(--line);
+        border-radius: 16px;
+        display: grid;
+        gap: 6px;
+        padding: 12px;
+      }
+
+      .ac strong {
+        color: var(--accent-dark);
+        font-size: 0.84rem;
+      }
+
+      @media (max-width: 430px) {
+        main {
+          padding-inline: 12px;
+        }
+
+        .card {
+          padding: 14px;
+        }
+
+        .phone {
+          border-width: 7px;
+          border-radius: 36px;
+        }
+
+        .store-line {
+          align-items: start;
+          grid-template-columns: 1fr;
+        }
+
+        .limited,
+        .available {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">Round 4 visual AC reference</div>
+        <h1>Auth, minicart, and checkout surfaces become calmer, rounder, and more buyer-task focused.</h1>
+        <p>
+          Static reference board for the accepted polish direction. Production implementation should preserve shadcn semantics,
+          official PayPal surfaces, and existing checkout/payment rules.
+        </p>
+      </section>
+
+      <section class="board" aria-label="Round 4 mockups">
+        <article class="card">
+          <h2>Email sign-in modal</h2>
+          <div class="phone" aria-label="Email sign-in mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <div class="modal">
+                <div class="modal-head">
+                  <div>
+                    <h3>Sign in</h3>
+                    <p>Use your email to continue checkout.</p>
+                  </div>
+                  <button class="icon-btn" aria-label="Close">x</button>
+                </div>
+                <form class="form">
+                  <label>Email <input value="alice.la@example.test" /></label>
+                  <button class="primary" type="button">Continue</button>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Continue is centered, full-width, and exactly aligned with the email field at 320/390/desktop.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Password modal</h2>
+          <div class="phone" aria-label="Password sign-in mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <div class="modal">
+                <div class="modal-head">
+                  <div>
+                    <h3>Enter password</h3>
+                    <p>Sign in to save cart and recover orders.</p>
+                  </div>
+                  <button class="icon-btn" aria-label="Close">x</button>
+                </div>
+                <div class="email-pill">
+                  <span>alice.la@example.test</span>
+                  <button class="edit-link" type="button">Edit</button>
+                </div>
+                <form class="form">
+                  <label>
+                    Password
+                    <span class="input-shell">
+                      <input value="RetailDemo2026!" type="password" />
+                      <button class="icon-btn" aria-label="Show password" type="button">
+                        <svg aria-hidden="true" height="20" viewBox="0 0 24 24" width="20">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" />
+                          <circle cx="12" cy="12" fill="none" r="3" stroke="currentColor" stroke-width="2" />
+                        </svg>
+                      </button>
+                    </span>
+                  </label>
+                  <button class="primary" type="button">Sign in</button>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Eye toggle lives inside the input. Edit email is low-emphasis, not a competing footer CTA.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Register modal</h2>
+          <div class="phone" aria-label="Register mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <div class="modal">
+                <div class="modal-head">
+                  <div>
+                    <h3>Create account</h3>
+                    <p>Save checkout details and recover orders.</p>
+                  </div>
+                  <button class="icon-btn" aria-label="Close">x</button>
+                </div>
+                <form class="form">
+                  <label>Email <input value="alice.la@example.test" /></label>
+                  <label>
+                    Password
+                    <span class="input-shell">
+                      <input value="RetailDemo2026!" type="password" />
+                      <button class="icon-btn" aria-label="Show password" type="button">
+                        <svg aria-hidden="true" height="20" viewBox="0 0 24 24" width="20">
+                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="2" />
+                          <circle cx="12" cy="12" fill="none" r="3" stroke="currentColor" stroke-width="2" />
+                        </svg>
+                      </button>
+                    </span>
+                  </label>
+                  <label class="terms-row"><input type="checkbox" checked /> I agree to account terms.</label>
+                  <button class="primary" type="button">Create account</button>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Terms, password visibility, validation, and Create account CTA share the same calm form rhythm.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Minicart drawer</h2>
+          <div class="phone" aria-label="Minicart mockup">
+            <div class="sheet">
+              <div class="sheet-head">
+                <div>
+                  <h3>Cart</h3>
+                  <p>2 items</p>
+                </div>
+                <button class="icon-btn" aria-label="Close minicart">x</button>
+              </div>
+              <div class="item">
+                <span class="thumb"></span>
+                <span class="item-copy">
+                  <strong>Molly Blind Boxes 2</strong>
+                  <span class="chip">Blind Boxes</span>
+                  <small>$19.69 each</small>
+                  <span class="qty"><button>-</button><span>2</span><button>+</button></span>
+                </span>
+              </div>
+              <div class="item">
+                <span class="thumb"></span>
+                <span class="item-copy">
+                  <strong>The Monsters Plush 1</strong>
+                  <span class="chip">Plush</span>
+                  <small>$49.99 each</small>
+                  <span class="qty"><button>-</button><span>1</span><button>+</button></span>
+                </span>
+              </div>
+              <div class="cart-sticky">
+                <div class="total-row"><span>Subtotal</span><strong>$89.37</strong></div>
+                <button class="primary" type="button">Checkout</button>
+                <button class="secondary" type="button">View cart</button>
+                <p>Pay Later messaging stays below the primary checkout path.</p>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Product rows and Checkout remain visible before Pay Later/express copy dominates the drawer.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Checkout payment and order sheet</h2>
+          <div class="phone" aria-label="Checkout payment mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <h3>Secure checkout</h3>
+              <p>Delivery - payment method - 4 of 4</p>
+              <div class="payment-list">
+                <div class="pay-row"><span class="radio"></span><strong>PayPal</strong><span>Selected</span></div>
+                <div class="pay-row"><span></span><strong>Pay Later</strong><span></span></div>
+                <div class="pay-row"><span></span><strong>Credit or debit card</strong><span></span></div>
+              </div>
+              <div class="trust-row">
+                <strong>Secure checkout</strong>
+                <span>Payment, delivery, and order recovery are confirmed before capture.</span>
+              </div>
+            </div>
+            <div class="bottom-bar">
+              <div class="grabber" aria-hidden="true"><span></span><span></span></div>
+              <div><small>Total</small><strong>$68.66</strong><span class="discount">-$6.97 promo</span></div>
+              <div class="paypal-button">PayPal</div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>No engineering helper copy. Safeguards are compact and secondary to payment selection.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Expanded order sheet</h2>
+          <div class="phone" aria-label="Expanded order sheet mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <h3>Secure checkout</h3>
+              <div class="pay-row"><span class="radio"></span><strong>PayPal selected</strong><span></span></div>
+            </div>
+            <div class="order-sheet">
+              <div class="sheet-grabber" aria-label="Close order details"><span></span></div>
+              <div class="sheet-title">
+                <h3>Order details</h3>
+                <p>2 items - delivery order</p>
+              </div>
+              <div class="summary-lines">
+                <div><span>Merchandise subtotal</span><strong>$69.68</strong></div>
+                <div><span>Promo</span><strong>-$6.97</strong></div>
+                <div><span>Shipping</span><strong>$5.95</strong></div>
+                <div><span>Total</span><strong>$68.66</strong></div>
+                <div class="paypal-button">PayPal</div>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Passive grabber, tight top padding, clear title, same selected payment action inside the sheet.</p>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Pickup inventory card</h2>
+          <div class="phone" aria-label="Pickup inventory card mockup">
+            <div class="phone-bar"><span>9:41</span><span class="notch"></span><span>5G</span></div>
+            <div class="phone-body">
+              <div class="store-card">
+                <div class="store-meta">
+                  <div>
+                    <h3>Austin Domain</h3>
+                    <p>11410 Century Oaks Ter, Austin, TX</p>
+                  </div>
+                  <span class="chip">Nearby</span>
+                </div>
+                <div class="inventory">
+                  <div class="store-line">
+                    <span>Molly Blind Boxes 2 x 2</span>
+                    <strong class="limited">Only 1 available</strong>
+                  </div>
+                  <div class="store-line">
+                    <span>The Monsters Plush 1 x 1</span>
+                    <strong class="available">In stock</strong>
+                  </div>
+                </div>
+                <p>Unavailable items stay in the original cart.</p>
+              </div>
+            </div>
+          </div>
+          <div class="ac">
+            <strong>AC target</strong>
+            <p>Long product names line-clamp to two lines. Availability does not squeeze names into vertical stacks.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

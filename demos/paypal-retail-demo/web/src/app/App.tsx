@@ -1331,6 +1331,9 @@ function BuyerShell({
   >("idle");
   const [guestOrderError, setGuestOrderError] = useState<string | null>(null);
   const didRunInitialCartRestore = useRef(false);
+  const accountActionRef = useRef<HTMLButtonElement | null>(null);
+  const authModalTriggerRef = useRef<HTMLElement | null>(null);
+  const minicartTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [shellStatus, setShellStatus] = useState("Storefront ready.");
   const cartItemCount = calculateCartItemCount(currentCart);
 
@@ -1897,16 +1900,31 @@ function BuyerShell({
   function closeMinicart() {
     setCurrentMinicartState("closed");
     setShellStatus("Minicart closed.");
+    restoreMinicartTriggerFocus();
+  }
+
+  function restoreMinicartTriggerFocus() {
+    globalThis.setTimeout(() => {
+      minicartTriggerRef.current?.focus({ preventScroll: true });
+    }, 0);
   }
 
   function openAuthModal() {
+    authModalTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : accountActionRef.current;
     setIsMobileMenuOpen(false);
     setCurrentAuthModalState("email");
-    setAuthModalStatus("Enter your email to continue.");
+    setAuthModalStatus(undefined);
     setShellStatus("Opened sign-in dialog.");
   }
 
   function openGuestAccountPrompt() {
+    authModalTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : accountActionRef.current;
     setIsMobileMenuOpen(false);
     setCurrentAuthModalState("email");
     setAuthModalStatus("Enter the checkout email to save this guest order.");
@@ -1917,11 +1935,16 @@ function BuyerShell({
     setCurrentAuthModalState("closed");
     setAuthModalStatus(undefined);
     setShellStatus("Closed sign-in dialog.");
+    globalThis.setTimeout(() => {
+      const trigger = authModalTriggerRef.current ?? accountActionRef.current;
+      trigger?.focus({ preventScroll: true });
+      authModalTriggerRef.current = null;
+    }, 0);
   }
 
   function changeAuthEmail() {
     setCurrentAuthModalState("email");
-    setAuthModalStatus("Enter your email to continue.");
+    setAuthModalStatus(undefined);
     setShellStatus("Ready to check another email.");
   }
 
@@ -1977,7 +2000,7 @@ function BuyerShell({
   async function completeAuthSession(session: BuyerAuthSession) {
     didRunInitialCartRestore.current = true;
     setCurrentAuthSession(session);
-    setAuthModalStatus("Merging cart...");
+    setAuthModalStatus("Saving your cart...");
 
     const response = await apiClient.post<CartApiResponse>(
       "/api/cart/merge",
@@ -2879,6 +2902,7 @@ function BuyerShell({
           </form>
           <div className="site-header__actions" aria-label="Buyer actions">
             <button
+              ref={accountActionRef}
               type="button"
               aria-label={accountActionLabel}
               onClick={handleAccountNavigate}
@@ -2899,7 +2923,7 @@ function BuyerShell({
               aria-disabled="true"
               aria-describedby="site-header-wishlist-disabled-reason"
               aria-label="Wishlist unavailable"
-              title="Wishlist is coming in a later demo slice"
+              title="Wishlist is coming soon"
             >
               <span className="site-header__action-icon" aria-hidden="true">
                 <HeartIcon
@@ -2916,6 +2940,7 @@ function BuyerShell({
               </span>
             </button>
             <button
+              ref={minicartTriggerRef}
               type="button"
               aria-label="Open minicart"
               onClick={openMinicart}

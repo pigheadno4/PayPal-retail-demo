@@ -27,7 +27,7 @@ describe("AuthModalShell", () => {
     render(
       <AuthModalShell
         state="email"
-        statusMessage="Enter your email to continue."
+        statusMessage="Use your checkout email for order recovery."
         onClose={() => {}}
       />,
     );
@@ -40,7 +40,7 @@ describe("AuthModalShell", () => {
     ).toBe("Sign in");
     expect(
       dialog.querySelector('[data-slot="dialog-description"]')?.textContent,
-    ).toBe("Enter your email to continue.");
+    ).toBe("Use your checkout email for order recovery.");
     expect(dialog.querySelector('[data-slot="field-group"]')).toBeTruthy();
     expect(dialog.querySelectorAll('[data-slot="field"]')).toHaveLength(1);
     expect(dialog.querySelector("form")?.noValidate).toBe(true);
@@ -48,6 +48,27 @@ describe("AuthModalShell", () => {
       within(dialog).getByLabelText("Email").getAttribute("data-slot"),
     ).toBe("input");
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+  });
+
+  it("keeps the email step centered around one full-width primary action", () => {
+    render(<AuthModalShell state="email" onEmailSubmit={() => {}} />);
+
+    const dialog = screen.getByRole("dialog", { name: "Sign in" });
+    const emailInput = within(dialog).getByLabelText("Email");
+    const continueButton = within(dialog).getByRole("button", {
+      name: "Continue",
+    });
+
+    expect(
+      dialog.querySelector('[data-slot="dialog-description"]')?.textContent,
+    ).toBe("Use your email to continue checkout.");
+    expect(emailInput.getAttribute("inputmode")).toBe("email");
+    expect(
+      continueButton.classList.contains("auth-modal__primary-action"),
+    ).toBe(true);
+    expect(within(dialog).queryByRole("button", { name: "Change email" })).toBe(
+      null,
+    );
   });
 
   it("marks the email field invalid with shadcn field semantics", async () => {
@@ -155,7 +176,7 @@ describe("AuthModalShell", () => {
     });
   });
 
-  it("keeps the password visibility control explicit and reversible", async () => {
+  it("keeps the password visibility control inline and reversible", async () => {
     const user = userEvent.setup();
 
     render(<AuthFlowHarness onRegisterSubmit={() => {}} />);
@@ -175,14 +196,163 @@ describe("AuthModalShell", () => {
     const passwordInput = within(registerDialog).getByLabelText("Password");
 
     expect(passwordInput.getAttribute("type")).toBe("password");
-    await user.click(
-      within(registerDialog).getByRole("button", { name: "Show password" }),
+    const showPasswordButton = within(registerDialog).getByRole("button", {
+      name: "Show password",
+    });
+    expect(
+      showPasswordButton.classList.contains("auth-modal__password-toggle"),
+    ).toBe(true);
+    expect(showPasswordButton.textContent).toBe("");
+    expect(showPasswordButton.closest(".auth-modal__password-control")).toBe(
+      passwordInput.parentElement,
     );
+    expect(passwordInput.getAttribute("autocomplete")).toBe("new-password");
+
+    await user.click(showPasswordButton);
     expect(passwordInput.getAttribute("type")).toBe("text");
     await user.click(
       within(registerDialog).getByRole("button", { name: "Hide password" }),
     );
     expect(passwordInput.getAttribute("type")).toBe("password");
+  });
+
+  it("uses password-specific loading copy and returns to email through Edit email", async () => {
+    const user = userEvent.setup();
+    const handlePasswordSubmit = vi.fn(
+      () =>
+        new Promise<void>(() => {
+          // Keep the form pending so the loading label is observable.
+        }),
+    );
+
+    render(<PasswordFlowHarness onPasswordSubmit={handlePasswordSubmit} />);
+
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "alice.la@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    const passwordDialog = screen.getByRole("dialog", {
+      name: "Enter password",
+    });
+
+    expect(
+      within(passwordDialog).queryByRole("button", { name: "Change email" }),
+    ).toBe(null);
+    expect(
+      within(passwordDialog).getByRole("button", { name: "Edit email" }),
+    ).toBeTruthy();
+
+    await user.type(
+      within(passwordDialog).getByLabelText("Password"),
+      "collector-secret",
+    );
+    await user.click(
+      within(passwordDialog).getByRole("button", { name: "Sign in" }),
+    );
+
+    expect(
+      within(passwordDialog).getByRole("button", { name: "Signing in..." }),
+    ).toBeTruthy();
+    expect(handlePasswordSubmit).toHaveBeenCalledWith({
+      email: "alice.la@example.test",
+      password: "collector-secret",
+    });
+  });
+
+  it("preserves the email and clears password state when editing the email", async () => {
+    const user = userEvent.setup();
+
+    render(<PasswordFlowHarness onPasswordSubmit={() => {}} />);
+
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "alice.la@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    const passwordDialog = screen.getByRole("dialog", {
+      name: "Enter password",
+    });
+    await user.type(
+      within(passwordDialog).getByLabelText("Password"),
+      "temporary-password",
+    );
+    await user.click(
+      within(passwordDialog).getByRole("button", { name: "Edit email" }),
+    );
+
+    const returnedEmailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    expect(
+      (within(returnedEmailDialog).getByLabelText("Email") as HTMLInputElement)
+        .value,
+    ).toBe("alice.la@example.test");
+
+    await user.click(
+      within(returnedEmailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    const returnedPasswordDialog = screen.getByRole("dialog", {
+      name: "Enter password",
+    });
+    expect(
+      (
+        within(returnedPasswordDialog).getByLabelText(
+          "Password",
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("");
+  });
+
+  it("uses register-specific loading copy for account creation", async () => {
+    const user = userEvent.setup();
+    const handleRegister = vi.fn(
+      () =>
+        new Promise<void>(() => {
+          // Keep the form pending so the loading label is observable.
+        }),
+    );
+
+    render(<AuthFlowHarness onRegisterSubmit={handleRegister} />);
+
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "new.collector@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    const registerDialog = screen.getByRole("dialog", {
+      name: "Create account",
+    });
+
+    await user.type(
+      within(registerDialog).getByLabelText("Password"),
+      "secret",
+    );
+    await user.click(
+      within(registerDialog).getByLabelText(
+        "I agree to the Terms of Service and Privacy Policy.",
+      ),
+    );
+    await user.click(
+      within(registerDialog).getByRole("button", { name: "Create account" }),
+    );
+
+    expect(
+      within(registerDialog).getByRole("button", {
+        name: "Creating account...",
+      }),
+    ).toBeTruthy();
   });
 });
 
@@ -205,6 +375,29 @@ function AuthFlowHarness({
         setState("email");
       }}
       onRegisterSubmit={onRegisterSubmit}
+    />
+  );
+}
+
+function PasswordFlowHarness({
+  onPasswordSubmit,
+}: {
+  readonly onPasswordSubmit: NonNullable<
+    Parameters<typeof AuthModalShell>[0]["onPasswordSubmit"]
+  >;
+}) {
+  const [state, setState] = useState<"email" | "password">("email");
+
+  return (
+    <AuthModalShell
+      state={state}
+      onEmailSubmit={() => {
+        setState("password");
+      }}
+      onChangeEmail={() => {
+        setState("email");
+      }}
+      onPasswordSubmit={onPasswordSubmit}
     />
   );
 }

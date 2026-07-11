@@ -462,6 +462,7 @@ function mapPickupStoreCard(
   store: CheckoutPickupStoreDto,
   selectedStoreId: string | null | undefined,
 ): CheckoutStoreCard {
+  const availableItemsCount = store.available_items_count;
   const unavailableItemsCount = store.unavailable_items_count;
   const inventoryLines = mapPickupStoreInventoryLines(store.inventory_lines);
   const baseStoreCard: CheckoutStoreCard = {
@@ -479,6 +480,14 @@ function mapPickupStoreCard(
     ...(inventoryLines ? { inventoryLines } : {}),
     selected: store.selected === true || store.id === selectedStoreId,
   };
+
+  if (availableItemsCount <= 0) {
+    return {
+      ...baseStoreCard,
+      partialInventoryNote: "Unavailable items stay in the original cart.",
+      statusLabel: "Sold out",
+    };
+  }
 
   return unavailableItemsCount > 0
     ? {

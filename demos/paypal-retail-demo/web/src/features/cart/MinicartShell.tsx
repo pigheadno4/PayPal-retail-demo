@@ -127,7 +127,11 @@ export function MinicartShell({
                   const quantity = resolveCartItemQuantity(item);
 
                   return (
-                    <li className="minicart-item" key={item.slug}>
+                    <li
+                      className="minicart-item"
+                      data-minicart-row="product-first"
+                      key={item.slug}
+                    >
                       <a href={item.href}>
                         <img
                           src={item.imagePath}
@@ -136,18 +140,24 @@ export function MinicartShell({
                         />
                       </a>
                       <div className="minicart-item__details">
-                        <a href={item.href}>{item.name}</a>
-                        <Badge
-                          className="minicart-item__category"
-                          variant="secondary"
-                        >
-                          {item.categoryName}
-                        </Badge>
-                        <small>
-                          Qty {quantity} · {item.currentPriceLabel}
-                        </small>
+                        <a className="minicart-item__name" href={item.href}>
+                          {item.name}
+                        </a>
+                        <div className="minicart-item__meta">
+                          <Badge
+                            className="minicart-item__category"
+                            variant="secondary"
+                          >
+                            {item.categoryName}
+                          </Badge>
+                          <small className="minicart-item__amount">
+                            Qty {quantity} · {item.currentPriceLabel}
+                          </small>
+                        </div>
                         {item.unavailableReason ? (
-                          <small>{item.unavailableReason}</small>
+                          <small className="minicart-item__status">
+                            {item.unavailableReason}
+                          </small>
                         ) : null}
                         <div className="cart-quantity minicart-item__quantity">
                           <button
@@ -242,6 +252,7 @@ export function MinicartShell({
               </div>
               <section
                 className="minicart-paylater"
+                data-minicart-section="payment-secondary"
                 aria-labelledby="minicart-paylater-title"
               >
                 <h3 id="minicart-paylater-title">Pay Later with PayPal</h3>

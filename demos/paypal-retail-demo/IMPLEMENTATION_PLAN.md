@@ -567,6 +567,14 @@ No native apps in v1. Backend APIs should be designed as reusable HTTP APIs for 
 - MochiToy generated asset review.
 - Tracking updates.
 
+Active Round 4 polish handoff:
+
+- Use `ROUND4_AUTH_MINICART_CHECKOUT_POLISH_PLAN.md` as the detailed implementation and acceptance contract for Auth, Password, Minicart, checkout payment/order sheet, and pickup inventory-row polish.
+- Use `mockups/round4-auth-minicart-checkout-polish.html` as the visual companion reference and future acceptance evidence target.
+- Do not start runtime edits for this slice unless `DESIGN.md`, `IMPLEMENTATION_TASKS.md`, `tracking/todos.md`, and `tracking/test-cases.md` contain the Round 4 open rows.
+- Preserve PayPal, promo, cart, checkout-draft, BOPIS, and auth semantics; this slice is surface polish only.
+- 2026-07-11 status: Auth email/password/register, Minicart, checkout payment/order-sheet, and pickup inventory-row runtime polish are locally closed. The hardened Round 4 browser helper passes `31` required rows and `40` quality-95 JPEGs plus `metrics.json`: no missing/failed/console/response/overflow/overlap/suspicious-pixel rows, `65` scoped contrast samples with a `4.60:1` minimum, asserted Auth initial focus, six product-specifically named quantity controls per Minicart row, exact Minicart PayPal/Pay Later ownership, dedicated visible full/partial/empty Pickup screenshots at 320/390/1440, placement-scoped official PayPal/Pay Later/Card Fields nodes, visible grabber color, three order-sheet close methods with focus return, and explicit width-coverage rationale. Fresh `npm run verify` passes `599` tests across `69` files plus typecheck/lint/format, and read-only `ui-ux-pro-max` review found no unresolved P0/P1/P2 findings. Hosted Render smoke remains open until the patched build is deployed.
+
 ## Task Tracking
 
 Before implementation starts, fill:

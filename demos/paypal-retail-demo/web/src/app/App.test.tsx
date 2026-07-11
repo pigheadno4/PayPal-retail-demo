@@ -687,7 +687,7 @@ function checkoutData({
       id: "payment-method",
       title: "Payment method",
       state: "editing",
-      body: "Radio-first payment method wall renders here.",
+      body: "Choose a payment method.",
       choices: paymentChoices,
     },
   ];
@@ -739,7 +739,7 @@ function checkoutData({
           id: "pickup-payment-method",
           title: "Payment method",
           state: "editing",
-          body: "Pickup payment method wall renders here.",
+          body: "Choose a payment method.",
           choices: paymentChoices,
         },
       ],

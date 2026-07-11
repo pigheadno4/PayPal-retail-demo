@@ -188,6 +188,15 @@ describe("CheckoutPage interactions", () => {
         name: /POP MART Soho/,
       }),
     ).toBeTruthy();
+    const modalInventory = within(storeDialog).getByRole("list", {
+      name: "Pickup inventory for POP MART Soho",
+    });
+    expect(
+      modalInventory.querySelector(".checkout-store-card__inventory-name"),
+    ).toBeTruthy();
+    expect(
+      modalInventory.querySelector(".checkout-store-card__inventory-status"),
+    ).toBeTruthy();
     expect(
       screen.queryByLabelText("Pickup store ticket for POP MART Soho"),
     ).toBeNull();

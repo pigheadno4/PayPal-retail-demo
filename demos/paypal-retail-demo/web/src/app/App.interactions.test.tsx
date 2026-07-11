@@ -956,13 +956,34 @@ describe("App buyer interactions", () => {
     const passwordDialog = screen.getByRole("dialog", {
       name: "Enter password",
     });
+    expect(within(passwordDialog).getByText("Email")).toBeTruthy();
     expect(
-      within(passwordDialog).getByDisplayValue("alice.la@example.test"),
+      within(passwordDialog).getByText("alice.la@example.test"),
+    ).toBeTruthy();
+    expect(
+      within(passwordDialog).getByRole("button", { name: "Edit email" }),
     ).toBeTruthy();
     expect(within(passwordDialog).getByLabelText("Password")).toBeTruthy();
     expect(
       within(passwordDialog).getByRole("button", { name: "Sign in" }),
     ).toBeTruthy();
+  });
+
+  it("returns focus to the account trigger after the auth dialog closes", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <App initialPathname="/" initialCart={singleItemCart({ quantity: 1 })} />,
+    );
+
+    const accountTrigger = screen.getByRole("button", { name: "Sign in" });
+    await user.click(accountTrigger);
+    const dialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(accountTrigger);
+    });
   });
 
   it("branches unknown auth emails to registration", async () => {
@@ -1008,8 +1029,12 @@ describe("App buyer interactions", () => {
     const registerDialog = screen.getByRole("dialog", {
       name: "Create account",
     });
+    expect(within(registerDialog).getByText("Email")).toBeTruthy();
     expect(
-      within(registerDialog).getByDisplayValue("new.collector@example.test"),
+      within(registerDialog).getByText("new.collector@example.test"),
+    ).toBeTruthy();
+    expect(
+      within(registerDialog).getByRole("button", { name: "Edit email" }),
     ).toBeTruthy();
     expect(within(registerDialog).getByLabelText("Password")).toBeTruthy();
     expect(
@@ -2651,7 +2676,11 @@ describe("App buyer interactions", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicartTrigger = screen.getByRole("button", {
+      name: "Open minicart",
+    });
+
+    await user.click(minicartTrigger);
 
     const openedMinicart = screen.getByLabelText("Minicart");
     expect(openedMinicart.getAttribute("data-panel-state")).toBe("open");
@@ -2664,8 +2693,40 @@ describe("App buyer interactions", () => {
 
     expect(screen.queryByLabelText("Minicart")).toBeNull();
     expect(getShellStatusText()).toContain("Minicart closed.");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(minicartTrigger);
+    });
 
-    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    await user.click(minicartTrigger);
+    expect(screen.getByLabelText("Minicart")).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Minicart")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(minicartTrigger);
+    });
+
+    await user.click(minicartTrigger);
+    expect(screen.getByLabelText("Minicart")).toBeTruthy();
+
+    const minicartOverlay = document.querySelector(
+      '[data-slot="sheet-overlay"]',
+    );
+    expect(minicartOverlay).toBeTruthy();
+
+    await user.click(minicartOverlay as HTMLElement);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Minicart")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(minicartTrigger);
+    });
+
+    await user.click(minicartTrigger);
     const reopenedMinicart = screen.getByLabelText("Minicart");
 
     await user.click(
@@ -2836,8 +2897,8 @@ describe("App buyer interactions", () => {
       ).disabled,
     ).toBe(true);
     expect(
-      screen.getByText("Express review snapshot could not be loaded."),
-    ).toBeTruthy();
+      screen.getAllByText("Express review snapshot could not be loaded."),
+    ).not.toHaveLength(0);
   });
 
   it("captures the express review order only after the buyer confirms", async () => {
@@ -2993,12 +3054,20 @@ describe("App buyer interactions", () => {
       }),
     ).toBeTruthy();
 
+    const guestAccountTrigger = screen.getByRole("button", {
+      name: "Create account to save this order",
+    });
+    await user.click(guestAccountTrigger);
+    let emailDialog = screen.getByRole("dialog", { name: "Sign in" });
     await user.click(
-      screen.getByRole("button", {
-        name: "Create account to save this order",
-      }),
+      within(emailDialog).getByRole("button", { name: "Close" }),
     );
-    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(guestAccountTrigger);
+    });
+
+    await user.click(guestAccountTrigger);
+    emailDialog = screen.getByRole("dialog", { name: "Sign in" });
     await user.type(
       within(emailDialog).getByLabelText("Email"),
       "guest.collector@example.test",

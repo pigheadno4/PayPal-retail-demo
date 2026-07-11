@@ -1440,6 +1440,68 @@ User-level/shared:
 
 Order snapshots store addresses, item prices, fulfillment mode, inventory context, promo evaluation, tax, shipping, and totals.
 
+## Round 4 Auth, Minicart, And Checkout Surface Polish
+
+Source of truth:
+
+- Plan: `ROUND4_AUTH_MINICART_CHECKOUT_POLISH_PLAN.md`
+- Mockup reference: `mockups/round4-auth-minicart-checkout-polish.html`
+
+Round 4 is a surface-polish slice for Auth, Password, Minicart, checkout payment/order-sheet, and pickup inventory rows. It follows the accepted soft mobile-commerce direction: rounded white surfaces, quieter labels, compact body copy, centered full-width CTAs, product-first cart rows, and less heavy transaction typography. It must preserve PayPal, promo, cart, checkout-draft, BOPIS, and auth semantics.
+
+Typography/token foundation:
+
+- Transaction surfaces use the scoped `--transaction-heading-font`, `--transaction-body-font`, `--transaction-heading-weight`, `--transaction-strong-weight`, and `--transaction-body-weight` layer rather than a whole-site font swap.
+- The scoped transaction layer applies only to Auth modal panels, Minicart Sheet, checkout workflow/summary/sticky/order-sheet surfaces, checkout modal panels, and owned pickup/store-card text. Home, Category, PDP, and product-merchandising typography remain governed by their existing page contracts.
+- Transaction headings target the 650-780 weight band; transaction body/helper copy targets the 500-650 band. Final Round 4 browser evidence proves 320px fitting, favicon `200`, zero console/response issue rows, and `65` parsed body/helper contrast samples across Auth, Checkout, Minicart, and Pickup with a `4.60:1` minimum.
+
+Auth:
+
+- Email-first sign-in uses a calm centered form layout with visible label, one full-width `Continue` action aligned to the input, and no oversized hero copy.
+- Password sign-in keeps email correction as a low-emphasis `Edit email` affordance, not a competing footer button.
+- Password visibility uses an inline eye/eye-off icon button inside the password input with a 44px touch target.
+- Register keeps terms acceptance, validation, password visibility, first-field focus, `new-password` autocomplete, full-width create-account CTA alignment, and no fake enabled social auth.
+- Local implementation status as of 2026-07-10: Auth modal runtime polish and the local browser gate are complete at 320, 390, and 1440. Evidence records first-field focus, exact input/action width delta, inline toggle rect/type sequence, current/new-password autocomplete, validation, and close focus return with zero overflow/overlap issues.
+
+Minicart:
+
+- Drawer remains a shadcn Sheet with overlay, focus trap, Escape/outside close, and predictable focus return.
+- Item rows are product-first: stable thumbnail, line-clamped product name, concise metadata/status, line price, and merchant-owned 44px quantity controls without native number spinners. Quantity controls need product-specific accessible names.
+- Checkout is the dominant action; View cart is secondary and visibly framed.
+- Pay Later messaging remains official/fallback controlled and must not dominate the first drawer viewport.
+
+Checkout:
+
+- Buyer-visible engineering copy is prohibited. Payment helper copy should be concise, for example `Choose a payment method.`, or omitted when redundant.
+- Expanded mobile order sheet keeps shadcn bottom Sheet semantics, a neutral passive grabber, reduced top padding, item/totals/payment content, Escape/scrim/handle close, and focus return.
+- Checkout safeguards are compact below the payment task on mobile/late checkout so they support confidence without competing with payment.
+- Selected PayPal, Pay Later, Apple Pay, Google Pay, Venmo, and card action-slot width/height parity from Round 3 must not regress.
+- Selected PayPal and selected Pay Later positive activation proof remains required after polish: each must produce exactly one method-attributed create-order request and one matching SDK callback when totals are settled and the buyer explicitly activates the provider.
+- Runtime payment evidence must prove official PayPal/provider surfaces are SDK/custom elements or approved wrappers. The static mockup's PayPal-like blocks are visual reference only and must not replace official runtime surfaces.
+
+Pickup inventory rows:
+
+- Item inventory rows use a compact row/grid contract: item name and requested quantity line-clamped to two lines, availability/status right-aligned on larger widths, and narrow-mobile status allowed to move below without squeezing names into vertical stacks.
+- Full/partial/sold-out states remain text-labelled and are not color-only.
+- 2026-07-10 local evidence note: modal picker and inline preselected-store cards share `PickupStoreInventoryRows`; desktop/tablet rows use a constrained two-column grid, sub-520px rows move status below the two-line name, narrow store headings stack the distance badge without clipping, and draft mapping labels zero-available stores `Sold out`. Picker/preselected evidence at 320/390/1440 records no heading, item-row, or page overflow and no header overlap.
+
+Evidence:
+
+- Round 4 evidence must include a surface-by-width matrix across 320, 375, 390/414, 768, 1024, and 1440 where applicable. Any omitted width must be marked not applicable with a reason.
+- Mockup comparison must record measurable values: input/button width deltas, 44px touch target rects, order-sheet top padding, first viewport content presence, horizontal overflow, sticky/modal overlap counts, and focused element after close.
+- Final local Round 4 evidence is stored under `/private/tmp/paypal-retail-round4-local-auth-minicart-checkout-evidence/`, with a review-visible ignored copy under `.playwright-cli/round4-local-auth-minicart-checkout-evidence/`: `31` required rows and `40` quality-95 JPEG screenshots (including dedicated full/partial/sold-out Pickup captures at 320/390/1440) plus `metrics.json` report no failed/missing/issue rows, a `4.60:1` minimum parsed contrast ratio, asserted Auth initial focus, product-specific named quantity controls, placement-scoped official PayPal/Pay Later/Card Fields nodes, visible order-sheet grabber color, provider surface buckets, and explicit reasons for omitted representative widths. Read-only `ui-ux-pro-max` review found no unresolved P0/P1/P2 findings and unblocked local closure. Hosted Render smoke remains required after deploy.
+
+Round 4 hard blockers:
+
+- Engineering copy remains visible in buyer-facing payment sections.
+- Auth primary buttons do not align with input width at mobile sizes.
+- Password visibility remains a separate large button.
+- Minicart rows or quantity controls overflow at 320px.
+- Pickup inventory item names stack vertically or force horizontal scroll.
+- Expanded order sheet keeps large blank top space or loses close/focus-return behavior.
+- Checkout safeguards compete with payment in mobile payment-ready state.
+- Evidence contains favicon 404, console errors, horizontal overflow, sticky/modal overlap, or untriaged warning noise.
+
 ## Visual QA Gates
 
 - Check responsive screenshots at 320px, 375px, 390/414px, 768px, 1024px, 1280px, and 1440px for page-polish slices that touch mobile cart, checkout, sticky payment actions, filters, or PDP purchase surfaces.

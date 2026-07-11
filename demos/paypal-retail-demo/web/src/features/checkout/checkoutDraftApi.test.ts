@@ -82,6 +82,47 @@ describe("checkoutDraftApi", () => {
     });
   });
 
+  it("maps pickup stores to text-labelled full partial and sold-out states", () => {
+    const store = (
+      id: string,
+      availableItemsCount: number,
+      unavailableItemsCount: number,
+    ) => ({
+      id,
+      name: `Store ${id}`,
+      address_line1: "100 Broadway",
+      city: "New York",
+      state: "NY",
+      postal_code: "10012",
+      country_code: "US",
+      available_items_count: availableItemsCount,
+      unavailable_items_count: unavailableItemsCount,
+    });
+    const nextData = reconcileCheckoutDataFromDraftResponse(
+      defaultCheckoutPageData,
+      {
+        draft: {
+          id: "draft_pickup_inventory_states",
+          fulfillment_mode: "pickup",
+          pickup: {
+            stores: [
+              store("full", 2, 0),
+              store("partial", 1, 1),
+              store("sold-out", 0, 2),
+            ],
+          },
+        },
+      },
+    );
+    const storeSelectionStep = nextData.pickup.steps.find(
+      (step) => step.id === "store-selection",
+    );
+
+    expect(
+      storeSelectionStep?.storeCards?.map((card) => card.statusLabel),
+    ).toEqual(["Full inventory", "Partial inventory", "Sold out"]);
+  });
+
   it("maps checkout promo evaluate, apply, and remove calls to backend draft routes", async () => {
     const { apiClient, calls } = createPromoRecordingApiClient({
       deleteResponseByPath: {

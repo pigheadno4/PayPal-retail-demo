@@ -84,6 +84,22 @@ describe("MinicartShell", () => {
     expect(html).toContain('aria-label="Minicart items"');
     expect(html).toContain("Labubu Have a Seat");
     expect(html).toContain("2 items");
+    const firstItemRow = minicart.querySelector(
+      '[data-minicart-row="product-first"]',
+    );
+    const payLaterSection = minicart.querySelector(
+      '[data-minicart-section="payment-secondary"]',
+    );
+    expect(firstItemRow).toBeTruthy();
+    expect(payLaterSection).toBeTruthy();
+    expect(firstItemRow?.compareDocumentPosition(payLaterSection as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(
+      within(firstItemRow as HTMLElement).getByRole("link", {
+        name: "Labubu Have a Seat",
+      }).className,
+    ).toContain("minicart-item__name");
     expect(
       minicart.querySelector('[data-slot="badge"][data-variant="secondary"]')
         ?.textContent,
@@ -109,6 +125,12 @@ describe("MinicartShell", () => {
       /<a href="\/cart"[^>]*data-slot="button"[^>]*data-variant="outline"[^>]*data-size="default"/,
     );
     expect(html).toContain("minicart-actions__link--secondary");
+    expect(
+      within(minicart).getByRole("link", { name: "Checkout" }).className,
+    ).toContain("minicart-actions__link--primary");
+    expect(
+      within(minicart).getByRole("link", { name: "View cart" }).className,
+    ).toContain("minicart-actions__link--secondary");
     expect(html).toContain("PayPal");
     expect(html).toContain("Pay Later");
     expect(html).toContain('data-slot="field-set"');
@@ -142,6 +164,7 @@ describe("MinicartShell", () => {
       /<a href="\/products"[^>]*data-slot="button"[^>]*data-variant="outline"/,
     );
     expect(html).not.toContain("Pay Later with PayPal");
+    expect(html).not.toContain('data-minicart-section="payment-secondary"');
     expect(html).not.toContain('aria-label="Minicart checkout"');
     expect(html).not.toContain("Secured by PayPal");
     expect(html).not.toContain('href="/checkout"');
@@ -171,6 +194,16 @@ describe("MinicartShell", () => {
       2,
       "labubu-have-a-seat",
     );
+    expect(
+      screen.getByRole("button", {
+        name: "Decrease Labubu Have a Seat quantity",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("spinbutton", {
+        name: "Labubu Have a Seat quantity",
+      }),
+    ).toBeTruthy();
   });
 
   it("keeps closed minicarts unmounted from the accessible drawer surface", () => {

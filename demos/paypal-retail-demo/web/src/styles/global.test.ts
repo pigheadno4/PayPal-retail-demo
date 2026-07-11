@@ -6,6 +6,10 @@ const globalCss = readFileSync(
   new URL("./global.css", import.meta.url),
   "utf8",
 );
+const indexHtml = readFileSync(
+  new URL("../../index.html", import.meta.url),
+  "utf8",
+);
 
 describe("global storefront visual tokens", () => {
   it("defines the POP MART profile with multi-accent retail tokens and round typography", () => {
@@ -23,6 +27,8 @@ describe("global storefront visual tokens", () => {
     expect(popmartTheme).toContain("--shell-card-radius: 14px");
     expect(popmartTheme).toContain('"Nunito Sans"');
     expect(popmartTheme).toContain('"Rubik"');
+    expect(popmartTheme).toContain("--transaction-heading-font:");
+    expect(popmartTheme).toContain("--transaction-body-font:");
   });
 
   it("keeps the generic profile on its own palette instead of inheriting POP MART tokens", () => {
@@ -31,6 +37,155 @@ describe("global storefront visual tokens", () => {
     expect(genericTheme).toContain("--shell-accent: #c5914e");
     expect(genericTheme).not.toContain("--pm-coral-red");
     expect(genericTheme).not.toContain('"Rubik"');
+    expect(genericTheme).not.toContain("--transaction-heading-font");
+    expect(genericTheme).not.toContain("--transaction-body-font");
+  });
+
+  it("scopes softer transaction typography to auth minicart and checkout surfaces", () => {
+    const rootBlock = cssBlock(":root");
+    const transactionSurfaceBlock = cssBlock(
+      ".auth-modal__panel,\n.minicart-shell,\n.checkout-workflow,\n.checkout-summary,\n.checkout-sticky-summary,\n.checkout-order-sheet,\n.checkout-modal__panel",
+    );
+    const transactionHeadingBlock = cssBlock(
+      ".auth-modal__panel h2,\n.auth-modal__panel h3,\n.minicart-shell h2,\n.checkout-workflow h2,\n.checkout-summary h2,\n.checkout-order-sheet h2,\n.checkout-modal__header h2",
+    );
+    const transactionLabelBlock = cssBlock(
+      '.auth-modal__panel label,\n.auth-modal__panel [data-slot="label"],\n.minicart-shell strong,\n.checkout-field,\n.checkout-choice b,\n.checkout-store-card h3,\n.checkout-store-card__inventory-lines span,\n.checkout-step__state',
+    );
+    const transactionHelperBlock = cssBlock(
+      '.auth-modal__status,\n.minicart-shell__header [data-slot="sheet-description"],\n.checkout-step p,\n.checkout-summary__description,\n.checkout-payment-readiness p,\n.checkout-store-card__inventory-lines strong',
+    );
+
+    expect(rootBlock).toContain(
+      "--transaction-heading-font: var(--shell-heading-font)",
+    );
+    expect(rootBlock).toContain(
+      "--transaction-body-font: var(--shell-ui-font)",
+    );
+    expect(rootBlock).toContain("--transaction-heading-weight: 740");
+    expect(rootBlock).toContain("--transaction-strong-weight: 680");
+    expect(rootBlock).toContain("--transaction-body-weight: 560");
+    expect(transactionSurfaceBlock).toContain(
+      "font-family: var(--transaction-body-font)",
+    );
+    expect(transactionSurfaceBlock).toContain(
+      "font-weight: var(--transaction-body-weight)",
+    );
+    expect(transactionHeadingBlock).toContain(
+      "font-family: var(--transaction-heading-font)",
+    );
+    expect(transactionHeadingBlock).toContain(
+      "font-weight: var(--transaction-heading-weight)",
+    );
+    expect(transactionLabelBlock).toContain(
+      "font-weight: var(--transaction-strong-weight)",
+    );
+    expect(transactionHelperBlock).toContain(
+      "font-weight: var(--transaction-body-weight)",
+    );
+    expect(transactionHeadingBlock).not.toContain("font-weight: 900");
+    expect(transactionHeadingBlock).not.toContain("font-weight: 950");
+  });
+
+  it("links a local favicon so visual QA is not polluted by favicon 404 noise", () => {
+    expect(indexHtml).toContain('rel="icon"');
+    expect(indexHtml).toContain('href="/favicon.svg"');
+    expect(indexHtml).not.toContain("https://");
+  });
+
+  it("keeps pickup inventory rows compact and scannable across checkout widths", () => {
+    const inventoryLineBlock = cssBlock(
+      ".checkout-store-card__inventory-lines li",
+    );
+    const inventoryNameBlock = cssBlock(".checkout-store-card__inventory-name");
+    const inventoryStatusBlock = cssBlock(
+      ".checkout-store-card__inventory-status",
+    );
+    const mobileInventoryLineBlock = cssBlockContaining(
+      ".checkout-store-card__inventory-lines li",
+      "grid-template-columns: minmax(0, 1fr);",
+    );
+    const mobileInventoryStatusBlock = cssBlockContaining(
+      ".checkout-store-card__inventory-status",
+      "white-space: normal",
+    );
+    const storeHeadingBlock = cssBlock(".checkout-store-card__heading");
+    const mobileStoreHeadingBlock = cssBlockContaining(
+      ".checkout-store-card__heading",
+      "grid-template-columns: minmax(0, 1fr);",
+    );
+    const mobileStoreDistanceBlock = cssBlockContaining(
+      ".checkout-store-card__distance",
+      "justify-self: end",
+    );
+
+    expect(inventoryLineBlock).toContain("display: grid");
+    expect(inventoryLineBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
+    );
+    expect(inventoryLineBlock).toContain("min-width: 0");
+    expect(inventoryNameBlock).toContain("-webkit-line-clamp: 2");
+    expect(inventoryNameBlock).toContain("overflow: hidden");
+    expect(inventoryNameBlock).toContain("word-break: normal");
+    expect(inventoryStatusBlock).toContain("justify-self: end");
+    expect(inventoryStatusBlock).toContain("text-align: right");
+    expect(inventoryStatusBlock).toContain("white-space: nowrap");
+    expect(mobileInventoryLineBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr);",
+    );
+    expect(mobileInventoryStatusBlock).toContain("white-space: normal");
+    expect(storeHeadingBlock).toContain("display: grid");
+    expect(storeHeadingBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
+    );
+    expect(mobileStoreHeadingBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr);",
+    );
+    expect(mobileStoreDistanceBlock).toContain("justify-self: end");
+  });
+
+  it("locks Round 4 auth modal form sizing and inline password affordances", () => {
+    const authPanelBlock = cssBlock(".auth-modal__panel");
+    const authActionsBlock = cssBlock(".auth-modal__actions");
+    const authPrimaryActionBlock = cssBlock(".auth-modal__primary-action");
+    const authInputBlock = cssBlock('.auth-modal__panel [data-slot="input"]');
+    const passwordControlBlock = cssBlock(".auth-modal__password-control");
+    const passwordInputBlock = cssBlock(".auth-modal__password-input");
+    const passwordToggleBlock = cssBlock(".auth-modal__password-toggle");
+    const emailSummaryBlock = cssBlock(".auth-modal__email-summary");
+    const closeButtonBlock = cssBlock(
+      ".auth-modal__panel .dialog-close-button",
+    );
+
+    expect(authPanelBlock).toContain("width: min(450px, calc(100vw - 32px))");
+    expect(authActionsBlock).toContain("display: grid");
+    expect(authActionsBlock).toContain("grid-template-columns: 1fr");
+    expect(authPrimaryActionBlock).toContain("min-height: 44px");
+    expect(authPrimaryActionBlock).toContain("width: 100%");
+    expect(authInputBlock).toContain("min-height: 44px");
+    expect(passwordControlBlock).toContain("min-height: 44px");
+    expect(passwordControlBlock).toContain("position: relative");
+    expect(passwordInputBlock).toContain("padding-right: 52px");
+    expect(passwordToggleBlock).toContain("min-height: 44px");
+    expect(passwordToggleBlock).toContain("min-width: 44px");
+    expect(passwordToggleBlock).toContain("position: absolute");
+    expect(emailSummaryBlock).toContain(
+      "grid-template-columns: minmax(0, 1fr) auto",
+    );
+    expect(closeButtonBlock).toContain("min-height: 44px");
+    expect(closeButtonBlock).toContain("min-width: 44px");
+  });
+
+  it("keeps blocked mobile payment readiness compact inside the sticky drawer", () => {
+    const readinessBlock = cssBlock(".checkout-sticky-summary__readiness");
+    const readinessBodyBlock = cssBlock(
+      ".checkout-sticky-summary__readiness p",
+    );
+
+    expect(readinessBlock).toContain("min-height: 52px");
+    expect(readinessBlock).toContain("width: 100%");
+    expect(readinessBodyBlock).toContain("-webkit-line-clamp: 2");
+    expect(readinessBodyBlock).toContain("overflow: hidden");
   });
 
   it("applies the POP MART heading font through shared heading selectors", () => {
@@ -421,7 +576,17 @@ describe("global storefront visual tokens", () => {
     const minicartOverlayBlock = cssBlock(".minicart-shell__overlay");
     const minicartBodyBlock = cssBlock(".minicart-shell__body");
     const minicartItemsPanelBlock = cssBlock(".minicart-items-panel");
+    const minicartItemBlock = cssBlock(".minicart-item");
+    const minicartItemNameBlock = cssBlock(".minicart-item__name");
+    const minicartItemMetaBlock = cssBlock(".minicart-item__meta");
     const minicartPanelBlock = cssBlock(".minicart-checkout-panel");
+    const minicartActionLinkBlock = cssBlock(".minicart-actions__link");
+    const minicartEmptyActionBlock = cssBlock(".minicart-empty-state .button");
+    const minicartPaylaterBlock = cssBlockContaining(
+      ".minicart-paylater",
+      "border-top",
+    );
+    const minicartPaylaterCopyBlock = cssBlock(".minicart-paylater p");
     const deliveryExpressActionBlock = cssBlock(
       ".product-express-actions .delivery-express-action",
     );
@@ -445,6 +610,27 @@ describe("global storefront visual tokens", () => {
     );
     const checkoutProgressBlock = cssBlock(".checkout-progress");
     const checkoutReadinessBlock = cssBlock(".checkout-payment-readiness");
+    const checkoutTrustStripBlock = cssBlock(".checkout-trust-strip");
+    const mobileCheckoutTrustStripBlock = cssBlockContaining(
+      ".checkout-trust-strip",
+      "flex-wrap: wrap",
+    );
+    const mobileCheckoutTrustItemBlock = cssBlockContaining(
+      ".checkout-trust-strip__item",
+      "background: transparent",
+    );
+    const mobileCheckoutTrustItemAccentBlock = cssBlockContaining(
+      ".checkout-trust-strip__item::before",
+      "display: none",
+    );
+    const mobileCheckoutTrustBadgeBlock = cssBlockContaining(
+      '.checkout-trust-strip__item [data-slot="badge"]',
+      "white-space: nowrap",
+    );
+    const mobileCheckoutTrustCopyBlock = cssBlockContaining(
+      ".checkout-trust-strip__item p",
+      "display: none",
+    );
     const checkoutStickySummaryBlock = cssBlock(".checkout-sticky-summary");
     const checkoutStickyReviewBlock = cssBlock(
       ".checkout-sticky-summary__review",
@@ -478,11 +664,27 @@ describe("global storefront visual tokens", () => {
     const checkoutStickyFieldClearanceBlock = cssBlock(
       ".checkout-field input:focus,\n  .checkout-field__select:focus,\n  .checkout-choice__card-box,\n  .checkout-choice__message,\n  .card-fields-checkout-action",
     );
+    const cardHostedFieldBlock = cssBlock(
+      ".card-fields-checkout-action__hosted-field",
+    );
     const checkoutOrderSheetBlock = cssBlock(
       '.checkout-order-sheet[data-side="bottom"]',
     );
     const checkoutOrderSheetHandleBlock = cssBlock(
       ".checkout-order-sheet__handle",
+    );
+    const checkoutOrderSheetHandleVisualBlock = cssBlock(
+      ".checkout-order-sheet__handle span",
+    );
+    const checkoutOrderSheetHeaderBlock = cssBlock(
+      ".checkout-order-sheet__header",
+    );
+    const checkoutOrderSheetContentBlock = cssBlock(
+      ".checkout-order-sheet__content",
+    );
+    const checkoutOrderSheetPaymentBlock = cssBlockContaining(
+      ".checkout-order-sheet__payment",
+      "border-top",
     );
     const checkoutOrderSheetRowsBlock = cssBlock(
       ".checkout-order-sheet dl div",
@@ -541,6 +743,19 @@ describe("global storefront visual tokens", () => {
     );
     expect(minicartBodyBlock).toContain("overflow: hidden");
     expect(minicartItemsPanelBlock).toContain("height: 100%");
+    expect(minicartItemBlock).toContain("align-items: start");
+    expect(minicartItemBlock).toContain("grid-template-columns: 64px");
+    expect(minicartItemBlock).toContain("min-width: 0");
+    expect(minicartItemNameBlock).toContain("display: -webkit-box");
+    expect(minicartItemNameBlock).toContain("-webkit-line-clamp: 2");
+    expect(minicartItemNameBlock).toContain("overflow: hidden");
+    expect(minicartItemMetaBlock).toContain("flex-wrap: wrap");
+    expect(minicartActionLinkBlock).toContain("min-height: 44px");
+    expect(minicartEmptyActionBlock).toContain("min-height: 44px");
+    expect(minicartEmptyActionBlock).toContain("width: 100%");
+    expect(minicartPaylaterBlock).toContain("border-top: 1px solid");
+    expect(minicartPaylaterBlock).toContain("padding-top: 10px");
+    expect(minicartPaylaterCopyBlock).toContain("font-size: 0.82rem");
     expect(globalCss).toContain(".minicart-checkout-panel");
     expect(minicartPanelBlock).toContain("border-top: 1px solid");
     expect(minicartPanelBlock).toContain("box-shadow: 0 -14px");
@@ -572,6 +787,18 @@ describe("global storefront visual tokens", () => {
     expect(checkoutProgressBlock).toContain("font-size: 0.84rem");
     expect(checkoutReadinessBlock).toContain("background: #fff8f3");
     expect(checkoutReadinessBlock).toContain("border: 1px solid");
+    expect(checkoutTrustStripBlock).toContain(
+      "grid-template-columns: repeat(4, minmax(0, 1fr))",
+    );
+    expect(mobileCheckoutTrustStripBlock).toContain("display: flex");
+    expect(mobileCheckoutTrustStripBlock).toContain("flex-wrap: wrap");
+    expect(mobileCheckoutTrustStripBlock).toContain("padding: 10px 12px");
+    expect(mobileCheckoutTrustItemBlock).toContain("display: inline-flex");
+    expect(mobileCheckoutTrustItemBlock).toContain("padding: 0");
+    expect(mobileCheckoutTrustItemAccentBlock).toContain("display: none");
+    expect(mobileCheckoutTrustBadgeBlock).toContain("min-height: 28px");
+    expect(mobileCheckoutTrustBadgeBlock).toContain("white-space: nowrap");
+    expect(mobileCheckoutTrustCopyBlock).toContain("display: none");
     expect(checkoutStickySummaryBlock).toContain("bottom: 0");
     expect(checkoutStickySummaryBlock).toContain(
       "grid-template-columns: minmax(0, 1fr) minmax(156px, min(46vw, 220px))",
@@ -625,11 +852,33 @@ describe("global storefront visual tokens", () => {
     expect(checkoutStickyFieldClearanceBlock).toContain(
       "scroll-margin-bottom: calc(\n      var(--checkout-mobile-sticky-clearance) + env(safe-area-inset-bottom)\n    )",
     );
+    expect(cardHostedFieldBlock).toContain("height: 50px");
+    expect(cardHostedFieldBlock).toContain("overflow: hidden");
+    expect(globalCss).not.toContain(
+      ".card-fields-checkout-action__hosted-field iframe",
+    );
     expect(checkoutOrderSheetBlock).toContain("border-radius: 20px 20px 0 0");
+    expect(checkoutOrderSheetBlock).toContain("gap: 0");
     expect(checkoutOrderSheetBlock).toContain("max-height: min(78dvh, 640px)");
     expect(checkoutOrderSheetBlock).toContain("overflow-y: auto");
+    expect(checkoutOrderSheetBlock).toContain("overscroll-behavior: contain");
+    expect(checkoutOrderSheetBlock).toContain("padding-top: 0");
+    expect(checkoutOrderSheetHandleBlock).toContain("cursor: pointer");
+    expect(checkoutOrderSheetHandleBlock).toContain("inset: 0 0 auto");
     expect(checkoutOrderSheetHandleBlock).toContain("min-height: 44px");
     expect(checkoutOrderSheetHandleBlock).toContain("min-width: 44px");
+    expect(checkoutOrderSheetHandleBlock).toContain("padding: 8px 0 0");
+    expect(checkoutOrderSheetHandleBlock).toContain("position: absolute");
+    expect(checkoutOrderSheetHandleBlock).toContain("z-index: 2");
+    expect(checkoutOrderSheetHandleVisualBlock).toContain("width: 44px");
+    expect(checkoutOrderSheetHandleVisualBlock).toContain(
+      "background: #b8aea8",
+    );
+    expect(checkoutOrderSheetHeaderBlock).toContain("padding: 22px 24px 10px");
+    expect(checkoutOrderSheetContentBlock).toContain("padding: 12px 24px 14px");
+    expect(checkoutOrderSheetPaymentBlock).toContain(
+      "padding: 14px 24px calc(16px + env(safe-area-inset-bottom))",
+    );
     expect(checkoutOrderSheetRowsBlock).toContain(
       "grid-template-columns: minmax(0, 1fr) auto",
     );

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,6 +93,7 @@ export function AuthModalShell({
       ? localError
       : statusMessage;
   const isRegisterState = state === "register";
+  const shouldShowEmailSummary = state !== "email";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -192,9 +194,7 @@ export function AuthModalShell({
                 </li>
                 <li>
                   <strong>Wishlist readiness</strong>
-                  <span>
-                    Wishlist remains demo-disabled until the later slice.
-                  </span>
+                  <span>Wishlist is coming soon for account holders.</span>
                 </li>
               </ul>
             </aside>
@@ -244,46 +244,86 @@ export function AuthModalShell({
         }}
       >
         <FieldGroup>
-          <Field data-invalid={isEmailInvalid ? "true" : undefined}>
-            <FieldLabel htmlFor={emailInputId}>Email</FieldLabel>
-            <Input
-              id={emailInputId}
-              type="email"
-              autoComplete="email"
-              value={email}
-              readOnly={state !== "email"}
-              aria-invalid={isEmailInvalid ? true : undefined}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-            />
-            {isEmailInvalid ? <FieldError>{localError}</FieldError> : null}
-          </Field>
+          {shouldShowEmailSummary ? (
+            <Field
+              className="auth-modal__email-summary-field"
+              data-invalid={isEmailInvalid ? "true" : undefined}
+            >
+              <div className="auth-modal__email-summary">
+                <div>
+                  <span>Email</span>
+                  <strong>{email}</strong>
+                </div>
+                <Button
+                  className="auth-modal__email-edit"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setPassword("");
+                    setLocalError(null);
+                    onChangeEmail?.();
+                  }}
+                >
+                  Edit email
+                </Button>
+              </div>
+              {isEmailInvalid ? <FieldError>{localError}</FieldError> : null}
+            </Field>
+          ) : (
+            <Field data-invalid={isEmailInvalid ? "true" : undefined}>
+              <FieldLabel htmlFor={emailInputId}>Email</FieldLabel>
+              <Input
+                id={emailInputId}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+                value={email}
+                aria-invalid={isEmailInvalid ? true : undefined}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                }}
+              />
+              {isEmailInvalid ? <FieldError>{localError}</FieldError> : null}
+            </Field>
+          )}
           {state !== "email" ? (
             <Field data-invalid={isPasswordInvalid ? "true" : undefined}>
               <FieldLabel htmlFor={passwordInputId}>Password</FieldLabel>
-              <Input
-                id={passwordInputId}
-                type={isPasswordVisible ? "text" : "password"}
-                autoComplete={
-                  state === "password" ? "current-password" : "new-password"
-                }
-                value={password}
-                aria-invalid={isPasswordInvalid ? true : undefined}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                }}
-              />
-              <Button
-                className="auth-modal__password-toggle"
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsPasswordVisible((currentValue) => !currentValue);
-                }}
-              >
-                {isPasswordVisible ? "Hide password" : "Show password"}
-              </Button>
+              <div className="auth-modal__password-control">
+                <Input
+                  id={passwordInputId}
+                  className="auth-modal__password-input"
+                  type={isPasswordVisible ? "text" : "password"}
+                  autoComplete={
+                    state === "password" ? "current-password" : "new-password"
+                  }
+                  autoFocus
+                  value={password}
+                  aria-invalid={isPasswordInvalid ? true : undefined}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                  }}
+                />
+                <Button
+                  aria-label={
+                    isPasswordVisible ? "Hide password" : "Show password"
+                  }
+                  className="auth-modal__password-toggle"
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setIsPasswordVisible((currentValue) => !currentValue);
+                  }}
+                >
+                  {isPasswordVisible ? (
+                    <EyeOffIcon aria-hidden="true" />
+                  ) : (
+                    <EyeIcon aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
               {isPasswordInvalid ? <FieldError>{localError}</FieldError> : null}
             </Field>
           ) : null}
@@ -309,7 +349,7 @@ export function AuthModalShell({
                   I agree to the Terms of Service and Privacy Policy.
                 </FieldLabel>
                 <FieldDescription>
-                  Required before creating a demo account.
+                  Required before creating an account.
                 </FieldDescription>
                 {isTermsInvalid ? <FieldError>{localError}</FieldError> : null}
               </FieldContent>
@@ -337,24 +377,15 @@ export function AuthModalShell({
             >
               Apple unavailable
             </Button>
-            <p>Social sign-up is not wired in this demo.</p>
+            <p>Social sign-up is unavailable for this checkout.</p>
           </div>
         ) : null}
         <div className="auth-modal__actions">
-          {state !== "email" ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setPassword("");
-                setLocalError(null);
-                onChangeEmail?.();
-              }}
-            >
-              Change email
-            </Button>
-          ) : null}
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            className="auth-modal__primary-action"
+            type="submit"
+            disabled={isSubmitting}
+          >
             {resolveSubmitLabel(state, isSubmitting)}
           </Button>
         </div>
@@ -376,7 +407,11 @@ function isValidEmail(email: string): boolean {
 
 function resolveSubmitLabel(state: AuthModalState, isSubmitting: boolean) {
   if (isSubmitting) {
-    return state === "email" ? "Checking..." : "Submitting...";
+    if (state === "email") {
+      return "Checking...";
+    }
+
+    return state === "password" ? "Signing in..." : "Creating account...";
   }
 
   if (state === "password") {
@@ -399,5 +434,5 @@ function resolveDescription(state: AuthModalState) {
     return "Enter your password to continue.";
   }
 
-  return "Use your account email to continue.";
+  return "Use your email to continue checkout.";
 }

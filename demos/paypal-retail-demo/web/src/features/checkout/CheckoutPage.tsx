@@ -1159,6 +1159,7 @@ export function CheckoutPage({
         <CheckoutMobileStickySummary
           summary={displayedSummary}
           paymentAction={stickySummaryPaymentAction}
+          paymentReadinessMessage={paymentReadinessMessage}
           open={orderDetailsOpen}
           onOpenChange={setOrderDetailsOpen}
         />
@@ -2025,14 +2026,21 @@ function CheckoutStepSummary({
         </ul>
       ) : null}
       {selectedStores.length ? (
-        <ul>
+        <div className="checkout-step__selected-stores">
           {selectedStores.map((store) => (
-            <li key={store.name}>
-              <strong>{store.name}</strong>
-              <span>{store.statusLabel ?? store.distanceLabel}</span>
-            </li>
+            <section
+              aria-label={`Selected pickup store ${store.name}`}
+              className="checkout-step__selected-store"
+              key={store.name}
+            >
+              <div className="checkout-step__selected-store-heading">
+                <strong>{store.name}</strong>
+                <span>{store.statusLabel ?? store.distanceLabel}</span>
+              </div>
+              <PickupStoreInventoryRows store={store} />
+            </section>
           ))}
-        </ul>
+        </div>
       ) : null}
       <Button
         aria-label={editLabel}
@@ -2115,7 +2123,7 @@ function compactSummaryLines(
     .filter((line) => line.length > 0);
 }
 
-function PickupStoreTicketDetails({
+function PickupStoreInventoryRows({
   store,
 }: {
   readonly store: CheckoutStoreCard;
@@ -2125,42 +2133,54 @@ function PickupStoreTicketDetails({
   const inventoryState = getPickupStoreInventoryState(store);
   const inventoryLines = store.inventoryLines ?? [];
 
+  return inventoryLines.length ? (
+    <ul
+      aria-label={`Pickup inventory for ${store.name}`}
+      className="checkout-store-card__inventory-lines"
+    >
+      {inventoryLines.map((line) => (
+        <li data-inventory-kind={line.status} key={line.itemName}>
+          <span className="checkout-store-card__inventory-name">
+            {line.itemName} x {line.requestedQuantity}
+          </span>
+          <strong className="checkout-store-card__inventory-status">
+            {line.statusLabel}
+          </strong>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <div
+      aria-label={`Pickup inventory for ${store.name}`}
+      className="checkout-store-card__availability"
+      data-inventory-state={inventoryState}
+    >
+      <span data-inventory-kind="available">
+        <strong>{availableCount}</strong>
+        <small>{store.availableItemsLabel}</small>
+      </span>
+      <span data-inventory-kind="unavailable">
+        <strong>{unavailableCount}</strong>
+        <small>{store.unavailableItemsLabel}</small>
+      </span>
+    </div>
+  );
+}
+
+function PickupStoreTicketDetails({
+  store,
+}: {
+  readonly store: CheckoutStoreCard;
+}) {
+  const inventoryState = getPickupStoreInventoryState(store);
+
   return (
     <>
       <div className="checkout-store-card__route">
         <span className="checkout-store-card__address">{store.address}</span>
         <span className="checkout-store-card__phone">{store.phoneLabel}</span>
       </div>
-      {inventoryLines.length ? (
-        <ul
-          aria-label={`Pickup inventory for ${store.name}`}
-          className="checkout-store-card__inventory-lines"
-        >
-          {inventoryLines.map((line) => (
-            <li data-inventory-kind={line.status} key={line.itemName}>
-              <span>
-                {line.itemName} x {line.requestedQuantity}
-              </span>
-              <strong>{line.statusLabel}</strong>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div
-          aria-label={`Pickup inventory for ${store.name}`}
-          className="checkout-store-card__availability"
-          data-inventory-state={inventoryState}
-        >
-          <span data-inventory-kind="available">
-            <strong>{availableCount}</strong>
-            <small>{store.availableItemsLabel}</small>
-          </span>
-          <span data-inventory-kind="unavailable">
-            <strong>{unavailableCount}</strong>
-            <small>{store.unavailableItemsLabel}</small>
-          </span>
-        </div>
-      )}
+      <PickupStoreInventoryRows store={store} />
       {store.statusLabel || store.partialInventoryNote ? (
         <div className="checkout-store-card__footer">
           {store.statusLabel ? (
@@ -2982,11 +3002,16 @@ function CheckoutOrderBreakdown({
 function CheckoutMobileStickySummary({
   summary,
   paymentAction,
+  paymentReadinessMessage,
   open,
   onOpenChange,
 }: {
   readonly summary: CheckoutOrderSummary;
   readonly paymentAction?: ReactNode;
+  readonly paymentReadinessMessage?: {
+    readonly title: string;
+    readonly body: string;
+  } | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
@@ -3005,9 +3030,22 @@ function CheckoutMobileStickySummary({
       Choose payment
     </Button>
   );
+  const renderPaymentReadiness = () =>
+    paymentReadinessMessage ? (
+      <div
+        aria-label="Payment readiness"
+        aria-live="polite"
+        className="checkout-payment-readiness checkout-sticky-summary__readiness"
+      >
+        <strong>{paymentReadinessMessage.title}</strong>
+        <p>{paymentReadinessMessage.body}</p>
+      </div>
+    ) : (
+      renderChoosePaymentButton()
+    );
   const stickyPaymentControl =
-    paymentAction && !open ? paymentAction : renderChoosePaymentButton();
-  const sheetPaymentControl = paymentAction ?? renderChoosePaymentButton();
+    paymentAction && !open ? paymentAction : renderPaymentReadiness();
+  const sheetPaymentControl = paymentAction ?? renderPaymentReadiness();
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
 
@@ -3094,12 +3132,12 @@ function getStickyPromoLabel(promoLabel: string): string | null {
 function CheckoutTrustStrip() {
   const highlights = [
     {
-      label: "Official payment surfaces",
-      body: "PayPal, Pay Later, card, and wallets render only from eligible provider flows.",
+      label: "Secure payments",
+      body: "PayPal, Pay Later, card, and wallet options appear only when available.",
     },
     {
-      label: "Totals reconciled",
-      body: "Shipping, promo, and tax-sensitive totals update before payment.",
+      label: "Final totals",
+      body: "Shipping, promo, and estimated tax update before payment.",
     },
     {
       label: "Delivery or pickup",
@@ -3107,13 +3145,14 @@ function CheckoutTrustStrip() {
     },
     {
       label: "Order recovery",
-      body: "Started payment sessions can be reviewed or recovered.",
+      body: "Started payment sessions can be reviewed if you return.",
     },
   ];
 
   return (
     <section
       className="checkout-trust-strip"
+      data-density="mobile-compact"
       data-visual-accent="trust-strip"
       aria-label="Checkout safeguards"
     >
@@ -3621,7 +3660,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         id: "payment-method",
         title: "Payment method",
         state: "idle",
-        body: "Radio-first payment method wall renders here.",
+        body: "Choose a payment method.",
       },
     ],
   },
@@ -3679,7 +3718,7 @@ export const defaultCheckoutPageData: CheckoutPageData = {
         id: "pickup-payment-method",
         title: "Payment method",
         state: "idle",
-        body: "Pickup payment method wall renders here.",
+        body: "Choose a payment method.",
       },
     ],
   },
