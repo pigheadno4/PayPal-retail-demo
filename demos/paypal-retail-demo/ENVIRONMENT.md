@@ -98,6 +98,14 @@ For PayPal SDK v6 client-token flows, prefer setting `PUBLIC_HTTPS_ORIGIN` to th
 
 Delivery express can create local sandbox orders without `PUBLIC_HTTPS_ORIGIN`, but the backend omits PayPal shipping callback config and line-item product/image URLs when the resolved public origin is local HTTP. Set `PUBLIC_HTTPS_ORIGIN` for callback-enabled express shipping updates and provider-visible item links/images.
 
+### Apple Pay browser SDK and domain validation
+
+- The web document loads Apple's recommended auto-updating SDK URL: `https://applepay.cdn-apple.com/jsapi/1.latest/apple-pay-sdk.js` with anonymous CORS. Do not add an integrity hash to this URL because Apple updates its contents.
+- The build publishes PayPal's sandbox association payload at `/.well-known/apple-developer-merchantid-domain-association`; the Express server has an exact route with dotfile access enabled only for this file so Render does not apply the default static dotfile ignore rule.
+- Register the exact HTTPS host `paypal-retail-demo.onrender.com` in the PayPal dashboard Apple Pay settings after the file is deployed. The SDK script alone does not validate the domain.
+- Show Apple Pay only after PayPal eligibility succeeds and Apple Pay JS reports browser/device availability. The latest SDK enables supported non-Safari scan-with-iPhone flows, but it does not make every browser/device eligible.
+- Google Pay separately loads `https://pay.google.com/gp/p/js/pay.js`; the React PayPal component creates the official button and checks `isReadyToPay()`.
+
 ## Render Web Service Deployment
 
 Use Render as a single Node Web Service when a public HTTPS origin is needed for PayPal sandbox QA.

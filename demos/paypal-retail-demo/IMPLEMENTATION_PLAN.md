@@ -609,6 +609,106 @@ During implementation:
 
 - Final API contracts.
 - Final table names and RLS policies.
-- Exact PayPal SDK v6 component APIs.
-- Exact PayPal wallet eligibility prerequisites.
 - Exact PayPal token deletion/revoke API path.
+
+## 2026-07-12 Wallet SDK Upgrade Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Upgrade the PayPal JS SDK packages to the latest published compatible versions, render Apple Pay and Google Pay through official browser/PayPal components, and keep selected wallet actions aligned with the existing 52px checkout action contract.
+
+**Architecture:** `PayPalSdkProviderScope` continues to load the PayPal Web SDK v6 component chosen by the server. The document head loads Apple's auto-updating Apple Pay JS SDK and Google's Pay JS SDK before React mounts. `WalletCheckoutAction` uses the React SDK's official Apple Pay component and Google Pay session hook, mounts Google's official created button into the shared wallet slot, and forwards approved wallet orders into the same checkout capture callback used by PayPal and Pay Later.
+
+**Tech Stack:** React 19, TypeScript, PayPal Web SDK v6, `@paypal/react-paypal-js@10.1.2`, `@paypal/paypal-js@10.0.3`, Apple Pay JS `1.latest`, Google Pay JS, Vitest, Vite.
+
+### Global Constraints
+
+- Keep `PayPalProvider.environment` explicit as `sandbox` or `production`.
+- Do not render a merchant-drawn Google Pay button.
+- Load Apple Pay JS from `https://applepay.cdn-apple.com/jsapi/1.latest/apple-pay-sdk.js` with anonymous CORS and no integrity hash.
+- Load Google Pay JS from `https://pay.google.com/gp/p/js/pay.js`.
+- Serve PayPal's sandbox Apple domain-association payload at `/.well-known/apple-developer-merchantid-domain-association` and register the deployed Render domain in the PayPal dashboard.
+- Style only merchant-owned wrappers and supported Apple custom properties; do not reach into provider shadow DOM or iframes.
+
+### Task 1: Lock Browser SDK And Static Association Requirements
+
+**Files:**
+- Create: `web/src/features/payments/walletSdkAssets.test.ts`
+- Modify: `web/index.html`
+- Create: `web/public/.well-known/apple-developer-merchantid-domain-association`
+
+**Interfaces:**
+- Consumes: Vite's `web/public` static-file contract.
+- Produces: `window.ApplePaySession`, the registered `<apple-pay-button>` custom element, `window.google.payments.api.PaymentsClient`, and the public Apple validation path.
+
+- [x] Write a failing test that reads `web/index.html`, requires both official SDK URLs, requires `crossorigin="anonymous"` on Apple Pay JS, and requires a nonempty hexadecimal domain-association file.
+- [x] Run `npm test -- web/src/features/payments/walletSdkAssets.test.ts`; expect failure because both scripts and the well-known file are absent.
+- [x] Add the Apple and Google scripts before `/src/main.tsx`, and add the downloaded PayPal sandbox association payload under `web/public/.well-known/`.
+- [x] Re-run the focused test and expect it to pass.
+
+### Task 2: Upgrade PayPal Packages Without Regressing Provider Configuration
+
+**Files:**
+- Modify: `package.json`
+- Modify: `package-lock.json`
+- Verify: `web/src/features/payments/PayPalSdkProviderScope.test.tsx`
+
+**Interfaces:**
+- Consumes: server `environment`, `components`, locale, page type, and sandbox test-buyer-country SDK configuration.
+- Produces: v10 `PayPalProvider` props with an explicit environment.
+
+- [x] Install `@paypal/react-paypal-js@10.1.2` so npm resolves its compatible `@paypal/paypal-js@10.0.3` dependency.
+- [x] Run the provider test and TypeScript checks; expect the existing explicit `environment` mapping to satisfy the v10 breaking change.
+- [x] Make only type/API adaptations required by the published v10 declarations.
+
+### Task 3: Replace The Fake Google Pay Control And Bridge Wallet Approval
+
+**Files:**
+- Create: `web/src/features/payments/WalletCheckoutAction.runtime.test.tsx`
+- Modify: `web/src/features/payments/WalletCheckoutAction.tsx`
+- Modify: `web/src/app/App.tsx`
+- Modify: `web/src/app/App.checkout-paypal-capture.test.tsx`
+
+**Interfaces:**
+- Consumes: `useGooglePayOneTimePaymentSession`, its official `createGooglePayButton()` output, wallet eligibility config, checkout create-order APIs, and the existing `CheckoutApprovedPaymentContext` callback.
+- Produces: official Google `PaymentsClient.createButton()` rendering and approved Apple/Google/Venmo order context containing method, fulfillment mode, PayPal order ID, and payment-session ID.
+
+- [x] Write a failing component test whose mocked Google Pay session hook receives `googlePayConfig`, final `transactionInfo`, `createOrder`, and `onApprove`; assert the official returned element mounts and no merchant-drawn Google Pay button is used.
+- [x] Write a failing App interaction/capture test proving a Google Pay approval reaches the existing capture flow once with the created payment-session ID.
+- [x] Replace `GooglePayRuntimeSurface` with the eligibility-driven Google Pay session hook, mount `createGooglePayButton()` directly into the 52px action container, and retain the last create-order response for approval bridging.
+- [x] Route Apple Pay, Google Pay, and Venmo approval callbacks through `renderCheckoutPaymentAction(...).onApproved`.
+- [x] Run the focused wallet and checkout-capture tests and expect them to pass.
+
+### Task 4: Normalize Official Wallet Button Dimensions
+
+**Files:**
+- Modify: `web/src/styles/global.test.ts`
+- Modify: `web/src/styles/global.css`
+
+**Interfaces:**
+- Consumes: existing `.wallet-checkout-action` 52px selected-action slot.
+- Produces: full-width 52px Apple, Google, and Venmo actions in desktop summary, sticky summary, and mobile order sheet.
+
+- [x] Add failing CSS assertions for the Apple custom-element height variables and the official Google button container.
+- [x] Set supported Apple Pay custom properties (`--apple-pay-button-width`, `--apple-pay-button-height`, `--apple-pay-button-border-radius`) and size the Google component's merchant-owned container to the same 52px contract.
+- [x] Delete the fake Google button rules and run `npm test -- web/src/styles/global.test.ts`.
+
+### Task 5: Documentation, Verification, And Review
+
+**Files:**
+- Modify: `DEMO.md`
+- Modify: `DESIGN.md`
+- Modify: `IMPLEMENTATION_TASKS.md`
+- Modify: `tracking/test-cases.md`
+- Modify: `tracking/debug.md`
+- Modify: `tracking/progress.md`
+- Modify: `tracking/todos.md`
+
+**Interfaces:**
+- Consumes: focused test/build/browser evidence.
+- Produces: current source-of-truth prerequisites, completion state, and any remaining PayPal dashboard/deployment actions.
+
+- [x] Record the version upgrade, SDK-loading rules, official Google session/button path, domain-validation dependency, and wallet height acceptance criteria.
+- [x] Run focused tests, `npm run typecheck`, `npm run build`, `npm run lint`, `npm run format:check`, and `git diff --check`.
+- [x] Start the local app and verify both external SDK requests, official wallet element geometry, absence of the fake Google button, and the well-known route.
+- [x] Spawn an independent read-only review subagent, resolve any findings, and repeat affected verification.

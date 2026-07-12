@@ -127,6 +127,7 @@ import {
 } from "../features/payments/deliveryExpress.js";
 import {
   WalletCheckoutAction,
+  type WalletCheckoutApprovedContext,
   type WalletPaymentMethod,
 } from "../features/payments/WalletCheckoutAction.js";
 import { StatusRegion } from "../components/accessibility.js";
@@ -718,6 +719,7 @@ type CartRefreshTrigger = "checkout_start" | "express_payment_start";
 type CheckoutApprovedPaymentContext =
   | PayPalStandaloneApprovedContext
   | PayLaterStandaloneApprovedContext
+  | WalletCheckoutApprovedContext
   | CardFieldsApprovedContext;
 
 interface CaptureOrderApiResponse {
@@ -2629,12 +2631,7 @@ function BuyerShell({
   async function handleCheckoutPaymentApproved(
     context: CheckoutApprovedPaymentContext,
   ) {
-    const paymentMethodLabel =
-      context.method === "paylater"
-        ? "Pay Later"
-        : context.method === "card"
-          ? "card payment"
-          : "PayPal";
+    const paymentMethodLabel = formatCheckoutPaymentMethod(context.method);
 
     console.info("[paypal-retail-demo] Checkout payment approved", {
       fulfillmentMode: context.fulfillmentMode,
@@ -5606,6 +5603,7 @@ function renderCheckoutPaymentAction({
           fulfillmentMode={context.fulfillmentMode}
           market={config.market.code}
           method={context.selectedPaymentMethod}
+          onApproved={onApproved}
           requestOptions={requestOptions}
           storeDisplayName={config.profile.displayName}
           totalLabel={context.totalLabel}

@@ -31,6 +31,7 @@ import {
   buildPayPalProviderOptions,
   buildPayPalSdkConfigQuery,
   type PayPalSdkConfigResponse,
+  usePayPalSdkConfig,
 } from "./PayPalSdkProviderScope.js";
 
 afterEach(() => {
@@ -228,6 +229,33 @@ describe("PayPalSdkProviderScope", () => {
     expect(html).toContain("Payment subtree");
   });
 
+  it("provides the resolved SDK environment to wallet components", () => {
+    const config = sdkConfig({
+      environment: "production",
+      provider_key: "paypal:production:PAYPAL_PUBLIC_CLIENT_ID:GB:GBP",
+      sandbox_test_buyer_country: null,
+    });
+
+    render(
+      <PayPalSdkProviderScope
+        providerKey={config.provider_key}
+        configRequest={{
+          market: "GB",
+          pageType: "checkout",
+          flow: "standard",
+          method: "google_pay",
+        }}
+        initialSdkConfig={config}
+      >
+        <SdkEnvironmentProbe />
+      </PayPalSdkProviderScope>,
+    );
+
+    expect(screen.getByTestId("sdk-environment").textContent).toBe(
+      "production",
+    );
+  });
+
   it("does not refetch SDK config when an equivalent config request object is rerendered", async () => {
     const requests: Array<ApiQueryParams | undefined> = [];
     const apiClient: ApiClient = {
@@ -271,6 +299,12 @@ describe("PayPalSdkProviderScope", () => {
     expect(requests).toHaveLength(1);
   });
 });
+
+function SdkEnvironmentProbe() {
+  const config = usePayPalSdkConfig();
+
+  return <span data-testid="sdk-environment">{config.environment}</span>;
+}
 
 function sdkConfig(
   overrides: Partial<PayPalSdkConfigResponse> = {},

@@ -64,7 +64,7 @@ describe("WalletCheckoutAction", () => {
 
   it.each([
     ["apple_pay", "applepay-payments", "Apple Pay eligibility pending."],
-    ["google_pay", "googlepay-payments", "Google Pay runtime pending."],
+    ["google_pay", "googlepay-payments", "Google Pay eligibility pending."],
     ["venmo", "venmo-payments", "Venmo payment button ready."],
   ] as const)(
     "renders the %s checkout wallet surface",

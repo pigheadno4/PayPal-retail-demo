@@ -5603,7 +5603,7 @@ a {
   display: grid;
   gap: 8px;
   min-height: 52px;
-  padding: 8px;
+  padding: 0;
   width: 100%;
 }
 
@@ -5612,7 +5612,21 @@ a {
 .wallet-checkout-action apple-pay-button,
 .wallet-checkout-action venmo-button {
   display: block;
-  min-height: 44px;
+  min-height: 52px;
+  width: 100%;
+}
+
+.wallet-checkout-action apple-pay-button {
+  --apple-pay-button-border-radius: var(--shell-compact-radius);
+  --apple-pay-button-height: 52px;
+  --apple-pay-button-width: 100%;
+  display: block;
+  height: 52px;
+  width: 100%;
+}
+
+.wallet-checkout-action__apple-pay-button {
+  height: 52px;
   width: 100%;
 }
 
@@ -5656,24 +5670,8 @@ a {
 
 .wallet-checkout-action__google-pay {
   display: grid;
-  min-height: 44px;
-}
-
-.wallet-checkout-action__google-pay-button {
-  background: #191919;
-  border: 0;
-  border-radius: var(--shell-compact-radius);
-  color: #ffffff;
-  cursor: pointer;
-  font-weight: 900;
-  min-height: 44px;
-  padding: 0 14px;
+  height: 52px;
   width: 100%;
-}
-
-.wallet-checkout-action__google-pay-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .card-fields-checkout-action {
@@ -5941,14 +5939,14 @@ a {
 .checkout-sticky-summary .paylater-standalone-action paypal-pay-later-button,
 .checkout-sticky-summary .wallet-checkout-action apple-pay-button,
 .checkout-sticky-summary .wallet-checkout-action venmo-button,
-.checkout-sticky-summary .wallet-checkout-action__google-pay-button,
+.checkout-sticky-summary .wallet-checkout-action__google-pay,
 .checkout-order-sheet__payment .paypal-standalone-action paypal-button,
 .checkout-order-sheet__payment
   .paylater-standalone-action
   paypal-pay-later-button,
 .checkout-order-sheet__payment .wallet-checkout-action apple-pay-button,
 .checkout-order-sheet__payment .wallet-checkout-action venmo-button,
-.checkout-order-sheet__payment .wallet-checkout-action__google-pay-button {
+.checkout-order-sheet__payment .wallet-checkout-action__google-pay {
   min-height: 52px;
   width: 100%;
 }

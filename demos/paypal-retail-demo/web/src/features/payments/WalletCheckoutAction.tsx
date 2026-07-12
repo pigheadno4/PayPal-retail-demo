@@ -2,16 +2,19 @@ import {
   ApplePayOneTimePaymentButton,
   VenmoOneTimePaymentButton,
   useEligibleMethods,
-  usePayPal,
+  useGooglePayOneTimePaymentSession,
 } from "@paypal/react-paypal-js/sdk-v6";
 import {
   useCallback,
-  useMemo,
+  useEffect,
+  useRef,
   type ReactEventHandler,
   type ReactNode,
 } from "react";
 import type {
   ConfirmOrderResponse,
+  GooglePayApprovePaymentResponse,
+  GooglePayConfigFromFindEligibleMethods,
   OnApproveDataOneTimePayments,
   OnCancelDataOneTimePayments,
   OnErrorData,
@@ -25,6 +28,7 @@ import { StatusRegion } from "../../components/accessibility.js";
 import { useApiClient } from "../../state/appProviders.js";
 import { type CheckoutFulfillmentMode } from "../checkout/CheckoutPage.js";
 import { type PayPalCreateOrderResponse } from "./PayPalStandaloneAction.js";
+import { usePayPalSdkConfig } from "./PayPalSdkProviderScope.js";
 import { normalizePayLaterMessageAmount } from "./payLaterRuntime.js";
 
 export type WalletPaymentMethod = "apple_pay" | "google_pay" | "venmo";
@@ -35,9 +39,19 @@ export interface WalletCheckoutActionProps {
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly market: string;
   readonly method: WalletPaymentMethod;
+  readonly onApproved?: (
+    context: WalletCheckoutApprovedContext,
+  ) => Promise<void> | void;
   readonly requestOptions?: ApiRequestOptions | undefined;
   readonly storeDisplayName: string;
   readonly totalLabel: string;
+}
+
+export interface WalletCheckoutApprovedContext {
+  readonly fulfillmentMode: CheckoutFulfillmentMode;
+  readonly method: WalletPaymentMethod;
+  readonly paypalOrderId: string;
+  readonly paymentSessionId?: string;
 }
 
 export interface WalletCreateOrderRequest {
@@ -62,7 +76,20 @@ const handleApplePayErrorForSdk = handleApplePayError as ((
   ReactEventHandler<HTMLElement>;
 
 export function WalletCheckoutAction(props: WalletCheckoutActionProps) {
-  const createOrder = useWalletCreateOrder(props);
+  const { createOrder, lastCreatedOrder } = useWalletCreateOrder(props);
+  const handleApproved = useCallback(
+    async (paypalOrderId: string) => {
+      await props.onApproved?.({
+        fulfillmentMode: props.fulfillmentMode,
+        method: props.method,
+        paypalOrderId,
+        ...(lastCreatedOrder.current?.payment_session_id
+          ? { paymentSessionId: lastCreatedOrder.current.payment_session_id }
+          : {}),
+      });
+    },
+    [props.fulfillmentMode, props.method, props.onApproved],
+  );
   const commonProps = {
     checkoutDraftId: props.checkoutDraftId,
     fulfillmentMode: props.fulfillmentMode,
@@ -70,23 +97,22 @@ export function WalletCheckoutAction(props: WalletCheckoutActionProps) {
   };
 
   if (props.method === "apple_pay") {
-    return <ApplePayWalletAction {...props} createOrder={createOrder} />;
+    return (
+      <ApplePayWalletAction
+        {...props}
+        createOrder={createOrder}
+        onWalletApproved={handleApproved}
+      />
+    );
   }
 
   if (props.method === "google_pay") {
     return (
-      <WalletActionShell
-        {...commonProps}
-        statusLabel="Google Pay runtime pending."
-      >
-        <GooglePayRuntimeSurface
-          createOrder={createOrder}
-          currencyCode={props.currencyCode}
-          market={props.market}
-          storeDisplayName={props.storeDisplayName}
-          totalLabel={props.totalLabel}
-        />
-      </WalletActionShell>
+      <GooglePayWalletAction
+        {...props}
+        createOrder={createOrder}
+        onWalletApproved={handleApproved}
+      />
     );
   }
 
@@ -97,7 +123,10 @@ export function WalletCheckoutAction(props: WalletCheckoutActionProps) {
     >
       <VenmoOneTimePaymentButton
         createOrder={createOrder}
-        onApprove={handleVenmoApprove}
+        onApprove={async (data) => {
+          handleVenmoApprove(data);
+          await handleApproved(data.orderId);
+        }}
         onCancel={handleVenmoCancel}
         onError={handleVenmoError}
         presentationMode="auto"
@@ -170,74 +199,145 @@ function WalletActionShell({
   );
 }
 
-function GooglePayRuntimeSurface({
+function GooglePayWalletAction({
+  checkoutDraftId,
   createOrder,
   currencyCode,
+  fulfillmentMode,
   market,
-  storeDisplayName,
+  method,
+  onWalletApproved,
   totalLabel,
+}: WalletCheckoutActionProps & {
+  readonly createOrder: () => Promise<{ readonly orderId: string }>;
+  readonly onWalletApproved: (paypalOrderId: string) => Promise<void>;
+}) {
+  const amount = normalizePayLaterMessageAmount(totalLabel);
+  const { environment } = usePayPalSdkConfig();
+  const { eligiblePaymentMethods, error, isLoading } = useEligibleMethods({
+    payload: {
+      amount,
+      currencyCode,
+      paymentFlow: "ONE_TIME_PAYMENT",
+    },
+  });
+  const googlePayConfig =
+    eligiblePaymentMethods?.isEligible("googlepay") === true
+      ? eligiblePaymentMethods.getDetails("googlepay").config
+      : null;
+  const statusLabel = error
+    ? "Google Pay eligibility could not be checked."
+    : isLoading || !googlePayConfig
+      ? "Google Pay eligibility pending."
+      : "Google Pay button ready.";
+
+  return (
+    <WalletActionShell
+      checkoutDraftId={checkoutDraftId}
+      fulfillmentMode={fulfillmentMode}
+      method={method}
+      statusLabel={statusLabel}
+    >
+      {googlePayConfig ? (
+        <GooglePayButtonHost
+          createOrder={createOrder}
+          environment={environment === "production" ? "PRODUCTION" : "TEST"}
+          googlePayConfig={googlePayConfig}
+          onApprove={async (data) => {
+            handleGooglePayApprove(data);
+            await onWalletApproved(data.id);
+          }}
+          transactionInfo={{
+            countryCode: market,
+            currencyCode,
+            totalPrice: amount,
+            totalPriceStatus: "FINAL",
+          }}
+        />
+      ) : null}
+    </WalletActionShell>
+  );
+}
+
+function GooglePayButtonHost({
+  createOrder,
+  environment,
+  googlePayConfig,
+  onApprove,
+  transactionInfo,
 }: {
   readonly createOrder: () => Promise<{ readonly orderId: string }>;
-  readonly currencyCode: string;
-  readonly market: string;
-  readonly storeDisplayName: string;
-  readonly totalLabel: string;
+  readonly environment: "TEST" | "PRODUCTION";
+  readonly googlePayConfig: GooglePayConfigFromFindEligibleMethods;
+  readonly onApprove: (
+    data: GooglePayApprovePaymentResponse,
+  ) => Promise<void> | void;
+  readonly transactionInfo: {
+    readonly countryCode: string;
+    readonly currencyCode: string;
+    readonly totalPrice: string;
+    readonly totalPriceStatus: "FINAL";
+  };
 }) {
-  const paypal = usePayPal();
-  const hasGooglePaySession =
-    typeof paypal.sdkInstance?.createGooglePayOneTimePaymentSession ===
-    "function";
-  const hasGooglePaymentsClient =
-    typeof globalThis.window !== "undefined" &&
-    typeof globalThis.window.google?.payments?.api?.PaymentsClient ===
-      "function";
-  const readinessLabel =
-    hasGooglePaySession && hasGooglePaymentsClient
-      ? "Google Pay runtime ready."
-      : "Google Pay runtime pending.";
-  const debugPayload = useMemo(
-    () => ({
-      amount: normalizePayLaterMessageAmount(totalLabel),
-      currencyCode,
-      googlePaymentsClientAvailable: hasGooglePaymentsClient,
-      market,
-      paypalGooglePaySessionAvailable: hasGooglePaySession,
-      storeDisplayName,
-    }),
-    [
-      currencyCode,
-      hasGooglePaySession,
-      hasGooglePaymentsClient,
-      market,
-      storeDisplayName,
-      totalLabel,
-    ],
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { createGooglePayButton, handleClick, handleDestroy, isPending } =
+    useGooglePayOneTimePaymentSession({
+      createOrder,
+      environment,
+      googlePayConfig,
+      onApprove,
+      onCancel: handleGooglePayCancel,
+      onError: handleGooglePayError,
+      transactionInfo,
+    });
+  const handleClickRef = useRef(handleClick);
+  handleClickRef.current = handleClick;
+
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    if (isPending) {
+      container.replaceChildren();
+      return;
+    }
+
+    let isCurrent = true;
+    void createGooglePayButton({
+      buttonColor: "black",
+      buttonSizeMode: "fill",
+      buttonType: "pay",
+      onClick: () => {
+        void handleClickRef.current();
+      },
+    }).then((button) => {
+      if (isCurrent && button) {
+        container.replaceChildren(button);
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+      container.replaceChildren();
+    };
+  }, [createGooglePayButton, isPending]);
+
+  useEffect(
+    () => () => {
+      handleDestroy();
+    },
+    [handleDestroy],
   );
 
   return (
     <div
+      ref={containerRef}
       className="wallet-checkout-action__google-pay"
-      data-google-pay-runtime-status={
-        hasGooglePaySession && hasGooglePaymentsClient ? "ready" : "pending"
-      }
-    >
-      <StatusRegion id="google-pay-runtime-status" className="sr-only">
-        {readinessLabel}
-      </StatusRegion>
-      <button
-        className="wallet-checkout-action__google-pay-button"
-        disabled={!hasGooglePaySession || !hasGooglePaymentsClient}
-        onClick={() => {
-          console.info("[paypal-retail-demo] Google Pay runtime requested", {
-            ...debugPayload,
-          });
-          void createOrder();
-        }}
-        type="button"
-      >
-        Google Pay
-      </button>
-    </div>
+      data-google-pay-runtime-status={isPending ? "pending" : "ready"}
+    />
   );
 }
 
@@ -248,10 +348,12 @@ function ApplePayWalletAction({
   fulfillmentMode,
   market,
   method,
+  onWalletApproved,
   storeDisplayName,
   totalLabel,
 }: WalletCheckoutActionProps & {
   readonly createOrder: () => Promise<{ readonly orderId: string }>;
+  readonly onWalletApproved: (paypalOrderId: string) => Promise<void>;
 }) {
   const amount = normalizePayLaterMessageAmount(totalLabel);
   const { eligiblePaymentMethods, error, isLoading } = useEligibleMethods({
@@ -288,6 +390,9 @@ function ApplePayWalletAction({
           displayName={storeDisplayName}
           locale={market === "GB" ? "en-GB" : "en-US"}
           onApprove={handleApplePayApprove}
+          onApproveCompleted={async (data) => {
+            await onWalletApproved(data.approveApplePayPayment.id);
+          }}
           onCancel={handleApplePayCancel}
           onError={handleApplePayErrorForSdk}
           paymentRequest={{
@@ -314,8 +419,9 @@ function useWalletCreateOrder({
   requestOptions,
 }: WalletCheckoutActionProps) {
   const apiClient = useApiClient();
+  const lastCreatedOrder = useRef<PayPalCreateOrderResponse | null>(null);
 
-  return useCallback(async () => {
+  const createOrder = useCallback(async () => {
     const request = buildWalletCreateOrderRequest({
       checkoutDraftId,
       fulfillmentMode,
@@ -329,6 +435,7 @@ function useWalletCreateOrder({
       request.query,
       request.options,
     );
+    lastCreatedOrder.current = order;
 
     console.info("[paypal-retail-demo] Wallet order created", {
       merchantOrderId: order.merchant_order_id ?? null,
@@ -348,6 +455,11 @@ function useWalletCreateOrder({
     method,
     requestOptions,
   ]);
+
+  return {
+    createOrder,
+    lastCreatedOrder,
+  };
 }
 
 function handleApplePayApprove(data: ConfirmOrderResponse) {
@@ -363,6 +475,23 @@ function handleApplePayCancel() {
 
 function handleApplePayError(error: Error) {
   console.error("[paypal-retail-demo] Apple Pay order error", {
+    message: error.message,
+  });
+}
+
+function handleGooglePayApprove(data: GooglePayApprovePaymentResponse) {
+  console.info("[paypal-retail-demo] Google Pay order approved", {
+    paypalOrderId: data.id,
+    status: data.status,
+  });
+}
+
+function handleGooglePayCancel() {
+  console.info("[paypal-retail-demo] Google Pay order canceled");
+}
+
+function handleGooglePayError(error: Error) {
+  console.error("[paypal-retail-demo] Google Pay order error", {
     message: error.message,
   });
 }
@@ -386,16 +515,4 @@ function handleVenmoError(error: OnErrorData) {
     message: error.message,
     recoverable: error.isRecoverable,
   });
-}
-
-declare global {
-  interface Window {
-    readonly google?: {
-      readonly payments?: {
-        readonly api?: {
-          readonly PaymentsClient?: unknown;
-        };
-      };
-    };
-  }
 }

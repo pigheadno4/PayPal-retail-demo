@@ -386,6 +386,12 @@ Verification:
 - [x] Detect Pay Later message slots that report ready but render empty, then show the same buyer-safe fallback and structured console evidence.
 - [x] Render card fields expanded in the payment step with save checkbox inside card box.
 - [x] Render Apple Pay, Google Pay, and Venmo buttons only when eligible.
+- [x] Upgrade the wallet integration to `@paypal/react-paypal-js@10.1.2` / `@paypal/paypal-js@10.0.3` while preserving the explicit v10 provider `environment` option.
+- [x] Load Apple's auto-updating `1.latest` SDK and Google Pay JS before React, and publish PayPal's sandbox Apple domain-association payload at the well-known path.
+- [x] Replace the fake disabled Google Pay control with `useGooglePayOneTimePaymentSession` plus the official `createGooglePayButton()` output, and forward Apple Pay, Google Pay, and Venmo approvals into the existing checkout capture bridge.
+- [x] Normalize official wallet controls to the 52px selected-action contract through supported Apple custom properties, Google fill mode, and merchant-owned wrappers.
+- [ ] Hide Apple Pay and Google Pay radio rows until device/browser plus provider eligibility is established; feature flags alone are not sufficient eligibility proof.
+- [ ] Register `paypal-retail-demo.onrender.com` as an Apple Pay domain in the PayPal dashboard, deploy the well-known file, and capture eligible-device/browser proof.
 - [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
 - [x] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.
 

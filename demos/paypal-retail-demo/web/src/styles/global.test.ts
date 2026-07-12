@@ -90,7 +90,7 @@ describe("global storefront visual tokens", () => {
   it("links a local favicon so visual QA is not polluted by favicon 404 noise", () => {
     expect(indexHtml).toContain('rel="icon"');
     expect(indexHtml).toContain('href="/favicon.svg"');
-    expect(indexHtml).not.toContain("https://");
+    expect(indexHtml).not.toMatch(/rel="icon"[^>]+href="https:\/\//);
   });
 
   it("keeps pickup inventory rows compact and scannable across checkout widths", () => {
@@ -608,6 +608,12 @@ describe("global storefront visual tokens", () => {
     const checkoutSdkButtonBlock = cssBlock(
       ".paypal-standalone-action paypal-button,\n.paylater-standalone-action paypal-pay-later-button,\n.wallet-checkout-action apple-pay-button,\n.wallet-checkout-action venmo-button",
     );
+    const applePayButtonBlock = cssBlock(
+      ".wallet-checkout-action apple-pay-button",
+    );
+    const googlePayContainerBlock = cssBlock(
+      ".wallet-checkout-action__google-pay",
+    );
     const paylaterAmountMessageBlock = cssBlockContaining(
       ".paylater-amount-message",
       "min-height",
@@ -788,8 +794,22 @@ describe("global storefront visual tokens", () => {
     expect(walletCheckoutActionBlock).toContain("min-height: 52px");
     expect(walletCheckoutActionBlock).toContain("width: 100%");
     expect(checkoutSdkButtonBlock).toContain("display: block");
-    expect(checkoutSdkButtonBlock).toContain("min-height: 44px");
+    expect(checkoutSdkButtonBlock).toContain("min-height: 52px");
     expect(checkoutSdkButtonBlock).toContain("width: 100%");
+    expect(applePayButtonBlock).toContain("--apple-pay-button-width: 100%");
+    expect(applePayButtonBlock).toContain("--apple-pay-button-height: 52px");
+    expect(applePayButtonBlock).toContain(
+      "--apple-pay-button-border-radius: var(--shell-compact-radius)",
+    );
+    expect(googlePayContainerBlock).toContain("display: grid");
+    expect(googlePayContainerBlock).toContain("height: 52px");
+    expect(googlePayContainerBlock).toContain("width: 100%");
+    expect(globalCss).not.toContain(
+      ".wallet-checkout-action__google-pay > div",
+    );
+    expect(globalCss).not.toContain(
+      ".wallet-checkout-action__google-pay-button",
+    );
     expect(paylaterAmountMessageBlock).toContain("min-height: 28px");
     expect(paylaterSdkMessageBlock).toContain("display: block");
     expect(paylaterSdkMessageBlock).toContain("min-height: 28px");

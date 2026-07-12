@@ -1106,6 +1106,9 @@ Rules:
 - Google Pay selected: official Google Pay button under Order Summary when eligible.
 - Venmo selected: official Venmo button under Order Summary when eligible.
 - Ineligible wallet rows are hidden and do not render Order Summary or sticky actions. Google Pay must stay runtime-gated until the PayPal Google Pay session and Google PaymentsClient are both available.
+- Wallet SDK contract (2026-07-12): use `@paypal/react-paypal-js@10.1.2` with `@paypal/paypal-js@10.0.3`; load Apple Pay JS from the auto-updating `https://applepay.cdn-apple.com/jsapi/1.latest/apple-pay-sdk.js` URL and Google Pay JS from `https://pay.google.com/gp/p/js/pay.js` before React mounts. Apple Pay still requires the Render HTTPS domain association file plus PayPal dashboard registration. Google Pay must use `useGooglePayOneTimePaymentSession` and mount the official element returned by `createGooglePayButton()` directly into the explicitly sized merchant container, so Google's `buttonSizeMode: "fill"` can honor the shared 52px wallet height.
+- Wallet lifecycle contract (2026-07-12): resolved PayPal environment is available to wallet children; Google maps `sandbox` to `TEST` and `production` to `PRODUCTION`. Apple `onApprove` remains fast so the SDK can complete the Apple Pay session inside its strict timeout, while checkout review/capture/cart follow-up starts from `onApproveCompleted`.
+- Wallet action height contract (2026-07-12): Apple Pay, Google Pay, and Venmo official controls fill a 52px merchant-owned action slot. Apple Pay sizing uses only Apple's supported custom properties; Google Pay uses `buttonSizeMode="fill"` and a 52px merchant-owned container. Do not style provider shadow DOM or iframe internals.
 - Card selected: card fields expand in payment section; card pay button is inside card box.
 - Order Summary reserves stable space only after a selected non-card provider action is active; before payment selection, there is no payment placeholder panel.
 - Selected Pay Later action reserves stable space for PayPal message rendering and shows buyer-safe fallback copy if PayPal presentment content is unavailable or renders empty.
@@ -1524,9 +1527,7 @@ Round 4 hard blockers:
 
 ## Open Decisions
 
-- Exact PayPal JS SDK v6 APIs for each payment method.
 - Exact PayPal vaulting support per method.
-- Exact PayPal Apple Pay / Google Pay prerequisites.
 - Exact Venmo sandbox support and eligibility behavior.
 - Final Supabase schema naming and RLS model.
 

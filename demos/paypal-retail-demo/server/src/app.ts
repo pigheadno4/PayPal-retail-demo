@@ -294,6 +294,23 @@ export function createApp(input: CreateAppInput = {}) {
   app.use("/api", createApiErrorMiddleware(input.debugLogger));
 
   if (input.staticAssetDirectory) {
+    app.get(
+      "/.well-known/apple-developer-merchantid-domain-association",
+      (_request, response, next) => {
+        response.sendFile(
+          ".well-known/apple-developer-merchantid-domain-association",
+          {
+            dotfiles: "allow",
+            root: input.staticAssetDirectory,
+          },
+          (error) => {
+            if (error) {
+              next(error);
+            }
+          },
+        );
+      },
+    );
     app.use(
       express.static(input.staticAssetDirectory, {
         index: false,

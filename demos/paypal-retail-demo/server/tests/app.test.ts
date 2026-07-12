@@ -5,10 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import {
-  createDebugLogger,
-  type DebugLogEntry,
-} from "../src/debug/logger.js";
+import { createDebugLogger, type DebugLogEntry } from "../src/debug/logger.js";
 import type {
   CatalogProductListFilters,
   CatalogRepository,
@@ -138,6 +135,7 @@ describe("Express app shell", () => {
 
     try {
       await mkdir(join(staticAssetDirectory, "assets"));
+      await mkdir(join(staticAssetDirectory, ".well-known"));
       await writeFile(
         join(staticAssetDirectory, "index.html"),
         '<div id="root"></div><script type="module" src="/assets/app.js"></script>',
@@ -145,6 +143,14 @@ describe("Express app shell", () => {
       await writeFile(
         join(staticAssetDirectory, "assets", "app.js"),
         'console.log("storefront");',
+      );
+      await writeFile(
+        join(
+          staticAssetDirectory,
+          ".well-known",
+          "apple-developer-merchantid-domain-association",
+        ),
+        "PAYPAL_APPLE_DOMAIN_ASSOCIATION",
       );
 
       const app = createApp({ staticAssetDirectory });
@@ -155,6 +161,11 @@ describe("Express app shell", () => {
       );
       const assetResponse = await requestApp(app, "GET", "/assets/app.js");
       const apiResponse = await requestApp(app, "GET", "/api/missing-route");
+      const appleDomainResponse = await requestApp(
+        app,
+        "GET",
+        "/.well-known/apple-developer-merchantid-domain-association",
+      );
 
       expect(productRouteResponse.status).toBe(200);
       expect(String(productRouteResponse.headers["content-type"])).toContain(
@@ -168,6 +179,9 @@ describe("Express app shell", () => {
         "text/javascript",
       );
       expect(assetResponse.text).toContain('console.log("storefront");');
+
+      expect(appleDomainResponse.status).toBe(200);
+      expect(appleDomainResponse.text).toBe("PAYPAL_APPLE_DOMAIN_ASSOCIATION");
 
       expect(apiResponse.status).toBe(404);
       expect(apiResponse.json).toEqual({

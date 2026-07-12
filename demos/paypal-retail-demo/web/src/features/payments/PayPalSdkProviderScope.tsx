@@ -3,7 +3,14 @@ import {
   PayPalProvider,
   usePayPal,
 } from "@paypal/react-paypal-js/sdk-v6";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Components, PageTypes } from "@paypal/paypal-js/sdk-v6";
 
 import {
@@ -62,6 +69,10 @@ export interface PayPalSdkProviderScopeProps {
   readonly fallback?: ReactNode;
   readonly children: ReactNode;
 }
+
+const PayPalSdkConfigContext = createContext<PayPalSdkConfigResponse | null>(
+  null,
+);
 
 type PayPalSdkLoadState =
   | {
@@ -205,17 +216,31 @@ export function PayPalSdkProviderScope({
           key={loadState.config.provider_key}
           {...buildPayPalProviderOptions(loadState.config)}
         >
-          <PayPalSdkRuntimeBoundary
-            fallback={fallback}
-            methodLabel={methodLabel}
-            statusId={`${statusIdBase}-runtime-status`}
-          >
-            {children}
-          </PayPalSdkRuntimeBoundary>
+          <PayPalSdkConfigContext.Provider value={loadState.config}>
+            <PayPalSdkRuntimeBoundary
+              fallback={fallback}
+              methodLabel={methodLabel}
+              statusId={`${statusIdBase}-runtime-status`}
+            >
+              {children}
+            </PayPalSdkRuntimeBoundary>
+          </PayPalSdkConfigContext.Provider>
         </PayPalProvider>
       ) : null}
     </section>
   );
+}
+
+export function usePayPalSdkConfig(): PayPalSdkConfigResponse {
+  const config = useContext(PayPalSdkConfigContext);
+
+  if (!config) {
+    throw new Error(
+      "usePayPalSdkConfig must be used within a ready PayPalSdkProviderScope",
+    );
+  }
+
+  return config;
 }
 
 export function buildPayPalSdkConfigQuery(

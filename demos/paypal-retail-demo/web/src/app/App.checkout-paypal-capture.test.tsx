@@ -133,14 +133,47 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
     },
     useEligibleMethods: () => ({
       eligiblePaymentMethods: {
-        getDetails: () => ({
-          countryCode: "US",
-          productCode: "PAY_LATER",
-        }),
-        isEligible: (method: string) => method === "paylater",
+        getDetails: (method: string) =>
+          method === "googlepay"
+            ? { config: { merchantInfo: { merchantName: "POP MART" } } }
+            : {
+                countryCode: "US",
+                productCode: "PAY_LATER",
+              },
+        isEligible: (method: string) =>
+          method === "paylater" || method === "googlepay",
       },
       error: null,
       isLoading: false,
+    }),
+    useGooglePayOneTimePaymentSession: ({
+      createOrder,
+      onApprove,
+    }: {
+      readonly createOrder: () => Promise<{ readonly orderId: string }>;
+      readonly onApprove: (data: {
+        readonly id: string;
+        readonly status: string;
+      }) => Promise<void> | void;
+    }) => ({
+      createGooglePayButton: async ({
+        onClick,
+      }: {
+        readonly onClick: () => void;
+      }) => {
+        const button = document.createElement("button");
+        button.textContent = "Mock Google Pay";
+        button.type = "button";
+        button.addEventListener("click", onClick);
+        return button;
+      },
+      handleClick: async () => {
+        paypalButtonMockState.createOrderCallbacks();
+        const { orderId } = await createOrder();
+        await onApprove({ id: orderId, status: "APPROVED" });
+      },
+      handleDestroy: vi.fn(),
+      isPending: false,
     }),
     usePayPal: () => ({
       loadingStatus: "resolved",
@@ -318,6 +351,93 @@ describe("App checkout PayPal capture", () => {
     expect(
       screen.getByRole("button", { name: "Open minicart" }).textContent,
     ).toContain("0");
+  });
+
+  it("captures an approved official Google Pay checkout order", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse({
+          paymentMethodLabel: "Google Pay",
+          paymentSessionId: "payment_session_google_checkout",
+          paypalOrderId: "PAYPAL_ORDER_GOOGLE_CHECKOUT",
+        }),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        emptyCartApiResponse({
+          cartClientSecret: "cart_secret_after_google_capture",
+          cartPublicId: "cart_public_after_google_capture",
+        }),
+      ],
+      patchResponse: checkoutDraftApiResponse(),
+      postResponseByPath: {
+        "/api/checkout/drafts": checkoutDraftApiResponse(),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260712-000001",
+          payment_session_id: "payment_session_google_checkout",
+          paypal_order_id: "PAYPAL_ORDER_GOOGLE_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-google-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_GOOGLE_CHECKOUT/capture":
+          captureApiResponse({
+            paymentSessionId: "payment_session_google_checkout",
+            paypalOrderId: "PAYPAL_ORDER_GOOGLE_CHECKOUT",
+          }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+    await user.click(
+      within(getStep("Payment method")).getByRole("radio", {
+        name: /Google Pay/,
+      }),
+    );
+
+    const orderSummary = screen.getByRole("complementary", {
+      name: "Order summary",
+    });
+    await user.click(
+      await within(orderSummary).findByRole("button", {
+        name: "Mock Google Pay",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: {
+            checkout_draft_id: "11111111-1111-4111-8111-111111111111",
+            method: "google_pay",
+          },
+          method: "post",
+          path: "/api/paypal/orders/delivery",
+          query: { market: "US" },
+        }),
+      );
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/paypal/orders/PAYPAL_ORDER_GOOGLE_CHECKOUT/capture",
+          query: { market: "US" },
+        }),
+      );
+    });
+
+    expect(screen.getByRole("heading", { name: "Thank you!" })).toBeTruthy();
   });
 
   it("creates exactly one selected Pay Later order from the current checkout draft", async () => {
