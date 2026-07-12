@@ -492,6 +492,7 @@ Verification:
 - [x] Build webhook viewer.
 - [x] Build payment/order debug viewer.
 - [x] Build runtime debug logs.
+- [ ] Implement the approved Post-Purchase Operations and Account Experience extension after written-spec review and detailed-plan approval: route-separated Orders/Lifecycle/Inventory/Webhooks/Diagnostics workbenches, server-side URL filters, persisted sanitized runtime logs, canonical lifecycle-to-Account refresh, and zero synthetic webhook creation.
 
 Verification:
 

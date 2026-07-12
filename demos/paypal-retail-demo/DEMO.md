@@ -15,7 +15,7 @@ The default customer-specific profile is a POP MART storefront presentation. A r
 - PayPal sandbox integrations work correctly where eligible.
 - Delivery and BOPIS flows run end to end with correct totals and order states.
 - Promo, tax, shipping, inventory, and payment totals remain consistent before capture.
-- Admin Portal supports profile/market control, order lifecycle, inventory, webhook viewing, and runtime debug.
+- Admin Portal supports profile/market control plus route-separated Orders, Lifecycle, Inventory, Webhooks, and Diagnostics workbenches; buyer Account order history reflects merchant lifecycle updates without inventing PayPal webhook events.
 - POP MART profile feels customer-ready; MochiToy profile keeps the demo reusable.
 - PayPal behavior is verified from `/Users/tengtao/Development/wiki-v2` or marked as a demo assumption.
 
@@ -52,7 +52,7 @@ Out of v1:
 - Account registration/login
 - Account address book, saved payments, order history, reviews submitted
 - Pending order resume
-- Admin Portal at `/admin`
+- Admin Portal at `/admin` with route-backed Orders, Lifecycle, Inventory, Webhooks, and Diagnostics tabs
 
 ## Payment Flow Map
 
@@ -200,6 +200,18 @@ Verification:
 - Invalid webhook cannot mutate order state.
 - Valid webhook appears in Admin Portal.
 
+## Post-Purchase Operations And Account Experience
+
+The approved post-purchase cycle turns the existing Admin and Account foundations into one truthful merchant-to-buyer demonstration:
+
+- Admin routes are separate workbenches: `/admin/orders`, `/admin/lifecycle`, `/admin/inventory`, `/admin/webhooks`, and `/admin/diagnostics`.
+- Orders, Lifecycle, Inventory, and Webhooks never render as one long page or preload unrelated datasets.
+- Admin lifecycle changes update merchant order state and append an `admin` lifecycle audit event only. They never create synthetic PayPal webhook records.
+- Delivery advances one step at a time from paid to processing, shipped, and delivered. Pickup advances from paid to preparing pickup, ready for pickup, and picked up.
+- Account order history and detail reload canonical order/lifecycle data and show the new buyer-safe stage, timestamp, and eligible review action without technical IDs.
+- Webhooks remain read-only evidence of genuinely received PayPal events and support event-type, verification, processing, linkage, and received-time filters.
+- Diagnostics combines canonical payment/order snapshots with persisted sanitized runtime logs; logs supplement business records and never become a second source of payment truth.
+
 ## Demo Profiles
 
 - `popmart`: default active profile, customer-specific assets supplied by the user.
@@ -247,7 +259,7 @@ node --env-file=.env node_modules/tsx/dist/cli.mjs watch server/src/server.ts
 npm run dev:web -- --host localhost
 ```
 
-Use `http://localhost:5173`, not `127.0.0.1`, for API-backed browser QA unless CORS is updated. Primary buyer routes are `/`, `/products`, `/products/blind-boxes-2`, `/cart`, `/checkout`, and `/account`. The Admin Portal route `/admin` remains M15 backlog until that portal is implemented.
+Use `http://localhost:5173`, not `127.0.0.1`, for API-backed browser QA unless CORS is updated. Primary buyer routes are `/`, `/products`, `/products/blind-boxes-2`, `/cart`, `/checkout`, and `/account`. The implemented Admin Portal starts at `/admin`; the approved post-purchase cycle splits its workbenches into route-backed Admin tabs before the next runtime closeout.
 
 Current verified evidence paths:
 

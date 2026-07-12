@@ -786,3 +786,71 @@ During implementation:
 - [x] Run `npm run verify`, `npm run build`, `scripts/check-agent-system.sh`, `git diff --check`, and refresh Graphify.
 - [x] Verify the browser gate against the production build: unsupported Apple Pay stays absent, Google Pay appears only after both probes succeed, no wallet action exists before selection, and the selected Google row mounts the official 52px Google-created element. Keep eligible Apple-device proof open.
 - [x] Spawn the requested independent read-only review subagent after coding, resolve all P0-P2 findings, and repeat affected verification.
+
+## Approved Post-Purchase Operations And Account Experience Design
+
+**Status:** Approved in conversation on 2026-07-12; written specification awaits user review before detailed implementation planning.
+
+**Goal:** Turn the existing Admin and Account foundations into a coherent post-purchase sales-demo loop: an operator finds an order, advances a valid merchant lifecycle step, the buyer Account reflects the canonical update, genuine PayPal webhooks remain independently searchable, and Diagnostics explains payment/runtime evidence without becoming a second source of truth.
+
+### Architecture And Page Boundaries
+
+- Replace the current catch-all `/admin/*` rendering with route-aware Admin pages at `/admin/orders`, `/admin/lifecycle`, `/admin/inventory`, `/admin/webhooks`, and `/admin/diagnostics`.
+- Keep authentication, profile/market context, session/logout, tab navigation, refresh state, and last-updated context in a shared Admin shell.
+- Each route loads only its required API resources. No route preloads every order, inventory, webhook, payment-debug, and runtime-log dataset.
+- Preserve existing business repositories as canonical. Add typed filter/query objects, cursor pagination, and route-specific response envelopes rather than filtering a fixed client-side list.
+- Account remains buyer-facing and reads canonical account order/timeline APIs; it never reads Diagnostics logs.
+
+### Filters And Drill-Down
+
+| Route | Filters | Primary result |
+| --- | --- | --- |
+| Orders | order number, order status, fulfillment, payment status, created range | order table and drill-down detail |
+| Lifecycle | order number, fulfillment, current status, next action, updated range, actionable only | one-step fulfillment queue |
+| Inventory | SKU/product, inventory scope, store, stock condition, availability, changed range | Stock and Pickup capacity subtabs |
+| Webhooks | event ID, event type, verification, processing, linked state, received range | read-only event table and sanitized detail |
+| Diagnostics | order/PayPal/debug ID, payment method/status/amount consistency, log level/category/event, time range | Payment and Runtime Logs subtabs |
+
+- Persist filters in URL query parameters and make refresh/back navigation deterministic.
+- Default Webhooks and Runtime Logs to the last 24 hours; support Last hour, 24 hours, 7 days, 30 days, and Custom with explicit timezone.
+- Use server-side filtering and cursor pagination. Return result count/page metadata and render active-filter chips plus `Clear all`.
+- Desktop uses data-dense shadcn tables and drill-down panels. Mobile uses compact result cards or contained horizontal table scrolling and a shadcn filter Sheet.
+
+### Merchant Lifecycle And Account Flow
+
+1. Admin loads an actionable order from the Lifecycle route.
+2. Admin submits exactly one allowed next status plus an optional merchant note.
+3. The server validates the current persisted state, updates the order, and inserts one `actor_type = admin` lifecycle event atomically.
+4. Stale or invalid transitions return `409`; the Admin reloads the canonical order rather than applying optimistic guessed state.
+5. No lifecycle action inserts a webhook event.
+6. Account loads fresh order state on route entry or explicit `Refresh orders`, then shows the buyer-safe current stage and timeline.
+7. Delivered/picked-up items expose review actions only where existing review eligibility permits.
+
+Account filter mapping is fixed: `In progress` covers pending, paid, processing, shipped, preparing pickup, and ready for pickup; `Completed` covers delivered and picked up; cancelled orders remain available only under `All` with a Cancelled label.
+
+### Diagnostics Data Ownership
+
+- Payment diagnostics derives from canonical `orders`, `payment_sessions`, `total_snapshots`, `paypal_order_snapshots`, and `webhook_events` rows.
+- Persist the existing sanitized structured runtime logger to the existing `runtime_debug_logs` table through a non-blocking best-effort sink; retain JSON console logs and a bounded in-memory fallback.
+- Expand structured events only where this cycle needs correlation: lifecycle request/result/failure, inventory/pickup-capacity request/result/failure, webhook receive/verify/link/process outcome, Account order-load failure, and payment/capture amount-guard outcome.
+- Correlation fields use available debug, order, payment-session, PayPal order/capture, webhook, profile, market, route, status, and duration identifiers.
+- Apply event-specific allowlists plus recursive redaction before persistence or Admin response mapping. Runtime persistence failures never block business operations and never recursively log themselves.
+- Runtime logs retain 7 days. Domain payment/order/webhook/lifecycle records retain their existing demo lifecycle.
+- A best-effort repository cleanup removes runtime rows older than 7 days no more than once per 24 hours; insertion/cleanup failures remain non-blocking and cannot recursively log themselves.
+
+### Error And Empty-State Contract
+
+- Every page has loading, filtered-empty, true-empty, failure, and retry behavior; errors are announced and placed near the affected workbench.
+- Filtered-empty states show active filters and `Clear filters`; they do not look like missing data.
+- Webhooks and Diagnostics are read-only. Lifecycle and Inventory mutations require explicit per-row actions and success/failure feedback; bulk lifecycle mutation is out of scope.
+- No Admin or Account status relies on color alone, and no technical ID leaks into buyer Account pages.
+
+### Acceptance Boundary For The Detailed Plan
+
+- Route isolation tests prove each Admin page calls only its own APIs.
+- API/repository tests prove server filters, date boundaries, cursor pagination, and signed Admin access.
+- Lifecycle tests prove valid one-step transitions, atomic audit writes, `409` conflict recovery, Account visibility, and zero synthetic webhook growth.
+- Diagnostics tests prove correlation, restart-persistent runtime logs, 7-day query boundaries, redaction/allowlists, and non-blocking persistence failure.
+- Browser evidence covers filter preservation, drill-down, lifecycle-to-Account refresh, genuine webhook search, Diagnostics detail, keyboard use, loading/error/empty states, and overflow-safe 375/768/1024/1440 layouts.
+
+Out of scope: provider-simulated webhooks, real carrier/tracking APIs, bulk/reverse lifecycle actions, background Account polling, realtime subscriptions, saved Admin views, exports, and a new analytics/event-store platform.

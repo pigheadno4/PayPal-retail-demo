@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this file are acceptance or regression gates for the current polish stage unless they are explicitly older backlog, such as M15 Admin Portal, local Supabase migration verification, or wallet/card sandbox capture coverage.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. The approved next implementation-planning target is Post-Purchase Operations and Account Experience; its open Admin/Account rows below remain design acceptance gates until the written spec and detailed plan are approved. Other open rows remain explicit older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
 
 ## Deployment QA
 
@@ -396,6 +396,13 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Admin payment-debug route requires the signed admin session and lists recent payment sessions with linked order summary, amount comparison, total snapshots, PayPal snapshots, and webhook evidence.
 - [x] Admin payment-debug UI loads with `x-admin-session` and renders order number, PayPal order/capture IDs, amount comparison, latest total stage, and linked webhook evidence.
 - [x] Runtime debug logs are visible without exposing secrets.
+- [ ] Admin route isolation: Orders, Lifecycle, Inventory, Webhooks, and Diagnostics render as separate route-backed workbenches and call only their own APIs.
+- [ ] Admin filters: URL query state, server-side filtering, explicit timezone date presets/custom range, active chips, clear action, result counts, and cursor pagination survive refresh/back navigation.
+- [ ] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, and never increase webhook-event count.
+- [ ] Webhook explorer filters genuine received PayPal events by event ID/type, verification, processing, linkage, and received range and exposes only sanitized read-only detail.
+- [ ] Diagnostics joins canonical payment evidence and persists allowlisted/redacted runtime events across server restart; diagnostics sink failures never block business operations or recursively log themselves.
+- [ ] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, Delivery/Pickup details, buyer-safe retry/empty states, and no technical IDs.
+- [ ] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths.
 
 ## Visual QA
 

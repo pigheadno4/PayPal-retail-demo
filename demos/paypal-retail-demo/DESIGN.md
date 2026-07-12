@@ -716,6 +716,9 @@ Order history:
 
 - Order history uses retail cards instead of tables.
 - Each card shows order number, date, fulfillment mode, status chip, total, thumbnail strip, and one primary CTA.
+- Provide buyer-scale status filters only: `All`, `In progress`, and `Completed`; do not turn Account into an operations table.
+- `In progress` includes pending, paid, processing, shipped, preparing pickup, and ready for pickup. `Completed` includes delivered and picked up. Cancelled orders remain visible under `All` with an explicit Cancelled label.
+- Load fresh order state on route entry and provide an explicit `Refresh orders` action with a visible last-updated time. Realtime subscriptions and background polling are out of scope.
 - Pending orders show Resume payment and explain that totals/promos may be refreshed.
 - Completed orders show View details and Review items when eligible.
 - Empty order history invites browsing products and, for guests, suggests guest lookup if they checked out without an account.
@@ -725,6 +728,7 @@ Order detail:
 - Detail page shows timeline, fulfillment summary, item list, totals breakdown, payment status, and review eligibility.
 - Delivery orders show shipping address, selected option, and delivery lifecycle.
 - Pickup orders show store, pickup date/window, ready/unavailable split when applicable, and pickup lifecycle.
+- Present the current merchant fulfillment stage before the complete timeline, with explicit icons/text rather than color-only status.
 - Completed order item rows expose review action only once per item unless editing is supported.
 - Technical IDs stay hidden from buyer detail; Admin/debug pages can expose sanitized provider references.
 
@@ -1396,12 +1400,16 @@ Scope:
 
 Information architecture:
 
-- Orders: list, filters, status, fulfillment mode, payment status, and order detail.
-- Order detail: buyer/order summary, lifecycle timeline, total snapshots, promo evaluation lines, PayPal snapshot, inventory effect, and linked webhooks.
-- Webhooks: event list, verification status, linked order/payment session, processing result, and sanitized payload viewer.
-- Inventory: central inventory, store inventory, partial pickup scenarios, and pickup date capacity.
-- Lifecycle: manual delivery and pickup state controls with audit notes.
-- Debug: sanitized runtime logs and amount comparison snapshots.
+- Use route-backed tab navigation with visible active state: Orders, Lifecycle, Inventory, Webhooks, and Diagnostics.
+- Keep profile, market, session, logout, refresh state, and last-updated context in a compact shared header rather than repeating them inside each page.
+- `/admin/orders`: searchable order table plus drill-down detail. Filters: order number, order status, fulfillment mode, payment status, and created range.
+- `/admin/lifecycle`: actionable fulfillment queue, not a duplicate order browser. Filters: order number, Delivery/Pickup, current status, next available action, updated range, and actionable only.
+- `/admin/inventory`: Stock and Pickup capacity subtabs. Filters: SKU/product, central/store scope, store, stock condition, availability, and changed range.
+- `/admin/webhooks`: read-only genuine PayPal events. Filters: event ID, event type, verification status, processing status, linked/unlinked, and received range; default range is the last 24 hours.
+- `/admin/diagnostics`: Payment and Runtime Logs subtabs. Payment evidence joins canonical order, payment-session, total, sanitized PayPal snapshot, and webhook records. Runtime logs come from persisted sanitized structured events.
+- Encode filters in URL query parameters, execute filters server-side, return cursor-paginated results, show result counts and active-filter chips, and preserve state across refresh/back navigation.
+- Desktop uses dense readable tables with sticky headers and drill-down panels. Mobile uses contained horizontal scrolling or compact cards plus a filter Sheet; no page-level overflow.
+- Time controls offer Last hour, 24 hours, 7 days, 30 days, and Custom with an explicit timezone.
 
 No admin user switcher. No reset tools in v1.
 
@@ -1409,6 +1417,18 @@ Manual lifecycle:
 
 - Delivery: paid -> processing -> shipped -> delivered
 - Pickup: paid -> preparing pickup -> ready for pickup -> picked up
+- Validate one-step transitions on the server, update the order and lifecycle audit event atomically, and return `409` for stale/invalid transitions so the client reloads canonical state.
+- An optional merchant note may accompany a transition; carrier APIs, live tracking, bulk lifecycle changes, reverse transitions, and synthetic webhook creation are out of scope.
+
+Diagnostics collection:
+
+- Canonical payment truth remains in orders, payment sessions, total snapshots, PayPal order snapshots, webhook events, and lifecycle events.
+- Connect the existing structured logger to the existing `runtime_debug_logs` table through a best-effort asynchronous persistence sink while retaining JSON console logging and a bounded in-memory fallback.
+- Runtime log persistence failure must never fail checkout, capture, webhook processing, inventory mutation, or lifecycle mutation and must not recursively log its own failure.
+- Correlate entries with available `debug_id`, order/order number, payment session, PayPal order/capture, webhook event, profile, market, route, status, and duration fields.
+- Use event-specific allowlisted context fields plus recursive secret-key redaction. Never persist Admin credentials/sessions, OAuth/client tokens, PayPal/Supabase secrets, cart secrets, full card data, buyer contact/address PII, or unsanitized provider/webhook payloads.
+- Retain runtime diagnostics for 7 days; business payment/order/webhook/lifecycle records keep their normal demo retention.
+- Enforce runtime-log retention with a best-effort repository cleanup no more than once per 24 hours; cleanup failure follows the same non-blocking/no-recursion rule as log insertion.
 
 ## Data Model Notes
 
