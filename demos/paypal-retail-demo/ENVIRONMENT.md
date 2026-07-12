@@ -104,7 +104,7 @@ Delivery express can create local sandbox orders without `PUBLIC_HTTPS_ORIGIN`, 
 - The build publishes PayPal's sandbox association payload at `/.well-known/apple-developer-merchantid-domain-association`; the Express server has an exact route with dotfile access enabled only for this file so Render does not apply the default static dotfile ignore rule.
 - Register the exact HTTPS host `paypal-retail-demo.onrender.com` in the PayPal dashboard Apple Pay settings after the file is deployed. The SDK script alone does not validate the domain.
 - Show Apple Pay only after PayPal eligibility succeeds and Apple Pay JS reports browser/device availability. The latest SDK enables supported non-Safari scan-with-iPhone flows, but it does not make every browser/device eligible.
-- Google Pay separately loads `https://pay.google.com/gp/p/js/pay.js`; the React PayPal component creates the official button and checks `isReadyToPay()`.
+- Google Pay separately loads `https://pay.google.com/gp/p/js/pay.js`; the PayPal React session hook supplies PayPal's formatted configuration, verifies `isReadyToPay()`, and creates the official button through Google `PaymentsClient`.
 
 ## Render Web Service Deployment
 

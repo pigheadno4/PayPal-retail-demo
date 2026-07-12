@@ -561,4 +561,4 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Open rows in this fil
 - [x] Apple Pay keeps `onApprove` free of merchant capture work and starts checkout review/capture from `onApproveCompleted` after SDK session completion.
 - [x] Google Pay's 52px fill mounts the official `createGooglePayButton()` element directly into the explicitly sized merchant-owned container and contains no selector for the React package's undocumented internal wrapper.
 - [ ] Hosted `/.well-known/apple-developer-merchantid-domain-association` returns `200` after deployment and the exact Render domain is registered with PayPal.
-- [ ] Apple Pay/Google Pay payment rows stay absent until real device/browser and provider eligibility succeeds.
+- [x] Apple Pay/Google Pay payment rows stay absent while eligibility is missing, pending, false, or errored and appear only after both provider plus browser/device readiness succeeds; focused probe, checkout, App interaction, and Google capture tests cover the state boundary, including a stateful regression proving Google readiness is not restarted by the reported-state rerender.

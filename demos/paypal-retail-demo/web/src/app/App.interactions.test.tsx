@@ -27,6 +27,34 @@ import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
 import { App } from "./App.js";
 
+const walletEligibilityMockState = vi.hoisted(() => ({
+  resolve: true,
+}));
+
+vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+
+  return {
+    CheckoutWalletEligibilityProbes: ({
+      onEligibilityChange,
+    }: {
+      readonly onEligibilityChange: (
+        method: "apple_pay" | "google_pay",
+        state: "eligible" | "ineligible" | "pending",
+      ) => void;
+    }) => {
+      React.useEffect(() => {
+        if (walletEligibilityMockState.resolve) {
+          onEligibilityChange("apple_pay", "eligible");
+          onEligibilityChange("google_pay", "eligible");
+        }
+      }, [onEligibilityChange]);
+
+      return null;
+    },
+  };
+});
+
 vi.mock("@paypal/react-paypal-js/sdk-v6", async () => {
   const actual = await vi.importActual<
     typeof import("@paypal/react-paypal-js/sdk-v6")
@@ -55,6 +83,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  walletEligibilityMockState.resolve = true;
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: createMemoryStorage(),
@@ -3216,6 +3245,43 @@ describe("App buyer interactions", () => {
       expect(orderSummary.textContent).not.toContain(`${label} selected`);
       expect(orderSummary.textContent).toContain(`${label} payment option`);
     }
+  });
+
+  it("keeps Apple Pay and Google Pay radios absent while eligibility probes are pending", async () => {
+    walletEligibilityMockState.resolve = false;
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      postResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "No promo applied",
+        totalMinor: 2598,
+      }),
+      patchResponse: checkoutDraftApiResponse({
+        fulfillmentMode: "delivery",
+        id: deliveryDraftUuid,
+        promoLabel: "No promo applied",
+        totalMinor: 2598,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/checkout"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await advanceDeliveryCheckoutToPayment(user);
+
+    const paymentStep = getStep("Payment method");
+    expect(
+      within(paymentStep).queryByRole("radio", { name: "Apple Pay" }),
+    ).toBeNull();
+    expect(
+      within(paymentStep).queryByRole("radio", { name: "Google Pay" }),
+    ).toBeNull();
   });
 
   it("updates checkout totals from delivery draft API recalculation", async () => {

@@ -1,6 +1,7 @@
 import {
   type FormEvent,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -79,7 +80,9 @@ import {
   defaultCheckoutPageData,
   type CheckoutDraftUpdateRequest,
   type CheckoutPaymentActionContext,
+  type CheckoutPaymentMethodEligibility,
   type CheckoutPageData,
+  type CheckoutPreselectionWalletMethod,
   type CheckoutSubmittedField,
   type CheckoutSummaryItem,
 } from "../features/checkout/CheckoutPage.js";
@@ -109,6 +112,10 @@ import {
   type DeliveryExpressCreateOrderCartContext,
 } from "../features/payments/DeliveryExpressAction.js";
 import { PayPalSdkProviderScope } from "../features/payments/PayPalSdkProviderScope.js";
+import {
+  CheckoutWalletEligibilityProbes,
+  type CheckoutWalletEligibilityState,
+} from "../features/payments/CheckoutWalletEligibilityProbes.js";
 import {
   PayLaterAmountMessage,
   PayLaterStandaloneAction,
@@ -3058,6 +3065,11 @@ function BuyerShell({
           productPages={currentProductPages}
           cartData={currentCart}
           checkoutData={currentCheckoutData}
+          checkoutWalletProbeConfig={{
+            currencyCode: config.market.currencyCode,
+            market: config.market.code,
+            providerKey: config.paypal.providerKey,
+          }}
           expressAccountLinkPrompt={expressAccountLinkPrompt}
           expressReviewData={currentExpressReviewData}
           expressCaptureState={currentExpressCaptureState}
@@ -3246,6 +3258,7 @@ function RouteStage({
   productPages,
   cartData,
   checkoutData,
+  checkoutWalletProbeConfig,
   expressAccountLinkPrompt,
   expressReviewData,
   expressCaptureState,
@@ -3286,6 +3299,11 @@ function RouteStage({
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
   readonly checkoutData: CheckoutPageData;
+  readonly checkoutWalletProbeConfig: {
+    readonly currencyCode: string;
+    readonly market: string;
+    readonly providerKey: string;
+  };
   readonly expressAccountLinkPrompt?:
     | ExpressReviewAccountLinkPrompt
     | undefined;
@@ -3361,18 +3379,14 @@ function RouteStage({
 }) {
   if (route.page === "checkout") {
     return (
-      <CheckoutPage
-        data={checkoutData}
-        onDraftUpdate={onCheckoutDraftUpdate}
-        suppressMobileStickySummary={suppressCheckoutPaymentActions}
-        renderCardPaymentBox={
-          suppressCheckoutPaymentActions ? () => null : renderCardPaymentBox
-        }
-        renderPaymentAction={
-          suppressCheckoutPaymentActions
-            ? () => null
-            : renderCheckoutPaymentAction
-        }
+      <CheckoutRouteStage
+        key={`${checkoutWalletProbeConfig.providerKey}:${checkoutWalletProbeConfig.market}:${checkoutWalletProbeConfig.currencyCode}`}
+        checkoutData={checkoutData}
+        checkoutWalletProbeConfig={checkoutWalletProbeConfig}
+        onCheckoutDraftUpdate={onCheckoutDraftUpdate}
+        renderCardPaymentBox={renderCardPaymentBox}
+        renderCheckoutPaymentAction={renderCheckoutPaymentAction}
+        suppressCheckoutPaymentActions={suppressCheckoutPaymentActions}
       />
     );
   }
@@ -3504,6 +3518,88 @@ function RouteStage({
         })
       }
     />
+  );
+}
+
+function CheckoutRouteStage({
+  checkoutData,
+  checkoutWalletProbeConfig,
+  onCheckoutDraftUpdate,
+  renderCardPaymentBox,
+  renderCheckoutPaymentAction,
+  suppressCheckoutPaymentActions,
+}: {
+  readonly checkoutData: CheckoutPageData;
+  readonly checkoutWalletProbeConfig: {
+    readonly currencyCode: string;
+    readonly market: string;
+    readonly providerKey: string;
+  };
+  readonly onCheckoutDraftUpdate: (
+    request: CheckoutDraftUpdateRequest,
+    currentData: CheckoutPageData,
+  ) => Promise<CheckoutPageData>;
+  readonly renderCardPaymentBox: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
+  readonly renderCheckoutPaymentAction: (
+    context: CheckoutPaymentActionContext,
+  ) => ReactNode;
+  readonly suppressCheckoutPaymentActions: boolean;
+}) {
+  const [walletEligibility, setWalletEligibility] = useState<
+    Record<CheckoutPreselectionWalletMethod, CheckoutWalletEligibilityState>
+  >({
+    apple_pay: "pending",
+    google_pay: "pending",
+  });
+  const handleWalletEligibilityChange = useCallback(
+    (
+      method: CheckoutPreselectionWalletMethod,
+      state: CheckoutWalletEligibilityState,
+    ) => {
+      setWalletEligibility((current) =>
+        current[method] === state
+          ? current
+          : {
+              ...current,
+              [method]: state,
+            },
+      );
+    },
+    [],
+  );
+  const paymentMethodEligibility = useMemo<CheckoutPaymentMethodEligibility>(
+    () => ({
+      apple_pay: walletEligibility.apple_pay === "eligible",
+      google_pay: walletEligibility.google_pay === "eligible",
+    }),
+    [walletEligibility.apple_pay, walletEligibility.google_pay],
+  );
+
+  return (
+    <>
+      <CheckoutWalletEligibilityProbes
+        currencyCode={checkoutWalletProbeConfig.currencyCode}
+        market={checkoutWalletProbeConfig.market}
+        onEligibilityChange={handleWalletEligibilityChange}
+        providerKey={checkoutWalletProbeConfig.providerKey}
+      />
+      <CheckoutPage
+        data={checkoutData}
+        onDraftUpdate={onCheckoutDraftUpdate}
+        paymentMethodEligibility={paymentMethodEligibility}
+        suppressMobileStickySummary={suppressCheckoutPaymentActions}
+        renderCardPaymentBox={
+          suppressCheckoutPaymentActions ? () => null : renderCardPaymentBox
+        }
+        renderPaymentAction={
+          suppressCheckoutPaymentActions
+            ? () => null
+            : renderCheckoutPaymentAction
+        }
+      />
+    </>
   );
 }
 

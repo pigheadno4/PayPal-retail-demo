@@ -194,6 +194,12 @@ export type CheckoutSelectedPaymentMethod =
   | "google_pay"
   | "venmo";
 
+export type CheckoutPreselectionWalletMethod = "apple_pay" | "google_pay";
+
+export type CheckoutPaymentMethodEligibility = Readonly<
+  Partial<Record<CheckoutPreselectionWalletMethod, boolean>>
+>;
+
 export interface CheckoutPaymentActionContext {
   readonly fulfillmentMode: CheckoutFulfillmentMode;
   readonly checkoutDraftId: string | null;
@@ -215,6 +221,7 @@ export interface CheckoutPageData {
 
 export interface CheckoutPageProps {
   readonly data?: CheckoutPageData;
+  readonly paymentMethodEligibility?: CheckoutPaymentMethodEligibility;
   readonly onDraftUpdate?: (
     request: CheckoutDraftUpdateRequest,
     currentData: CheckoutPageData,
@@ -344,6 +351,7 @@ type CheckoutFieldValue = string | boolean;
 export function CheckoutPage({
   data = defaultCheckoutPageData,
   onDraftUpdate,
+  paymentMethodEligibility,
   renderPaymentAction,
   renderCardPaymentBox,
   suppressMobileStickySummary = false,
@@ -470,7 +478,11 @@ export function CheckoutPage({
         )
       : activeBaseSummary;
   const activeSelectedPaymentEligible = activeSelectedPaymentMethod
-    ? isSelectedPaymentMethodEligible(activeDraft, activeSelectedPaymentMethod)
+    ? isSelectedPaymentMethodEligible(
+        activeDraft,
+        activeSelectedPaymentMethod,
+        paymentMethodEligibility,
+      )
     : false;
   const activePaymentContext: CheckoutPaymentActionContext = {
     fulfillmentMode: activeMode,
@@ -1101,6 +1113,7 @@ export function CheckoutPage({
               choiceSelections={choiceSelections}
               selectedPickupStoreName={selectedPickupStoreName}
               selectedPaymentMethod={deliverySelectedPaymentMethod}
+              paymentMethodEligibility={paymentMethodEligibility}
               onFieldChange={updateFieldValue}
               onChoiceChange={updateChoiceSelection}
               onStepEdit={editStep}
@@ -1123,6 +1136,7 @@ export function CheckoutPage({
               choiceSelections={choiceSelections}
               selectedPickupStoreName={selectedPickupStoreName}
               selectedPaymentMethod={pickupSelectedPaymentMethod}
+              paymentMethodEligibility={paymentMethodEligibility}
               onFieldChange={updateFieldValue}
               onChoiceChange={updateChoiceSelection}
               onStepEdit={editStep}
@@ -1451,6 +1465,7 @@ function CheckoutModePanel({
   choiceSelections,
   selectedPickupStoreName,
   selectedPaymentMethod,
+  paymentMethodEligibility,
   onFieldChange,
   onChoiceChange,
   onStepEdit,
@@ -1472,6 +1487,9 @@ function CheckoutModePanel({
   readonly choiceSelections: Readonly<Record<string, string>>;
   readonly selectedPickupStoreName: string | null;
   readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | undefined;
+  readonly paymentMethodEligibility:
+    | CheckoutPaymentMethodEligibility
+    | undefined;
   readonly onFieldChange: (
     stepId: string,
     label: string,
@@ -1511,6 +1529,7 @@ function CheckoutModePanel({
                       state: stepState,
                     },
                     selectedPaymentMethod,
+                    paymentMethodEligibility,
                   ),
                   fieldValues,
                 ),
@@ -3213,6 +3232,7 @@ function CheckoutTrustStrip() {
 function withDefaultStepDetails(
   step: CheckoutStep,
   selectedPaymentMethod?: CheckoutSelectedPaymentMethod,
+  paymentMethodEligibility?: CheckoutPaymentMethodEligibility,
 ): CheckoutStep {
   const defaults = defaultStepDetailsById[step.id];
 
@@ -3228,6 +3248,7 @@ function withDefaultStepDetails(
     step.id,
     step.choices ?? defaults.choices,
     selectedPaymentMethod,
+    paymentMethodEligibility,
   );
   const storeCards = step.storeCards ?? defaults.storeCards;
   const primaryActionLabel =
@@ -3268,6 +3289,7 @@ function normalizePaymentChoices(
   stepId: string,
   choices: readonly CheckoutChoice[] | undefined,
   selectedPaymentMethod?: CheckoutSelectedPaymentMethod,
+  paymentMethodEligibility?: CheckoutPaymentMethodEligibility,
 ): readonly CheckoutChoice[] | undefined {
   if (
     !choices ||
@@ -3277,7 +3299,12 @@ function normalizePaymentChoices(
   }
 
   return choices
-    .filter((choice) => choice.eligible !== false)
+    .filter(
+      (choice) =>
+        choice.eligible !== false &&
+        (!isPreselectionWalletMethod(choice.method) ||
+          paymentMethodEligibility?.[choice.method] === true),
+    )
     .map((choice) =>
       choice.method
         ? {
@@ -3291,6 +3318,7 @@ function normalizePaymentChoices(
 function isSelectedPaymentMethodEligible(
   draft: CheckoutFulfillmentDraft,
   selectedPaymentMethod: CheckoutSelectedPaymentMethod,
+  paymentMethodEligibility?: CheckoutPaymentMethodEligibility,
 ): boolean {
   const paymentStep = draft.steps.find(
     (step) =>
@@ -3304,12 +3332,19 @@ function isSelectedPaymentMethodEligible(
   const stepWithDetails = withDefaultStepDetails(
     paymentStep,
     selectedPaymentMethod,
+    paymentMethodEligibility,
   );
   const selectedChoice = stepWithDetails.choices?.find(
     (choice) => choice.method === selectedPaymentMethod,
   );
 
   return selectedChoice?.eligible !== false && selectedChoice !== undefined;
+}
+
+function isPreselectionWalletMethod(
+  method: CheckoutSelectedPaymentMethod | undefined,
+): method is CheckoutPreselectionWalletMethod {
+  return method === "apple_pay" || method === "google_pay";
 }
 
 function isSaveForFutureEligible(

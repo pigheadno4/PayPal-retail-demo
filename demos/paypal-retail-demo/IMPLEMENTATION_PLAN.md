@@ -719,7 +719,7 @@ During implementation:
 
 **Goal:** Keep Apple Pay and Google Pay payment-wall rows absent until both PayPal merchant eligibility and the current browser/device readiness check succeed.
 
-**Architecture:** Add a focused `CheckoutWalletEligibilityProbes` component that mounts only on checkout and runs Apple/Google checks inside their method-scoped `PayPalSdkProviderScope` instances. It reports explicit pending/eligible/ineligible state to `BuyerShell`; `CheckoutPage` consumes a boolean eligibility map and filters the two rows before selection while retaining its existing draft-level `eligible: false` guard.
+**Architecture:** Add a focused `CheckoutWalletEligibilityProbes` component that mounts only inside the checkout route boundary and runs Apple/Google checks inside their method-scoped `PayPalSdkProviderScope` instances. It reports explicit pending/eligible/ineligible state to `CheckoutRouteStage`; `CheckoutPage` consumes a boolean eligibility map and filters the two rows before selection while retaining its existing draft-level `eligible: false` guard.
 
 **Tech Stack:** React 19, TypeScript, PayPal Web SDK v6, `@paypal/react-paypal-js@10.1.2`, Apple Pay JS `1.latest`, Google Pay JS, Vitest, Testing Library.
 
@@ -741,10 +741,10 @@ During implementation:
 - Consumes: `paymentMethodEligibility?: Partial<Record<"apple_pay" | "google_pay", boolean>>`.
 - Produces: normalized payment choices that include Apple Pay or Google Pay only when the corresponding value is exactly `true` and the draft choice is not explicitly ineligible.
 
-- [ ] Add a failing server-render test proving both rows are absent while eligibility is missing/false and present only for explicit true values.
-- [ ] Run `npm test -- web/src/features/checkout/CheckoutPage.test.tsx`; expect the new row-gating assertion to fail because choices currently use only draft eligibility.
-- [ ] Thread `paymentMethodEligibility` through `CheckoutPage` choice normalization and selected-method eligibility without altering non-wallet methods.
-- [ ] Re-run the focused test and preserve existing choice-selection coverage.
+- [x] Add a failing server-render test proving both rows are absent while eligibility is missing/false and present only for explicit true values.
+- [x] Run `npm test -- web/src/features/checkout/CheckoutPage.test.tsx`; expect the new row-gating assertion to fail because choices currently use only draft eligibility.
+- [x] Thread `paymentMethodEligibility` through `CheckoutPage` choice normalization and selected-method eligibility without altering non-wallet methods.
+- [x] Re-run the focused test and preserve existing choice-selection coverage.
 
 ### Task 2: Add Official Browser And Provider Probes
 
@@ -760,12 +760,12 @@ During implementation:
 - Produces: `CheckoutWalletEligibility = { apple_pay: "pending" | "eligible" | "ineligible"; google_pay: "pending" | "eligible" | "ineligible" }` and `onEligibilityChange(method, state)` callbacks.
 - Consumes: PayPal `useEligibleMethods`, Google `useGooglePayOneTimePaymentSession().paymentsClient/formattedConfig`, `ApplePaySession.canMakePayments()`, market, currency, and resolved sandbox/production environment.
 
-- [ ] Add failing jsdom tests for Apple provider true/browser false, Apple provider true/browser true, Google PayPal true/Google false, Google both true, and error-to-ineligible behavior.
-- [ ] Verify the tests fail because the probe module does not exist.
-- [ ] Implement method-scoped probes with stale-effect guards, stable callbacks, Google `TEST`/`PRODUCTION` mapping, and hook/session cleanup.
-- [ ] Mount probes only on the checkout route, map only `eligible` to `true`, and pass the map to `CheckoutPage`.
-- [ ] Update App tests so SSR/pending rows stay absent and interaction/capture tests explicitly mock successful readiness before selecting Apple/Google.
-- [ ] Run the focused probe, CheckoutPage, App static, App interaction, and checkout capture tests.
+- [x] Add failing jsdom tests for Apple provider true/browser false, Apple provider true/browser true, Google PayPal true/Google false, Google both true, and error-to-ineligible behavior.
+- [x] Verify the tests fail because the probe module does not exist.
+- [x] Implement method-scoped probes with stale-effect guards, stable callbacks, Google `TEST`/`PRODUCTION` mapping, and hook/session cleanup.
+- [x] Mount probes only on the checkout route, map only `eligible` to `true`, and pass the map to `CheckoutPage`.
+- [x] Update App tests so SSR/pending rows stay absent and interaction/capture tests explicitly mock successful readiness before selecting Apple/Google.
+- [x] Run the focused probe, CheckoutPage, App static, App interaction, and checkout capture tests.
 
 ### Task 3: Tracking, Verification, Browser Evidence, And Review
 
@@ -781,7 +781,7 @@ During implementation:
 - Consumes: focused red/green evidence, full verification, build output, and browser inspection.
 - Produces: synchronized canonical status and independent review disposition.
 
-- [ ] Record the root cause, implementation boundary, tests, and remaining eligible-device capture requirement.
-- [ ] Run `npm run verify`, `npm run build`, `scripts/check-agent-system.sh`, `git diff --check`, and refresh Graphify.
-- [ ] Verify a non-wallet-capable browser exposes no Apple/Google payment rows and no selected action; keep real eligible-device proof open if unavailable.
+- [x] Record the root cause, implementation boundary, tests, and remaining eligible-device capture requirement.
+- [x] Run `npm run verify`, `npm run build`, `scripts/check-agent-system.sh`, `git diff --check`, and refresh Graphify.
+- [x] Verify the browser gate against the production build: unsupported Apple Pay stays absent, Google Pay appears only after both probes succeed, no wallet action exists before selection, and the selected Google row mounts the official 52px Google-created element. Keep eligible Apple-device proof open.
 - [ ] Spawn the requested independent read-only review subagent after coding, resolve all P0-P2 findings, and repeat affected verification.

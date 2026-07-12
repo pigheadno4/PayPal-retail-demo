@@ -238,8 +238,10 @@ describe("App shell", () => {
     expect(html).toContain("Delivery order");
     expect(html).not.toContain('data-payment-action-reserved-space="true"');
     expect(html).not.toContain("Payment methods unlock after required steps.");
-    expect(html).not.toContain('class="paypal-provider-scope"');
-    expect(html).not.toContain('data-paypal-sdk-page-type="checkout"');
+    expect(html).toContain("data-wallet-eligibility-probes");
+    expect(html).toContain('data-paypal-sdk-method="apple_pay"');
+    expect(html).toContain('data-paypal-sdk-method="google_pay"');
+    expect(html).not.toContain('data-payment-action-placement="order-summary"');
     expect(html).not.toContain('href="/admin"');
     expect(html).not.toContain("Review and Confirm");
   });
@@ -306,7 +308,6 @@ describe("App shell", () => {
 
       expect(html).toContain("Payment needs refresh");
       expect(html).toContain("Retry checkout details before payment.");
-      expect(html).not.toContain('data-paypal-sdk-page-type="checkout"');
       expect(html).not.toContain(
         `data-paypal-sdk-method="${selectedPaymentMethod}"`,
       );
@@ -339,11 +340,7 @@ describe("App shell", () => {
     expect(html).not.toContain('class="checkout-sticky-action"');
   });
 
-  it.each([
-    ["Apple Pay", "apple_pay"],
-    ["Google Pay", "google_pay"],
-    ["Venmo", "venmo"],
-  ] as const)(
+  it.each([["Venmo", "venmo"]] as const)(
     "renders the %s checkout provider scope when selected",
     (_label, selectedPaymentMethod) => {
       const html = renderToStaticMarkup(
@@ -363,6 +360,35 @@ describe("App shell", () => {
     },
   );
 
+  it.each([
+    ["Apple Pay", "apple_pay"],
+    ["Google Pay", "google_pay"],
+  ] as const)(
+    "withholds the %s row and selected action while preselection eligibility is pending",
+    (_label, selectedPaymentMethod) => {
+      const html = renderToStaticMarkup(
+        <App
+          initialPathname="/checkout"
+          initialCheckout={checkoutData({
+            activeDeliveryStepId: "payment-method",
+            selectedPaymentMethod,
+          })}
+        />,
+      );
+
+      expect(html).toContain("data-wallet-eligibility-probes");
+      expect(html).not.toContain(
+        `data-payment-method-row="${selectedPaymentMethod}"`,
+      );
+      expect(html).not.toContain(
+        `data-wallet-method="${selectedPaymentMethod}"`,
+      );
+      expect(html).not.toContain(
+        'data-payment-action-placement="order-summary"',
+      );
+    },
+  );
+
   it("does not render an ineligible selected wallet action", () => {
     const html = renderToStaticMarkup(
       <App
@@ -375,7 +401,6 @@ describe("App shell", () => {
     );
 
     expect(html).not.toContain('data-payment-method-row="apple_pay"');
-    expect(html).not.toContain('data-paypal-sdk-method="apple_pay"');
     expect(html).not.toContain('data-wallet-method="apple_pay"');
     expect(html).not.toContain('data-payment-action-placement="order-summary"');
   });

@@ -34,6 +34,28 @@ import {
 } from "../features/checkout/CheckoutPage.js";
 import { App } from "./App.js";
 
+vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+
+  return {
+    CheckoutWalletEligibilityProbes: ({
+      onEligibilityChange,
+    }: {
+      readonly onEligibilityChange: (
+        method: "apple_pay" | "google_pay",
+        state: "eligible" | "ineligible" | "pending",
+      ) => void;
+    }) => {
+      React.useEffect(() => {
+        onEligibilityChange("apple_pay", "eligible");
+        onEligibilityChange("google_pay", "eligible");
+      }, [onEligibilityChange]);
+
+      return null;
+    },
+  };
+});
+
 const cardFieldsMockState = vi.hoisted(() => ({
   submit: vi.fn<(orderId: string) => Promise<void>>(() => Promise.resolve()),
 }));

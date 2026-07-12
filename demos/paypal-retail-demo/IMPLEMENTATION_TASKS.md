@@ -390,7 +390,8 @@ Verification:
 - [x] Load Apple's auto-updating `1.latest` SDK and Google Pay JS before React, and publish PayPal's sandbox Apple domain-association payload at the well-known path.
 - [x] Replace the fake disabled Google Pay control with `useGooglePayOneTimePaymentSession` plus the official `createGooglePayButton()` output, and forward Apple Pay, Google Pay, and Venmo approvals into the existing checkout capture bridge.
 - [x] Normalize official wallet controls to the 52px selected-action contract through supported Apple custom properties, Google fill mode, and merchant-owned wrappers.
-- [ ] Hide Apple Pay and Google Pay radio rows until device/browser plus provider eligibility is established; feature flags alone are not sufficient eligibility proof.
+- [x] Hide Apple Pay and Google Pay radio rows until device/browser plus provider eligibility is established; feature flags alone are not sufficient eligibility proof. Pending and error states remain absent, Apple requires PayPal `applepay` plus `ApplePaySession.canMakePayments()`, and Google requires PayPal `googlepay` plus `isReadyToPay()`.
+  - [x] Production-build browser proof: PayPal probe scopes reached `ready` with zero console errors; unsupported Apple rendered zero rows/actions, Google rendered one row only after readiness succeeded, and selection mounted Google's direct child at the same 52px container height without a merchant fake class or order creation.
 - [ ] Register `paypal-retail-demo.onrender.com` as an Apple Pay domain in the PayPal dashboard, deploy the well-known file, and capture eligible-device/browser proof.
 - [x] Reserve layout space for PayPal buttons and Pay Later messages to avoid major layout shift.
 - [x] Render save-for-future checkbox only for logged-in eligible buyers and supported methods.

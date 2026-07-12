@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +29,57 @@ afterEach(() => {
 });
 
 describe("CheckoutPage", () => {
+  it("keeps Apple Pay and Google Pay rows absent until preselection eligibility is true", () => {
+    const CheckoutPageWithEligibility =
+      CheckoutPage as unknown as ComponentType<{
+        readonly data: CheckoutPageData;
+        readonly paymentMethodEligibility: Readonly<
+          Partial<Record<"apple_pay" | "google_pay", boolean>>
+        >;
+      }>;
+    const data = checkoutData({ activeDeliveryStepId: "payment-method" });
+    const pendingHtml = renderToStaticMarkup(
+      <CheckoutPageWithEligibility
+        data={data}
+        paymentMethodEligibility={{
+          apple_pay: false,
+          google_pay: false,
+        }}
+      />,
+    );
+    const appleEligibleHtml = renderToStaticMarkup(
+      <CheckoutPageWithEligibility
+        data={data}
+        paymentMethodEligibility={{
+          apple_pay: true,
+          google_pay: false,
+        }}
+      />,
+    );
+    const googleEligibleHtml = renderToStaticMarkup(
+      <CheckoutPageWithEligibility
+        data={data}
+        paymentMethodEligibility={{
+          apple_pay: false,
+          google_pay: true,
+        }}
+      />,
+    );
+
+    expect(pendingHtml).not.toContain('data-payment-method-row="apple_pay"');
+    expect(pendingHtml).not.toContain('data-payment-method-row="google_pay"');
+    expect(appleEligibleHtml).toContain('data-payment-method-row="apple_pay"');
+    expect(appleEligibleHtml).not.toContain(
+      'data-payment-method-row="google_pay"',
+    );
+    expect(googleEligibleHtml).not.toContain(
+      'data-payment-method-row="apple_pay"',
+    );
+    expect(googleEligibleHtml).toContain(
+      'data-payment-method-row="google_pay"',
+    );
+  });
+
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 
@@ -398,6 +449,10 @@ describe("CheckoutPage", () => {
             { label: "Venmo", method: "venmo" },
           ],
         })}
+        paymentMethodEligibility={{
+          apple_pay: true,
+          google_pay: true,
+        }}
       />,
     );
 
@@ -868,6 +923,10 @@ describe("CheckoutPage", () => {
           activeMode: "delivery",
           selectedPaymentMethod: null,
         })}
+        paymentMethodEligibility={{
+          apple_pay: true,
+          google_pay: true,
+        }}
       />,
     );
 
