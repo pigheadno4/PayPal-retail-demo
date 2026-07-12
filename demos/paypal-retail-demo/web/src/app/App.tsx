@@ -3521,7 +3521,7 @@ function RouteStage({
   );
 }
 
-function CheckoutRouteStage({
+export function CheckoutRouteStage({
   checkoutData,
   checkoutWalletProbeConfig,
   onCheckoutDraftUpdate,
@@ -3548,36 +3548,58 @@ function CheckoutRouteStage({
   readonly suppressCheckoutPaymentActions: boolean;
 }) {
   const [activeMode, setActiveMode] = useState(checkoutData.activeMode);
-  const [walletEligibility, setWalletEligibility] = useState<
-    Record<CheckoutPreselectionWalletMethod, CheckoutWalletEligibilityState>
-  >({
-    apple_pay: "pending",
-    google_pay: "pending",
-  });
+  const activeTotalLabel = checkoutData[activeMode].summary.totalLabel;
+  const walletProbeKey = JSON.stringify([
+    checkoutWalletProbeConfig.providerKey,
+    checkoutWalletProbeConfig.market,
+    checkoutWalletProbeConfig.currencyCode,
+    activeMode,
+    activeTotalLabel,
+  ]);
+  const [walletEligibility, setWalletEligibility] = useState<{
+    readonly probeKey: string;
+    readonly states: Record<
+      CheckoutPreselectionWalletMethod,
+      CheckoutWalletEligibilityState
+    >;
+  }>(() => createPendingWalletEligibility(walletProbeKey));
   const handleWalletEligibilityChange = useCallback(
     (
       method: CheckoutPreselectionWalletMethod,
       state: CheckoutWalletEligibilityState,
     ) => {
-      setWalletEligibility((current) =>
-        current[method] === state
+      setWalletEligibility((current) => {
+        const currentStates =
+          current.probeKey === walletProbeKey
+            ? current.states
+            : createPendingWalletEligibility(walletProbeKey).states;
+
+        return current.probeKey === walletProbeKey &&
+          currentStates[method] === state
           ? current
           : {
-              ...current,
-              [method]: state,
-            },
-      );
+              probeKey: walletProbeKey,
+              states: {
+                ...currentStates,
+                [method]: state,
+              },
+            };
+      });
     },
-    [],
+    [walletProbeKey],
   );
-  const paymentMethodEligibility = useMemo<CheckoutPaymentMethodEligibility>(
-    () => ({
-      apple_pay: walletEligibility.apple_pay === "eligible",
-      google_pay: walletEligibility.google_pay === "eligible",
-    }),
-    [walletEligibility.apple_pay, walletEligibility.google_pay],
-  );
-  const activeTotalLabel = checkoutData[activeMode].summary.totalLabel;
+  const paymentMethodEligibility =
+    useMemo<CheckoutPaymentMethodEligibility>(() => {
+      const states =
+        walletEligibility.probeKey === walletProbeKey
+          ? walletEligibility.states
+          : null;
+
+      return {
+        apple_pay: states?.apple_pay === "eligible",
+        google_pay: states?.google_pay === "eligible",
+      };
+    }, [walletEligibility, walletProbeKey]);
 
   useEffect(() => {
     setActiveMode(checkoutData.activeMode);
@@ -3586,6 +3608,7 @@ function CheckoutRouteStage({
   return (
     <>
       <CheckoutWalletEligibilityProbes
+        key={walletProbeKey}
         currencyCode={checkoutWalletProbeConfig.currencyCode}
         market={checkoutWalletProbeConfig.market}
         onEligibilityChange={handleWalletEligibilityChange}
@@ -3609,6 +3632,16 @@ function CheckoutRouteStage({
       />
     </>
   );
+}
+
+function createPendingWalletEligibility(probeKey: string) {
+  return {
+    probeKey,
+    states: {
+      apple_pay: "pending" as const,
+      google_pay: "pending" as const,
+    },
+  };
 }
 
 type CartBinding = Pick<CartData, "cartClientSecret" | "cartPublicId">;

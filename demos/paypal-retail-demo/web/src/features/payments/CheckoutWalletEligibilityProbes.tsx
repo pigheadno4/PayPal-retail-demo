@@ -147,6 +147,8 @@ export function GooglePayPreselectionProbe({
     },
   });
   const rawGooglePayConfig =
+    !isLoading &&
+    !error &&
     eligiblePaymentMethods?.isEligible("googlepay") === true
       ? eligiblePaymentMethods.getDetails("googlepay").config
       : null;

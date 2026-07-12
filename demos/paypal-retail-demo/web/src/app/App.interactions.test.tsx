@@ -25,8 +25,11 @@ import type {
 } from "../api/client.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
-import { defaultCheckoutPageData } from "../features/checkout/CheckoutPage.js";
-import { App } from "./App.js";
+import {
+  defaultCheckoutPageData,
+  type CheckoutPageData,
+} from "../features/checkout/CheckoutPage.js";
+import { App, CheckoutRouteStage } from "./App.js";
 
 const walletEligibilityMockState = vi.hoisted(() => ({
   resolve: true,
@@ -3310,6 +3313,50 @@ describe("App buyer interactions", () => {
     });
   });
 
+  it("fails closed immediately when a selected wallet total changes", async () => {
+    const initialData = checkoutWithSelectedGooglePay("$25.98");
+    const { rerender } = render(
+      <CheckoutRouteStage
+        checkoutData={initialData}
+        checkoutWalletProbeConfig={{
+          currencyCode: "USD",
+          market: "US",
+          providerKey: "paypal:sandbox:test",
+        }}
+        onCheckoutDraftUpdate={async (_request, currentData) => currentData}
+        renderCardPaymentBox={() => null}
+        renderCheckoutPaymentAction={() => (
+          <div data-testid="selected-wallet-action" />
+        )}
+        suppressCheckoutPaymentActions={false}
+      />,
+    );
+
+    await screen.findByRole("radio", { name: "Google Pay" });
+    expect(screen.getByTestId("selected-wallet-action")).toBeTruthy();
+
+    walletEligibilityMockState.resolve = false;
+    rerender(
+      <CheckoutRouteStage
+        checkoutData={checkoutWithSelectedGooglePay("$31.25")}
+        checkoutWalletProbeConfig={{
+          currencyCode: "USD",
+          market: "US",
+          providerKey: "paypal:sandbox:test",
+        }}
+        onCheckoutDraftUpdate={async (_request, currentData) => currentData}
+        renderCardPaymentBox={() => null}
+        renderCheckoutPaymentAction={() => (
+          <div data-testid="selected-wallet-action" />
+        )}
+        suppressCheckoutPaymentActions={false}
+      />,
+    );
+
+    expect(screen.queryByRole("radio", { name: "Google Pay" })).toBeNull();
+    expect(screen.queryByTestId("selected-wallet-action")).toBeNull();
+  });
+
   it("updates checkout totals from delivery draft API recalculation", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -4793,6 +4840,30 @@ function singleItemCart({
         href: "/products/labubu-have-a-seat",
       },
     ],
+  };
+}
+
+function checkoutWithSelectedGooglePay(totalLabel: string): CheckoutPageData {
+  const paymentStep = defaultCheckoutPageData.delivery.steps.find(
+    (step) => step.id === "payment-method",
+  );
+
+  if (!paymentStep) {
+    throw new Error("Default checkout data is missing the payment step.");
+  }
+
+  return {
+    ...defaultCheckoutPageData,
+    delivery: {
+      ...defaultCheckoutPageData.delivery,
+      steps: [{ ...paymentStep, state: "editing" }],
+      summary: {
+        ...defaultCheckoutPageData.delivery.summary,
+        selectedPaymentLabel: "Google Pay",
+        selectedPaymentMethod: "google_pay",
+        totalLabel,
+      },
+    },
   };
 }
 

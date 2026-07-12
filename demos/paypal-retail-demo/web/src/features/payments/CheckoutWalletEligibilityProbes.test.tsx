@@ -13,6 +13,7 @@ import {
 const paypalMockState = vi.hoisted(() => ({
   eligible: true,
   eligibilityError: null as Error | null,
+  eligibilityLoading: false,
   googleError: null as Error | null,
   googleReady: true,
   googleSessionPending: false,
@@ -47,7 +48,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
         isEligible: () => paypalMockState.eligible,
       },
       error: paypalMockState.eligibilityError,
-      isLoading: false,
+      isLoading: paypalMockState.eligibilityLoading,
     };
   },
   useGooglePayOneTimePaymentSession: () => ({
@@ -69,6 +70,7 @@ vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
 beforeEach(() => {
   paypalMockState.eligible = true;
   paypalMockState.eligibilityError = null;
+  paypalMockState.eligibilityLoading = false;
   paypalMockState.googleError = null;
   paypalMockState.googleReady = true;
   paypalMockState.googleSessionPending = false;
@@ -208,6 +210,46 @@ describe("CheckoutWalletEligibilityProbes", () => {
     await waitFor(() =>
       expect(document.body.textContent).toContain("eligible"),
     );
+    expect(paypalMockState.googleIsReadyToPay).toHaveBeenCalledTimes(1);
+  });
+
+  it("destroys the old Google session and waits for fresh methods when the amount changes", async () => {
+    const onEligibilityChange = vi.fn();
+    const { rerender } = render(
+      <CheckoutWalletEligibilityProbes
+        key="25.98"
+        currencyCode="USD"
+        market="US"
+        onEligibilityChange={onEligibilityChange}
+        providerKey="paypal:sandbox:test"
+        totalLabel="$25.98"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onEligibilityChange).toHaveBeenCalledWith(
+        "google_pay",
+        "eligible",
+      ),
+    );
+    expect(paypalMockState.googleIsReadyToPay).toHaveBeenCalledTimes(1);
+
+    paypalMockState.eligibilityLoading = true;
+    rerender(
+      <CheckoutWalletEligibilityProbes
+        key="31.25"
+        currencyCode="USD"
+        market="US"
+        onEligibilityChange={onEligibilityChange}
+        providerKey="paypal:sandbox:test"
+        totalLabel="$31.25"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(onEligibilityChange).toHaveBeenCalledWith("google_pay", "pending"),
+    );
+    expect(paypalMockState.handleDestroy).toHaveBeenCalledTimes(1);
     expect(paypalMockState.googleIsReadyToPay).toHaveBeenCalledTimes(1);
   });
 
