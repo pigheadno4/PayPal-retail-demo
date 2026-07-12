@@ -12,8 +12,7 @@ async function round3CheckoutPickupDrawerEvidence(page) {
     (currentOrigin && /\/(cart|checkout)(?:[/?#]|$)/.test(currentUrl)
       ? currentOrigin
       : "http://127.0.0.1:5173");
-  const outputScope =
-    baseUrl === "https://retail-demo.onrender.com" ? "hosted" : "local";
+  const outputScope = isRenderHostedBaseUrl(baseUrl) ? "hosted" : "local";
   const outputPrefix = `/private/tmp/paypal-retail-round3-${outputScope}-checkout-pickup-drawer-evidence`;
   const consoleEntries = [];
   const responseIssues = [];
@@ -22,6 +21,10 @@ async function round3CheckoutPickupDrawerEvidence(page) {
     width,
     height: width < 768 ? 844 : 900,
   });
+
+  function isRenderHostedBaseUrl(candidate) {
+    return /^https:\/\/[^/]+\.onrender\.com(?:[/?#]|$)/i.test(candidate);
+  }
   const pickupPickerOpenRows = [
     { rowId: "pickup-picker-open-320", width: 320 },
     { rowId: "pickup-picker-open-390", width: 390 },

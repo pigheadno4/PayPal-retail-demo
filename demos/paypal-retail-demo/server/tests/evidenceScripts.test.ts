@@ -9,6 +9,25 @@ function readProjectFile(path: string): string {
 }
 
 describe("evidence scripts", () => {
+  it("treats renamed Render services as hosted evidence targets", () => {
+    for (const helperPath of [
+      "tools/round2-hosted-checkout-smoke.playwright.js",
+      "tools/round3-checkout-pickup-drawer-evidence.playwright.js",
+      "tools/round4-auth-minicart-checkout-evidence.playwright.js",
+    ]) {
+      const helperSource = readProjectFile(helperPath);
+      expect(helperSource).toContain("function isRenderHostedBaseUrl");
+      expect(helperSource).toMatch(/\\\.onrender\\\.com/);
+      expect(helperSource).not.toContain(
+        'baseUrl === "https://retail-demo.onrender.com"',
+      );
+    }
+
+    expect(
+      readProjectFile("tools/round2-hosted-checkout-smoke.playwright.js"),
+    ).toContain("https://paypal-retail-demo.onrender.com");
+  });
+
   it("registers the Round 4 auth minicart checkout evidence helper", () => {
     const packageJson = JSON.parse(readProjectFile("package.json")) as {
       scripts?: Record<string, string>;
@@ -110,8 +129,32 @@ describe("evidence scripts", () => {
     expect(runnerSource).toContain("playwright-cli");
     expect(runnerSource).toContain('spawnSync("playwright-cli", ["list"]');
     expect(runnerSource).toContain("PAYPAL_RETAIL_EVIDENCE_BASE_URL");
+    expect(runnerSource).toContain(
+      'spawnSync("playwright-cli", ["goto", baseUrl]',
+    );
+    expect(runnerSource).toContain("async function waitForBrowserAppShell");
+    expect(runnerSource).toContain("function isRenderHostedBaseUrl");
+    expect(runnerSource).toMatch(/\\\.onrender\\\.com/);
+    expect(runnerSource).toContain("async function assertHostedStaticAssets");
+    expect(runnerSource).toContain(
+      '"/assets/paypal-logos/applepay-default.svg"',
+    );
+    expect(runnerSource).toContain(
+      '"/assets/popmart/products/blind-boxes-1-1.png"',
+    );
+    expect(runnerSource).toContain('method: "HEAD"');
+    expect(runnerSource).toContain(
+      "Boolean(document.querySelector('.app-shell'))",
+    );
     expect(runnerSource).toContain("writeFileSync");
     expect(runnerSource).toContain("JSON.stringify(report, null, 2)");
+    expect(runnerSource).toContain("process.stderr.write(stdout)");
+    expect(runnerSource).toContain(
+      'stdout.trimStart().startsWith("### Error")',
+    );
+    expect(runnerSource).toContain(
+      "Playwright helper failed before producing an evidence report.",
+    );
     expect(runnerSource).toContain("report.summary.failedRows.length > 0");
     expect(helperSource).toContain("screenshotPixelMetrics.suspicious");
     expect(helperSource).toContain('type: "jpeg"');
@@ -129,9 +172,7 @@ describe("evidence scripts", () => {
       "[data-payment-action-placement][data-payment-method='${method}'] ${officialSelector}",
     );
     expect(helperSource).toContain('data-paypal-sdk-status="ready"');
-    expect(helperSource).toContain(
-      'data-paypal-sdk-runtime-status="resolved"',
-    );
+    expect(helperSource).toContain('data-paypal-sdk-runtime-status="resolved"');
     expect(helperSource).toContain("shadowRoot?.querySelector");
     expect(helperSource).toContain("selectedPaymentAction.visible");
     expect(helperSource).toContain("selectedPaymentAction.officialRect");
@@ -155,6 +196,48 @@ describe("evidence scripts", () => {
     expect(helperSource).toContain("minimumMeasuredTouchTarget < 44");
     expect(helperSource).toContain('pickupInventoryStates.includes("empty")');
     expect(helperSource).toContain("await resetEvidenceRoutes()");
+    expect(helperSource).toContain(
+      'page.context().route("**/api/account/auth/lookup"',
+    );
+    expect(helperSource).toContain(
+      'const navigationTimeout = outputScope === "hosted" ? 90000 : 30000',
+    );
+    expect(helperSource).toContain("function isRenderHostedBaseUrl");
+    expect(helperSource).toMatch(/\\\.onrender\\\.com/);
+    expect(helperSource).toContain(
+      'const interactionTimeout = outputScope === "hosted" ? 60000 : 10000',
+    );
+    expect(helperSource).toContain(
+      'const readinessTimeout = outputScope === "hosted" ? 60000 : 20000',
+    );
+    expect(helperSource).toContain(
+      'const navigationWaitUntil =\n    outputScope === "hosted" ? "commit" : "domcontentloaded"',
+    );
+    expect(helperSource).toContain("async function waitForOptionalNetworkIdle");
+    expect(helperSource).toContain('if (outputScope !== "local") return');
+    expect(helperSource).toContain("async function waitForAppShell");
+    expect(helperSource).toContain("await page.reload");
+    expect(helperSource).toContain("async function gotoEvidenceRoute");
+    expect(helperSource).toContain('message.includes("net::ERR_ABORTED")');
+    expect(helperSource).toContain("await page.waitForTimeout(250)");
+    expect(helperSource).toContain("async function waitForGuestCartBinding");
+    expect(helperSource).toContain(
+      'key.startsWith("paypal-retail-demo:cart-binding:")',
+    );
+    expect(helperSource).toContain("await waitForGuestCartBinding()");
+    expect(helperSource).toContain(
+      "async function waitForMinicartEvidenceReady",
+    );
+    expect(helperSource).toContain("await waitForMinicartEvidenceReady()");
+    expect(helperSource).toContain("async function waitForVisibleImages");
+    expect(helperSource).toContain("image.complete && image.naturalWidth > 0");
+    expect(helperSource).toContain("await image.decode()");
+    expect(helperSource).toContain("rect.bottom > 0");
+    expect(helperSource).toContain("rect.top < window.innerHeight");
+    expect(helperSource).toContain("await waitForVisibleImages()");
+    expect(helperSource).toContain(
+      "route.fetch({ timeout: navigationTimeout })",
+    );
     expect(helperSource).toContain("postCloseFocusedElement?.ariaLabel");
     expect(helperSource).toContain(
       'document.querySelector("[data-payment-method-row]")',

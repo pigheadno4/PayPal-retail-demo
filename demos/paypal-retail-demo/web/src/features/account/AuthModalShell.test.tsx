@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { useState } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -174,6 +180,37 @@ describe("AuthModalShell", () => {
       email: "new.collector@example.test",
       password: "secret",
     });
+  });
+
+  it("replaces failed register artwork with a buyer-safe fallback", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthFlowHarness onRegisterSubmit={() => {}} />);
+
+    const emailDialog = screen.getByRole("dialog", { name: "Sign in" });
+    await user.type(
+      within(emailDialog).getByLabelText("Email"),
+      "new.collector@example.test",
+    );
+    await user.click(
+      within(emailDialog).getByRole("button", { name: "Continue" }),
+    );
+
+    const registerDialog = screen.getByRole("dialog", {
+      name: "Create account",
+    });
+    fireEvent.error(
+      within(registerDialog).getByRole("img", {
+        name: "POP MART account benefits collectible",
+      }),
+    );
+
+    expect(
+      within(registerDialog).getByRole("img", {
+        name: "POP MART account benefits collectible unavailable",
+      }),
+    ).toBeTruthy();
+    expect(within(registerDialog).getByText("Image unavailable")).toBeTruthy();
   });
 
   it("keeps the password visibility control inline and reversible", async () => {

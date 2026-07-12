@@ -586,6 +586,43 @@ describe("CheckoutPage", () => {
     expect(within(stickySummary).queryByText("Labubu Have a Seat")).toBeNull();
   });
 
+  it("guides selected Card buyers back to the single inline payment action", () => {
+    mockMobileCheckoutViewport();
+    const renderCardPaymentBox = vi.fn(() => (
+      <div data-card-payment-box="true">
+        <button type="button">Pay by card</button>
+      </div>
+    ));
+
+    render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "card",
+        })}
+        renderCardPaymentBox={renderCardPaymentBox}
+      />,
+    );
+
+    expect(renderCardPaymentBox).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Pay by card" })).toBeTruthy();
+    const stickySummary = screen.getByLabelText("Checkout summary");
+    expect(
+      within(stickySummary).getByLabelText("Card payment guidance"),
+    ).toBeTruthy();
+    expect(
+      within(stickySummary).getByText("Complete card details above."),
+    ).toBeTruthy();
+    expect(
+      within(stickySummary).queryByText(
+        "Use Pay by card when the hosted fields are complete.",
+      ),
+    ).toBeNull();
+    expect(
+      within(stickySummary).queryByRole("button", { name: "Choose payment" }),
+    ).toBeNull();
+  });
+
   it("keeps mobile payment readiness copy visible in the collapsed and expanded drawer", async () => {
     mockMobileCheckoutViewport();
     const user = userEvent.setup();

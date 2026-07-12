@@ -112,7 +112,7 @@ Dashboard settings:
 
 Render environment variables:
 
-- Set `APP_BASE_URL`, `PUBLIC_HTTPS_ORIGIN`, and `VITE_API_BASE_URL` to the exact Render HTTPS URL, for example `https://retail-demo.onrender.com`.
+- Set `APP_BASE_URL`, `PUBLIC_HTTPS_ORIGIN`, and `VITE_API_BASE_URL` to the exact Render HTTPS URL, currently `https://paypal-retail-demo.onrender.com`.
 - Copy server-only secrets from the local `.env` into the Render Environment tab: `ADMIN_PASSCODE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAYPAL_ENVIRONMENT`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`, `PAYPAL_BN_CODE`, and `PAYPAL_DEFAULT_SANDBOX_TEST_BUYER_COUNTRY`.
 - Copy browser-safe Supabase values into Render too: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - Do not set `PORT`; Render injects it.

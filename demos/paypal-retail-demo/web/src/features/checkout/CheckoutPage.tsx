@@ -1167,6 +1167,9 @@ export function CheckoutPage({
           summary={displayedSummary}
           paymentAction={stickySummaryPaymentAction}
           paymentReadinessMessage={paymentReadinessMessage}
+          selectedPaymentMethod={
+            activePaymentContext.selectedPaymentMethod ?? null
+          }
           open={orderDetailsOpen}
           onOpenChange={setOrderDetailsOpen}
         />
@@ -3024,6 +3027,7 @@ function CheckoutMobileStickySummary({
   summary,
   paymentAction,
   paymentReadinessMessage,
+  selectedPaymentMethod,
   open,
   onOpenChange,
 }: {
@@ -3033,6 +3037,7 @@ function CheckoutMobileStickySummary({
     readonly title: string;
     readonly body: string;
   } | null;
+  readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
@@ -3051,19 +3056,37 @@ function CheckoutMobileStickySummary({
       Choose payment
     </Button>
   );
-  const renderPaymentReadiness = () =>
-    paymentReadinessMessage ? (
-      <div
-        aria-label="Payment readiness"
-        aria-live="polite"
-        className="checkout-payment-readiness checkout-sticky-summary__readiness"
-      >
-        <strong>{paymentReadinessMessage.title}</strong>
-        <p>{paymentReadinessMessage.body}</p>
-      </div>
-    ) : (
-      renderChoosePaymentButton()
-    );
+  const renderPaymentReadiness = () => {
+    if (paymentReadinessMessage) {
+      return (
+        <div
+          aria-label="Payment readiness"
+          aria-live="polite"
+          className="checkout-payment-readiness checkout-sticky-summary__readiness"
+        >
+          <strong>{paymentReadinessMessage.title}</strong>
+          <p>{paymentReadinessMessage.body}</p>
+        </div>
+      );
+    }
+
+    if (selectedPaymentMethod === "card") {
+      return (
+        <div
+          aria-label="Card payment guidance"
+          className="checkout-payment-readiness checkout-sticky-summary__readiness"
+        >
+          <strong>
+            {open
+              ? "Return to the Card section to pay."
+              : "Complete card details above."}
+          </strong>
+        </div>
+      );
+    }
+
+    return renderChoosePaymentButton();
+  };
   const stickyPaymentControl =
     paymentAction && !open ? paymentAction : renderPaymentReadiness();
   const sheetPaymentControl = paymentAction ?? renderPaymentReadiness();

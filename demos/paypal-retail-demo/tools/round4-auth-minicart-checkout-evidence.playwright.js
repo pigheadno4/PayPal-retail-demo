@@ -12,8 +12,12 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     (currentOrigin && /\/(?:cart|checkout)?(?:[/?#]|$)/.test(currentUrl)
       ? currentOrigin
       : "http://localhost:5173");
-  const outputScope =
-    baseUrl === "https://retail-demo.onrender.com" ? "hosted" : "local";
+  const outputScope = isRenderHostedBaseUrl(baseUrl) ? "hosted" : "local";
+  const navigationTimeout = outputScope === "hosted" ? 90000 : 30000;
+  const interactionTimeout = outputScope === "hosted" ? 60000 : 10000;
+  const readinessTimeout = outputScope === "hosted" ? 60000 : 20000;
+  const navigationWaitUntil =
+    outputScope === "hosted" ? "commit" : "domcontentloaded";
   const outputPrefix = `/private/tmp/paypal-retail-round4-${outputScope}-auth-minicart-checkout-evidence`;
   const consoleEntries = [];
   const responseEntries = [];
@@ -72,6 +76,10 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     ],
   };
 
+  function isRenderHostedBaseUrl(candidate) {
+    return /^https:\/\/[^/]+\.onrender\.com(?:[/?#]|$)/i.test(candidate);
+  }
+
   page.on("console", (message) => {
     consoleEntries.push({
       type: message.type(),
@@ -107,7 +115,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
 
   await resetEvidenceRoutes();
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.route("**/api/account/auth/lookup", async (route) => {
+  await page.context().route("**/api/account/auth/lookup", async (route) => {
     const body = route.request().postDataJSON();
     const email = String(body?.email ?? "").toLowerCase();
     await route.fulfill({
@@ -238,8 +246,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
   return report;
 
   async function resetEvidenceRoutes() {
+    await page
+      .context()
+      .unroute("**/api/account/auth/lookup")
+      .catch(() => undefined);
     for (const routePattern of [
-      "**/api/account/auth/lookup",
       "**/api/checkout/drafts/**/shipping-option**",
     ]) {
       await page.unroute(routePattern).catch(() => undefined);
@@ -247,10 +258,11 @@ async function round4AuthMinicartCheckoutEvidence(page) {
   }
 
   async function inspectDeployment() {
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-    await page
-      .waitForLoadState("networkidle", { timeout: 20000 })
-      .catch(() => undefined);
+    if (!page.url().startsWith(baseUrl)) {
+      await gotoEvidenceRoute(baseUrl);
+    }
+    await waitForAppShell("deployment inspection");
+    await waitForOptionalNetworkIdle();
 
     return await page.evaluate(async () => {
       const faviconHref =
@@ -277,23 +289,113 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     });
   }
 
+  async function waitForOptionalNetworkIdle() {
+    if (outputScope !== "local") return;
+    await page
+      .waitForLoadState("networkidle", { timeout: 20000 })
+      .catch(() => undefined);
+  }
+
+  async function waitForVisibleImages() {
+    await page.waitForFunction(
+      () => {
+        const images = Array.from(document.images).filter((image) => {
+          const style = window.getComputedStyle(image);
+          const rect = image.getBoundingClientRect();
+          return (
+            image.getClientRects().length > 0 &&
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            rect.right > 0 &&
+            rect.bottom > 0 &&
+            rect.left < window.innerWidth &&
+            rect.top < window.innerHeight
+          );
+        });
+
+        return images.every(
+          (image) => image.complete && image.naturalWidth > 0,
+        );
+      },
+      undefined,
+      { timeout: readinessTimeout },
+    );
+
+    await page.evaluate(async () => {
+      const images = Array.from(document.images).filter((image) => {
+        const style = window.getComputedStyle(image);
+        const rect = image.getBoundingClientRect();
+        return (
+          image.getClientRects().length > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          rect.right > 0 &&
+          rect.bottom > 0 &&
+          rect.left < window.innerWidth &&
+          rect.top < window.innerHeight
+        );
+      });
+
+      for (const image of images) {
+        await image.decode();
+      }
+    });
+  }
+
+  async function gotoEvidenceRoute(url) {
+    const navigationOptions = {
+      timeout: navigationTimeout,
+      waitUntil: navigationWaitUntil,
+    };
+
+    try {
+      return await page.goto(url, navigationOptions);
+    } catch (error) {
+      const message = String(error);
+      if (outputScope !== "hosted" || !message.includes("net::ERR_ABORTED")) {
+        throw error;
+      }
+
+      await page.waitForTimeout(250);
+      return await page.goto(url, navigationOptions);
+    }
+  }
+
+  async function waitForAppShell(routeLabel) {
+    const appShell = page.locator(".app-shell");
+    try {
+      await appShell.waitFor({ state: "visible", timeout: readinessTimeout });
+      return;
+    } catch (firstError) {
+      if (outputScope !== "hosted") throw firstError;
+    }
+
+    await page.reload({
+      timeout: navigationTimeout,
+      waitUntil: navigationWaitUntil,
+    });
+    try {
+      await appShell.waitFor({ state: "visible", timeout: readinessTimeout });
+    } catch (retryError) {
+      throw new Error(
+        `Hosted app shell did not render for ${routeLabel} after one retry: ${String(retryError)}`,
+      );
+    }
+  }
+
   async function openFreshRoute(route, width) {
     await setViewport(width);
     await page.context().clearCookies();
     if (!page.url().startsWith(baseUrl)) {
-      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      await gotoEvidenceRoute(baseUrl);
     }
     await page.evaluate(() => {
       window.localStorage.clear();
       window.sessionStorage.clear();
     });
-    await page.goto(`${baseUrl}${route}`, { waitUntil: "domcontentloaded" });
-    await page
-      .waitForLoadState("networkidle", { timeout: 20000 })
-      .catch(() => undefined);
-    await page
-      .locator(".app-shell")
-      .waitFor({ state: "visible", timeout: 20000 });
+    await gotoEvidenceRoute(`${baseUrl}${route}`);
+    await waitForOptionalNetworkIdle();
+    await waitForAppShell(route);
   }
 
   async function openFreshCheckout(width) {
@@ -306,8 +408,37 @@ async function round4AuthMinicartCheckoutEvidence(page) {
           ),
         ),
       undefined,
-      { timeout: 20000 },
+      { timeout: readinessTimeout },
     );
+    await waitForGuestCartBinding();
+  }
+
+  async function waitForGuestCartBinding() {
+    await page.waitForFunction(
+      () => {
+        const key = Object.keys(window.localStorage).find((key) =>
+          key.startsWith("paypal-retail-demo:cart-binding:"),
+        );
+        if (!key) return false;
+
+        try {
+          const binding = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+          return Boolean(
+            String(binding.cart_public_id ?? "").trim() &&
+            String(binding.cart_client_secret ?? "").trim(),
+          );
+        } catch {
+          return false;
+        }
+      },
+      undefined,
+      { timeout: readinessTimeout },
+    );
+    await page
+      .locator('[role="status"]')
+      .filter({ hasText: /Prepared guest cart|Restored saved cart/ })
+      .first()
+      .waitFor({ state: "visible", timeout: readinessTimeout });
   }
 
   async function collectEmailModalRow(width) {
@@ -316,7 +447,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     const trigger = page.getByRole("button", { name: "Sign in" });
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "Sign in" });
-    await dialog.waitFor({ state: "visible", timeout: 10000 });
+    await dialog.waitFor({ state: "visible", timeout: interactionTimeout });
     const initialFocusedElement = await describeFocusedElement();
     const emailInput = dialog.getByLabel("Email");
     await emailInput.fill("invalid");
@@ -348,7 +479,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await emailDialog.getByLabel("Email").fill("alice.la@example.test");
     await emailDialog.getByRole("button", { name: "Continue" }).click();
     const dialog = page.getByRole("dialog", { name: "Enter password" });
-    await dialog.waitFor({ state: "visible", timeout: 10000 });
+    await dialog.waitFor({ state: "visible", timeout: interactionTimeout });
     const initialFocusedElement = await describeFocusedElement();
     const passwordInput = dialog.getByLabel("Password", { exact: true });
     const typeBefore = await passwordInput.getAttribute("type");
@@ -395,13 +526,16 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await emailDialog.getByLabel("Email").fill("new.collector@example.test");
     await emailDialog.getByRole("button", { name: "Continue" }).click();
     const dialog = page.getByRole("dialog", { name: "Create account" });
-    await dialog.waitFor({ state: "visible", timeout: 10000 });
+    await dialog.waitFor({ state: "visible", timeout: interactionTimeout });
     const initialFocusedElement = await describeFocusedElement();
     await dialog.getByRole("button", { name: "Create account" }).click();
     const passwordError = dialog.getByText("Enter your password.", {
       exact: true,
     });
-    await passwordError.waitFor({ state: "visible", timeout: 10000 });
+    await passwordError.waitFor({
+      state: "visible",
+      timeout: interactionTimeout,
+    });
     const passwordErrorObserved = await passwordError.isVisible();
     const passwordInput = dialog.getByLabel("Password", { exact: true });
     await passwordInput.fill("collector-secret");
@@ -410,7 +544,10 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       "Accept the terms before creating an account.",
       { exact: true },
     );
-    await termsError.waitFor({ state: "visible", timeout: 10000 });
+    await termsError.waitFor({
+      state: "visible",
+      timeout: interactionTimeout,
+    });
     const termsErrorObserved = await termsError.isVisible();
     await passwordInput.focus();
     const row = await collectRow({
@@ -440,7 +577,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await page.getByRole("button", { name: "Close" }).click();
     await page
       .locator('[data-slot="dialog-content"]')
-      .waitFor({ state: "hidden", timeout: 10000 });
+      .waitFor({ state: "hidden", timeout: interactionTimeout });
     await page.waitForTimeout(100);
     row.postCloseFocusedElement = await describeFocusedElement();
     if (
@@ -455,12 +592,14 @@ async function round4AuthMinicartCheckoutEvidence(page) {
 
   async function collectMinicartRow(width) {
     await openFreshRoute("/cart", width);
+    await waitForGuestCartBinding();
     const checkpoint = markCheckpoint();
     const trigger = page.getByRole("button", { name: "Open minicart" });
     await trigger.click();
     await page
       .locator(".minicart-shell")
-      .waitFor({ state: "visible", timeout: 10000 });
+      .waitFor({ state: "visible", timeout: interactionTimeout });
+    await waitForMinicartEvidenceReady();
     const row = await collectRow({
       rowId: `minicart-open-${width}`,
       checkpoint,
@@ -479,11 +618,45 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     return row;
   }
 
+  async function waitForMinicartEvidenceReady() {
+    await page.waitForFunction(
+      () => {
+        const shell = document.querySelector(".minicart-shell");
+        if (!shell) return false;
+
+        const quantityControls = [
+          ...shell.querySelectorAll(".minicart-item__quantity button"),
+        ];
+        const expressMethods = [
+          ...shell.querySelectorAll(
+            ".delivery-express-action[data-delivery-express-source='minicart']",
+          ),
+        ].map((element) =>
+          element.getAttribute("data-delivery-express-method"),
+        );
+
+        return Boolean(
+          shell.querySelector(".minicart-item") &&
+          shell.querySelector(".minicart-item__meta") &&
+          shell.querySelector(".minicart-actions__link--primary") &&
+          quantityControls.length > 0 &&
+          quantityControls.every((control) =>
+            control.getAttribute("aria-label")?.includes("quantity"),
+          ) &&
+          expressMethods.filter((method) => method === "paypal").length === 1 &&
+          expressMethods.filter((method) => method === "paylater").length === 1,
+        );
+      },
+      undefined,
+      { timeout: readinessTimeout },
+    );
+  }
+
   async function openPickupPicker(width) {
     await openFreshCheckout(width);
     const checkpoint = markCheckpoint();
     const injectSoldOutStore = async (route) => {
-      const response = await route.fetch();
+      const response = await route.fetch({ timeout: navigationTimeout });
       const envelope = await response.json();
       const stores = envelope?.data?.draft?.pickup?.stores;
       const soldOutStore = Array.isArray(stores) ? stores.at(-1) : null;
@@ -524,12 +697,15 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     }
     await page.getByRole("tab", { name: "Pickup" }).click();
     const zipInput = page.locator("#pickup-location-zip-or-postcode");
-    await zipInput.waitFor({ state: "visible", timeout: 10000 });
+    await zipInput.waitFor({
+      state: "visible",
+      timeout: interactionTimeout,
+    });
     await zipInput.fill("19720");
     await page.getByRole("button", { name: "Find pickup stores" }).click();
     await page
       .getByRole("dialog", { name: "Choose pickup store" })
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
     for (const pattern of pickupResponsePatterns) {
       await page.unroute(pattern, injectSoldOutStore);
     }
@@ -559,8 +735,9 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       const card = dialog
         .locator(`.checkout-store-card[data-inventory-state='${state}']`)
         .first();
-      await card.waitFor({ state: "visible", timeout: 10000 });
+      await card.waitFor({ state: "visible", timeout: interactionTimeout });
       await card.scrollIntoViewIfNeeded();
+      await waitForVisibleImages();
       await page.waitForTimeout(100);
       const screenshotPath = `${outputPrefix}/pickup-store-picker-${state}-${width}.jpg`;
       const screenshot = await page.screenshot({
@@ -606,7 +783,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
       (response) =>
         response.url().includes("/pickup-store") &&
         response.request().method() === "PATCH",
-      { timeout: 20000 },
+      { timeout: readinessTimeout },
     );
     await chooseButton.click();
     const confirmButton = dialog.getByRole("button", {
@@ -623,7 +800,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     }
     await page
       .getByRole("button", { name: "Save billing address" })
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
     return await collectRow({
       rowId: `pickup-preselected-inventory-${width}`,
       checkpoint,
@@ -635,15 +812,15 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await page.getByRole("button", { name: "Submit shipping address" }).click();
     await page
       .getByRole("button", { name: "Save billing address" })
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
     await page.getByRole("button", { name: "Save billing address" }).click();
     await page
       .getByRole("button", { name: "Submit shipping option" })
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
     await page.getByRole("button", { name: "Submit shipping option" }).click();
     await page
       .locator("[data-payment-method-row='paypal'] input")
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
   }
 
   async function selectPaymentMethod(method) {
@@ -655,7 +832,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     }[method];
     await page
       .getByText(readyText)
-      .waitFor({ state: "visible", timeout: 20000 });
+      .waitFor({ state: "visible", timeout: readinessTimeout });
     const placementSelector =
       method === "card"
         ? ".checkout-choice__card-box"
@@ -678,7 +855,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     if (method === "card") {
       await officialLocator
         .first()
-        .waitFor({ state: "visible", timeout: 20000 });
+        .waitFor({ state: "visible", timeout: readinessTimeout });
       await page.waitForFunction(
         ({ placementSelector, officialSelector }) =>
           [
@@ -690,7 +867,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
             return rect.width > 0 && rect.height > 0;
           }).length === 3,
         { placementSelector, officialSelector },
-        { timeout: 20000 },
+        { timeout: readinessTimeout },
       );
       return;
     }
@@ -718,7 +895,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         );
       },
       { method, placementSelector, officialSelector },
-      { timeout: 20000 },
+      { timeout: readinessTimeout },
     );
   }
 
@@ -741,7 +918,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
     await page.getByRole("button", { name: "Review order details" }).click();
     await page
       .getByRole("button", { name: "Close order details" })
-      .waitFor({ state: "visible", timeout: 10000 });
+      .waitFor({ state: "visible", timeout: interactionTimeout });
     const selectedMethod = await page
       .locator("[data-payment-method-row]:has(input:checked)")
       .getAttribute("data-payment-method-row");
@@ -772,7 +949,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         await trigger.click();
         await page
           .getByRole("button", { name: "Close order details" })
-          .waitFor({ state: "visible", timeout: 10000 });
+          .waitFor({ state: "visible", timeout: interactionTimeout });
       }
 
       if (method === "escape") {
@@ -788,7 +965,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
         await page.mouse.click(overlayBox.x + 8, overlayBox.y + 8);
       }
 
-      await trigger.waitFor({ state: "visible", timeout: 10000 });
+      await trigger.waitFor({ state: "visible", timeout: interactionTimeout });
       await page.waitForTimeout(100);
       const focusedElement = await describeFocusedElement();
       row.closeMethods.push({ method, focusedElement });
@@ -857,6 +1034,7 @@ async function round4AuthMinicartCheckoutEvidence(page) {
   }
 
   async function collectRow({ rowId, checkpoint, expected, extras = {} }) {
+    await waitForVisibleImages();
     await page.waitForTimeout(250);
     const screenshotPath = `${outputPrefix}/${rowId}.jpg`;
     let screenshotPixelMetrics = null;

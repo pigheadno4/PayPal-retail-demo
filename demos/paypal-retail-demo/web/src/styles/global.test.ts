@@ -153,6 +153,9 @@ describe("global storefront visual tokens", () => {
     const passwordInputBlock = cssBlock(".auth-modal__password-input");
     const passwordToggleBlock = cssBlock(".auth-modal__password-toggle");
     const emailSummaryBlock = cssBlock(".auth-modal__email-summary");
+    const emailSummaryValueBlock = cssBlock(
+      ".auth-modal__email-summary strong",
+    );
     const closeButtonBlock = cssBlock(
       ".auth-modal__panel .dialog-close-button",
     );
@@ -172,6 +175,10 @@ describe("global storefront visual tokens", () => {
     expect(emailSummaryBlock).toContain(
       "grid-template-columns: minmax(0, 1fr) auto",
     );
+    expect(emailSummaryValueBlock).toContain("overflow: hidden");
+    expect(emailSummaryValueBlock).toContain("text-overflow: ellipsis");
+    expect(emailSummaryValueBlock).toContain("white-space: nowrap");
+    expect(emailSummaryValueBlock).not.toContain("overflow-wrap: anywhere");
     expect(closeButtonBlock).toContain("min-height: 44px");
     expect(closeButtonBlock).toContain("min-width: 44px");
   });

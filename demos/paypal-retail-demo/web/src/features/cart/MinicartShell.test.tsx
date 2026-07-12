@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -147,6 +153,24 @@ describe("MinicartShell", () => {
       "Prefer pickup? Choose store pickup during checkout.",
     );
     expect(html).not.toContain("Choose pickup store");
+  });
+
+  it("replaces failed product artwork with a buyer-safe fallback", () => {
+    render(<MinicartShell state="open" cart={cartData()} />);
+
+    const minicart = screen.getByLabelText("Minicart");
+    fireEvent.error(
+      within(minicart).getByRole("img", {
+        name: "Labubu Have a Seat collectible",
+      }),
+    );
+
+    expect(
+      within(minicart).getByRole("img", {
+        name: "Labubu Have a Seat collectible unavailable",
+      }),
+    ).toBeTruthy();
+    expect(within(minicart).getByText("Image unavailable")).toBeTruthy();
   });
 
   it("keeps empty minicarts out of checkout and express payment flows", () => {

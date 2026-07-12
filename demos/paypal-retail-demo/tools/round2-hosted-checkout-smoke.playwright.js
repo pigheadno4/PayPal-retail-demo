@@ -3,12 +3,8 @@
 async function round2HostedCheckoutSmoke(page) {
   const currentUrl = page.url();
   const currentOrigin = currentUrl.match(/^https?:\/\/[^/]+/)?.[0] ?? null;
-  const baseUrl =
-    currentOrigin && currentOrigin !== "https://retail-demo.onrender.com"
-      ? currentOrigin
-      : "https://retail-demo.onrender.com";
-  const outputScope =
-    baseUrl === "https://retail-demo.onrender.com" ? "hosted" : "local";
+  const baseUrl = currentOrigin ?? "https://paypal-retail-demo.onrender.com";
+  const outputScope = isRenderHostedBaseUrl(baseUrl) ? "hosted" : "local";
   const outputPrefix = `/private/tmp/paypal-retail-round2-${outputScope}-smoke-evidence`;
   const viewportWidths = [320, 375, 390, 768, 1024, 1280, 1440];
   const consoleEntries = [];
@@ -18,6 +14,10 @@ async function round2HostedCheckoutSmoke(page) {
     width,
     height: width < 768 ? 844 : 900,
   });
+
+  function isRenderHostedBaseUrl(candidate) {
+    return /^https:\/\/[^/]+\.onrender\.com(?:[/?#]|$)/i.test(candidate);
+  }
 
   const onConsole = (message) => {
     consoleEntries.push({

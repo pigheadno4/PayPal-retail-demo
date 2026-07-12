@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { BuyerSafeImage } from "@/components/BuyerSafeImage";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -174,8 +175,10 @@ export function AuthModalShell({
               className="auth-modal__benefits"
             >
               <div className="auth-modal__media">
-                <img
+                <BuyerSafeImage
                   alt="POP MART account benefits collectible"
+                  fallbackClassName="auth-modal__benefit-image auth-modal__benefit-image--fallback"
+                  className="auth-modal__benefit-image"
                   src="/assets/popmart/products/blind-boxes-2-1.png"
                 />
               </div>

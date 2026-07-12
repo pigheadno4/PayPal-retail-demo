@@ -7565,12 +7565,25 @@ p {
   overflow: hidden;
 }
 
-.auth-modal__media img {
+.auth-modal__benefit-image {
   aspect-ratio: 1 / 0.82;
   display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+.auth-modal__benefit-image--fallback,
+.minicart-item__image--fallback {
+  align-items: center;
+  color: var(--shell-muted);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: var(--transaction-strong-weight);
+  justify-content: center;
+  line-height: 1.2;
+  padding: 8px;
+  text-align: center;
 }
 
 .auth-modal__benefit-copy {
@@ -7663,7 +7676,9 @@ p {
 .auth-modal__email-summary strong {
   color: var(--ink);
   font-size: 0.92rem;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .auth-modal__email-edit {
@@ -7835,7 +7850,7 @@ p {
   min-width: 0;
 }
 
-.minicart-item img {
+.minicart-item__image {
   aspect-ratio: 1;
   background: #f0eeea;
   border-radius: 6px;

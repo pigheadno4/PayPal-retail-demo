@@ -3,6 +3,7 @@ import { type MouseEvent, type ReactNode } from "react";
 import { XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { BuyerSafeImage } from "@/components/BuyerSafeImage";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -133,9 +134,11 @@ export function MinicartShell({
                       key={item.slug}
                     >
                       <a href={item.href}>
-                        <img
+                        <BuyerSafeImage
                           src={item.imagePath}
                           alt={item.imageAlt}
+                          className="minicart-item__image"
+                          fallbackClassName="minicart-item__image minicart-item__image--fallback"
                           loading="lazy"
                         />
                       </a>
