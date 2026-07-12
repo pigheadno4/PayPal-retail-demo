@@ -727,6 +727,7 @@ During implementation:
 
 - Apple Pay requires PayPal `isEligible("applepay") === true` and `ApplePaySession.canMakePayments() === true`.
 - Google Pay requires PayPal `isEligible("googlepay") === true` and `PaymentsClient.isReadyToPay(...).result === true` using PayPal's formatted configuration.
+- Preselection and selected-action PayPal eligibility must use the same normalized active fulfillment amount and re-probe when mode or total changes.
 - Pending and error states are ineligible for display; do not show disabled or loading wallet rows.
 - Eligibility probes must not create an order, render a branded merchant substitute, or change payment-session timing.
 - Do not change Venmo eligibility, fulfillment binding, PayPal Create Order fields, promo/tax rules, or capture behavior.
@@ -758,7 +759,7 @@ During implementation:
 
 **Interfaces:**
 - Produces: `CheckoutWalletEligibility = { apple_pay: "pending" | "eligible" | "ineligible"; google_pay: "pending" | "eligible" | "ineligible" }` and `onEligibilityChange(method, state)` callbacks.
-- Consumes: PayPal `useEligibleMethods`, Google `useGooglePayOneTimePaymentSession().paymentsClient/formattedConfig`, `ApplePaySession.canMakePayments()`, market, currency, and resolved sandbox/production environment.
+- Consumes: PayPal `useEligibleMethods`, Google `useGooglePayOneTimePaymentSession().paymentsClient/formattedConfig`, `ApplePaySession.canMakePayments()`, active fulfillment total, market, currency, and resolved sandbox/production environment.
 
 - [x] Add failing jsdom tests for Apple provider true/browser false, Apple provider true/browser true, Google PayPal true/Google false, Google both true, and error-to-ineligible behavior.
 - [x] Verify the tests fail because the probe module does not exist.

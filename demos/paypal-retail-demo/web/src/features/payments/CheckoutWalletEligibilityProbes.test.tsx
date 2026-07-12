@@ -18,6 +18,7 @@ const paypalMockState = vi.hoisted(() => ({
   googleSessionPending: false,
   googleIsReadyToPay: vi.fn(),
   handleDestroy: vi.fn(),
+  useEligibleMethods: vi.fn(),
 }));
 
 vi.mock("./PayPalSdkProviderScope.js", () => ({
@@ -32,19 +33,23 @@ vi.mock("./PayPalSdkProviderScope.js", () => ({
 }));
 
 vi.mock("@paypal/react-paypal-js/sdk-v6", () => ({
-  useEligibleMethods: () => ({
-    eligiblePaymentMethods: {
-      getDetails: (method: string) => ({
-        config:
-          method === "applepay"
-            ? { countryCode: "US", merchantCapabilities: ["supports3DS"] }
-            : { merchantInfo: { merchantName: "POP MART" } },
-      }),
-      isEligible: () => paypalMockState.eligible,
-    },
-    error: paypalMockState.eligibilityError,
-    isLoading: false,
-  }),
+  useEligibleMethods: (options: unknown) => {
+    paypalMockState.useEligibleMethods(options);
+
+    return {
+      eligiblePaymentMethods: {
+        getDetails: (method: string) => ({
+          config:
+            method === "applepay"
+              ? { countryCode: "US", merchantCapabilities: ["supports3DS"] }
+              : { merchantInfo: { merchantName: "POP MART" } },
+        }),
+        isEligible: () => paypalMockState.eligible,
+      },
+      error: paypalMockState.eligibilityError,
+      isLoading: false,
+    };
+  },
   useGooglePayOneTimePaymentSession: () => ({
     error: paypalMockState.googleError,
     formattedConfig: {
@@ -72,6 +77,7 @@ beforeEach(() => {
     result: paypalMockState.googleReady,
   }));
   paypalMockState.handleDestroy.mockReset();
+  paypalMockState.useEligibleMethods.mockReset();
   setApplePayAvailability(true);
 });
 
@@ -88,12 +94,28 @@ describe("CheckoutWalletEligibilityProbes", () => {
         market="US"
         onEligibilityChange={vi.fn()}
         providerKey="paypal:sandbox:test"
+        totalLabel="$25.98"
       />,
     );
 
     expect(getByTestId("provider-apple_pay")).toBeTruthy();
     expect(getByTestId("provider-google_pay")).toBeTruthy();
     expect(container.textContent).toBe("");
+    expect(paypalMockState.useEligibleMethods).toHaveBeenCalledTimes(2);
+    expect(paypalMockState.useEligibleMethods).toHaveBeenNthCalledWith(1, {
+      payload: {
+        amount: "25.98",
+        currencyCode: "USD",
+        paymentFlow: "ONE_TIME_PAYMENT",
+      },
+    });
+    expect(paypalMockState.useEligibleMethods).toHaveBeenNthCalledWith(2, {
+      payload: {
+        amount: "25.98",
+        currencyCode: "USD",
+        paymentFlow: "ONE_TIME_PAYMENT",
+      },
+    });
   });
 
   it("requires both PayPal and browser eligibility for Apple Pay", async () => {
@@ -104,6 +126,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <ApplePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -117,6 +140,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <ApplePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -133,6 +157,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <ApplePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -149,6 +174,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <GooglePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -167,6 +193,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <GooglePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -192,6 +219,7 @@ describe("CheckoutWalletEligibilityProbes", () => {
       <GooglePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={onEligibilityChange}
+        totalLabel="$25.98"
       />,
     );
 
@@ -222,6 +250,7 @@ function StatefulGoogleProbeHarness() {
       <GooglePayPreselectionProbe
         currencyCode="USD"
         onEligibilityChange={setState}
+        totalLabel="$25.98"
       />
       <span>{state}</span>
     </>

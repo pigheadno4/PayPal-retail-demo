@@ -221,6 +221,7 @@ export interface CheckoutPageData {
 
 export interface CheckoutPageProps {
   readonly data?: CheckoutPageData;
+  readonly onActiveModeChange?: (mode: CheckoutFulfillmentMode) => void;
   readonly paymentMethodEligibility?: CheckoutPaymentMethodEligibility;
   readonly onDraftUpdate?: (
     request: CheckoutDraftUpdateRequest,
@@ -350,6 +351,7 @@ type CheckoutFieldValue = string | boolean;
 
 export function CheckoutPage({
   data = defaultCheckoutPageData,
+  onActiveModeChange,
   onDraftUpdate,
   paymentMethodEligibility,
   renderPaymentAction,
@@ -572,8 +574,9 @@ export function CheckoutPage({
   );
 
   function selectMode(mode: CheckoutFulfillmentMode) {
-    if (!data.modeLocked) {
+    if (!data.modeLocked && mode !== activeMode) {
       setActiveMode(mode);
+      onActiveModeChange?.(mode);
     }
   }
 

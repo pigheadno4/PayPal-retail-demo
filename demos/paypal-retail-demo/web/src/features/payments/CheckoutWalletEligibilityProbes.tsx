@@ -10,6 +10,7 @@ import {
   PayPalSdkProviderScope,
   usePayPalSdkConfig,
 } from "./PayPalSdkProviderScope.js";
+import { normalizePayLaterMessageAmount } from "./payLaterRuntime.js";
 
 export type CheckoutWalletEligibilityState =
   | "eligible"
@@ -24,6 +25,7 @@ export interface CheckoutWalletEligibilityProbesProps {
     state: CheckoutWalletEligibilityState,
   ) => void;
   readonly providerKey: string;
+  readonly totalLabel: string;
 }
 
 export function CheckoutWalletEligibilityProbes({
@@ -31,6 +33,7 @@ export function CheckoutWalletEligibilityProbes({
   market,
   onEligibilityChange,
   providerKey,
+  totalLabel,
 }: CheckoutWalletEligibilityProbesProps) {
   const handleAppleEligibilityChange = useCallback(
     (state: CheckoutWalletEligibilityState) => {
@@ -59,6 +62,7 @@ export function CheckoutWalletEligibilityProbes({
         <ApplePayPreselectionProbe
           currencyCode={currencyCode}
           onEligibilityChange={handleAppleEligibilityChange}
+          totalLabel={totalLabel}
         />
       </PayPalSdkProviderScope>
       <PayPalSdkProviderScope
@@ -73,6 +77,7 @@ export function CheckoutWalletEligibilityProbes({
         <GooglePayPreselectionProbe
           currencyCode={currencyCode}
           onEligibilityChange={handleGoogleEligibilityChange}
+          totalLabel={totalLabel}
         />
       </PayPalSdkProviderScope>
     </div>
@@ -82,12 +87,16 @@ export function CheckoutWalletEligibilityProbes({
 export function ApplePayPreselectionProbe({
   currencyCode,
   onEligibilityChange,
+  totalLabel,
 }: {
   readonly currencyCode: string;
   readonly onEligibilityChange: (state: CheckoutWalletEligibilityState) => void;
+  readonly totalLabel: string;
 }) {
+  const amount = normalizePayLaterMessageAmount(totalLabel);
   const { eligiblePaymentMethods, error, isLoading } = useEligibleMethods({
     payload: {
+      amount,
       currencyCode,
       paymentFlow: "ONE_TIME_PAYMENT",
     },
@@ -123,12 +132,16 @@ export function ApplePayPreselectionProbe({
 export function GooglePayPreselectionProbe({
   currencyCode,
   onEligibilityChange,
+  totalLabel,
 }: {
   readonly currencyCode: string;
   readonly onEligibilityChange: (state: CheckoutWalletEligibilityState) => void;
+  readonly totalLabel: string;
 }) {
+  const amount = normalizePayLaterMessageAmount(totalLabel);
   const { eligiblePaymentMethods, error, isLoading } = useEligibleMethods({
     payload: {
+      amount,
       currencyCode,
       paymentFlow: "ONE_TIME_PAYMENT",
     },
@@ -161,6 +174,8 @@ export function GooglePayPreselectionProbe({
 
   return googlePayConfig ? (
     <GooglePaySessionReadinessProbe
+      key={`${currencyCode}:${amount}`}
+      amount={amount}
       currencyCode={currencyCode}
       googlePayConfig={googlePayConfig}
       onEligibilityChange={onEligibilityChange}
@@ -169,10 +184,12 @@ export function GooglePayPreselectionProbe({
 }
 
 function GooglePaySessionReadinessProbe({
+  amount,
   currencyCode,
   googlePayConfig,
   onEligibilityChange,
 }: {
+  readonly amount: string;
   readonly currencyCode: string;
   readonly googlePayConfig: GooglePayConfigFromFindEligibleMethods;
   readonly onEligibilityChange: (state: CheckoutWalletEligibilityState) => void;
@@ -182,10 +199,10 @@ function GooglePaySessionReadinessProbe({
     () => ({
       countryCode: googlePayConfig.merchantCountry,
       currencyCode,
-      totalPrice: "0.01",
+      totalPrice: amount,
       totalPriceStatus: "FINAL" as const,
     }),
-    [currencyCode, googlePayConfig.merchantCountry],
+    [amount, currencyCode, googlePayConfig.merchantCountry],
   );
   const handleGooglePaySessionError = useCallback(() => {
     onEligibilityChange("ineligible");

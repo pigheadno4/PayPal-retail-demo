@@ -3547,6 +3547,7 @@ function CheckoutRouteStage({
   ) => ReactNode;
   readonly suppressCheckoutPaymentActions: boolean;
 }) {
+  const [activeMode, setActiveMode] = useState(checkoutData.activeMode);
   const [walletEligibility, setWalletEligibility] = useState<
     Record<CheckoutPreselectionWalletMethod, CheckoutWalletEligibilityState>
   >({
@@ -3576,6 +3577,11 @@ function CheckoutRouteStage({
     }),
     [walletEligibility.apple_pay, walletEligibility.google_pay],
   );
+  const activeTotalLabel = checkoutData[activeMode].summary.totalLabel;
+
+  useEffect(() => {
+    setActiveMode(checkoutData.activeMode);
+  }, [checkoutData.activeMode]);
 
   return (
     <>
@@ -3584,9 +3590,11 @@ function CheckoutRouteStage({
         market={checkoutWalletProbeConfig.market}
         onEligibilityChange={handleWalletEligibilityChange}
         providerKey={checkoutWalletProbeConfig.providerKey}
+        totalLabel={activeTotalLabel}
       />
       <CheckoutPage
         data={checkoutData}
+        onActiveModeChange={setActiveMode}
         onDraftUpdate={onCheckoutDraftUpdate}
         paymentMethodEligibility={paymentMethodEligibility}
         suppressMobileStickySummary={suppressCheckoutPaymentActions}

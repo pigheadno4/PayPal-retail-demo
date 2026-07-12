@@ -80,6 +80,36 @@ describe("CheckoutPage", () => {
     );
   });
 
+  it("removes a selected wallet row and action when eligibility becomes false", () => {
+    const { rerender } = render(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "google_pay",
+        })}
+        paymentMethodEligibility={{ google_pay: true }}
+        renderPaymentAction={() => <div data-testid="wallet-action" />}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: "Google Pay" })).toBeTruthy();
+    expect(screen.getByTestId("wallet-action")).toBeTruthy();
+
+    rerender(
+      <CheckoutPage
+        data={checkoutData({
+          activeDeliveryStepId: "payment-method",
+          selectedPaymentMethod: "google_pay",
+        })}
+        paymentMethodEligibility={{ google_pay: false }}
+        renderPaymentAction={() => <div data-testid="wallet-action" />}
+      />,
+    );
+
+    expect(screen.queryByRole("radio", { name: "Google Pay" })).toBeNull();
+    expect(screen.queryByTestId("wallet-action")).toBeNull();
+  });
+
   it("renders Delivery and Pickup tabs with separate preserved step state shells", () => {
     const html = renderToStaticMarkup(<CheckoutPage data={checkoutData()} />);
 

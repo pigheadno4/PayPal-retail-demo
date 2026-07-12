@@ -25,10 +25,12 @@ import type {
 } from "../api/client.js";
 import type { CartData } from "../features/cart/cartModel.js";
 import type { ProductDetailPageData } from "../features/catalog/ProductDetailPage.js";
+import { defaultCheckoutPageData } from "../features/checkout/CheckoutPage.js";
 import { App } from "./App.js";
 
 const walletEligibilityMockState = vi.hoisted(() => ({
   resolve: true,
+  totalLabels: [] as string[],
 }));
 
 vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
@@ -37,18 +39,21 @@ vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
   return {
     CheckoutWalletEligibilityProbes: ({
       onEligibilityChange,
+      totalLabel,
     }: {
       readonly onEligibilityChange: (
         method: "apple_pay" | "google_pay",
         state: "eligible" | "ineligible" | "pending",
       ) => void;
+      readonly totalLabel: string;
     }) => {
       React.useEffect(() => {
+        walletEligibilityMockState.totalLabels.push(totalLabel);
         if (walletEligibilityMockState.resolve) {
           onEligibilityChange("apple_pay", "eligible");
           onEligibilityChange("google_pay", "eligible");
         }
-      }, [onEligibilityChange]);
+      }, [onEligibilityChange, totalLabel]);
 
       return null;
     },
@@ -84,6 +89,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   walletEligibilityMockState.resolve = true;
+  walletEligibilityMockState.totalLabels.length = 0;
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: createMemoryStorage(),
@@ -3284,6 +3290,26 @@ describe("App buyer interactions", () => {
     ).toBeNull();
   });
 
+  it("re-probes wallet eligibility when the buyer changes fulfillment mode", async () => {
+    render(
+      <App
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialCheckout={defaultCheckoutPageData}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(walletEligibilityMockState.totalLabels).toContain("$25.98");
+    });
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Pickup" }));
+
+    await waitFor(() => {
+      expect(walletEligibilityMockState.totalLabels).toContain("$12.99");
+    });
+  });
+
   it("updates checkout totals from delivery draft API recalculation", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -3359,6 +3385,9 @@ describe("App buyer interactions", () => {
     });
     await waitFor(() => {
       expect(within(orderSummary).getByText("$31.25")).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(walletEligibilityMockState.totalLabels).toContain("$31.25");
     });
     expect(
       within(orderSummary).getAllByText("-$4.00 promo (SAVE10)"),
