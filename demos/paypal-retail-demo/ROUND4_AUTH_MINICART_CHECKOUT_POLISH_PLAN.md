@@ -304,8 +304,8 @@ If a width is intentionally omitted for a surface, the evidence report must mark
 - [x] Browser evidence records route, viewport, screenshot path, console errors/warnings, response errors, horizontal overflow, focused element, modal/sheet open state, sticky/fixed overlap checks, provider counts, official provider nodes, contrast samples, and explicit width-coverage rationale where payment surfaces are present.
 - [x] Console errors are hard failures. Warnings must be triaged with route, viewport, state, and reason.
 - [x] No `/favicon.ico` 404 appears in the evidence logs.
-- [ ] Hosted smoke remains open until the patched build is deployed and the same rows pass on Render.
-- [ ] Hosted closure additionally requires visible hydrated provider geometry, nonempty checkout contrast samples, measured target rectangles, one-line 320px pickup confirmation, and deployed asset identifiers in the persisted report.
+- [x] Hosted smoke passed after the patched build deployed and the same rows passed on Render.
+- [x] Hosted closure records visible hydrated provider geometry, nonempty checkout contrast samples, measured target rectangles, one-line 320px pickup confirmation, and deployed asset identifiers in the persisted report.
 
 **Local Evidence Result (2026-07-11):**
 
@@ -337,6 +337,8 @@ If a width is intentionally omitted for a surface, the evidence report must mark
 **Hosted Visual Follow-Up Design (2026-07-12):** the first review of the refreshed hosted matrix found three presentation gaps. The selected correction keeps scope inside Round 4: Auth and Minicart product art use a shared buyer-safe fallback when an asset genuinely fails, while the evidence helper waits for every visible image to be complete, nonzero, and decoded before capture; selected Card keeps its single inline `Pay by card` action and replaces the mobile sticky `Choose payment` control with concise guidance back to the Card section; password/register email summaries stay on one line with ellipsis while `Edit email` remains a 44px target. Regression tests must fail before each runtime/helper correction, fresh local evidence must cover the affected rows, and a new read-only reviewer must return no P0/P1 findings before deployment is considered ready.
 
 **Hosted Visual Follow-Up Local Result (2026-07-12):** the exact current-code local matrix at metrics SHA1 `cf77b82d3bd99ced8a57967e7a4c1d7d44298c48` passes `31/31` required rows and `40/40` JPEGs with no missing or failed rows, `4.60:1` minimum contrast, 44px minimum measured target, and `0.0027` maximum near-black ratio. Fresh read-only `ui-ux-pro-max` review inspected every image and returned PASS with no P0/P1/P2 findings. Commit/deploy plus a new Render matrix and hosted review remain the external closure gate.
+
+**Hosted Visual Follow-Up Final Result (2026-07-12):** commit `87f7ec96` deployed to Render as `index-C1Q5eUuT.js` / `index-Cw49jF97.css`. The hosted matrix at metrics SHA1 `436b1c6b9b53ad47e3b444966deb740959ed7d6f` passes all `31` rows and `40` JPEGs with no missing or failed rows, `4.60:1` minimum contrast, 44px minimum measured target, and `0.0027` maximum near-black ratio. A fresh independent read-only `ui-ux-pro-max` review inspected every hosted capture and returned PASS with no P0/P1/P2 findings. The Round 4 hosted correction gate is closed; live Card Fields submit/capture and wallet-eligible device checks remain separate action-time QA.
 
 ## Hard Blockers
 

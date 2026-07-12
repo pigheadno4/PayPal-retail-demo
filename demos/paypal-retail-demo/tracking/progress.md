@@ -1,5 +1,9 @@
 # Progress
 
+## 2026-07-12
+
+- Closed the Round 4 hosted Render correction gate. Commit `87f7ec96` deployed as `/assets/index-C1Q5eUuT.js` and `/assets/index-Cw49jF97.css`; `npm run evidence:round4:auth-minicart-checkout` passed against `https://paypal-retail-demo.onrender.com` with `31/31` required rows, `40/40` JPEGs, `missingRows: []`, `failedRows: []`, `4.60:1` minimum contrast, 44px minimum measured target, and `0.0027` maximum near-black ratio. The checksum-locked workspace copy is `.playwright-cli/round4-hosted-auth-minicart-checkout-evidence/` with metrics SHA1 `436b1c6b9b53ad47e3b444966deb740959ed7d6f`. A fresh independent read-only `ui-ux-pro-max` reviewer inspected all `40` hosted captures and returned PASS with no P0/P1/P2 findings. Round 4 is deploy-quality closed; live Card Fields submit/capture and wallet-eligible device checks remain separate action-time QA.
+
 ## 2026-07-09
 
 - Continued Round 4 with the minicart drawer polish slice. The drawer keeps shadcn Sheet semantics and outside-click dismissal, adds a product-first row contract, line-clamped product names, compact category/amount metadata, product-specific quantity accessible names, full-width primary Checkout plus framed secondary View cart actions, and keeps Pay Later/express content secondary to the product/action hierarchy. Empty minicarts now keep payment controls hidden behind a clear browse action. Read-only sub-agent review found one P1 focus-return gap and one P2 tracking-wording gap; the app now restores focus to the header cart trigger after close button, Escape, and outside-click dismissal, and the tracking wording distinguishes local implementation from the still-open browser matrix. Focused proof passed `npm test -- web/src/features/cart/MinicartShell.test.tsx web/src/app/App.interactions.test.tsx web/src/styles/global.test.ts`; rendered 320/390/desktop screenshot and sticky-overlap evidence remains in the Round 4 evidence/review gate.
