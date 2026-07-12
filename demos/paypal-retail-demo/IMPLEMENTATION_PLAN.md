@@ -785,4 +785,4 @@ During implementation:
 - [x] Record the root cause, implementation boundary, tests, and remaining eligible-device capture requirement.
 - [x] Run `npm run verify`, `npm run build`, `scripts/check-agent-system.sh`, `git diff --check`, and refresh Graphify.
 - [x] Verify the browser gate against the production build: unsupported Apple Pay stays absent, Google Pay appears only after both probes succeed, no wallet action exists before selection, and the selected Google row mounts the official 52px Google-created element. Keep eligible Apple-device proof open.
-- [ ] Spawn the requested independent read-only review subagent after coding, resolve all P0-P2 findings, and repeat affected verification.
+- [x] Spawn the requested independent read-only review subagent after coding, resolve all P0-P2 findings, and repeat affected verification.
