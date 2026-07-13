@@ -1555,7 +1555,7 @@ function applyRuntimeDebugLogFilters(
   let nextQuery = query.or(runtimeDebugLogApprovedPopulationFilter);
 
   if (filters.lookup) {
-    const lookup = postgrestIlikeValue(filters.lookup);
+    const lookup = postgrestLiteralSubstringIlikeValue(filters.lookup);
     nextQuery = nextQuery.or(
       [
         `message.ilike.${lookup}`,
@@ -1665,6 +1665,14 @@ function postgrestIlikeValue(value: string): string {
   }
 
   return `"${pattern.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function postgrestLiteralSubstringIlikeValue(value: string): string {
+  const literalLikeValue = value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_");
+  return postgrestIlikeValue(literalLikeValue);
 }
 
 function applyAdminCursor(

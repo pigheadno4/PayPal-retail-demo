@@ -662,15 +662,16 @@ describe("Supabase Admin repository filtering and pagination", () => {
       value: "2026-07-13T02:00:00.000Z",
       id: "runtime-log-2",
     });
+    const expectedLookupPattern = '"%dbg\\\\_capture\\\\_1%"';
     expect(client.dataQuery("runtime_debug_logs").operations).toEqual(
       expect.arrayContaining([
         operation(
           "or",
           [
-            "message.ilike.%dbg_capture_1%",
+            `message.ilike.${expectedLookupPattern}`,
             ...runtimeDebugLogLookupContextKeys.map(
               (field) =>
-                `context_json->>${field}.ilike.%dbg_capture_1%`,
+                `context_json->>${field}.ilike.${expectedLookupPattern}`,
             ),
           ].join(","),
         ),
@@ -1054,7 +1055,94 @@ describe("Supabase Admin repository filtering and pagination", () => {
     });
     expect(excludedPage.items).toEqual([]);
   });
+
+  it("treats runtime wildcard lookup as a literal case-insensitive substring", async () => {
+    const lookup = 'dbg_id%100,("x\\y)';
+    const persistentClient = new RecordingSupabaseAdminClient({
+      runtime_debug_logs: { count: 0, rows: [] },
+    });
+    const persistentRepository =
+      createSupabaseAdminRuntimeDebugLogRepository(persistentClient);
+
+    await persistentRepository.listRuntimeDebugLogs({
+      lookup,
+      limit: 10,
+      timezone: "UTC",
+    });
+
+    const persistentLookupFilter = persistentClient
+      .dataQuery("runtime_debug_logs")
+      .operations.find(
+        ({ method, args }) =>
+          method === "or" &&
+          typeof args[0] === "string" &&
+          args[0].startsWith("message.ilike."),
+      );
+    const expectedPattern = '"%dbg\\\\_id\\\\%100,(\\"x\\\\\\\\y)%"';
+    expect(persistentLookupFilter).toEqual(
+      operation(
+        "or",
+        [
+          `message.ilike.${expectedPattern}`,
+          ...runtimeDebugLogLookupContextKeys.map(
+            (field) => `context_json->>${field}.ilike.${expectedPattern}`,
+          ),
+        ].join(","),
+      ),
+    );
+
+    const fallbackRepository =
+      createAdminRuntimeDebugLogRepositoryWithFallback({
+        primary: {
+          async listRuntimeDebugLogs() {
+            throw new Error("force bounded fallback");
+          },
+        },
+        fallback: {
+          async listRuntimeDebugLogs() {
+            return [
+              runtimeDebugLogEntry(
+                "runtime-literal-match",
+                `prefix-${lookup.toUpperCase()}-suffix`,
+              ),
+              runtimeDebugLogEntry(
+                "runtime-underscore-wildcard-only",
+                lookup.replace("_", "X"),
+              ),
+              runtimeDebugLogEntry(
+                "runtime-percent-wildcard-only",
+                lookup.replace("%", "ANY"),
+              ),
+            ];
+          },
+        },
+      });
+
+    const page = await fallbackRepository.listRuntimeDebugLogs({
+      lookup,
+      limit: 10,
+      timezone: "UTC",
+    });
+
+    expect(page.items.map((entry) => entry.id)).toEqual([
+      "runtime-literal-match",
+    ]);
+  });
 });
+
+function runtimeDebugLogEntry(id: string, debugId: string) {
+  return {
+    id,
+    timestamp: "2026-07-13T03:00:00.000Z",
+    level: "info" as const,
+    message: "paypal_webhook_processing_outcome",
+    context: {
+      source: "webhook",
+      event: "paypal_webhook_processing_outcome",
+      debug_id: debugId,
+    },
+  };
+}
 
 interface FakeTableResult {
   readonly rows?: readonly unknown[];
