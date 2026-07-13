@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import { sanitizeDebugLogContext, type DebugLogJson } from "../debug/logger.js";
+import {
+  buyerLifecycleNoteMaxLength,
+  parseBuyerSafeLifecycleNote,
+} from "../lifecycleNote.js";
 import type {
   AdminCentralInventoryRow,
   AdminInventoryPage,
@@ -274,7 +278,24 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
       input.adminSessionGuard,
       asyncRoute(async (request, response) => {
         const orderId = normalizeBodyString(request.params.id);
-        const body = parseOrderLifecycleBody(request);
+        const rawBody = request.body as Record<string, unknown> | undefined;
+        const parsedNote = parseBuyerSafeLifecycleNote(rawBody?.note);
+        const body = parsedNote.ok
+          ? parseOrderLifecycleBody(request, parsedNote.note)
+          : null;
+
+        if (!parsedNote.ok) {
+          sendApiError(response, 400, {
+            code: "ADMIN_ORDER_LIFECYCLE_NOTE_UNSAFE",
+            message:
+              "Lifecycle note must be one buyer-safe line without technical identifiers.",
+            details: {
+              reason: parsedNote.reason,
+              max_length: buyerLifecycleNoteMaxLength,
+            },
+          });
+          return;
+        }
 
         if (!orderId || !body) {
           sendApiError(response, 400, {
@@ -641,7 +662,10 @@ function parseProfileMarketBody(request: Request): {
   return profileId && marketId ? { profileId, marketId } : null;
 }
 
-function parseOrderLifecycleBody(request: Request): {
+function parseOrderLifecycleBody(
+  request: Request,
+  note: string | null,
+): {
   readonly expectedStatus: OrderStatus;
   readonly nextStatus: OrderStatus;
   readonly note: string | null;
@@ -657,7 +681,7 @@ function parseOrderLifecycleBody(request: Request): {
   return {
     expectedStatus,
     nextStatus,
-    note: normalizeOptionalBodyString(body?.note),
+    note,
   };
 }
 
@@ -757,10 +781,6 @@ function normalizeOrderStatus(value: unknown): OrderStatus | null {
 }
 
 function normalizeBodyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeOptionalBodyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 

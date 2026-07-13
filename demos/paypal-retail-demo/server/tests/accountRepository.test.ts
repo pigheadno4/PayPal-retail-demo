@@ -123,6 +123,39 @@ describe("Account repository", () => {
     expect(JSON.stringify(result)).not.toContain("payment_session");
   });
 
+  it("replaces unsafe lifecycle notes before returning the Account timeline", async () => {
+    const dataSource = createAccountDataSource({
+      addresses: [defaultAddressRow()],
+      orders: [pickedUpOrderRow()],
+      lifecycleEvents: [
+        {
+          id: "event_internal_pickup_done",
+          order_id: "order_internal_pickup",
+          from_status: "ready_for_pickup",
+          to_status: "picked_up",
+          note: "payment_session_1",
+          created_at: "2026-06-04T16:00:00.000Z",
+        },
+      ],
+    });
+    const repository = createSupabaseAccountRepository({
+      dataSource,
+      now: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await repository.getOrder({
+      authUserId: "user_123",
+      orderNumber: "PO-20260602-000118",
+    });
+
+    expect(result?.timeline).toEqual([
+      expect.objectContaining({
+        description: "Order status updated.",
+      }),
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/payment_session_1/i);
+  });
+
   it("returns null when account order detail is not owned by the buyer", async () => {
     const dataSource = createAccountDataSource({
       addresses: [defaultAddressRow()],
@@ -349,6 +382,7 @@ interface FakeAccountDataSource extends AccountDataSource {
 function createAccountDataSource(input: {
   readonly addresses: readonly AccountAddressRow[];
   readonly guestOrderAccess?: readonly GuestOrderAccessRow[];
+  readonly lifecycleEvents?: readonly AccountOrderLifecycleEventRow[];
   readonly orders?: readonly AccountOrderRow[];
   readonly reviews?: readonly AccountOrderReviewRow[];
 }): FakeAccountDataSource {
@@ -356,6 +390,9 @@ function createAccountDataSource(input: {
   let orders = [...(input.orders ?? [])];
   let reviews = [...(input.reviews ?? orderReviews())];
   const guestOrderAccess = [...(input.guestOrderAccess ?? [])];
+  const lifecycleEvents = [
+    ...(input.lifecycleEvents ?? orderLifecycleEvents()),
+  ];
   const clearDefaultBillingCalls: string[] = [];
   const clearDefaultShippingCalls: string[] = [];
   const createdReviews: FakeAccountDataSource["createdReviews"] = [];
@@ -432,9 +469,7 @@ function createAccountDataSource(input: {
       return orderAddresses().filter((address) => address.order_id === orderId);
     },
     async listOrderLifecycleEvents(orderId) {
-      return orderLifecycleEvents().filter(
-        (event) => event.order_id === orderId,
-      );
+      return lifecycleEvents.filter((event) => event.order_id === orderId);
     },
     async listOrderReviews(orderId) {
       return reviews.filter((review) => review.order_id === orderId);

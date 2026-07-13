@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { toBuyerSafeLifecycleDescription } from "../lifecycleNote.js";
+
 import type {
   AccountAddress,
   AccountAddressDeleteResult,
@@ -636,7 +638,7 @@ function mapAccountTimeline(
 
   return sortedEvents.map((event, index) => ({
     label: formatOrderTimelineLabel(event.to_status),
-    description: event.note ?? "Order status updated.",
+    description: toBuyerSafeLifecycleDescription(event.note),
     status:
       index === sortedEvents.length - 1 || event.to_status === order.status
         ? "current"

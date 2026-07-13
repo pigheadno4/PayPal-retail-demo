@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Tasks 1 and 2 are closed after independent review, and Task 3 workbench UI is implemented and awaiting its independent review checkpoint. URL restoration/back navigation, chips, explicit time presets/timezone, state recovery, and cursor controls now have focused UI/App coverage. Other Admin/Account and browser-evidence backlog rows remain explicit.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Tasks 1 through 4 are closed after independent review, and Task 5 persistent sanitized runtime diagnostics is next. URL restoration/back navigation, filters, canonical lifecycle mutation/reload, buyer-safe Account visibility, state recovery, and cursor controls have focused coverage. Other Admin/Account and browser-evidence backlog rows remain explicit.
 
 ## Deployment QA
 
@@ -398,7 +398,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Runtime debug logs are visible without exposing secrets.
 - [x] Admin route isolation: Orders, Lifecycle, Inventory, Webhooks, and Diagnostics render as separate route-backed workbenches and call only their own APIs; Orders detail excludes lifecycle actions, Lifecycle excludes technical debug sections, active navigation exposes `aria-current="page"`, and each route has one level-2 workbench heading.
 - [x] Admin filters: URL query state, server-side filtering, explicit timezone date presets/custom range, active chips, clear action, result counts, and cursor pagination survive refresh/back navigation.
-- [ ] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, and never increase webhook-event count.
+- [x] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, reject or mask unsafe buyer notes, refresh the active filtered queue, and never increase webhook-event count.
 - [x] Webhook explorer filters genuine received PayPal events by event ID/type, verification, processing, linkage, and received range and exposes only sanitized read-only detail.
 - [ ] Diagnostics joins canonical payment evidence and persists allowlisted/redacted runtime events across server restart; diagnostics sink failures never block business operations or recursively log themselves.
 - [ ] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, Delivery/Pickup details, buyer-safe retry/empty states, and no technical IDs.

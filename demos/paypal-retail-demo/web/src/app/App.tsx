@@ -6672,6 +6672,7 @@ function AdminPortal({
           nextOrder.status,
         )}.`,
       });
+      setReloadVersion((current) => current + 1);
       return "updated";
     } catch (error) {
       if (
@@ -6710,6 +6711,7 @@ function AdminPortal({
               canonicalOrder.status,
             )}.`,
           });
+          setReloadVersion((current) => current + 1);
           return "stale";
         } catch (reloadError) {
           setLifecycleState({
@@ -7403,6 +7405,11 @@ function AdminPortal({
                                     handleAdvanceLifecycle(nextStatus, note)
                                   }
                                   disabled={lifecycleState.status === "saving"}
+                                  errorMessage={
+                                    lifecycleState.status === "error"
+                                      ? lifecycleState.message
+                                      : null
+                                  }
                                 />
                               ))
                             ) : (
@@ -7414,9 +7421,17 @@ function AdminPortal({
                           <p
                             className="admin-shell__feedback"
                             data-status={lifecycleState.status}
-                            {...(lifecycleState.status === "error"
-                              ? { role: "alert" }
-                              : {})}
+                            role={
+                              lifecycleState.status === "error"
+                                ? "alert"
+                                : "status"
+                            }
+                            aria-live={
+                              lifecycleState.status === "error"
+                                ? "assertive"
+                                : "polite"
+                            }
+                            aria-busy={lifecycleState.status === "saving"}
                           >
                             {lifecycleState.message}
                           </p>

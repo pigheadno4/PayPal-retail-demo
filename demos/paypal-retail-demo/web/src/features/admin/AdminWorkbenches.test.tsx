@@ -677,14 +677,20 @@ describe("Admin post-purchase workbenches", () => {
 
   it("confirms one lifecycle step with an optional merchant note", async () => {
     const user = userEvent.setup();
-    const apiClient = createAdminApiClient({ lifecycleOrder: true });
+    const apiClient = createAdminApiClient({
+      lifecycleOrder: true,
+      lifecycleListEmptyAfterFirstLoad: true,
+    });
     window.localStorage.setItem(
       "paypal-retail-demo:admin-session",
       "admin-lifecycle-action-token",
     );
 
     render(
-      <App apiClient={apiClient.client} initialPathname="/admin/lifecycle" />,
+      <App
+        apiClient={apiClient.client}
+        initialPathname="/admin/lifecycle?status=paid"
+      />,
     );
 
     await user.click(
@@ -721,8 +727,23 @@ describe("Admin post-purchase workbenches", () => {
         },
       ]);
       expect(
-        screen.getByText("DO-20260713-000001 is now Processing."),
-      ).toBeTruthy();
+        screen
+          .getByText("DO-20260713-000001 is now Processing.")
+          .getAttribute("role"),
+      ).toBe("status");
+      expect(
+        screen
+          .getByText("DO-20260713-000001 is now Processing.")
+          .getAttribute("aria-live"),
+      ).toBe("polite");
+      expect(
+        apiClient.getPaths.filter((path) =>
+          path.startsWith("/api/admin/lifecycle?status=paid"),
+        ),
+      ).toHaveLength(2);
+      expect(
+        screen.queryByRole("button", { name: "Open DO-20260713-000001" }),
+      ).toBeNull();
     });
   });
 
@@ -775,6 +796,42 @@ describe("Admin post-purchase workbenches", () => {
       },
     ]);
     expect(screen.getByText("Delivery order / Shipped")).toBeTruthy();
+  });
+
+  it("keeps a failed lifecycle note available and announces the error inside the dialog", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient({
+      lifecycleOrder: true,
+      lifecyclePost: "error",
+    });
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-lifecycle-error-token",
+    );
+
+    render(
+      <App apiClient={apiClient.client} initialPathname="/admin/lifecycle" />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Open DO-20260713-000001" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Mark Processing" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const note = within(dialog).getByLabelText("Merchant note (optional)");
+    await user.type(note, "Packed at warehouse station A.");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm update" }),
+    );
+
+    expect((await within(dialog).findByRole("alert")).textContent).toContain(
+      "Lifecycle service is unavailable.",
+    );
+    expect((note as HTMLTextAreaElement).value).toBe(
+      "Packed at warehouse station A.",
+    );
   });
 
   it("retries the active workbench after a request failure", async () => {
@@ -855,7 +912,8 @@ function createAdminApiClient(
     readonly failOrdersOnce?: boolean;
     readonly failPickup?: boolean;
     readonly lifecycleOrder?: boolean;
-    readonly lifecyclePost?: "success" | "stale";
+    readonly lifecycleListEmptyAfterFirstLoad?: boolean;
+    readonly lifecyclePost?: "success" | "stale" | "error";
     readonly ordersNextCursor?: string;
     readonly ordersTotalCount?: number;
   } = {},
@@ -868,6 +926,7 @@ function createAdminApiClient(
   const postCalls: { path: string; body: unknown }[] = [];
   let failedOrders = false;
   let orderDetailLoads = 0;
+  let lifecycleListLoads = 0;
   const pageInfo = {
     total_count: 0,
     next_cursor: null,
@@ -914,13 +973,17 @@ function createAdminApiClient(
         } as never;
       }
       if (path.startsWith("/api/admin/lifecycle")) {
+        lifecycleListLoads += 1;
+        const lifecycleOrderIsVisible =
+          options.lifecycleOrder &&
+          !(options.lifecycleListEmptyAfterFirstLoad && lifecycleListLoads > 1);
         return {
-          lifecycle: options.lifecycleOrder
+          lifecycle: lifecycleOrderIsVisible
             ? [adminLifecycleOrderSummary("paid", ["processing"])]
             : [],
           page_info: {
             ...pageInfo,
-            total_count: options.lifecycleOrder ? 1 : 0,
+            total_count: lifecycleOrderIsVisible ? 1 : 0,
           },
         } as never;
       }
@@ -962,6 +1025,18 @@ function createAdminApiClient(
           message: "The order changed before this lifecycle update was saved.",
           debugId: "dbg_stale",
           details: { current_status: "shipped" },
+        });
+      }
+      if (
+        path === "/api/admin/orders/order_1/lifecycle" &&
+        options.lifecyclePost === "error"
+      ) {
+        throw new ApiClientError({
+          status: 503,
+          code: "ADMIN_ORDER_LIFECYCLE_UNAVAILABLE",
+          message: "Lifecycle service is unavailable.",
+          debugId: "dbg_lifecycle_unavailable",
+          details: null,
         });
       }
       if (path === "/api/admin/orders/order_1/lifecycle") {

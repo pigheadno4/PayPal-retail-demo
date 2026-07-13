@@ -258,11 +258,17 @@ export interface AdminWorkbenchRequest<TData> {
 **Files:**
 
 - Create: `supabase/migrations/20260713090000_admin_lifecycle_transition.sql`
+- Create: `server/src/lifecycleNote.ts`
 - Modify: `server/src/repositories/adminRepository.ts`
+- Modify: `server/src/repositories/accountRepository.ts`
 - Modify: `server/src/routes/admin.ts`
+- Create: `server/tests/lifecycleNote.test.ts`
 - Modify: `server/tests/adminRepository.test.ts`
+- Modify: `server/tests/accountRepository.test.ts`
 - Modify: `server/tests/adminRoutes.test.ts`
 - Modify: `server/tests/accountRoutes.test.ts`
+- Modify: `web/src/app/App.tsx`
+- Modify: `web/src/app/App.interactions.test.tsx`
 - Modify: `web/src/features/admin/AdminLifecycleWorkbench.tsx`
 - Modify: `web/src/features/admin/AdminWorkbenches.test.tsx`
 
@@ -284,8 +290,8 @@ export type AdminLifecycleTransitionResult =
 - [x] **Step 4:** Replace the route's separate `updateOrderStatus`/`createLifecycleEvent` calls with the atomic repository method.
 - [x] **Step 5:** Add the confirmation Dialog, merchant note, saving/success feedback, and stale-state reload behavior to Lifecycle.
 - [x] **Step 6:** Prove Account order detail returns the new status/timeline through its existing API and no Diagnostics source is used.
-- [x] **Step 7:** Run focused server/web tests, `npm run typecheck`, and `npm run db:lint` when local Supabase is available; document the Docker blocker otherwise.
-- [ ] **Step 8:** Commit with `git commit -m "feat: make admin lifecycle transitions atomic"`.
+- [x] **Step 7:** Run focused server/web tests, `npm run typecheck`, and `npm run db:lint` when local Supabase is available; document any local Supabase or sandbox blocker otherwise.
+- [x] **Step 8:** Commit with `git commit -m "feat: make admin lifecycle transitions atomic"`.
 
 ---
 

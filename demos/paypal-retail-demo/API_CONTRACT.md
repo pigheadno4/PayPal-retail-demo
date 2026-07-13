@@ -920,14 +920,14 @@ Lifecycle request:
 }
 ```
 
-`expected_status` is the required concurrency token from the selected Admin order detail. `note` is optional and must contain only buyer-safe merchant fulfillment context.
+`expected_status` is the required concurrency token from the selected Admin order detail. `note` is optional and must be a single buyer-safe merchant fulfillment line of at most 240 characters. Control characters and technical identifiers such as PayPal order/capture/request IDs, payment-session IDs, webhook IDs, and debug IDs are rejected with `400 ADMIN_ORDER_LIFECYCLE_NOTE_UNSAFE`; the rejected value is never echoed. The Account read boundary also replaces any unsafe historical lifecycle note with `Order status updated.`.
 
 Allowed manual transitions:
 
 - Delivery: `paid -> processing -> shipped -> delivered`
 - Pickup: `paid -> preparing_pickup -> ready_for_pickup -> picked_up`
 
-Invalid one-step transitions return `ADMIN_ORDER_LIFECYCLE_INVALID` with the current status and allowed next statuses. If the persisted order no longer matches `expected_status`, the API returns `409 ADMIN_ORDER_LIFECYCLE_STALE` with the canonical current status, allowed next statuses, and refreshed order detail so the Admin client can replace stale state.
+Invalid one-step transitions return `ADMIN_ORDER_LIFECYCLE_INVALID` with the current status and allowed next statuses. If the persisted order no longer matches `expected_status`, the API returns `409 ADMIN_ORDER_LIFECYCLE_STALE` with the canonical current status, allowed next statuses, and refreshed order detail so the Admin client can replace stale state. After success or stale recovery, the client reloads the active server-filtered Lifecycle page so row membership, total count, and cursor state remain canonical while preserving the selected canonical detail.
 
 Successful transitions update `orders.status` and append exactly one `order_lifecycle_events` row with `actor_type: "admin"` in one database transaction. The refreshed Admin detail and existing Account order APIs then read that canonical status/timeline. Lifecycle actions never create synthetic `webhook_events` rows.
 

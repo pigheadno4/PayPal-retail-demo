@@ -622,7 +622,7 @@ describe("admin order lifecycle routes", () => {
         json: {
           expected_status: "paid",
           next_status: "processing",
-          note: "Packed at warehouse station A.",
+          note: "Debug-friendly packing complete.",
         },
       },
     );
@@ -644,7 +644,7 @@ describe("admin order lifecycle routes", () => {
         from_status: "paid",
         to_status: "processing",
         actor_type: "admin",
-        note: "Packed at warehouse station A.",
+        note: "Debug-friendly packing complete.",
       }),
     ]);
     expect(orderRepository.lifecycleEvents).toEqual([
@@ -653,7 +653,7 @@ describe("admin order lifecycle routes", () => {
         from_status: "paid",
         to_status: "processing",
         actor_type: "admin",
-        note: "Packed at warehouse station A.",
+        note: "Debug-friendly packing complete.",
       }),
     ]);
     expect(orderRepository.transitionCalls).toEqual([
@@ -661,10 +661,63 @@ describe("admin order lifecycle routes", () => {
         orderId: "order_1",
         expectedStatus: "paid",
         nextStatus: "processing",
-        note: "Packed at warehouse station A.",
+        note: "Debug-friendly packing complete.",
       }),
     ]);
     expect(orderRepository.webhookEvents).toHaveLength(webhookCountBefore);
+  });
+
+  it("rejects lifecycle notes that could leak technical identifiers to Account", async () => {
+    const unsafeNotes = [
+      "PayPal order ID: 5O190127TN364715T",
+      "payment_session_1",
+      "Packed\u0000at the warehouse.",
+      "\tPacked at the warehouse.",
+      "Packed at the warehouse.\n",
+      "x".repeat(241),
+      42,
+    ];
+
+    for (const note of unsafeNotes) {
+      const orderRepository = createAdminOrderRepository();
+      const app = createApp({
+        catalogRepository: createCatalogRepository(),
+        admin: {
+          adminPasscode: "local-admin-passcode",
+          profileMarketRepository: createProfileMarketRepository(),
+          orderRepository,
+          activeStorefrontContextStore: createActiveStorefrontContextStore({
+            profileSlug: "popmart",
+            marketCode: "US",
+          }),
+        },
+      });
+
+      const response = await requestApp(
+        app,
+        "POST",
+        "/api/admin/orders/order_1/lifecycle",
+        {
+          headers: {
+            "x-admin-session": createAdminToken(),
+          },
+          json: {
+            expected_status: "paid",
+            next_status: "processing",
+            note,
+          },
+        },
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.json.error).toEqual(
+        expect.objectContaining({
+          code: "ADMIN_ORDER_LIFECYCLE_NOTE_UNSAFE",
+        }),
+      );
+      expect(orderRepository.transitionCalls).toEqual([]);
+      expect(orderRepository.lifecycleEvents).toEqual([]);
+    }
   });
 
   it("returns 409 with canonical detail when expected_status becomes stale", async () => {

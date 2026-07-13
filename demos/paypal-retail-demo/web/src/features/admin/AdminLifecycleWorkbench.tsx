@@ -36,6 +36,7 @@ interface AdminLifecycleActionProps {
   readonly currentStatusLabel: string;
   readonly nextStatusLabel: string;
   readonly disabled?: boolean;
+  readonly errorMessage?: string | null;
   readonly onConfirm: (
     note: string | null,
   ) => Promise<AdminLifecycleActionResult>;
@@ -46,6 +47,7 @@ export function AdminLifecycleAction({
   currentStatusLabel,
   nextStatusLabel,
   disabled = false,
+  errorMessage = null,
   onConfirm,
 }: AdminLifecycleActionProps) {
   const noteId = useId();
@@ -87,7 +89,11 @@ export function AdminLifecycleAction({
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <form className="grid gap-4" onSubmit={handleSubmit}>
+        <form
+          className="grid gap-4"
+          onSubmit={handleSubmit}
+          aria-busy={isSaving}
+        >
           <DialogHeader>
             <DialogTitle>Confirm lifecycle update</DialogTitle>
             <DialogDescription>
@@ -104,8 +110,18 @@ export function AdminLifecycleAction({
               onChange={(event) => setNote(event.target.value)}
               placeholder="Add a buyer-safe fulfillment note"
               disabled={isSaving}
+              maxLength={240}
             />
           </Field>
+          {errorMessage ? (
+            <p
+              className="admin-shell__feedback"
+              data-status="error"
+              role="alert"
+            >
+              {errorMessage}
+            </p>
+          ) : null}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" disabled={isSaving}>
@@ -134,6 +150,7 @@ export function AdminLifecycleWorkbench({
       title="Lifecycle"
       description="Work the actionable Delivery and Pickup queue one merchant step at a time."
       itemLabel="orders"
+      renderChildrenAlways={selectedRowId !== null}
       {...panelProps}
     >
       {rows.length > 0 ? (
