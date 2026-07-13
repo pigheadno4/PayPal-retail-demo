@@ -306,6 +306,25 @@ describe("Admin post-purchase workbenches", () => {
     );
     expect(onApply).not.toHaveBeenCalled();
 
+    await user.selectOptions(within(form).getByLabelText("Timezone"), "UTC");
+    expect(within(form).queryByRole("alert")).toBeNull();
+    expect(createdFrom.value).toBe("2026-03-08T02:30");
+    await user.click(
+      within(form).getByRole("button", { name: "Apply filters" }),
+    );
+    expect(onApply).toHaveBeenCalledWith(
+      "/admin/orders?created_from=2026-03-08T02%3A30%3A00.000Z&timezone=UTC&time_preset=custom",
+    );
+    onApply.mockClear();
+
+    await user.selectOptions(
+      within(form).getByLabelText("Timezone"),
+      "America/Los_Angeles",
+    );
+    expect(within(form).getByRole("alert").textContent).toContain(
+      "does not exist in America/Los_Angeles",
+    );
+
     await user.clear(createdFrom);
     await user.type(createdFrom, "2026-11-01T01:30");
     expect(within(form).queryByRole("alert")).toBeNull();

@@ -522,6 +522,42 @@ function FilterForm({
     definition.name.endsWith("_to"),
   );
 
+  const handleTimezoneChange = (nextTimezoneValue: string) => {
+    const currentTimezone = values.timezone || "UTC";
+    const nextTimezone = nextTimezoneValue || "UTC";
+    const nextValues: Record<string, string> = {
+      ...values,
+      timezone: nextTimezone,
+    };
+    const nextErrors: Record<string, string> = { ...validationErrors };
+
+    definitions.forEach((definition) => {
+      if (definition.kind !== "datetime") {
+        return;
+      }
+      const currentValue = values[definition.name] ?? "";
+      if (!currentValue) {
+        delete nextErrors[definition.name];
+        return;
+      }
+      const wallTime = toInputValue(
+        currentValue,
+        definition.kind,
+        currentTimezone,
+      );
+      const result = fromInputValue(wallTime, definition.kind, nextTimezone);
+      nextValues[definition.name] = result.value;
+      if (result.error) {
+        nextErrors[definition.name] = result.error;
+      } else {
+        delete nextErrors[definition.name];
+      }
+    });
+
+    setValues(() => nextValues);
+    setValidationErrors(() => nextErrors);
+  };
+
   return (
     <form
       className={`admin-filters__form admin-filters__form--${surface}`}
@@ -603,12 +639,16 @@ function FilterForm({
                 <select
                   id={id}
                   value={value}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    if (definition.name === "timezone") {
+                      handleTimezoneChange(event.target.value);
+                      return;
+                    }
                     setValues((current) => ({
                       ...current,
                       [definition.name]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   <option value="">All</option>
                   {definition.options?.map((option) => (
