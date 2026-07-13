@@ -12,6 +12,7 @@ coverage/
 *.tsbuildinfo
 
 .superpowers/
+.worktrees/
 
 # Generated local code-graph artifacts. Rebuild with graphify from the relevant
 # project/demo folder.
