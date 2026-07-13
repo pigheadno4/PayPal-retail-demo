@@ -26,6 +26,7 @@
 ### Task 1: Route-Isolated Admin Shell
 
 **Files:**
+
 - Modify: `web/src/app/routes.ts`
 - Modify: `web/src/app/routes.test.ts`
 - Modify: `web/src/app/App.tsx`
@@ -38,6 +39,7 @@
 - Modify: `tracking/progress.md`
 
 **Interfaces:**
+
 - Consumes: existing `AdminShellGate`, Admin passcode token, `ApiClient`, and existing `/api/admin/*` endpoints.
 - Produces: `AdminSection = "orders" | "lifecycle" | "inventory" | "webhooks" | "diagnostics"`; Admin `AppRoute` includes `section: AdminSection`; each route renders one workbench and calls only its required list APIs.
 
@@ -161,6 +163,7 @@ Commit: `git commit -m "feat: isolate admin workbench routes"`
 ### Task 2: Typed Server Filters And Cursor Pagination
 
 **Files:**
+
 - Create: `server/src/routes/adminQuery.ts`
 - Create: `server/tests/adminQuery.test.ts`
 - Modify: `server/src/repositories/adminRepository.ts`
@@ -171,6 +174,7 @@ Commit: `git commit -m "feat: isolate admin workbench routes"`
 - Create: `web/src/features/admin/adminQuery.test.ts`
 
 **Interfaces:**
+
 - Consumes: route query strings, signed Admin session, existing Admin repository rows.
 - Produces: `AdminCursorPage<T>` and typed Orders, Lifecycle, Inventory, Webhooks, Payment Diagnostics, and Runtime Logs query objects.
 
@@ -213,6 +217,7 @@ export interface AdminOrdersQuery {
 ### Task 3: Workbench Filters, Results, And Drill-Down UI
 
 **Files:**
+
 - Create: `web/src/features/admin/AdminShell.tsx`
 - Create: `web/src/features/admin/AdminFilters.tsx`
 - Create: `web/src/features/admin/AdminOrdersWorkbench.tsx`
@@ -225,6 +230,7 @@ export interface AdminOrdersQuery {
 - Modify: `web/src/styles/global.css`
 
 **Interfaces:**
+
 - Consumes: Task 1 route section and Task 2 query/envelope types.
 - Produces: shared Admin header/navigation, URL-backed desktop filters and mobile shadcn `Sheet`, result counts/chips/clear action, loading/failure/filtered-empty/true-empty states, and route-specific results.
 
@@ -237,19 +243,20 @@ export interface AdminWorkbenchRequest<TData> {
 }
 ```
 
-- [ ] **Step 1:** Write failing component tests for the five headings, active navigation, URL filter restoration, editable mobile Sheet, filtered-empty clear action, retry action, and no page-level overflow classes.
-- [ ] **Step 2:** Run the focused test and confirm the mockup-required UI is absent.
-- [ ] **Step 3:** Extract the shared shell and filter components without changing Admin authentication ownership.
-- [ ] **Step 4:** Implement Orders master/detail, Lifecycle queue, Inventory Stock/Pickup tabs, Webhooks table/detail, and Diagnostics Payment/Runtime tabs with existing shadcn primitives.
-- [ ] **Step 5:** Wire filter submit through `history.pushState`, `popstate`, and a route-local reload; active filters remain deterministic across refresh/back.
-- [ ] **Step 6:** Run `npm test -- web/src/features/admin/AdminWorkbenches.test.tsx web/src/app/App.interactions.test.tsx web/src/styles/global.test.ts` plus `npm run typecheck`.
-- [ ] **Step 7:** Commit with `git commit -m "feat: build admin post-purchase workbenches"`.
+- [x] **Step 1:** Write failing component tests for the five headings, active navigation, URL filter restoration, editable mobile Sheet, filtered-empty clear action, retry action, and no page-level overflow classes.
+- [x] **Step 2:** Run the focused test and confirm the mockup-required UI is absent.
+- [x] **Step 3:** Extract the shared shell and filter components without changing Admin authentication ownership.
+- [x] **Step 4:** Implement Orders master/detail, Lifecycle queue, Inventory Stock/Pickup tabs, Webhooks table/detail, and Diagnostics Payment/Runtime tabs with existing shadcn primitives.
+- [x] **Step 5:** Wire filter submit through `history.pushState`, `popstate`, and a route-local reload; active filters remain deterministic across refresh/back.
+- [x] **Step 6:** Run `npm test -- web/src/features/admin/AdminWorkbenches.test.tsx web/src/app/App.interactions.test.tsx web/src/styles/global.test.ts` plus `npm run typecheck`.
+- [x] **Step 7:** Commit with `git commit -m "feat: build admin post-purchase workbenches"`.
 
 ---
 
 ### Task 4: Atomic Lifecycle Mutation And Account Visibility
 
 **Files:**
+
 - Create: `supabase/migrations/20260713090000_admin_lifecycle_transition.sql`
 - Modify: `server/src/repositories/adminRepository.ts`
 - Modify: `server/src/routes/admin.ts`
@@ -260,6 +267,7 @@ export interface AdminWorkbenchRequest<TData> {
 - Modify: `web/src/features/admin/AdminWorkbenches.test.tsx`
 
 **Interfaces:**
+
 - Consumes: canonical `planOrderStatusTransition`, current persisted status, optional merchant note, Admin session.
 - Produces: `transitionOrderLifecycle({ orderId, expectedStatus, nextStatus, note, occurredAt })`, returning updated detail or typed stale/not-found result.
 
@@ -284,6 +292,7 @@ export type AdminLifecycleTransitionResult =
 ### Task 5: Persistent Sanitized Runtime Diagnostics
 
 **Files:**
+
 - Modify: `server/src/debug/logger.ts`
 - Modify: `server/tests/debugLogger.test.ts`
 - Modify: `server/src/repositories/adminRepository.ts`
@@ -293,6 +302,7 @@ export type AdminLifecycleTransitionResult =
 - Modify: `server/tests/adminRoutes.test.ts`
 
 **Interfaces:**
+
 - Consumes: sanitized `DebugLogEntry`, existing `runtime_debug_logs` table, route/query contract from Task 2.
 - Produces: best-effort persistent sink, bounded in-memory fallback, 7-day cleanup throttle, allowlisted Admin response mapper.
 
@@ -316,6 +326,7 @@ export interface RuntimeDebugLogPersistenceRepository {
 ### Task 6: Buyer Account Post-Purchase Polish
 
 **Files:**
+
 - Modify: `web/src/features/account/AccountPage.tsx`
 - Modify: `web/src/features/account/AccountPage.test.tsx`
 - Modify: `web/src/app/App.tsx`
@@ -323,6 +334,7 @@ export interface RuntimeDebugLogPersistenceRepository {
 - Modify: `web/src/styles/global.css`
 
 **Interfaces:**
+
 - Consumes: existing `/api/account/orders` and `/api/account/orders/:orderNumber` canonical responses.
 - Produces: `AccountOrderFilter = "all" | "in_progress" | "completed"`, explicit refresh/last-updated state, buyer-safe current-stage-first timeline, and preserved review eligibility.
 
@@ -334,8 +346,11 @@ export function matchesAccountOrderFilter(
   filter: AccountOrderFilter,
 ): boolean {
   if (filter === "all") return true;
-  const completed = order.status === "delivered" || order.status === "picked_up";
-  return filter === "completed" ? completed : !completed && order.status !== "cancelled";
+  const completed =
+    order.status === "delivered" || order.status === "picked_up";
+  return filter === "completed"
+    ? completed
+    : !completed && order.status !== "cancelled";
 }
 ```
 
@@ -351,6 +366,7 @@ export function matchesAccountOrderFilter(
 ### Task 7: End-To-End Evidence, Review, And Tracking Closure
 
 **Files:**
+
 - Create: `tools/post-purchase-operations-evidence.playwright.js`
 - Modify: `package.json`
 - Modify: `IMPLEMENTATION_TASKS.md`
@@ -361,6 +377,7 @@ export function matchesAccountOrderFilter(
 - Modify: `tracking/learnings.md`
 
 **Interfaces:**
+
 - Consumes: Tasks 1-6 and a running API-backed demo.
 - Produces: local evidence metrics/screenshots, independent review disposition, and synchronized canonical status.
 

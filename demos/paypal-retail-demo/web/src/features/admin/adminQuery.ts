@@ -128,10 +128,10 @@ export function buildAdminQuery(
   location: AdminQueryLocation,
   section: AdminSection,
 ): BuiltAdminQuery {
-  const allowedParameters = new Set(parametersBySection[section]);
-  const requestParameters = Array.from(
-    new URLSearchParams(location.search).entries(),
-  ).filter(([key]) => allowedParameters.has(key));
+  const parameters = new URLSearchParams(location.search);
+  const requestParameters = parametersBySection[section].flatMap((key) =>
+    parameters.getAll(key).map((value) => [key, value] as const),
+  );
   const activeParameters = requestParameters.filter(
     ([key]) => !key.endsWith("_cursor") && key !== "cursor" && key !== "limit",
   );

@@ -1140,6 +1140,35 @@ describe("global storefront visual tokens", () => {
     expect(cartFrameBlock).not.toContain("min-height: 44px");
     expect(checkoutSlotBlock).not.toContain("min-height: 44px");
   });
+
+  it("keeps the Admin workbench compact, responsive, and free of page overflow", () => {
+    const shellBlock = cssBlock(".admin-shell");
+    const headerBlock = cssBlock(".admin-shell__header");
+    const filterFieldsBlock = cssBlock(".admin-filters__fields");
+    const workbenchBlock = cssBlock(".admin-workbench");
+    const mobileFilterTriggerBlock = cssBlock(".admin-filters__mobile-trigger");
+
+    expect(shellBlock).toContain("overflow-x: clip");
+    expect(headerBlock).toContain("display: flex");
+    expect(headerBlock).toContain("justify-content: space-between");
+    expect(filterFieldsBlock).toContain(
+      "grid-template-columns: repeat(auto-fit, minmax(176px, 1fr))",
+    );
+    expect(workbenchBlock).toContain("min-width: 0");
+    expect(mobileFilterTriggerBlock).toContain("display: none");
+    expect(globalCss).toContain(
+      '.admin-workbench__inventory-content[data-inventory-dataset="stock"]',
+    );
+    expect(globalCss).toContain(
+      '.admin-workbench__diagnostics-content[data-diagnostics-dataset="runtime"]',
+    );
+    expect(globalCss).toContain(
+      ".admin-filters__form--desktop {\n    display: none;",
+    );
+    expect(globalCss).toContain(
+      ".admin-filters__mobile-trigger {\n    display: inline-flex;",
+    );
+  });
 });
 
 function cssBlock(selector: string): string {

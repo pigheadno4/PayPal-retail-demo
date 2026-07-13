@@ -154,6 +154,17 @@ import {
   FieldLabel,
 } from "../components/ui/field.js";
 import { Input } from "../components/ui/input.js";
+import { AdminDiagnosticsWorkbench } from "../features/admin/AdminDiagnosticsWorkbench.js";
+import { AdminFilters } from "../features/admin/AdminFilters.js";
+import { AdminInventoryWorkbench } from "../features/admin/AdminInventoryWorkbench.js";
+import { AdminLifecycleWorkbench } from "../features/admin/AdminLifecycleWorkbench.js";
+import { AdminOrdersWorkbench } from "../features/admin/AdminOrdersWorkbench.js";
+import {
+  AdminShell as AdminWorkbenchShell,
+  type AdminWorkbenchRequest,
+} from "../features/admin/AdminShell.js";
+import { AdminWebhooksWorkbench } from "../features/admin/AdminWebhooksWorkbench.js";
+import { buildAdminQuery } from "../features/admin/adminQuery.js";
 import { AppProviders, useApiClient } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
@@ -292,6 +303,18 @@ interface AdminOrderSummaryResponse {
 
 interface AdminOrderListResponse {
   readonly orders?: readonly AdminOrderSummaryResponse[];
+  readonly page_info?: AdminPageInfoResponse;
+}
+
+interface AdminLifecycleListResponse {
+  readonly lifecycle?: readonly AdminOrderSummaryResponse[];
+  readonly page_info?: AdminPageInfoResponse;
+}
+
+interface AdminPageInfoResponse {
+  readonly total_count: number;
+  readonly next_cursor: string | null;
+  readonly timezone: string;
 }
 
 interface AdminOrderDetailResponse {
@@ -430,6 +453,7 @@ interface AdminInventoryItemResponse {
 
 interface AdminInventoryListResponse {
   readonly inventory?: readonly AdminInventoryItemResponse[];
+  readonly page_info?: AdminPageInfoResponse;
 }
 
 interface AdminInventoryUpdateResponse {
@@ -449,6 +473,7 @@ interface AdminPickupDateResponse {
 
 interface AdminPickupDateListResponse {
   readonly pickup_dates?: readonly AdminPickupDateResponse[];
+  readonly page_info?: AdminPageInfoResponse;
 }
 
 interface AdminPickupDateUpdateResponse {
@@ -469,6 +494,7 @@ interface AdminWebhookEventResponse {
 
 interface AdminWebhookListResponse {
   readonly webhooks?: readonly AdminWebhookEventResponse[];
+  readonly page_info?: AdminPageInfoResponse;
 }
 
 interface AdminPaymentDebugTotalSnapshotResponse {
@@ -526,6 +552,7 @@ interface AdminPaymentDebugSessionResponse {
 
 interface AdminPaymentDebugListResponse {
   readonly payment_sessions?: readonly AdminPaymentDebugSessionResponse[];
+  readonly page_info?: AdminPageInfoResponse;
 }
 
 type AdminRuntimeDebugLogContext =
@@ -548,6 +575,7 @@ interface AdminRuntimeDebugLogResponse {
 
 interface AdminRuntimeDebugLogListResponse {
   readonly debug_logs?: readonly AdminRuntimeDebugLogResponse[];
+  readonly page_info?: AdminPageInfoResponse;
 }
 
 const adminRuntimeDebugElevatedContextKeys = new Set([
@@ -952,6 +980,7 @@ export function App({
           route={route}
           apiClient={resolvedApiClient}
           initialConfig={config}
+          initialLocation={initialLocation}
         />
       </AppProviders>
     );
@@ -992,10 +1021,12 @@ function AdminShellGate({
   route,
   apiClient,
   initialConfig,
+  initialLocation,
 }: {
   readonly route: Extract<AppRoute, { readonly scope: "admin" }>;
   readonly apiClient: ApiClient;
   readonly initialConfig: StorefrontRuntimeConfig;
+  readonly initialLocation: string;
 }) {
   const [adminPasscode, setAdminPasscode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1195,11 +1226,12 @@ function AdminShellGate({
 
   if (authState.stage === "unlocked" && authState.token) {
     return (
-      <AdminShell
+      <AdminPortal
         route={route}
         apiClient={apiClient}
         token={authState.token}
         initialConfig={initialConfig}
+        initialLocation={initialLocation}
         session={authState.session}
         onLogout={handleAdminLogout}
         isLoggingOut={isSubmitting}
@@ -5911,11 +5943,12 @@ function ProductPendingStage() {
   );
 }
 
-function AdminShell({
+function AdminPortal({
   route,
   apiClient,
   token,
   initialConfig,
+  initialLocation,
   onLogout,
   session,
   isLoggingOut,
@@ -5924,12 +5957,24 @@ function AdminShell({
   readonly apiClient: ApiClient;
   readonly token: string;
   readonly initialConfig: StorefrontRuntimeConfig;
+  readonly initialLocation: string;
   readonly onLogout: () => Promise<void> | void;
   readonly session: AdminSessionInfo | null;
   readonly isLoggingOut: boolean;
 }) {
   const [activeConfig, setActiveConfig] =
     useState<StorefrontRuntimeConfig>(initialConfig);
+  const [adminLocation, setAdminLocation] = useState(() =>
+    parseAdminLocation(initialLocation),
+  );
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const adminQuery = useMemo(
+    () => buildAdminQuery(adminLocation, route.section),
+    [adminLocation, route.section],
+  );
+  const primaryRequestPath = adminQuery.requestPaths[0] ?? "";
+  const secondaryRequestPath = adminQuery.requestPaths[1] ?? "";
   const [selectedProfileId, setSelectedProfileId] = useState<string>(
     resolveAdminProfileOption(activeConfig.profile.slug).id,
   );
@@ -5946,10 +5991,12 @@ function AdminShell({
   const [ordersState, setOrdersState] = useState<{
     readonly status: "idle" | "loading" | "ready" | "error";
     readonly orders: readonly AdminOrderSummaryResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     orders: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Order lifecycle controls are loaded from the Admin API.",
   });
   const [selectedOrder, setSelectedOrder] = useState<
@@ -5978,10 +6025,12 @@ function AdminShell({
       | "saved"
       | "error";
     readonly inventory: readonly AdminInventoryItemResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     inventory: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Inventory controls are loaded from the Admin API.",
   });
   const [pickupDateState, setPickupDateState] = useState<{
@@ -5993,37 +6042,48 @@ function AdminShell({
       | "saved"
       | "error";
     readonly pickupDates: readonly AdminPickupDateResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     pickupDates: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Pickup-date controls are loaded from the Admin API.",
   });
   const [webhookState, setWebhookState] = useState<{
     readonly status: "idle" | "loading" | "ready" | "error";
     readonly webhooks: readonly AdminWebhookEventResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     webhooks: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Webhook events are loaded from the Admin API.",
   });
+  const [selectedWebhookId, setSelectedWebhookId] = useState<string | null>(
+    null,
+  );
   const [paymentDebugState, setPaymentDebugState] = useState<{
     readonly status: "idle" | "loading" | "ready" | "error";
     readonly paymentSessions: readonly AdminPaymentDebugSessionResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     paymentSessions: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Payment debug sessions are loaded from the Admin API.",
   });
   const [runtimeDebugLogState, setRuntimeDebugLogState] = useState<{
     readonly status: "idle" | "loading" | "ready" | "error";
     readonly logs: readonly AdminRuntimeDebugLogResponse[];
+    readonly pageInfo: AdminPageInfoResponse;
     readonly message: string;
   }>({
     status: "idle",
     logs: [],
+    pageInfo: createEmptyAdminPageInfo(),
     message: "Runtime debug logs are loaded from the Admin API.",
   });
   const [inventoryDrafts, setInventoryDrafts] = useState<
@@ -6042,6 +6102,18 @@ function AdminShell({
   >({});
 
   useEffect(() => {
+    const handlePopState = () => {
+      setAdminLocation(parseAdminLocation(browserPathname()));
+      setSelectedOrder(null);
+    };
+
+    globalThis.addEventListener?.("popstate", handlePopState);
+    return () => {
+      globalThis.removeEventListener?.("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
     if (route.section !== "orders" && route.section !== "lifecycle") {
       return;
     }
@@ -6056,28 +6128,32 @@ function AdminShell({
       }));
 
       try {
-        const response = await apiClient.get<AdminOrderListResponse>(
-          "/api/admin/orders",
-          undefined,
-          {
-            headers: {
-              "x-admin-session": token,
-            },
+        const response = await apiClient.get<
+          AdminOrderListResponse | AdminLifecycleListResponse
+        >(primaryRequestPath, undefined, {
+          headers: {
+            "x-admin-session": token,
           },
-        );
+        });
 
         if (isCancelled) {
           return;
         }
 
+        const orders =
+          route.section === "lifecycle"
+            ? ((response as AdminLifecycleListResponse).lifecycle ?? [])
+            : ((response as AdminOrderListResponse).orders ?? []);
         setOrdersState({
           status: "ready",
-          orders: response.orders ?? [],
+          orders,
+          pageInfo: resolveAdminPageInfo(response.page_info, orders.length),
           message:
-            (response.orders ?? []).length > 0
+            orders.length > 0
               ? "Orders are ready for inspection."
               : "No orders are available yet.",
         });
+        setLastUpdatedAt(new Date().toISOString());
       } catch (error) {
         if (isCancelled) {
           return;
@@ -6086,10 +6162,13 @@ function AdminShell({
         setOrdersState({
           status: "error",
           orders: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message:
             error instanceof ApiClientError
               ? error.message
-              : "Unable to load admin orders.",
+              : error instanceof Error
+                ? error.message
+                : "Unable to load admin orders.",
         });
       }
     }
@@ -6099,7 +6178,7 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, route.section, token]);
+  }, [apiClient, primaryRequestPath, reloadVersion, route.section, token]);
 
   useEffect(() => {
     if (route.section !== "webhooks") {
@@ -6117,7 +6196,7 @@ function AdminShell({
 
       try {
         const response = await apiClient.get<AdminWebhookListResponse>(
-          "/api/admin/webhooks",
+          primaryRequestPath,
           undefined,
           {
             headers: {
@@ -6130,14 +6209,25 @@ function AdminShell({
           return;
         }
 
+        const webhooks = response.webhooks ?? [];
         setWebhookState({
           status: "ready",
-          webhooks: response.webhooks ?? [],
+          webhooks,
+          pageInfo: resolveAdminPageInfo(
+            response.page_info,
+            response.webhooks?.length ?? 0,
+          ),
           message:
             (response.webhooks ?? []).length > 0
               ? "Webhook events are ready."
               : "No webhook events are available yet.",
         });
+        setSelectedWebhookId((current) =>
+          current && webhooks.some((webhook) => webhook.id === current)
+            ? current
+            : (webhooks[0]?.id ?? null),
+        );
+        setLastUpdatedAt(new Date().toISOString());
       } catch (error) {
         if (isCancelled) {
           return;
@@ -6146,10 +6236,13 @@ function AdminShell({
         setWebhookState({
           status: "error",
           webhooks: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message:
             error instanceof ApiClientError
               ? error.message
-              : "Unable to load webhook events.",
+              : error instanceof Error
+                ? error.message
+                : "Unable to load webhook events.",
         });
       }
     }
@@ -6159,7 +6252,7 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, route.section, token]);
+  }, [apiClient, primaryRequestPath, reloadVersion, route.section, token]);
 
   useEffect(() => {
     if (route.section !== "diagnostics") {
@@ -6177,7 +6270,7 @@ function AdminShell({
 
       try {
         const response = await apiClient.get<AdminPaymentDebugListResponse>(
-          "/api/admin/payment-debug",
+          primaryRequestPath,
           undefined,
           {
             headers: {
@@ -6193,11 +6286,16 @@ function AdminShell({
         setPaymentDebugState({
           status: "ready",
           paymentSessions: response.payment_sessions ?? [],
+          pageInfo: resolveAdminPageInfo(
+            response.page_info,
+            response.payment_sessions?.length ?? 0,
+          ),
           message:
             (response.payment_sessions ?? []).length > 0
               ? "Payment debug sessions are ready."
               : "No payment debug sessions are available yet.",
         });
+        setLastUpdatedAt(new Date().toISOString());
       } catch (error) {
         if (isCancelled) {
           return;
@@ -6206,10 +6304,13 @@ function AdminShell({
         setPaymentDebugState({
           status: "error",
           paymentSessions: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message:
             error instanceof ApiClientError
               ? error.message
-              : "Unable to load payment debug sessions.",
+              : error instanceof Error
+                ? error.message
+                : "Unable to load payment debug sessions.",
         });
       }
     }
@@ -6219,7 +6320,7 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, route.section, token]);
+  }, [apiClient, primaryRequestPath, reloadVersion, route.section, token]);
 
   useEffect(() => {
     if (route.section !== "diagnostics") {
@@ -6237,7 +6338,7 @@ function AdminShell({
 
       try {
         const response = await apiClient.get<AdminRuntimeDebugLogListResponse>(
-          "/api/admin/debug-logs",
+          secondaryRequestPath,
           undefined,
           {
             headers: {
@@ -6253,11 +6354,16 @@ function AdminShell({
         setRuntimeDebugLogState({
           status: "ready",
           logs: response.debug_logs ?? [],
+          pageInfo: resolveAdminPageInfo(
+            response.page_info,
+            response.debug_logs?.length ?? 0,
+          ),
           message:
             (response.debug_logs ?? []).length > 0
               ? "Runtime debug logs are ready."
               : "No runtime debug logs are available yet.",
         });
+        setLastUpdatedAt(new Date().toISOString());
       } catch (error) {
         if (isCancelled) {
           return;
@@ -6266,10 +6372,13 @@ function AdminShell({
         setRuntimeDebugLogState({
           status: "error",
           logs: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message:
             error instanceof ApiClientError
               ? error.message
-              : "Unable to load runtime debug logs.",
+              : error instanceof Error
+                ? error.message
+                : "Unable to load runtime debug logs.",
         });
       }
     }
@@ -6279,7 +6388,7 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, route.section, token]);
+  }, [apiClient, reloadVersion, route.section, secondaryRequestPath, token]);
 
   useEffect(() => {
     if (route.section !== "inventory") {
@@ -6303,7 +6412,7 @@ function AdminShell({
       try {
         const [inventoryResponse, pickupDateResponse] = await Promise.all([
           apiClient.get<AdminInventoryListResponse>(
-            "/api/admin/inventory",
+            primaryRequestPath,
             undefined,
             {
               headers: {
@@ -6312,7 +6421,7 @@ function AdminShell({
             },
           ),
           apiClient.get<AdminPickupDateListResponse>(
-            "/api/admin/pickup-dates",
+            secondaryRequestPath,
             undefined,
             {
               headers: {
@@ -6329,6 +6438,10 @@ function AdminShell({
         setInventoryState({
           status: "ready",
           inventory: inventoryResponse.inventory ?? [],
+          pageInfo: resolveAdminPageInfo(
+            inventoryResponse.page_info,
+            inventoryResponse.inventory?.length ?? 0,
+          ),
           message:
             (inventoryResponse.inventory ?? []).length > 0
               ? "Inventory controls are ready."
@@ -6337,11 +6450,16 @@ function AdminShell({
         setPickupDateState({
           status: "ready",
           pickupDates: pickupDateResponse.pickup_dates ?? [],
+          pageInfo: resolveAdminPageInfo(
+            pickupDateResponse.page_info,
+            pickupDateResponse.pickup_dates?.length ?? 0,
+          ),
           message:
             (pickupDateResponse.pickup_dates ?? []).length > 0
               ? "Pickup-date controls are ready."
               : "No pickup dates are available yet.",
         });
+        setLastUpdatedAt(new Date().toISOString());
       } catch (error) {
         if (isCancelled) {
           return;
@@ -6354,11 +6472,13 @@ function AdminShell({
         setInventoryState({
           status: "error",
           inventory: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message,
         });
         setPickupDateState({
           status: "error",
           pickupDates: [],
+          pageInfo: createEmptyAdminPageInfo(),
           message,
         });
       }
@@ -6369,7 +6489,14 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, route.section, token]);
+  }, [
+    apiClient,
+    primaryRequestPath,
+    reloadVersion,
+    route.section,
+    secondaryRequestPath,
+    token,
+  ]);
 
   const handleSelectOrder = async (orderId: string) => {
     setSelectedOrderState({
@@ -6509,6 +6636,7 @@ function AdminShell({
       };
 
       setInventoryState((current) => ({
+        ...current,
         status: "saved",
         inventory: current.inventory.map((inventoryItem) =>
           inventoryItem.id === updatedInventory.id
@@ -6580,6 +6708,7 @@ function AdminShell({
       };
 
       setPickupDateState((current) => ({
+        ...current,
         status: "saved",
         pickupDates: current.pickupDates.map((currentPickupDate) =>
           currentPickupDate.id === updatedPickupDate.id
@@ -6655,169 +6784,214 @@ function AdminShell({
     }
   };
 
+  const handleAdminLocationChange = (path: string) => {
+    globalThis.history?.pushState(null, "", path);
+    setAdminLocation(parseAdminLocation(path));
+    setSelectedOrder(null);
+  };
+  const handleClearFilters = () => {
+    handleAdminLocationChange(adminQuery.clearPath);
+  };
+  const handleReload = () => {
+    setReloadVersion((current) => current + 1);
+  };
+  const handleNextPage = (cursorKey: string, cursor: string | null) => {
+    if (!cursor) {
+      return;
+    }
+    const parameters = new URLSearchParams(adminLocation.search);
+    parameters.set(cursorKey, cursor);
+    const search = parameters.toString();
+    handleAdminLocationChange(
+      `${adminLocation.pathname}${search ? `?${search}` : ""}`,
+    );
+  };
+  const ordersRequest = createAdminWorkbenchRequest(
+    ordersState.status,
+    ordersState.message,
+    ordersState.pageInfo,
+    lastUpdatedAt,
+  );
+  const inventoryRequest = createAdminWorkbenchRequest(
+    inventoryState.status,
+    inventoryState.message,
+    inventoryState.pageInfo,
+    lastUpdatedAt,
+  );
+  const pickupRequest = createAdminWorkbenchRequest(
+    pickupDateState.status,
+    pickupDateState.message,
+    pickupDateState.pageInfo,
+    lastUpdatedAt,
+  );
+  const webhooksRequest = createAdminWorkbenchRequest(
+    webhookState.status,
+    webhookState.message,
+    webhookState.pageInfo,
+    lastUpdatedAt,
+  );
+  const selectedWebhook =
+    webhookState.webhooks.find((webhook) => webhook.id === selectedWebhookId) ??
+    webhookState.webhooks[0] ??
+    null;
+  const paymentRequest = createAdminWorkbenchRequest(
+    paymentDebugState.status,
+    paymentDebugState.message,
+    paymentDebugState.pageInfo,
+    lastUpdatedAt,
+  );
+  const runtimeRequest = createAdminWorkbenchRequest(
+    runtimeDebugLogState.status,
+    runtimeDebugLogState.message,
+    runtimeDebugLogState.pageInfo,
+    lastUpdatedAt,
+  );
+  const activeFilterCount = adminQuery.activeParameters.length;
+  const OrdersWorkbench =
+    route.section === "lifecycle"
+      ? AdminLifecycleWorkbench
+      : AdminOrdersWorkbench;
+
   return (
-    <div
-      className="app-shell admin-shell"
-      data-route-scope={route.scope}
-      data-route-page={route.page}
-      data-route-section={route.section}
+    <AdminWorkbenchShell
+      section={route.section}
+      sessionId={session?.session_id ?? null}
+      lastUpdatedAt={lastUpdatedAt}
+      onRefresh={handleReload}
+      onLogout={() => {
+        void onLogout();
+      }}
+      isRefreshing={
+        ordersState.status === "loading" ||
+        inventoryState.status === "loading" ||
+        webhookState.status === "loading" ||
+        paymentDebugState.status === "loading" ||
+        runtimeDebugLogState.status === "loading"
+      }
+      isLoggingOut={isLoggingOut}
+      filters={
+        <AdminFilters
+          section={route.section}
+          search={adminLocation.search}
+          onApply={handleAdminLocationChange}
+          onClear={handleClearFilters}
+        />
+      }
     >
-      <main className="admin-shell__main">
-        <section className="admin-shell__panel">
-          <p className="admin-shell__eyebrow">Operations</p>
-          <h1>Admin Portal</h1>
-          {session ? (
-            <p className="admin-shell__session">Session {session.session_id}</p>
-          ) : null}
-          <nav aria-label="Admin sections" className="admin-shell__nav">
-            <a
-              href="/admin/orders"
-              aria-current={route.section === "orders" ? "page" : undefined}
+      <div className="admin-shell__grid">
+        <Card className="admin-shell__card" size="sm">
+          <CardHeader>
+            <CardTitle>Storefront context</CardTitle>
+            <CardDescription>
+              Switch the active demo profile and market for new catalog, cart,
+              checkout, and PayPal SDK config requests.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="admin-shell__context-form"
+              onSubmit={handleProfileMarketSwitch}
             >
-              Orders
-            </a>
-            <a
-              href="/admin/lifecycle"
-              aria-current={route.section === "lifecycle" ? "page" : undefined}
-            >
-              Lifecycle
-            </a>
-            <a
-              href="/admin/inventory"
-              aria-current={route.section === "inventory" ? "page" : undefined}
-            >
-              Inventory
-            </a>
-            <a
-              href="/admin/webhooks"
-              aria-current={route.section === "webhooks" ? "page" : undefined}
-            >
-              Webhooks
-            </a>
-            <a
-              href="/admin/diagnostics"
-              aria-current={
-                route.section === "diagnostics" ? "page" : undefined
-              }
-            >
-              Diagnostics
-            </a>
-          </nav>
-          <h2
-            id="admin-workbench-title"
-            className="admin-shell__workbench-title"
-          >
-            {formatAdminStatusLabel(route.section)}
-          </h2>
-          <div className="admin-shell__grid">
-            <Card className="admin-shell__card" size="sm">
-              <CardHeader>
-                <CardTitle>Storefront context</CardTitle>
-                <CardDescription>
-                  Switch the active demo profile and market for new catalog,
-                  cart, checkout, and PayPal SDK config requests.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  className="admin-shell__context-form"
-                  onSubmit={handleProfileMarketSwitch}
-                >
-                  <FieldGroup>
-                    <Field>
-                      <FieldLabel htmlFor="admin-profile-select">
-                        Profile
-                      </FieldLabel>
-                      <select
-                        id="admin-profile-select"
-                        className="admin-shell__select"
-                        value={selectedProfileId}
-                        onChange={(event) =>
-                          setSelectedProfileId(event.target.value)
-                        }
-                        disabled={switchState.status === "saving"}
-                      >
-                        {adminProfileOptions.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="admin-market-select">
-                        Market
-                      </FieldLabel>
-                      <select
-                        id="admin-market-select"
-                        className="admin-shell__select"
-                        value={selectedMarketId}
-                        onChange={(event) =>
-                          setSelectedMarketId(event.target.value)
-                        }
-                        disabled={switchState.status === "saving"}
-                      >
-                        {adminMarketOptions.map((market) => (
-                          <option key={market.id} value={market.id}>
-                            {market.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <FieldDescription>
-                      Current: {activeConfig.profile.displayName} /{" "}
-                      {activeConfig.market.code} /{" "}
-                      {activeConfig.market.currencyCode}
-                    </FieldDescription>
-                  </FieldGroup>
-                  <Button
-                    type="submit"
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="admin-profile-select">
+                    Profile
+                  </FieldLabel>
+                  <select
+                    id="admin-profile-select"
+                    className="admin-shell__select"
+                    value={selectedProfileId}
+                    onChange={(event) =>
+                      setSelectedProfileId(event.target.value)
+                    }
                     disabled={switchState.status === "saving"}
                   >
-                    {switchState.status === "saving"
-                      ? "Switching"
-                      : "Apply context"}
-                  </Button>
-                </form>
-                <p
-                  className="admin-shell__feedback"
-                  data-status={switchState.status}
-                  {...(switchState.status === "error" ? { role: "alert" } : {})}
-                >
-                  {switchState.message}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="admin-shell__card" size="sm">
-              <CardHeader>
-                <CardTitle>Active runtime</CardTitle>
-                <CardDescription>
-                  Buyer UI stays unlinked from admin navigation; this context is
-                  applied through API requests.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <dl className="admin-shell__runtime-list">
-                  <div>
-                    <dt>Profile</dt>
-                    <dd>{activeConfig.profile.slug}</dd>
-                  </div>
-                  <div>
-                    <dt>Market</dt>
-                    <dd>{activeConfig.market.code}</dd>
-                  </div>
-                  <div>
-                    <dt>Locale</dt>
-                    <dd>{activeConfig.market.locale}</dd>
-                  </div>
-                  <div>
-                    <dt>Currency</dt>
-                    <dd>{activeConfig.market.currencyCode}</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
+                    {adminProfileOptions.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="admin-market-select">Market</FieldLabel>
+                  <select
+                    id="admin-market-select"
+                    className="admin-shell__select"
+                    value={selectedMarketId}
+                    onChange={(event) =>
+                      setSelectedMarketId(event.target.value)
+                    }
+                    disabled={switchState.status === "saving"}
+                  >
+                    {adminMarketOptions.map((market) => (
+                      <option key={market.id} value={market.id}>
+                        {market.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <FieldDescription>
+                  Current: {activeConfig.profile.displayName} /{" "}
+                  {activeConfig.market.code} /{" "}
+                  {activeConfig.market.currencyCode}
+                </FieldDescription>
+              </FieldGroup>
+              <Button type="submit" disabled={switchState.status === "saving"}>
+                {switchState.status === "saving"
+                  ? "Switching"
+                  : "Apply context"}
+              </Button>
+            </form>
+            <p
+              className="admin-shell__feedback"
+              data-status={switchState.status}
+              {...(switchState.status === "error" ? { role: "alert" } : {})}
+            >
+              {switchState.message}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="admin-shell__card" size="sm">
+          <CardHeader>
+            <CardTitle>Active runtime</CardTitle>
+            <CardDescription>
+              Buyer UI stays unlinked from admin navigation; this context is
+              applied through API requests.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="admin-shell__runtime-list">
+              <div>
+                <dt>Profile</dt>
+                <dd>{activeConfig.profile.slug}</dd>
+              </div>
+              <div>
+                <dt>Market</dt>
+                <dd>{activeConfig.market.code}</dd>
+              </div>
+              <div>
+                <dt>Locale</dt>
+                <dd>{activeConfig.market.locale}</dd>
+              </div>
+              <div>
+                <dt>Currency</dt>
+                <dd>{activeConfig.market.currencyCode}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      </div>
+      {route.section === "orders" || route.section === "lifecycle" ? (
+        <OrdersWorkbench
+          request={ordersRequest}
+          activeFilterCount={activeFilterCount}
+          onRetry={handleReload}
+          onClearFilters={handleClearFilters}
+          onNext={() => {
+            handleNextPage("cursor", ordersState.pageInfo.next_cursor);
+          }}
+        >
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
@@ -7105,6 +7279,26 @@ function AdminShell({
               </div>
             </CardContent>
           </Card>
+        </OrdersWorkbench>
+      ) : null}
+      {route.section === "inventory" ? (
+        <AdminInventoryWorkbench
+          stockRequest={inventoryRequest}
+          pickupRequest={pickupRequest}
+          activeFilterCount={activeFilterCount}
+          onRetryStock={handleReload}
+          onRetryPickup={handleReload}
+          onClearFilters={handleClearFilters}
+          onNextStock={() => {
+            handleNextPage("stock_cursor", inventoryState.pageInfo.next_cursor);
+          }}
+          onNextPickup={() => {
+            handleNextPage(
+              "pickup_cursor",
+              pickupDateState.pageInfo.next_cursor,
+            );
+          }}
+        >
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
@@ -7296,6 +7490,18 @@ function AdminShell({
               </div>
             </CardContent>
           </Card>
+        </AdminInventoryWorkbench>
+      ) : null}
+      {route.section === "webhooks" ? (
+        <AdminWebhooksWorkbench
+          request={webhooksRequest}
+          activeFilterCount={activeFilterCount}
+          onRetry={handleReload}
+          onClearFilters={handleClearFilters}
+          onNext={() => {
+            handleNextPage("cursor", webhookState.pageInfo.next_cursor);
+          }}
+        >
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
@@ -7321,63 +7527,92 @@ function AdminShell({
                 aria-label="Admin webhook events"
               >
                 {webhookState.webhooks.length > 0 ? (
-                  webhookState.webhooks.map((webhook) => (
-                    <article
-                      key={webhook.id}
-                      className="admin-shell__webhook-row"
+                  <>
+                    <div
+                      className="admin-shell__webhook-event-list"
+                      aria-label="Webhook event list"
                     >
-                      <div>
-                        <h3>{webhook.event_id}</h3>
-                        <p>{webhook.event_type}</p>
-                      </div>
-                      <dl className="admin-shell__runtime-list">
-                        <div>
-                          <dt>Verification</dt>
-                          <dd>
-                            {formatAdminStatusLabel(
-                              webhook.verification_status,
-                            )}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Processing</dt>
-                          <dd>
+                      {webhookState.webhooks.map((webhook) => (
+                        <button
+                          key={webhook.id}
+                          type="button"
+                          className="admin-shell__webhook-event"
+                          aria-pressed={selectedWebhook?.id === webhook.id}
+                          onClick={() => setSelectedWebhookId(webhook.id)}
+                        >
+                          <span>
+                            <strong>{webhook.event_id}</strong>
+                            <small>{webhook.event_type}</small>
+                          </span>
+                          <span>
                             {formatAdminStatusLabel(webhook.processing_status)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Order</dt>
-                          <dd>{webhook.linked_order_id ?? "Unlinked"}</dd>
-                        </div>
-                        <div>
-                          <dt>Payment session</dt>
-                          <dd>
-                            {webhook.linked_payment_session_id ?? "Unlinked"}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Received</dt>
-                          <dd>
-                            {formatAccountDate(
-                              webhook.received_at,
-                              activeConfig.market.locale,
-                            )}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Processed</dt>
-                          <dd>
-                            {webhook.processed_at
-                              ? formatAccountDate(
-                                  webhook.processed_at,
-                                  activeConfig.market.locale,
-                                )
-                              : "Not processed"}
-                          </dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {selectedWebhook ? (
+                      <article
+                        className="admin-shell__webhook-detail"
+                        aria-label="Webhook event detail"
+                      >
+                        <header>
+                          <h3>{selectedWebhook.event_id}</h3>
+                          <p>{selectedWebhook.event_type}</p>
+                        </header>
+                        <dl className="admin-shell__runtime-list">
+                          <div>
+                            <dt>Verification</dt>
+                            <dd>
+                              {formatAdminStatusLabel(
+                                selectedWebhook.verification_status,
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Processing</dt>
+                            <dd>
+                              {formatAdminStatusLabel(
+                                selectedWebhook.processing_status,
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Order</dt>
+                            <dd>
+                              {selectedWebhook.linked_order_id ?? "Unlinked"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Payment session</dt>
+                            <dd>
+                              {selectedWebhook.linked_payment_session_id ??
+                                "Unlinked"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Received</dt>
+                            <dd>
+                              {formatAccountDate(
+                                selectedWebhook.received_at,
+                                activeConfig.market.locale,
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Processed</dt>
+                            <dd>
+                              {selectedWebhook.processed_at
+                                ? formatAccountDate(
+                                    selectedWebhook.processed_at,
+                                    activeConfig.market.locale,
+                                  )
+                                : "Not processed"}
+                            </dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ) : null}
+                  </>
                 ) : (
                   <p className="admin-shell__empty-state">
                     {webhookState.status === "loading"
@@ -7388,6 +7623,29 @@ function AdminShell({
               </div>
             </CardContent>
           </Card>
+        </AdminWebhooksWorkbench>
+      ) : null}
+      {route.section === "diagnostics" ? (
+        <AdminDiagnosticsWorkbench
+          paymentRequest={paymentRequest}
+          runtimeRequest={runtimeRequest}
+          activeFilterCount={activeFilterCount}
+          onRetryPayment={handleReload}
+          onRetryRuntime={handleReload}
+          onClearFilters={handleClearFilters}
+          onNextPayment={() => {
+            handleNextPage(
+              "payment_cursor",
+              paymentDebugState.pageInfo.next_cursor,
+            );
+          }}
+          onNextRuntime={() => {
+            handleNextPage(
+              "runtime_cursor",
+              runtimeDebugLogState.pageInfo.next_cursor,
+            );
+          }}
+        >
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
@@ -7682,19 +7940,9 @@ function AdminShell({
               </div>
             </CardContent>
           </Card>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void onLogout();
-            }}
-            disabled={isLoggingOut}
-          >
-            Log out
-          </Button>
-        </section>
-      </main>
-    </div>
+        </AdminDiagnosticsWorkbench>
+      ) : null}
+    </AdminWorkbenchShell>
   );
 }
 
@@ -7717,6 +7965,62 @@ function setAdminSessionTokenInStorage(token: string | null): void {
   } catch {
     // Local storage persistence is optional.
   }
+}
+
+function parseAdminLocation(location: string): {
+  readonly pathname: string;
+  readonly search: string;
+} {
+  const parsed = new URL(location, "https://paypal-retail-demo.local");
+  return {
+    pathname: parsed.pathname,
+    search: parsed.search,
+  };
+}
+
+function createEmptyAdminPageInfo(): AdminPageInfoResponse {
+  return {
+    total_count: 0,
+    next_cursor: null,
+    timezone: "UTC",
+  };
+}
+
+function resolveAdminPageInfo(
+  pageInfo: AdminPageInfoResponse | undefined,
+  fallbackCount: number,
+): AdminPageInfoResponse {
+  return (
+    pageInfo ?? {
+      total_count: fallbackCount,
+      next_cursor: null,
+      timezone: "UTC",
+    }
+  );
+}
+
+function createAdminWorkbenchRequest(
+  status: string,
+  message: string,
+  pageInfo: AdminPageInfoResponse,
+  lastUpdatedAt: string | null,
+): AdminWorkbenchRequest {
+  const workbenchStatus: AdminWorkbenchRequest["status"] =
+    status === "loading" || status === "idle"
+      ? status
+      : status === "error"
+        ? "error"
+        : pageInfo.total_count === 0
+          ? "empty"
+          : "ready";
+
+  return {
+    status: workbenchStatus,
+    totalCount: pageInfo.total_count,
+    nextCursor: pageInfo.next_cursor,
+    errorMessage: workbenchStatus === "error" ? message : null,
+    lastUpdatedAt,
+  };
 }
 
 function mapAdminStorefrontConfig(

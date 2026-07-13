@@ -3920,7 +3920,7 @@ describe("App admin interactions", () => {
       {
         pathname: "/admin/lifecycle",
         expectedHeading: "Lifecycle",
-        expectedPaths: ["/api/admin/orders"],
+        expectedPaths: ["/api/admin/lifecycle"],
       },
       {
         pathname: "/admin/inventory",
@@ -3954,6 +3954,9 @@ describe("App admin interactions", () => {
             },
           },
           "/api/admin/orders": adminOrderListApiResponse(),
+          "/api/admin/lifecycle": {
+            lifecycle: adminOrderListApiResponse().orders,
+          },
           "/api/admin/inventory": adminInventoryListApiResponse(),
           "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
           "/api/admin/webhooks": adminWebhookListApiResponse(),
@@ -4218,7 +4221,9 @@ describe("App admin interactions", () => {
             expires_at: "2026-12-31T23:59:59.000Z",
           },
         },
-        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/lifecycle": {
+          lifecycle: adminOrderListApiResponse().orders,
+        },
         "/api/admin/orders/order_1": adminOrderDetailApiResponse(),
       },
       postResponseByPath: {
@@ -4271,7 +4276,7 @@ describe("App admin interactions", () => {
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
         method: "get",
-        path: "/api/admin/orders",
+        path: "/api/admin/lifecycle",
         options: {
           headers: {
             "x-admin-session": "orders-token",
@@ -4420,6 +4425,7 @@ describe("App admin interactions", () => {
   });
 
   it("loads admin webhook events with the signed session", async () => {
+    const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
       getResponseByPath: {
         "/api/admin/state": {
@@ -4444,12 +4450,28 @@ describe("App admin interactions", () => {
     render(<App apiClient={apiClient} initialPathname="/admin/webhooks" />);
 
     await screen.findByText("Webhook events are ready.");
-    expect(screen.getByText("WH-INVALID-1")).toBeTruthy();
-    expect(screen.getByText("Invalid")).toBeTruthy();
-    expect(screen.getByText("Ignored")).toBeTruthy();
-    expect(screen.getByText("WH-ORDER-1")).toBeTruthy();
-    expect(screen.getByText("CHECKOUT.ORDER.APPROVED")).toBeTruthy();
-    expect(screen.getAllByText("Processed").length).toBeGreaterThan(0);
+    const webhookRegion = screen.getByLabelText("Admin webhook events");
+    const webhookList =
+      within(webhookRegion).getByLabelText("Webhook event list");
+    const webhookDetail = within(webhookRegion).getByLabelText(
+      "Webhook event detail",
+    );
+    expect(within(webhookList).getByText("WH-INVALID-1")).toBeTruthy();
+    expect(within(webhookDetail).getByText("Invalid")).toBeTruthy();
+    expect(within(webhookDetail).getByText("Ignored")).toBeTruthy();
+    expect(within(webhookList).getByText("WH-ORDER-1")).toBeTruthy();
+    expect(
+      within(webhookList).getByText("CHECKOUT.ORDER.APPROVED"),
+    ).toBeTruthy();
+    await user.click(
+      within(webhookList).getByRole("button", { name: /WH-ORDER-1/ }),
+    );
+    expect(
+      within(webhookDetail).getByRole("heading", { name: "WH-ORDER-1" }),
+    ).toBeTruthy();
+    expect(
+      within(webhookDetail).getAllByText("Processed").length,
+    ).toBeGreaterThan(0);
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
         method: "get",
