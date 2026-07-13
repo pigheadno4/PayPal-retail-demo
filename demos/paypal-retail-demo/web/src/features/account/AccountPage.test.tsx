@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
   type AccountOrderView,
   type AccountSavedPaymentMethodView,
 } from "./AccountPage.js";
+import * as AccountPageModule from "./AccountPage.js";
 
 afterEach(() => {
   cleanup();
@@ -129,6 +130,148 @@ describe("AccountPage", () => {
     expect(html).not.toContain("payment_session");
   });
 
+  it("maps account order filters to in-progress, completed, and cancelled states", () => {
+    const orders = accountOrdersWithFilters();
+    const matcher = (
+      AccountPageModule as typeof AccountPageModule & {
+        readonly matchesAccountOrderFilter?: (
+          order: AccountOrderView,
+          filter: "all" | "in_progress" | "completed",
+        ) => boolean;
+      }
+    ).matchesAccountOrderFilter;
+
+    expect(typeof matcher).toBe("function");
+    if (!matcher) {
+      return;
+    }
+
+    const matchingOrderNumbers = (
+      filter: "all" | "in_progress" | "completed",
+    ) =>
+      orders
+        .filter((order) => matcher(order, filter))
+        .map((order) => order.orderNumber);
+
+    expect(matchingOrderNumbers("all")).toEqual([
+      "DO-20260607-000123",
+      "PO-20260602-000118",
+      "DO-20260605-000119",
+      "DO-20260604-000117",
+      "DO-20260603-000116",
+    ]);
+    expect(matchingOrderNumbers("in_progress")).toEqual([
+      "DO-20260607-000123",
+      "DO-20260604-000117",
+    ]);
+    expect(matchingOrderNumbers("completed")).toEqual([
+      "PO-20260602-000118",
+      "DO-20260605-000119",
+    ]);
+  });
+
+  it("renders derived filter counts and keeps cancelled orders only under All", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrdersWithFilters()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+      />,
+    );
+
+    const filters = screen.getByRole("group", { name: "Filter orders" });
+    expect(
+      within(filters)
+        .getByRole("button", { name: "All 5" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      within(filters).getByRole("button", { name: "In progress 2" }),
+    ).toBeTruthy();
+    expect(
+      within(filters).getByRole("button", { name: "Completed 2" }),
+    ).toBeTruthy();
+    expect(screen.getByText("DO-20260603-000116")).toBeTruthy();
+    expect(screen.getByText("Cancelled")).toBeTruthy();
+
+    await user.click(
+      within(filters).getByRole("button", { name: "Completed 2" }),
+    );
+
+    expect(screen.getByText("Showing Completed orders")).toBeTruthy();
+    expect(screen.getByText("PO-20260602-000118")).toBeTruthy();
+    expect(screen.getByText("DO-20260605-000119")).toBeTruthy();
+    expect(screen.queryByText("DO-20260607-000123")).toBeNull();
+    expect(screen.queryByText("DO-20260603-000116")).toBeNull();
+
+    await user.click(
+      within(filters).getByRole("button", { name: "In progress 2" }),
+    );
+
+    expect(screen.getByText("Showing In progress orders")).toBeTruthy();
+    expect(screen.getByText("DO-20260607-000123")).toBeTruthy();
+    expect(screen.getByText("DO-20260604-000117")).toBeTruthy();
+    expect(screen.queryByText("PO-20260602-000118")).toBeNull();
+    expect(screen.queryByText("DO-20260603-000116")).toBeNull();
+  });
+
+  it("announces refresh failure, preserves last-updated copy, and retries", async () => {
+    const user = userEvent.setup();
+    let rejectRefresh: ((reason?: unknown) => void) | undefined;
+    const onRefreshOrders = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectRefresh = reject;
+          }),
+      )
+      .mockResolvedValueOnce();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        ordersLastUpdatedAt="2026-07-13T09:41:00.000Z"
+        onRefreshOrders={onRefreshOrders}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+      />,
+    );
+
+    expect(screen.getByText(/Last updated at/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Refresh orders" }));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Refreshing orders...",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      rejectRefresh?.(new Error("account request failed"));
+    });
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Orders could not be refreshed.",
+    );
+    expect(screen.getByText(/Last updated at/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onRefreshOrders).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("renders buyer-safe order detail with timeline, totals, and item review state", () => {
     const html = renderToStaticMarkup(
       <AccountPage
@@ -159,6 +302,62 @@ describe("AccountPage", () => {
     expect(html).toContain("$28.16");
     expect(html).not.toContain("paypal_order_id");
     expect(html).not.toContain("payment_session");
+  });
+
+  it("puts the current stage before fulfillment detail and the buyer-safe timeline", () => {
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="PO-20260602-000118"
+      />,
+    );
+
+    const currentStage = screen.getByRole("region", { name: "Current stage" });
+    const pickupDetail = screen.getByRole("region", { name: "Pickup detail" });
+    const timeline = screen.getByRole("region", { name: "Order timeline" });
+
+    expect(
+      within(currentStage).getByRole("heading", { name: "Picked up" }),
+    ).toBeTruthy();
+    expect(within(currentStage).getByText("Jun 4, 2026, 4:00 PM")).toBeTruthy();
+    expect(
+      currentStage.compareDocumentPosition(pickupDetail) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      pickupDetail.compareDocumentPosition(timeline) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    cleanup();
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="DO-20260607-000123"
+      />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Delivery detail" }),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("region", { name: "Current stage" })).getByRole(
+        "heading",
+        { name: "Awaiting payment" },
+      ),
+    ).toBeTruthy();
   });
 
   it("submits a completed-order item review from order detail", async () => {
@@ -420,6 +619,7 @@ function accountOrders(): readonly AccountOrderView[] {
         {
           description: "Buyer collected the order in store.",
           label: "Picked up",
+          occurredAtLabel: "Jun 4, 2026, 4:00 PM",
           status: "current",
         },
       ],
@@ -429,6 +629,60 @@ function accountOrders(): readonly AccountOrderView[] {
         { label: "Tax", value: "$1.18" },
         { label: "Shipping", value: "$0.00" },
         { label: "Total", value: "$28.16" },
+      ],
+    },
+  ];
+}
+
+function accountOrdersWithFilters(): readonly AccountOrderView[] {
+  const [pendingOrder, pickedUpOrder] = accountOrders();
+  if (!pendingOrder || !pickedUpOrder) {
+    throw new Error("Expected seeded Account order fixtures.");
+  }
+
+  return [
+    pendingOrder,
+    pickedUpOrder,
+    {
+      ...pendingOrder,
+      orderNumber: "DO-20260605-000119",
+      status: "delivered",
+      fulfillmentLabel: "Delivered to Los Angeles",
+      note: "Delivered to your address.",
+      timeline: [
+        {
+          description: "Package arrived at your address.",
+          label: "Delivered",
+          status: "current",
+        },
+      ],
+    },
+    {
+      ...pendingOrder,
+      orderNumber: "DO-20260604-000117",
+      status: "shipped",
+      fulfillmentLabel: "Delivery in transit",
+      note: "Your package is moving through the carrier network.",
+      timeline: [
+        {
+          description: "Package left the fulfillment center.",
+          label: "Shipped",
+          status: "current",
+        },
+      ],
+    },
+    {
+      ...pendingOrder,
+      orderNumber: "DO-20260603-000116",
+      status: "cancelled",
+      fulfillmentLabel: "Cancelled delivery order",
+      note: "This order was cancelled.",
+      timeline: [
+        {
+          description: "This order will not be fulfilled.",
+          label: "Cancelled",
+          status: "current",
+        },
       ],
     },
   ];

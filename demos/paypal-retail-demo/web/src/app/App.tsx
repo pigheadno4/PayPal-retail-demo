@@ -1374,6 +1374,9 @@ function BuyerShell({
   const [accountOrdersStatus, setAccountOrdersStatus] = useState<
     "empty" | "error" | "loading" | "ready"
   >("empty");
+  const [accountOrdersLastUpdatedAt, setAccountOrdersLastUpdatedAt] = useState<
+    string | null
+  >(null);
   const [guestOrder, setGuestOrder] = useState<GuestOrderView | null>(null);
   const [guestOrderStatus, setGuestOrderStatus] = useState<
     "error" | "idle" | "loading" | "ready"
@@ -1644,6 +1647,41 @@ function BuyerShell({
     currentRoute.page,
   ]);
 
+  const requestAccountOrders = useCallback(async () => {
+    if (!currentAuthSession) {
+      throw new Error("A signed-in account is required to load orders.");
+    }
+
+    const requestOptions = buildAuthRequestOptions(currentAuthSession);
+    const orderNumber =
+      currentRoute.page === "account" && currentRoute.section === "orders"
+        ? (currentRoute.orderNumber ?? null)
+        : null;
+    const orders = orderNumber
+      ? await apiClient
+          .get<AccountOrderApiResponse>(
+            `/api/account/orders/${encodeURIComponent(orderNumber)}`,
+            { market: config.market.code },
+            requestOptions,
+          )
+          .then((response) => [response.order])
+      : await apiClient
+          .get<AccountOrdersApiResponse>(
+            "/api/account/orders",
+            { market: config.market.code },
+            requestOptions,
+          )
+          .then((response) => response.orders);
+
+    return mapAccountOrders(orders, config.market.locale);
+  }, [
+    apiClient,
+    config.market.code,
+    config.market.locale,
+    currentAuthSession,
+    currentRoute,
+  ]);
+
   useEffect(() => {
     if (
       currentRoute.page !== "account" ||
@@ -1707,31 +1745,16 @@ function BuyerShell({
 
     let active = true;
     setAccountOrdersStatus("loading");
-    const requestOptions = buildAuthRequestOptions(currentAuthSession);
-    const orderRequest = currentRoute.orderNumber
-      ? apiClient
-          .get<AccountOrderApiResponse>(
-            `/api/account/orders/${encodeURIComponent(currentRoute.orderNumber)}`,
-            cartQuery(),
-            requestOptions,
-          )
-          .then((response) => [response.order])
-      : apiClient
-          .get<AccountOrdersApiResponse>(
-            "/api/account/orders",
-            cartQuery(),
-            requestOptions,
-          )
-          .then((response) => response.orders);
+    setAccountOrdersLastUpdatedAt(null);
 
-    void orderRequest
-      .then((orders) => {
+    void requestAccountOrders()
+      .then((mappedOrders) => {
         if (!active) {
           return;
         }
-        const mappedOrders = mapAccountOrders(orders, config.market.locale);
         setAccountOrders(mappedOrders);
         setAccountOrdersStatus(mappedOrders.length > 0 ? "ready" : "empty");
+        setAccountOrdersLastUpdatedAt(new Date().toISOString());
         setShellStatus("Loaded account orders.");
       })
       .catch((error: unknown) => {
@@ -1755,7 +1778,24 @@ function BuyerShell({
     config.market.locale,
     currentAuthSession,
     currentRoute,
+    requestAccountOrders,
   ]);
+
+  async function handleRefreshOrders() {
+    try {
+      const mappedOrders = await requestAccountOrders();
+      setAccountOrders(mappedOrders);
+      setAccountOrdersStatus(mappedOrders.length > 0 ? "ready" : "empty");
+      setAccountOrdersLastUpdatedAt(new Date().toISOString());
+      setShellStatus("Refreshed account orders.");
+    } catch (error) {
+      console.error("[paypal-retail-demo] Account orders refresh failed", {
+        error,
+      });
+      setShellStatus("Account orders could not be refreshed.");
+      throw error;
+    }
+  }
 
   useEffect(() => {
     if (currentRoute.page !== "home") {
@@ -3117,6 +3157,7 @@ function BuyerShell({
           accountAddressesStatus={accountAddressesStatus}
           accountEmail={currentAuthSession?.email ?? null}
           accountOrders={accountOrders}
+          accountOrdersLastUpdatedAt={accountOrdersLastUpdatedAt}
           accountOrdersStatus={accountOrdersStatus}
           guestOrder={guestOrder}
           guestOrderError={guestOrderError}
@@ -3134,6 +3175,7 @@ function BuyerShell({
           onDeleteSavedPayment={handleDeleteSavedPayment}
           onGuestOrderLookup={handleGuestOrderLookup}
           onMakeDefaultAddress={handleMakeDefaultAddress}
+          onRefreshOrders={handleRefreshOrders}
           onSubmitReview={handleSubmitReview}
           onUpdateAddress={handleUpdateAddress}
           onUpdateReview={handleUpdateReview}
@@ -3306,6 +3348,7 @@ function RouteStage({
   accountAddressesStatus,
   accountEmail,
   accountOrders,
+  accountOrdersLastUpdatedAt,
   accountOrdersStatus,
   guestOrder,
   guestOrderError,
@@ -3319,6 +3362,7 @@ function RouteStage({
   onDeleteSavedPayment,
   onGuestOrderLookup,
   onMakeDefaultAddress,
+  onRefreshOrders,
   onSubmitReview,
   onUpdateAddress,
   onUpdateReview,
@@ -3353,6 +3397,7 @@ function RouteStage({
   readonly accountAddressesStatus: "error" | "idle" | "loading" | "ready";
   readonly accountEmail: string | null;
   readonly accountOrders: readonly AccountOrderView[];
+  readonly accountOrdersLastUpdatedAt: string | null;
   readonly accountOrdersStatus: "empty" | "error" | "loading" | "ready";
   readonly guestOrder: GuestOrderView | null;
   readonly guestOrderError: string | null;
@@ -3371,6 +3416,7 @@ function RouteStage({
   readonly onDeleteSavedPayment: (savedPaymentId: string) => Promise<void>;
   readonly onGuestOrderLookup: (input: GuestOrderLookupInput) => Promise<void>;
   readonly onMakeDefaultAddress: (addressId: string) => Promise<void>;
+  readonly onRefreshOrders: () => Promise<void>;
   readonly onSubmitReview: (
     orderNumber: string,
     itemId: string,
@@ -3475,6 +3521,7 @@ function RouteStage({
         addressesStatus={accountAddressesStatus}
         email={accountEmail}
         orders={accountOrders}
+        ordersLastUpdatedAt={accountOrdersLastUpdatedAt}
         ordersStatus={accountOrdersStatus}
         savedPayments={savedPayments}
         savedPaymentsStatus={savedPaymentsStatus}
@@ -3487,6 +3534,7 @@ function RouteStage({
         onDeleteReview={onDeleteReview}
         onDeleteSavedPayment={onDeleteSavedPayment}
         onMakeDefaultAddress={onMakeDefaultAddress}
+        onRefreshOrders={onRefreshOrders}
         onSubmitReview={onSubmitReview}
         onUpdateAddress={onUpdateAddress}
         onUpdateReview={onUpdateReview}
@@ -4828,6 +4876,9 @@ function mapAccountOrder(
     timeline: order.timeline.map((step) => ({
       description: step.description,
       label: step.label,
+      occurredAtLabel: step.occurred_at
+        ? formatAccountTimelineDate(step.occurred_at, locale)
+        : null,
       status: step.status,
     })),
     totals: [
@@ -5017,6 +5068,22 @@ function formatAccountDate(value: string, locale: string): string {
 
   return new Intl.DateTimeFormat(locale, {
     day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatAccountTimelineDate(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     month: "short",
     timeZone: "UTC",
     year: "numeric",

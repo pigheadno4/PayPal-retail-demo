@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Tasks 1 through 5 are closed, and Task 6 buyer Account post-purchase polish is next. URL restoration/back navigation, filters, canonical lifecycle mutation/reload, buyer-safe Account visibility, state recovery, persistent allowlisted runtime diagnostics, non-blocking retention/fallback behavior, and cursor controls have focused coverage. Other Admin/Account and browser-evidence backlog rows remain explicit.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Tasks 1 through 6 are closed, and Task 7 end-to-end evidence and final reconciliation is next. URL restoration/back navigation, filters, canonical lifecycle mutation/reload, buyer-safe Account visibility and refresh recovery, persistent allowlisted runtime diagnostics, non-blocking retention/fallback behavior, and cursor controls have focused coverage. Other Admin/Account and browser-evidence backlog rows remain explicit.
 
 ## Deployment QA
 
@@ -403,7 +403,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, reject or mask unsafe buyer notes, refresh the active filtered queue, and never increase webhook-event count.
 - [x] Webhook explorer filters genuine received PayPal events by event ID/type, verification, processing, linkage, and received range and exposes only sanitized read-only detail.
 - [x] Diagnostics joins canonical payment evidence and persists allowlisted/redacted runtime events across server restart; count/data queries first constrain the same canonical safe population, persistent/fallback lookup use the same explicit fields and literal case-insensitive substring semantics for `%`, `_`, and backslash, PostgREST-reserved `*` returns `INVALID_ADMIN_FILTERS` before Runtime Logs repository access, database-side level/category/event/time/cursor filters preserve the Task 2 page contract, bounded fallback reads remain available, and diagnostics sink failures never block business operations or recursively log themselves.
-- [ ] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, Delivery/Pickup details, buyer-safe retry/empty states, and no technical IDs.
+- [x] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, Delivery/Pickup details, buyer-safe retry/empty states, and no technical IDs.
 - [ ] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths.
 
 ## Visual QA

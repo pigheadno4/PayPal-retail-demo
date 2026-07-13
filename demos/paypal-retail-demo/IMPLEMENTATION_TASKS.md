@@ -498,7 +498,7 @@ Verification:
   - [x] Task 3: implement the approved filter/result/drill-down workbench UI and states.
   - [x] Task 4: make lifecycle transition plus Admin audit event atomic, stale-safe, and webhook-neutral.
   - [x] Task 5: persist allowlisted/redacted runtime diagnostics with non-blocking 7-day retention.
-  - [ ] Task 6: polish Account order filters, refresh state, current-stage hierarchy, and buyer-safe timeline.
+  - [x] Task 6: polish Account order filters, refresh state, current-stage hierarchy, and buyer-safe timeline.
   - [ ] Task 7: close API-backed browser evidence, independent review, and tracking reconciliation.
 
 Verification:

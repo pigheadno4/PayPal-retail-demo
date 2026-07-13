@@ -360,12 +360,12 @@ export function matchesAccountOrderFilter(
 }
 ```
 
-- [ ] **Step 1:** Write failing tests for All/In progress/Completed mapping, cancelled visibility only under All, refresh loading/error/retry, latest-update copy, current stage prominence, Delivery/Pickup detail, and absence of technical IDs.
-- [ ] **Step 2:** Run focused Account tests and confirm the missing controls/states fail.
-- [ ] **Step 3:** Add filter state and pure mapping helper, then render counts and filtered orders.
-- [ ] **Step 4:** Expose an App-owned `onRefreshOrders` callback that reruns the canonical account request and updates `lastUpdatedAt` only on success.
-- [ ] **Step 5:** Apply the approved buyer mockup hierarchy while preserving review submission/edit/delete behavior.
-- [ ] **Step 6:** Run Account/App/style tests plus typecheck and commit with `git commit -m "feat: polish account post-purchase orders"`.
+- [x] **Step 1:** Write failing tests for All/In progress/Completed mapping, cancelled visibility only under All, refresh loading/error/retry, latest-update copy, current stage prominence, Delivery/Pickup detail, and absence of technical IDs.
+- [x] **Step 2:** Run focused Account tests and confirm the missing controls/states fail.
+- [x] **Step 3:** Add filter state and pure mapping helper, then render counts and filtered orders.
+- [x] **Step 4:** Expose an App-owned `onRefreshOrders` callback that reruns the canonical account request and updates `lastUpdatedAt` only on success.
+- [x] **Step 5:** Apply the approved buyer mockup hierarchy while preserving review submission/edit/delete behavior.
+- [x] **Step 6:** Run Account/App/style tests plus typecheck and commit with `git commit -m "feat: polish account post-purchase orders"`.
 
 ---
 

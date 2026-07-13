@@ -94,6 +94,7 @@ export interface AccountReviewInput {
 export interface AccountOrderTimelineStepView {
   readonly description: string;
   readonly label: string;
+  readonly occurredAtLabel?: string | null;
   readonly status: "complete" | "current" | "pending";
 }
 
@@ -162,6 +163,7 @@ export interface AccountPageProps {
   readonly addressesStatus: "error" | "idle" | "loading" | "ready";
   readonly email: string | null;
   readonly orders?: readonly AccountOrderView[];
+  readonly ordersLastUpdatedAt?: string | null;
   readonly ordersStatus?: "empty" | "error" | "loading" | "ready";
   readonly savedPayments: readonly AccountSavedPaymentMethodView[];
   readonly savedPaymentsStatus: "error" | "idle" | "loading" | "ready";
@@ -179,6 +181,7 @@ export interface AccountPageProps {
     savedPaymentId: string,
   ) => Promise<void> | void;
   readonly onMakeDefaultAddress?: (addressId: string) => Promise<void> | void;
+  readonly onRefreshOrders?: () => Promise<void> | void;
   readonly onUpdateAddress?: (
     addressId: string,
     address: AccountAddressMutationInput,
@@ -347,6 +350,7 @@ export function AccountPage({
   addressesStatus,
   email,
   orders = [],
+  ordersLastUpdatedAt = null,
   ordersStatus = "ready",
   savedPayments,
   savedPaymentsStatus,
@@ -357,6 +361,7 @@ export function AccountPage({
   onDeleteReview,
   onDeleteSavedPayment,
   onMakeDefaultAddress,
+  onRefreshOrders,
   onSubmitReview,
   onUpdateAddress,
   onUpdateReview,
@@ -375,9 +380,11 @@ export function AccountPage({
         <AccountHubHeader section={section} />
         <OrderHistoryView
           onDeleteReview={onDeleteReview}
+          onRefreshOrders={onRefreshOrders}
           onSubmitReview={onSubmitReview}
           onUpdateReview={onUpdateReview}
           orders={orders}
+          ordersLastUpdatedAt={ordersLastUpdatedAt}
           selectedOrderNumber={selectedOrderNumber}
           status={ordersStatus}
         />
@@ -730,6 +737,20 @@ export function AccountPage({
   );
 }
 
+export type AccountOrderFilter = "all" | "in_progress" | "completed";
+
+export function matchesAccountOrderFilter(
+  order: AccountOrderView,
+  filter: AccountOrderFilter,
+): boolean {
+  if (filter === "all") return true;
+  const completed =
+    order.status === "delivered" || order.status === "picked_up";
+  return filter === "completed"
+    ? completed
+    : !completed && order.status !== "cancelled";
+}
+
 function GuestOrderResult({ order }: { readonly order: GuestOrderView }) {
   const firstAddress = order.addresses[0] ?? null;
 
@@ -805,61 +826,137 @@ function GuestOrderResult({ order }: { readonly order: GuestOrderView }) {
 
 function OrderHistoryView({
   onDeleteReview,
+  onRefreshOrders,
   onSubmitReview,
   onUpdateReview,
   orders,
+  ordersLastUpdatedAt,
   selectedOrderNumber,
   status,
 }: {
   readonly onDeleteReview: AccountPageProps["onDeleteReview"];
+  readonly onRefreshOrders: AccountPageProps["onRefreshOrders"];
   readonly onSubmitReview: AccountPageProps["onSubmitReview"];
   readonly onUpdateReview: AccountPageProps["onUpdateReview"];
   readonly orders: readonly AccountOrderView[];
+  readonly ordersLastUpdatedAt: string | null;
   readonly selectedOrderNumber: string | null;
   readonly status: NonNullable<AccountPageProps["ordersStatus"]>;
 }) {
+  const [filter, setFilter] = useState<AccountOrderFilter>("all");
+  const [refreshStatus, setRefreshStatus] = useState<
+    "error" | "idle" | "loading"
+  >("idle");
+  const isInitialLoading = status === "loading" && orders.length === 0;
+  const isRefreshing = refreshStatus === "loading";
+
+  async function handleRefreshOrders() {
+    if (!onRefreshOrders || isRefreshing) {
+      return;
+    }
+
+    setRefreshStatus("loading");
+    try {
+      await onRefreshOrders();
+      setRefreshStatus("idle");
+    } catch {
+      setRefreshStatus("error");
+    }
+  }
+
+  const refreshToolbar = (
+    <div className="account-page__orders-refresh">
+      <div className="account-page__orders-refresh-copy" aria-live="polite">
+        {ordersLastUpdatedAt ? (
+          <time dateTime={ordersLastUpdatedAt}>
+            Last updated at {formatAccountLastUpdatedTime(ordersLastUpdatedAt)}
+          </time>
+        ) : (
+          <span>
+            {isInitialLoading
+              ? "Loading the latest order activity..."
+              : "Order activity has not been refreshed yet."}
+          </span>
+        )}
+        {refreshStatus === "error" && status !== "error" ? (
+          <p role="alert" aria-live="assertive">
+            <strong>Orders could not be refreshed.</strong> Your last successful
+            order view is still shown.
+          </p>
+        ) : null}
+      </div>
+      {onRefreshOrders ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isInitialLoading || isRefreshing}
+          onClick={() => {
+            void handleRefreshOrders();
+          }}
+        >
+          {isInitialLoading
+            ? "Loading orders..."
+            : isRefreshing
+              ? "Refreshing orders..."
+              : refreshStatus === "error" || status === "error"
+                ? "Retry"
+                : "Refresh orders"}
+        </Button>
+      ) : null}
+    </div>
+  );
+
   if (status === "loading") {
     return (
-      <StatusCard
-        tone="loading"
-        title="Loading your orders..."
-        body="We are gathering your latest pending and completed order activity."
-      />
+      <div className="account-page__orders-shell">
+        {refreshToolbar}
+        <StatusCard
+          tone="loading"
+          title="Loading your orders..."
+          body="We are gathering your latest pending and completed order activity."
+        />
+      </div>
     );
   }
 
   if (status === "error") {
     return (
-      <StatusCard
-        tone="error"
-        title="Order history could not be loaded."
-        body="Refresh the page before resuming payment or leaving reviews."
-      />
+      <div className="account-page__orders-shell">
+        {refreshToolbar}
+        <StatusCard
+          tone="error"
+          title="Order history could not be loaded."
+          body="Retry the secure account request before resuming payment or leaving reviews."
+        />
+      </div>
     );
   }
 
   if (status === "empty" || orders.length === 0) {
     return (
-      <Card
-        className="account-page__panel account-page__panel--feature"
-        aria-labelledby="order-history-title"
-        role="region"
-      >
-        <CardHeader>
-          <CardTitle>
-            <h2 id="order-history-title">Order history</h2>
-          </CardTitle>
-          <CardDescription className="account-page__panel-note">
-            No account orders yet. Browse products or use guest order lookup if
-            you checked out without signing in.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <a className="button button--secondary" href="/products">
-            Browse products
-          </a>
-        </CardFooter>
-      </Card>
+      <div className="account-page__orders-shell">
+        {refreshToolbar}
+        <Card
+          className="account-page__panel account-page__panel--feature"
+          aria-labelledby="order-history-title"
+          role="region"
+        >
+          <CardHeader>
+            <CardTitle>
+              <h2 id="order-history-title">Order history</h2>
+            </CardTitle>
+            <CardDescription className="account-page__panel-note">
+              No account orders yet. Browse products or use guest order lookup
+              if you checked out without signing in.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <a className="button button--secondary" href="/products">
+              Browse products
+            </a>
+          </CardFooter>
+        </Card>
+      </div>
     );
   }
 
@@ -870,56 +967,115 @@ function OrderHistoryView({
 
   if (selectedOrderNumber !== null && !selectedOrder) {
     return (
-      <Card
-        className="account-page__panel account-page__panel--feature"
-        aria-labelledby="order-history-title"
-        role="region"
-      >
-        <CardHeader>
-          <CardTitle>
-            <h2 id="order-history-title">Order not found</h2>
-          </CardTitle>
-          <CardDescription className="account-page__panel-note">
-            This account order was not found. Return to order history or use
-            guest lookup if the order was placed without signing in.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <a className="button button--secondary" href="/account/orders">
-            Back to orders
-          </a>
-        </CardFooter>
-      </Card>
+      <div className="account-page__orders-shell">
+        {refreshToolbar}
+        <Card
+          className="account-page__panel account-page__panel--feature"
+          aria-labelledby="order-history-title"
+          role="region"
+        >
+          <CardHeader>
+            <CardTitle>
+              <h2 id="order-history-title">Order not found</h2>
+            </CardTitle>
+            <CardDescription className="account-page__panel-note">
+              This account order was not found. Return to order history or use
+              guest lookup if the order was placed without signing in.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <a className="button button--secondary" href="/account/orders">
+              Back to orders
+            </a>
+          </CardFooter>
+        </Card>
+      </div>
     );
   }
 
   if (selectedOrder) {
     return (
-      <OrderDetailView
-        onDeleteReview={onDeleteReview}
-        onSubmitReview={onSubmitReview}
-        onUpdateReview={onUpdateReview}
-        order={selectedOrder}
-      />
+      <div className="account-page__orders-shell">
+        {refreshToolbar}
+        <OrderDetailView
+          onDeleteReview={onDeleteReview}
+          onSubmitReview={onSubmitReview}
+          onUpdateReview={onUpdateReview}
+          order={selectedOrder}
+        />
+      </div>
     );
   }
 
+  const filterOptions: readonly {
+    readonly label: string;
+    readonly value: AccountOrderFilter;
+  }[] = [
+    { label: "All", value: "all" },
+    { label: "In progress", value: "in_progress" },
+    { label: "Completed", value: "completed" },
+  ];
+  const filterCounts = Object.fromEntries(
+    filterOptions.map((option) => [
+      option.value,
+      orders.filter((order) => matchesAccountOrderFilter(order, option.value))
+        .length,
+    ]),
+  ) as Record<AccountOrderFilter, number>;
+  const filteredOrders = orders.filter((order) =>
+    matchesAccountOrderFilter(order, filter),
+  );
+  const activeFilterLabel =
+    filterOptions.find((option) => option.value === filter)?.label ?? "All";
+
   return (
     <section className="account-page__orders" aria-labelledby="orders-title">
+      {refreshToolbar}
       <div className="account-page__section-heading">
         <div>
           <p className="account-page__panel-kicker">Order activity</p>
           <h2 id="orders-title">Order history</h2>
         </div>
-        <span>{orders.length} orders</span>
+        <span>
+          {filteredOrders.length}{" "}
+          {filteredOrders.length === 1 ? "order" : "orders"}
+        </span>
       </div>
-      <ul className="account-page__order-list">
-        {orders.map((order) => (
-          <li key={order.orderNumber}>
-            <OrderHistoryCard order={order} />
-          </li>
-        ))}
-      </ul>
+      <div className="account-page__order-filters">
+        <div role="group" aria-label="Filter orders">
+          {filterOptions.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              variant={filter === option.value ? "default" : "outline"}
+              aria-label={`${option.label} ${filterCounts[option.value]}`}
+              aria-pressed={filter === option.value}
+              onClick={() => {
+                setFilter(option.value);
+              }}
+            >
+              <span>{option.label}</span>
+              <strong>{filterCounts[option.value]}</strong>
+            </Button>
+          ))}
+        </div>
+        <p aria-live="polite">Showing {activeFilterLabel} orders</p>
+      </div>
+      {filteredOrders.length > 0 ? (
+        <ul className="account-page__order-list">
+          {filteredOrders.map((order) => (
+            <li key={order.orderNumber}>
+              <OrderHistoryCard order={order} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <StatusCard
+          tone="empty"
+          title={`No ${activeFilterLabel.toLowerCase()} orders.`}
+          body="Choose another order filter to see more account activity."
+        />
+      )}
     </section>
   );
 }
@@ -936,6 +1092,13 @@ function OrderDetailView({
   readonly order: AccountOrderView;
 }) {
   const [reviewFormState, setReviewFormState] = useState<ReviewFormState>(null);
+  const currentStage =
+    order.timeline.find((step) => step.status === "current") ??
+    [...order.timeline].reverse().find((step) => step.status === "complete") ??
+    order.timeline[0];
+  const fulfillmentDetailLabel = `${formatFulfillmentModeLabel(
+    order.fulfillmentMode,
+  )} detail`;
 
   return (
     <section
@@ -958,6 +1121,30 @@ function OrderDetailView({
           {formatOrderStatusLabel(order.status)}
         </span>
       </div>
+      <Card
+        className="account-page__panel account-page__current-stage"
+        aria-label="Current stage"
+        role="region"
+      >
+        <CardHeader>
+          <p className="account-page__panel-kicker">Current stage</p>
+          <CardTitle>
+            <h3 id="order-current-stage-title">
+              {currentStage?.label ?? formatOrderStatusLabel(order.status)}
+            </h3>
+          </CardTitle>
+          <CardDescription className="account-page__panel-note">
+            {currentStage?.description ?? order.note}
+          </CardDescription>
+        </CardHeader>
+        {currentStage?.occurredAtLabel ? (
+          <CardFooter>
+            <span className="account-page__current-stage-time">
+              {currentStage.occurredAtLabel}
+            </span>
+          </CardFooter>
+        ) : null}
+      </Card>
       <div className="account-page__order-detail-grid">
         <Card
           className="account-page__panel"
@@ -965,14 +1152,12 @@ function OrderDetailView({
           role="region"
         >
           <CardHeader>
-            <p className="account-page__panel-kicker">
-              {formatFulfillmentModeLabel(order.fulfillmentMode)}
-            </p>
             <CardTitle>
-              <h3 id="order-fulfillment-title">{order.fulfillmentLabel}</h3>
+              <h3 id="order-fulfillment-title">{fulfillmentDetailLabel}</h3>
             </CardTitle>
             <CardDescription className="account-page__panel-note">
-              {order.note}
+              <strong>{order.fulfillmentLabel}</strong>
+              <span>{order.note}</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -990,7 +1175,7 @@ function OrderDetailView({
         </Card>
         <Card
           className="account-page__panel"
-          aria-labelledby="order-timeline-title"
+          aria-label="Order timeline"
           role="region"
         >
           <CardHeader>
@@ -1007,6 +1192,9 @@ function OrderDetailView({
                 >
                   <strong>{step.label}</strong>
                   <span>{step.description}</span>
+                  {step.occurredAtLabel ? (
+                    <time>{step.occurredAtLabel}</time>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -1288,7 +1476,19 @@ function StatusCard({
   readonly tone: "empty" | "error" | "loading";
 }) {
   return (
-    <Card className={`account-page__status account-page__status--${tone}`}>
+    <Card
+      className={`account-page__status account-page__status--${tone}`}
+      role={
+        tone === "error" ? "alert" : tone === "loading" ? "status" : undefined
+      }
+      aria-live={
+        tone === "error"
+          ? "assertive"
+          : tone === "loading"
+            ? "polite"
+            : undefined
+      }
+    >
       <CardHeader>
         <CardTitle>
           <strong>{title}</strong>
@@ -1763,10 +1963,28 @@ function formatFulfillmentModeLabel(
   return fulfillmentMode === "pickup" ? "Pickup" : "Delivery";
 }
 
-function getOrderStatusTone(status: AccountOrderStatus): "done" | "pending" {
-  return status === "pending" ? "pending" : "done";
+function getOrderStatusTone(
+  status: AccountOrderStatus,
+): "cancelled" | "done" | "pending" {
+  if (status === "cancelled") {
+    return "cancelled";
+  }
+
+  return status === "delivered" || status === "picked_up" ? "done" : "pending";
 }
 
 function formatOrderDetailDate(placedDateLabel: string): string {
   return placedDateLabel.replace(/^Placed\s+/i, "");
+}
+
+function formatAccountLastUpdatedTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }

@@ -2380,7 +2380,98 @@ describe("App buyer interactions", () => {
     );
   });
 
+  it("refreshes canonical account orders, keeps the last successful update on failure, and retries", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const refreshedOrder = {
+      ...accountOrderApiResponse(),
+      status: "ready_for_pickup",
+      fulfillment_label: "Ready at POP MART Soho",
+      review_eligible: false,
+      timeline: [
+        ...accountOrderApiResponse().timeline.slice(0, 1),
+        {
+          label: "Ready for pickup",
+          description: "Your order is ready at the store.",
+          status: "current" as const,
+          occurred_at: "2026-06-03T14:00:00.000Z",
+        },
+      ],
+    };
+    const apiClient = createRecordingApiClient({
+      getResponsesByPath: {
+        "/api/account/orders": [
+          { orders: [accountOrderApiResponse()] },
+          new Error("account refresh failed"),
+          { orders: [refreshedOrder] },
+        ],
+      },
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await screen.findByText("PO-20260602-000118");
+    const initialLastUpdated = screen.getByText(/Last updated at/).textContent;
+
+    await user.click(screen.getByRole("button", { name: "Refresh orders" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Orders could not be refreshed.",
+    );
+    expect(screen.getByText(/Last updated at/).textContent).toBe(
+      initialLastUpdated,
+    );
+    expect(
+      apiClient.calls.filter(
+        (call) => call.method === "get" && call.path === "/api/account/orders",
+      ),
+    ).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Ready at POP MART Soho")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/Last updated at/)).toBeTruthy();
+    expect(
+      apiClient.calls.filter(
+        (call) => call.method === "get" && call.path === "/api/account/orders",
+      ),
+    ).toHaveLength(3);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[paypal-retail-demo] Account orders refresh failed",
+      expect.objectContaining({
+        error: expect.any(Error),
+      }),
+    );
+  });
+
   it("loads signed-in account order detail from the account order API", async () => {
+    const user = userEvent.setup();
     const authClient = createRecordingAuthClient({
       existingSession: {
         accessToken: "access_token_existing",
@@ -2419,6 +2510,13 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
     expect(screen.getByText("Timeline")).toBeTruthy();
     expect(screen.getByText("Items in this order")).toBeTruthy();
+    expect(screen.queryByText("PAYPAL_ORDER_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("PAYMENT_SESSION_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("CAPTURE_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("WEBHOOK_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("DEBUG_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("ADMIN_SESSION_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("DATABASE_BUYER_UNSAFE")).toBeNull();
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
         method: "get",
@@ -2430,6 +2528,17 @@ describe("App buyer interactions", () => {
         },
       }),
     );
+
+    await user.click(screen.getByRole("button", { name: "Refresh orders" }));
+    await waitFor(() => {
+      expect(
+        apiClient.calls.filter(
+          (call) =>
+            call.method === "get" &&
+            call.path === "/api/account/orders/PO-20260602-000118",
+        ),
+      ).toHaveLength(2);
+    });
   });
 
   it("submits an account order item review and replaces the order detail from the API response", async () => {
@@ -4774,7 +4883,13 @@ function defaultAccountAddress() {
 
 function accountOrderApiResponse() {
   return {
+    admin_session_id: "ADMIN_SESSION_BUYER_UNSAFE",
+    capture_id: "CAPTURE_BUYER_UNSAFE",
+    database_id: "DATABASE_BUYER_UNSAFE",
+    debug_id: "DEBUG_BUYER_UNSAFE",
     order_number: "PO-20260602-000118",
+    payment_session_id: "PAYMENT_SESSION_BUYER_UNSAFE",
+    paypal_order_id: "PAYPAL_ORDER_BUYER_UNSAFE",
     placed_at: "2026-06-02T18:30:00.000Z",
     fulfillment_mode: "pickup",
     status: "picked_up",
@@ -4818,6 +4933,7 @@ function accountOrderApiResponse() {
         occurred_at: "2026-06-04T16:00:00.000Z",
       },
     ],
+    webhook_event_id: "WEBHOOK_BUYER_UNSAFE",
     addresses: [
       {
         address_type: "pickup_store",
@@ -5052,6 +5168,9 @@ interface RecordingApiClientInput {
   readonly deleteResponseByPath?: Readonly<Record<string, unknown>>;
   readonly getResponse?: unknown;
   readonly getResponseByPath?: Readonly<Record<string, unknown>>;
+  readonly getResponsesByPath?: Readonly<
+    Record<string, readonly (Error | unknown)[]>
+  >;
   readonly getResponses?: readonly unknown[];
   readonly patchError?: Error;
   readonly patchResponseByPath?: Readonly<Record<string, unknown>>;
@@ -5127,6 +5246,7 @@ function createRecordingApiClient(
   const calls: RecordingApiCall[] = [];
   let getErrorIndex = 0;
   let getResponseIndex = 0;
+  const getResponseIndexByPath = new Map<string, number>();
 
   return {
     calls,
@@ -5152,6 +5272,21 @@ function createRecordingApiClient(
       }
       if (input.getError) {
         throw input.getError;
+      }
+      const responseSequence =
+        input.getResponsesByPath?.[path] ??
+        input.getResponsesByPath?.[path.split("?")[0] ?? path];
+      if (responseSequence?.length) {
+        const responseIndex = getResponseIndexByPath.get(path) ?? 0;
+        const response =
+          responseSequence[
+            Math.min(responseIndex, responseSequence.length - 1)
+          ];
+        getResponseIndexByPath.set(path, responseIndex + 1);
+        if (response instanceof Error) {
+          throw response;
+        }
+        return response as TData;
       }
       if (input.getResponseByPath && path in input.getResponseByPath) {
         return input.getResponseByPath[path] as TData;
