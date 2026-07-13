@@ -30,3 +30,4 @@ coverage/
 demos/paypal-retail-demo/*.png
 demos/paypal-retail-demo/*.log
 demos/paypal-retail-demo/*.json
+!demos/paypal-retail-demo/components.json
