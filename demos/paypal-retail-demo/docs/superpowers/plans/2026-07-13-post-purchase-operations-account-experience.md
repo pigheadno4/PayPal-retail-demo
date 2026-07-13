@@ -206,6 +206,8 @@ export interface AdminOrdersQuery {
 - [x] **Step 8:** Run `npm test -- server/tests/adminQuery.test.ts server/tests/adminRepository.test.ts server/tests/adminRoutes.test.ts web/src/features/admin/adminQuery.test.ts` and `npm run typecheck`.
 - [x] **Step 9:** Commit with `git commit -m "feat: add admin server filters and pagination"`.
 
+**Review checkpoint:** Closed after the initial review findings were repaired with endpoint-bound cursors, bounded Central/Store Inventory keysets, required Runtime log IDs, independent multi-resource cursors, and correct Stock/Pickup availability ownership. Final independent re-review reported no Critical, Important, or Minor findings.
+
 ---
 
 ### Task 3: Workbench Filters, Results, And Drill-Down UI

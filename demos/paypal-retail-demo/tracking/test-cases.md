@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Task 1 route isolation is closed and Task 2 server filtering/cursor pagination is implemented with independent review pending. Remaining open Admin/Account rows stay explicit until their corresponding plan tasks are verified. Other open rows remain older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Task 1 route isolation and Task 2 server filtering/cursor pagination are closed after independent review, and Task 3 workbench UI is next. The Admin filter acceptance row remains open until URL restoration, chips, states, and pagination controls are verified in the Task 3 UI. Other open Admin/Account and evidence-backlog rows remain explicit.
 
 ## Deployment QA
 

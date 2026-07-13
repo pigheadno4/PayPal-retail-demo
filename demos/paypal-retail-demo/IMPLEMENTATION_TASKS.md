@@ -494,7 +494,7 @@ Verification:
 - [x] Build runtime debug logs.
 - [ ] Implement the approved Post-Purchase Operations and Account Experience extension from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`: route-separated Orders/Lifecycle/Inventory/Webhooks/Diagnostics workbenches, server-side URL filters, persisted sanitized runtime logs, canonical lifecycle-to-Account refresh, and zero synthetic webhook creation.
   - [x] Task 1: isolate Admin routes so each workbench loads only its own APIs.
-  - [ ] Task 2: add typed server filters, explicit time ranges, and cursor pagination.
+  - [x] Task 2: add typed server filters, explicit time ranges, and cursor pagination.
   - [ ] Task 3: implement the approved filter/result/drill-down workbench UI and states.
   - [ ] Task 4: make lifecycle transition plus Admin audit event atomic, stale-safe, and webhook-neutral.
   - [ ] Task 5: persist allowlisted/redacted runtime diagnostics with non-blocking 7-day retention.
