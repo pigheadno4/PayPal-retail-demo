@@ -11,6 +11,8 @@ interface AdminDiagnosticsWorkbenchProps {
   readonly paymentContent?: ReactNode;
   readonly runtimeContent?: ReactNode;
   readonly children?: ReactNode;
+  readonly activeTab?: "payment" | "runtime";
+  readonly onTabChange?: (tab: "payment" | "runtime") => void;
   readonly activeFilterCount?: number;
   readonly onRetryPayment?: () => void;
   readonly onRetryRuntime?: () => void;
@@ -25,6 +27,8 @@ export function AdminDiagnosticsWorkbench({
   paymentContent,
   runtimeContent,
   children,
+  activeTab,
+  onTabChange,
   activeFilterCount = 0,
   onRetryPayment,
   onRetryRuntime,
@@ -32,15 +36,21 @@ export function AdminDiagnosticsWorkbench({
   onNextPayment,
   onNextRuntime,
 }: AdminDiagnosticsWorkbenchProps) {
-  const [tab, setTab] = useState("payment");
+  const [internalTab, setInternalTab] = useState<"payment" | "runtime">(
+    "payment",
+  );
+  const tab = activeTab ?? internalTab;
   const request = tab === "payment" ? paymentRequest : runtimeRequest;
+  const canRenderContent = request.status === "ready" && request.totalCount > 0;
 
   return (
     <AdminWorkbenchPanel
       title="Diagnostics"
       description="Trace canonical payment evidence separately from sanitized runtime events."
       itemLabel={tab === "payment" ? "payment sessions" : "runtime events"}
+      emptyLabel={tab === "payment" ? "payment sessions" : "runtime events"}
       request={request}
+      renderChildrenAlways
       activeFilterCount={activeFilterCount}
       {...(tab === "payment" && onRetryPayment
         ? { onRetry: onRetryPayment }
@@ -56,7 +66,11 @@ export function AdminDiagnosticsWorkbench({
     >
       <Tabs
         value={tab}
-        onValueChange={setTab}
+        onValueChange={(value) => {
+          const nextTab = value === "runtime" ? "runtime" : "payment";
+          setInternalTab(nextTab);
+          onTabChange?.(nextTab);
+        }}
         className="admin-workbench__tabs"
       >
         <TabsList aria-label="Diagnostics datasets">
@@ -64,16 +78,24 @@ export function AdminDiagnosticsWorkbench({
           <TabsTrigger value="runtime">Runtime logs</TabsTrigger>
         </TabsList>
         {children ? (
-          <div
-            className="admin-workbench__diagnostics-content"
-            data-diagnostics-dataset={tab}
-          >
-            {children}
-          </div>
+          <TabsContent value={tab}>
+            {canRenderContent ? (
+              <div
+                className="admin-workbench__diagnostics-content"
+                data-diagnostics-dataset={tab}
+              >
+                {children}
+              </div>
+            ) : null}
+          </TabsContent>
         ) : (
           <>
-            <TabsContent value="payment">{paymentContent}</TabsContent>
-            <TabsContent value="runtime">{runtimeContent}</TabsContent>
+            <TabsContent value="payment">
+              {tab === "payment" && canRenderContent ? paymentContent : null}
+            </TabsContent>
+            <TabsContent value="runtime">
+              {tab === "runtime" && canRenderContent ? runtimeContent : null}
+            </TabsContent>
           </>
         )}
       </Tabs>

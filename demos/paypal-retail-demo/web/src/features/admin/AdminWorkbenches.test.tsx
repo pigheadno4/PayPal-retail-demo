@@ -213,8 +213,69 @@ describe("Admin post-purchase workbenches", () => {
     );
     expect(onApply).toHaveBeenCalledWith(
       expect.stringMatching(
-        /^\/admin\/orders\?created_from=.+&created_to=.+&timezone=UTC$/,
+        /^\/admin\/orders\?created_from=.+&created_to=.+&timezone=UTC&time_preset=24h$/,
       ),
+    );
+  });
+
+  it("shows only the active Diagnostics dataset filters and preserves its URL state", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+
+    render(
+      <AdminFilters
+        section="diagnostics"
+        diagnosticsDataset="runtime"
+        search="?dataset=runtime&level=error&logged_from=2026-07-13T00%3A00%3A00.000Z&logged_to=2026-07-13T01%3A00%3A00.000Z&timezone=UTC&time_preset=1h"
+        onApply={onApply}
+        onClear={() => undefined}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Diagnostics filters" });
+    expect(within(form).getByLabelText("Log level")).toBeTruthy();
+    expect(within(form).queryByLabelText("Payment method")).toBeNull();
+    expect(
+      (within(form).getByLabelText("Time range") as HTMLSelectElement).value,
+    ).toBe("1h");
+
+    await user.click(
+      within(form).getByRole("button", { name: "Apply filters" }),
+    );
+    expect(onApply).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^\/admin\/diagnostics\?dataset=runtime&level=error&logged_from=.+&logged_to=.+&timezone=UTC&time_preset=1h$/,
+      ),
+    );
+  });
+
+  it("converts custom date-times using the selected IANA timezone", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+
+    render(
+      <AdminFilters
+        section="orders"
+        search="?created_from=2026-07-13T00%3A00%3A00.000Z&timezone=Asia%2FShanghai&time_preset=custom"
+        onApply={onApply}
+        onClear={() => undefined}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Orders filters" });
+    const createdFrom = within(form).getByLabelText(
+      "Created from",
+    ) as HTMLInputElement;
+    expect(createdFrom.value).toBe("2026-07-13T08:00");
+
+    await user.clear(createdFrom);
+    await user.type(createdFrom, "2026-07-13T09:30");
+    await user.click(
+      within(form).getByRole("button", { name: "Apply filters" }),
+    );
+
+    expect(onApply).toHaveBeenCalledWith(
+      "/admin/orders?created_from=2026-07-13T01%3A30%3A00.000Z&timezone=Asia%2FShanghai&time_preset=custom",
     );
   });
 
@@ -296,6 +357,94 @@ describe("Admin post-purchase workbenches", () => {
     expect(screen.getByText("Runtime row")).toBeTruthy();
   });
 
+  it("renders dense route-specific desktop result tables", () => {
+    const orderRow = {
+      id: "order-1",
+      orderNumber: "DO-1001",
+      fulfillment: "Delivery",
+      status: "Processing",
+      paymentStatus: "Captured",
+      total: "$42.00",
+      placedAt: "Jul 13, 2026",
+      updatedAt: "Jul 13, 2026",
+      nextAction: "Mark shipped",
+    };
+    const orders = render(
+      <AdminOrdersWorkbench request={readyRequest} rows={[orderRow]} />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Payment" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open DO-1001" })).toBeTruthy();
+    orders.unmount();
+
+    const lifecycle = render(
+      <AdminLifecycleWorkbench request={readyRequest} rows={[orderRow]} />,
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "Next action" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Mark shipped")).toBeTruthy();
+    lifecycle.unmount();
+
+    render(
+      <AdminWebhooksWorkbench
+        request={readyRequest}
+        rows={[
+          {
+            id: "webhook-1",
+            eventId: "WH-1001",
+            eventType: "PAYMENT.CAPTURE.COMPLETED",
+            verificationStatus: "Valid",
+            processingStatus: "Processed",
+            receivedAt: "Jul 13, 2026",
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "Verification" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Inspect WH-1001" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps secondary datasets reachable when the default subtab is empty or fails", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <AdminInventoryWorkbench
+        stockRequest={{ ...readyRequest, status: "empty", totalCount: 0 }}
+        pickupRequest={readyRequest}
+        stockContent="Stock row"
+        pickupContent="Pickup row"
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "Pickup capacity" })).toBeTruthy();
+    expect(screen.getByText("No stock rows are available yet.")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Pickup capacity" }));
+    expect(screen.getByText("Pickup row")).toBeTruthy();
+
+    view.rerender(
+      <AdminDiagnosticsWorkbench
+        paymentRequest={{
+          ...readyRequest,
+          status: "error",
+          totalCount: 0,
+          errorMessage: "Payment evidence failed.",
+        }}
+        runtimeRequest={readyRequest}
+        paymentContent="Payment row"
+        runtimeContent="Runtime row"
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Payment evidence failed.",
+    );
+    expect(screen.getByRole("tab", { name: "Runtime logs" })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Runtime logs" }));
+    expect(screen.getByText("Runtime row")).toBeTruthy();
+  });
+
   it("uses restored URL filters for requests and reloads on apply and popstate", async () => {
     const user = userEvent.setup();
     const apiClient = createAdminApiClient();
@@ -345,6 +494,62 @@ describe("Admin post-purchase workbenches", () => {
       expect(
         apiClient.getPaths.filter((path) => path.includes("DO-42")),
       ).toHaveLength(2);
+    });
+  });
+
+  it("keeps Diagnostics dataset, filters, and default runtime window in URL state", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient();
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-diagnostics-url-token",
+    );
+
+    render(
+      <App apiClient={apiClient.client} initialPathname="/admin/diagnostics" />,
+    );
+
+    expect(
+      (await screen.findByRole("tab", { name: "Payment" })).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(screen.getByLabelText("Payment method")).toBeTruthy();
+    expect(screen.queryByLabelText("Log level")).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Runtime logs" }));
+    await waitFor(() => {
+      const parameters = new URLSearchParams(window.location.search);
+      expect(parameters.get("dataset")).toBe("runtime");
+      expect(parameters.get("time_preset")).toBe("24h");
+      expect(parameters.get("logged_from")).toBeTruthy();
+      expect(parameters.get("logged_to")).toBeTruthy();
+      expect(parameters.get("timezone")).toBe("UTC");
+    });
+    expect(screen.getByLabelText("Log level")).toBeTruthy();
+    expect(screen.queryByLabelText("Payment method")).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Payment" }));
+    await waitFor(() => {
+      expect(window.location.search).toBe("?dataset=payment");
+    });
+
+    window.history.pushState(
+      null,
+      "",
+      "/admin/diagnostics?dataset=runtime&logged_from=2026-07-12T12%3A00%3A00.000Z&logged_to=2026-07-13T12%3A00%3A00.000Z&timezone=UTC&time_preset=24h",
+    );
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await waitFor(() => {
+      expect(
+        screen
+          .getByRole("tab", { name: "Runtime logs" })
+          .getAttribute("aria-selected"),
+      ).toBe("true");
+      expect(
+        (screen.getAllByLabelText("Time range")[0] as HTMLSelectElement).value,
+      ).toBe("24h");
     });
   });
 
@@ -423,11 +628,33 @@ describe("Admin post-purchase workbenches", () => {
       );
     });
   });
+
+  it("keeps Stock usable when Pickup capacity fails independently", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient({ failPickup: true });
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-inventory-independent-token",
+    );
+
+    render(
+      <App apiClient={apiClient.client} initialPathname="/admin/inventory" />,
+    );
+
+    expect(
+      await screen.findByText("No stock rows are available yet."),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Pickup capacity" }));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Pickup capacity could not be loaded.",
+    );
+  });
 });
 
 function createAdminApiClient(
   options: {
     readonly failOrdersOnce?: boolean;
+    readonly failPickup?: boolean;
     readonly ordersNextCursor?: string;
     readonly ordersTotalCount?: number;
   } = {},
@@ -473,6 +700,9 @@ function createAdminApiClient(
         return { inventory: [], page_info: pageInfo } as never;
       }
       if (path.startsWith("/api/admin/pickup-dates")) {
+        if (options.failPickup) {
+          throw new Error("Pickup capacity could not be loaded.");
+        }
         return { pickup_dates: [], page_info: pageInfo } as never;
       }
       if (path.startsWith("/api/admin/webhooks")) {

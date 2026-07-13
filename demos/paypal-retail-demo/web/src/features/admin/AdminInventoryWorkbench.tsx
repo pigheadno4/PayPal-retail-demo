@@ -34,13 +34,16 @@ export function AdminInventoryWorkbench({
 }: AdminInventoryWorkbenchProps) {
   const [tab, setTab] = useState("stock");
   const request = tab === "stock" ? stockRequest : pickupRequest;
+  const canRenderContent = request.status === "ready" && request.totalCount > 0;
 
   return (
     <AdminWorkbenchPanel
       title="Inventory"
       description="Manage stock and Pickup capacity without mixing their result streams."
       itemLabel={tab === "stock" ? "stock rows" : "pickup dates"}
+      emptyLabel={tab === "stock" ? "stock rows" : "pickup dates"}
       request={request}
+      renderChildrenAlways
       activeFilterCount={activeFilterCount}
       {...(tab === "stock" && onRetryStock
         ? { onRetry: onRetryStock }
@@ -64,16 +67,24 @@ export function AdminInventoryWorkbench({
           <TabsTrigger value="pickup">Pickup capacity</TabsTrigger>
         </TabsList>
         {children ? (
-          <div
-            className="admin-workbench__inventory-content"
-            data-inventory-dataset={tab}
-          >
-            {children}
-          </div>
+          <TabsContent value={tab}>
+            {canRenderContent ? (
+              <div
+                className="admin-workbench__inventory-content"
+                data-inventory-dataset={tab}
+              >
+                {children}
+              </div>
+            ) : null}
+          </TabsContent>
         ) : (
           <>
-            <TabsContent value="stock">{stockContent}</TabsContent>
-            <TabsContent value="pickup">{pickupContent}</TabsContent>
+            <TabsContent value="stock">
+              {tab === "stock" && canRenderContent ? stockContent : null}
+            </TabsContent>
+            <TabsContent value="pickup">
+              {tab === "pickup" && canRenderContent ? pickupContent : null}
+            </TabsContent>
           </>
         )}
       </Tabs>

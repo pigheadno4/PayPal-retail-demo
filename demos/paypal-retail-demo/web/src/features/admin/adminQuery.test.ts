@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAdminQuery } from "./adminQuery";
+import {
+  buildAdminQuery,
+  materializeAdminDefaultTimeRange,
+} from "./adminQuery";
 
 describe("Admin URL query builder", () => {
   it("maps Orders URL parameters one-to-one to the backend and drops unrelated keys", () => {
@@ -83,22 +86,19 @@ describe("Admin URL query builder", () => {
         {
           pathname: "/admin/diagnostics",
           search:
-            "?lookup=dbg_123&method=paypal&level=error&category=paypal&logged_from=from&payment_cursor=payment-cursor&runtime_cursor=runtime-cursor",
+            "?dataset=payment&lookup=dbg_123&method=paypal&level=error&category=paypal&logged_from=from&payment_cursor=payment-cursor&runtime_cursor=runtime-cursor",
         },
         "diagnostics",
       ),
     ).toEqual({
       requestPaths: [
         "/api/admin/payment-debug?lookup=dbg_123&method=paypal&cursor=payment-cursor",
-        "/api/admin/debug-logs?lookup=dbg_123&level=error&category=paypal&logged_from=from&cursor=runtime-cursor",
+        "/api/admin/debug-logs",
       ],
-      clearPath: "/admin/diagnostics",
+      clearPath: "/admin/diagnostics?dataset=payment",
       activeParameters: [
         ["lookup", "dbg_123"],
         ["method", "paypal"],
-        ["level", "error"],
-        ["category", "paypal"],
-        ["logged_from", "from"],
       ],
     });
   });
@@ -110,5 +110,70 @@ describe("Admin URL query builder", () => {
         "orders",
       ).clearPath,
     ).toBe("/admin/orders");
+  });
+
+  it("materializes the effective last-24-hour window for Webhooks and Runtime", () => {
+    const now = new Date("2026-07-13T12:00:00.000Z");
+
+    expect(
+      materializeAdminDefaultTimeRange(
+        { pathname: "/admin/webhooks", search: "" },
+        "webhooks",
+        now,
+      ),
+    ).toEqual({
+      pathname: "/admin/webhooks",
+      search:
+        "?received_from=2026-07-12T12%3A00%3A00.000Z&received_to=2026-07-13T12%3A00%3A00.000Z&timezone=UTC&time_preset=24h",
+    });
+
+    expect(
+      materializeAdminDefaultTimeRange(
+        {
+          pathname: "/admin/diagnostics",
+          search: "?dataset=runtime",
+        },
+        "diagnostics",
+        now,
+      ),
+    ).toEqual({
+      pathname: "/admin/diagnostics",
+      search:
+        "?dataset=runtime&logged_from=2026-07-12T12%3A00%3A00.000Z&logged_to=2026-07-13T12%3A00%3A00.000Z&timezone=UTC&time_preset=24h",
+    });
+  });
+
+  it("does not count an orphan timezone as an active filter", () => {
+    expect(
+      buildAdminQuery(
+        {
+          pathname: "/admin/orders",
+          search: "?timezone=UTC",
+        },
+        "orders",
+      ).activeParameters,
+    ).toEqual([]);
+  });
+
+  it("counts and forwards Diagnostics filters only for the selected dataset", () => {
+    const query = buildAdminQuery(
+      {
+        pathname: "/admin/diagnostics",
+        search:
+          "?dataset=runtime&method=paypal&level=error&logged_from=from&logged_to=to&timezone=UTC",
+      },
+      "diagnostics",
+    );
+
+    expect(query.activeParameters).toEqual([
+      ["level", "error"],
+      ["logged_from", "from"],
+      ["logged_to", "to"],
+      ["timezone", "UTC"],
+    ]);
+    expect(query.requestPaths).toEqual([
+      "/api/admin/payment-debug",
+      "/api/admin/debug-logs?level=error&logged_from=from&logged_to=to&timezone=UTC",
+    ]);
   });
 });

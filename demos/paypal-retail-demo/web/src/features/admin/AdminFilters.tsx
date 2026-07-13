@@ -16,6 +16,7 @@ import type { AdminSection } from "../../app/routes";
 
 interface AdminFiltersProps {
   readonly section: AdminSection;
+  readonly diagnosticsDataset?: "payment" | "runtime";
   readonly search: string;
   readonly onApply: (path: string) => void;
   readonly onClear: () => void;
@@ -266,6 +267,8 @@ const filterDefinitions: Readonly<
         }),
       ),
     },
+    { name: "updated_from", label: "Updated from", kind: "datetime" },
+    { name: "updated_to", label: "Updated to", kind: "datetime" },
     {
       name: "level",
       label: "Log level",
@@ -288,22 +291,54 @@ const filterDefinitions: Readonly<
   ],
 };
 
+const diagnosticsFilterNames: Readonly<
+  Record<"payment" | "runtime", ReadonlySet<string>>
+> = {
+  payment: new Set([
+    "lookup",
+    "method",
+    "status",
+    "amount_consistency",
+    "updated_from",
+    "updated_to",
+    "timezone",
+  ]),
+  runtime: new Set([
+    "lookup",
+    "level",
+    "category",
+    "event",
+    "logged_from",
+    "logged_to",
+    "timezone",
+  ]),
+};
+
 export function AdminFilters({
   section,
+  diagnosticsDataset = "payment",
   search,
   onApply,
   onClear,
 }: AdminFiltersProps) {
-  const definitions = filterDefinitions[section];
+  const definitions = useMemo(
+    () =>
+      section === "diagnostics"
+        ? filterDefinitions.diagnostics.filter((definition) =>
+            diagnosticsFilterNames[diagnosticsDataset].has(definition.name),
+          )
+        : filterDefinitions[section],
+    [diagnosticsDataset, section],
+  );
   const [values, setValues] = useState(() =>
     readFilterValues(search, definitions),
   );
-  const [timePreset, setTimePreset] = useState("custom");
+  const [timePreset, setTimePreset] = useState(() => readTimePreset(search));
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     setValues(readFilterValues(search, definitions));
-    setTimePreset("custom");
+    setTimePreset(readTimePreset(search));
     setIsMobileOpen(false);
   }, [definitions, search]);
 
@@ -311,6 +346,17 @@ export function AdminFilters({
     const parameters = new URLSearchParams(search);
     return definitions.flatMap((definition) => {
       const value = parameters.get(definition.name);
+      if (
+        definition.name === "timezone" &&
+        !definitions.some(
+          (candidate) =>
+            (candidate.name.endsWith("_from") ||
+              candidate.name.endsWith("_to")) &&
+            parameters.has(candidate.name),
+        )
+      ) {
+        return [];
+      }
       return value ? [{ definition, value }] : [];
     });
   }, [definitions, search]);
@@ -318,12 +364,24 @@ export function AdminFilters({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const parameters = new URLSearchParams();
+    if (section === "diagnostics") {
+      parameters.set("dataset", diagnosticsDataset);
+    }
     definitions.forEach((definition) => {
       const value = values[definition.name]?.trim();
       if (value) {
         parameters.set(definition.name, value);
       }
     });
+    const hasTimeBoundary = definitions.some(
+      (definition) =>
+        (definition.name.endsWith("_from") ||
+          definition.name.endsWith("_to")) &&
+        Boolean(values[definition.name]?.trim()),
+    );
+    if (hasTimeBoundary) {
+      parameters.set("time_preset", timePreset);
+    }
     const query = parameters.toString();
     onApply(`/admin/${section}${query ? `?${query}` : ""}`);
   };
@@ -536,16 +594,24 @@ function FilterForm({
                     definition.kind === "datetime" ? "datetime-local" : "text"
                   }
                   placeholder={definition.placeholder}
-                  value={toInputValue(value, definition.kind)}
-                  onChange={(event) =>
+                  value={toInputValue(
+                    value,
+                    definition.kind,
+                    values.timezone || "UTC",
+                  )}
+                  onChange={(event) => {
+                    if (definition.kind === "datetime") {
+                      setTimePreset("custom");
+                    }
                     setValues((current) => ({
                       ...current,
                       [definition.name]: fromInputValue(
                         event.target.value,
                         definition.kind,
+                        current.timezone || "UTC",
                       ),
-                    }))
-                  }
+                    }));
+                  }}
                 />
               )}
             </label>
@@ -576,6 +642,11 @@ function readFilterValues(
   );
 }
 
+function readTimePreset(search: string): string {
+  const preset = new URLSearchParams(search).get("time_preset");
+  return preset && preset in timePresetDurations ? preset : "custom";
+}
+
 const timePresetDurations: Readonly<Record<string, number>> = {
   "1h": 60 * 60 * 1000,
   "24h": 24 * 60 * 60 * 1000,
@@ -583,16 +654,123 @@ const timePresetDurations: Readonly<Record<string, number>> = {
   "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
-function toInputValue(value: string, kind: FilterDefinition["kind"]): string {
-  return kind === "datetime" ? value.replace(/Z$/, "").slice(0, 16) : value;
-}
-
-function fromInputValue(value: string, kind: FilterDefinition["kind"]): string {
+function toInputValue(
+  value: string,
+  kind: FilterDefinition["kind"],
+  timezone: string,
+): string {
   if (kind !== "datetime" || !value) {
     return value;
   }
+
   const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toISOString();
+  if (Number.isNaN(timestamp.getTime())) {
+    return value.replace(/Z$/, "").slice(0, 16);
+  }
+
+  const parts = getZonedDateTimeParts(timestamp, timezone);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function fromInputValue(
+  value: string,
+  kind: FilterDefinition["kind"],
+  timezone: string,
+): string {
+  if (kind !== "datetime" || !value) {
+    return value;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(
+    value,
+  );
+  if (!match) {
+    return value;
+  }
+
+  const target = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+    second: Number(match[6] ?? "0"),
+  };
+  const targetTimestamp = Date.UTC(
+    target.year,
+    target.month - 1,
+    target.day,
+    target.hour,
+    target.minute,
+    target.second,
+  );
+  let guess = targetTimestamp;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const displayed = getZonedDateTimeParts(new Date(guess), timezone);
+    const displayedTimestamp = Date.UTC(
+      Number(displayed.year),
+      Number(displayed.month) - 1,
+      Number(displayed.day),
+      Number(displayed.hour),
+      Number(displayed.minute),
+      Number(displayed.second),
+    );
+    const adjustment = targetTimestamp - displayedTimestamp;
+    guess += adjustment;
+    if (adjustment === 0) {
+      break;
+    }
+  }
+
+  return new Date(guess).toISOString();
+}
+
+function getZonedDateTimeParts(
+  timestamp: Date,
+  timezone: string,
+): Readonly<
+  Record<"year" | "month" | "day" | "hour" | "minute" | "second", string>
+> {
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+  }
+
+  const entries = formatter
+    .formatToParts(timestamp)
+    .flatMap((part) =>
+      part.type === "literal" ? [] : [[part.type, part.value] as const],
+    );
+  const parts = Object.fromEntries(entries);
+  return {
+    year: parts.year ?? "0000",
+    month: parts.month ?? "00",
+    day: parts.day ?? "00",
+    hour: parts.hour ?? "00",
+    minute: parts.minute ?? "00",
+    second: parts.second ?? "00",
+  };
 }
 
 function labelFromValue(value: string): string {

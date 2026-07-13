@@ -3979,7 +3979,7 @@ describe("App admin interactions", () => {
               (call) =>
                 call.method === "get" && call.path !== "/api/admin/state",
             )
-            .map((call) => call.path)
+            .map((call) => call.path.split("?")[0])
             .sort(),
         ).toEqual([...expectedPaths].sort());
       });
@@ -4451,20 +4451,21 @@ describe("App admin interactions", () => {
 
     await screen.findByText("Webhook events are ready.");
     const webhookRegion = screen.getByLabelText("Admin webhook events");
-    const webhookList =
-      within(webhookRegion).getByLabelText("Webhook event list");
+    const webhookTable = screen.getByRole("table", {
+      name: "Webhook event results",
+    });
     const webhookDetail = within(webhookRegion).getByLabelText(
       "Webhook event detail",
     );
-    expect(within(webhookList).getByText("WH-INVALID-1")).toBeTruthy();
+    expect(within(webhookTable).getByText("WH-INVALID-1")).toBeTruthy();
     expect(within(webhookDetail).getByText("Invalid")).toBeTruthy();
     expect(within(webhookDetail).getByText("Ignored")).toBeTruthy();
-    expect(within(webhookList).getByText("WH-ORDER-1")).toBeTruthy();
+    expect(within(webhookTable).getByText("WH-ORDER-1")).toBeTruthy();
     expect(
-      within(webhookList).getByText("CHECKOUT.ORDER.APPROVED"),
+      within(webhookTable).getByText("CHECKOUT.ORDER.APPROVED"),
     ).toBeTruthy();
     await user.click(
-      within(webhookList).getByRole("button", { name: /WH-ORDER-1/ }),
+      within(webhookTable).getByRole("button", { name: /WH-ORDER-1/ }),
     );
     expect(
       within(webhookDetail).getByRole("heading", { name: "WH-ORDER-1" }),
@@ -4472,17 +4473,14 @@ describe("App admin interactions", () => {
     expect(
       within(webhookDetail).getAllByText("Processed").length,
     ).toBeGreaterThan(0);
-    expect(apiClient.calls).toContainEqual(
-      expect.objectContaining({
-        method: "get",
-        path: "/api/admin/webhooks",
-        options: {
-          headers: {
-            "x-admin-session": "webhooks-token",
-          },
-        },
-      }),
-    );
+    expect(
+      apiClient.calls.some(
+        (call) =>
+          call.method === "get" &&
+          call.path.startsWith("/api/admin/webhooks?") &&
+          call.options?.headers?.["x-admin-session"] === "webhooks-token",
+      ),
+    ).toBe(true);
   });
 
   it("loads admin payment and order debug sessions with the signed session", async () => {
@@ -5150,6 +5148,10 @@ function createRecordingApiClient(
       }
       if (input.getResponseByPath && path in input.getResponseByPath) {
         return input.getResponseByPath[path] as TData;
+      }
+      const basePath = path.split("?")[0] ?? path;
+      if (input.getResponseByPath && basePath in input.getResponseByPath) {
+        return input.getResponseByPath[basePath] as TData;
       }
       if (input.getResponses?.length) {
         const response =

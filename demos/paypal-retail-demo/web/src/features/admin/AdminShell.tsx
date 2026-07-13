@@ -125,6 +125,8 @@ interface AdminWorkbenchPanelProps {
   readonly onRetry?: () => void;
   readonly onClearFilters?: () => void;
   readonly onNext?: () => void;
+  readonly emptyLabel?: string;
+  readonly renderChildrenAlways?: boolean;
   readonly children?: ReactNode;
 }
 
@@ -137,6 +139,8 @@ export function AdminWorkbenchPanel({
   onRetry,
   onClearFilters,
   onNext,
+  emptyLabel,
+  renderChildrenAlways = false,
   children,
 }: AdminWorkbenchPanelProps) {
   const isEmpty =
@@ -153,7 +157,7 @@ export function AdminWorkbenchPanel({
           <h2 id="admin-workbench-title">{title}</h2>
           <p>{description}</p>
         </div>
-        {request.status === "ready" ? (
+        {request.status === "ready" || request.status === "empty" ? (
           <p className="admin-workbench__result-count" aria-live="polite">
             {request.totalCount} {itemLabel}
           </p>
@@ -191,8 +195,8 @@ export function AdminWorkbenchPanel({
             <div className="admin-workbench__state">
               <strong>
                 {activeFilterCount > 0
-                  ? `No ${title.toLowerCase()} match these filters.`
-                  : `No ${title.toLowerCase()} are available yet.`}
+                  ? `No ${emptyLabel ?? title.toLowerCase()} match these filters.`
+                  : `No ${emptyLabel ?? title.toLowerCase()} are available yet.`}
               </strong>
               {activeFilterCount > 0 && onClearFilters ? (
                 <Button
@@ -205,7 +209,8 @@ export function AdminWorkbenchPanel({
               ) : null}
             </div>
           ) : null}
-          {request.status === "ready" && request.totalCount > 0
+          {renderChildrenAlways ||
+          (request.status === "ready" && request.totalCount > 0)
             ? children
             : null}
           {request.status === "ready" && request.nextCursor && onNext ? (

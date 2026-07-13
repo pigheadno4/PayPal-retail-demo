@@ -164,7 +164,10 @@ import {
   type AdminWorkbenchRequest,
 } from "../features/admin/AdminShell.js";
 import { AdminWebhooksWorkbench } from "../features/admin/AdminWebhooksWorkbench.js";
-import { buildAdminQuery } from "../features/admin/adminQuery.js";
+import {
+  buildAdminQuery,
+  materializeAdminDefaultTimeRange,
+} from "../features/admin/adminQuery.js";
 import { AppProviders, useApiClient } from "../state/appProviders.js";
 import {
   createInitialStorefrontState,
@@ -5965,9 +5968,16 @@ function AdminPortal({
   const [activeConfig, setActiveConfig] =
     useState<StorefrontRuntimeConfig>(initialConfig);
   const [adminLocation, setAdminLocation] = useState(() =>
-    parseAdminLocation(initialLocation),
+    materializeAdminDefaultTimeRange(
+      parseAdminLocation(initialLocation),
+      route.section,
+    ),
   );
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [inventoryRetryVersion, setInventoryRetryVersion] = useState(0);
+  const [pickupRetryVersion, setPickupRetryVersion] = useState(0);
+  const [paymentRetryVersion, setPaymentRetryVersion] = useState(0);
+  const [runtimeRetryVersion, setRuntimeRetryVersion] = useState(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const adminQuery = useMemo(
     () => buildAdminQuery(adminLocation, route.section),
@@ -5975,6 +5985,10 @@ function AdminPortal({
   );
   const primaryRequestPath = adminQuery.requestPaths[0] ?? "";
   const secondaryRequestPath = adminQuery.requestPaths[1] ?? "";
+  const diagnosticsDataset =
+    new URLSearchParams(adminLocation.search).get("dataset") === "runtime"
+      ? "runtime"
+      : "payment";
   const [selectedProfileId, setSelectedProfileId] = useState<string>(
     resolveAdminProfileOption(activeConfig.profile.slug).id,
   );
@@ -6103,15 +6117,28 @@ function AdminPortal({
 
   useEffect(() => {
     const handlePopState = () => {
-      setAdminLocation(parseAdminLocation(browserPathname()));
+      const nextLocation = materializeAdminDefaultTimeRange(
+        parseAdminLocation(browserPathname()),
+        route.section,
+      );
+      const nextPath = `${nextLocation.pathname}${nextLocation.search}`;
+      if (nextPath !== browserPathname()) {
+        globalThis.history?.replaceState(null, "", nextPath);
+      }
+      setAdminLocation(nextLocation);
       setSelectedOrder(null);
     };
+
+    const normalizedPath = `${adminLocation.pathname}${adminLocation.search}`;
+    if (normalizedPath !== browserPathname()) {
+      globalThis.history?.replaceState(null, "", normalizedPath);
+    }
 
     globalThis.addEventListener?.("popstate", handlePopState);
     return () => {
       globalThis.removeEventListener?.("popstate", handlePopState);
     };
-  }, []);
+  }, [adminLocation.pathname, adminLocation.search, route.section]);
 
   useEffect(() => {
     if (route.section !== "orders" && route.section !== "lifecycle") {
@@ -6320,7 +6347,14 @@ function AdminPortal({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, primaryRequestPath, reloadVersion, route.section, token]);
+  }, [
+    apiClient,
+    paymentRetryVersion,
+    primaryRequestPath,
+    reloadVersion,
+    route.section,
+    token,
+  ]);
 
   useEffect(() => {
     if (route.section !== "diagnostics") {
@@ -6388,7 +6422,14 @@ function AdminPortal({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, reloadVersion, route.section, secondaryRequestPath, token]);
+  }, [
+    apiClient,
+    reloadVersion,
+    route.section,
+    runtimeRetryVersion,
+    secondaryRequestPath,
+    token,
+  ]);
 
   useEffect(() => {
     if (route.section !== "inventory") {
@@ -6403,15 +6444,10 @@ function AdminPortal({
         status: "loading",
         message: "Loading inventory controls.",
       }));
-      setPickupDateState((current) => ({
-        ...current,
-        status: "loading",
-        message: "Loading pickup-date controls.",
-      }));
 
       try {
-        const [inventoryResponse, pickupDateResponse] = await Promise.all([
-          apiClient.get<AdminInventoryListResponse>(
+        const inventoryResponse =
+          await apiClient.get<AdminInventoryListResponse>(
             primaryRequestPath,
             undefined,
             {
@@ -6419,17 +6455,7 @@ function AdminPortal({
                 "x-admin-session": token,
               },
             },
-          ),
-          apiClient.get<AdminPickupDateListResponse>(
-            secondaryRequestPath,
-            undefined,
-            {
-              headers: {
-                "x-admin-session": token,
-              },
-            },
-          ),
-        ]);
+          );
 
         if (isCancelled) {
           return;
@@ -6447,6 +6473,71 @@ function AdminPortal({
               ? "Inventory controls are ready."
               : "No inventory rows are available yet.",
         });
+        setLastUpdatedAt(new Date().toISOString());
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof ApiClientError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Unable to load inventory controls.";
+        setInventoryState({
+          status: "error",
+          inventory: [],
+          pageInfo: createEmptyAdminPageInfo(),
+          message,
+        });
+      }
+    }
+
+    void loadInventoryControls();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    apiClient,
+    inventoryRetryVersion,
+    primaryRequestPath,
+    reloadVersion,
+    route.section,
+    token,
+  ]);
+
+  useEffect(() => {
+    if (route.section !== "inventory") {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function loadPickupDateControls() {
+      setPickupDateState((current) => ({
+        ...current,
+        status: "loading",
+        message: "Loading pickup-date controls.",
+      }));
+
+      try {
+        const pickupDateResponse =
+          await apiClient.get<AdminPickupDateListResponse>(
+            secondaryRequestPath,
+            undefined,
+            {
+              headers: {
+                "x-admin-session": token,
+              },
+            },
+          );
+
+        if (isCancelled) {
+          return;
+        }
+
         setPickupDateState({
           status: "ready",
           pickupDates: pickupDateResponse.pickup_dates ?? [],
@@ -6465,33 +6556,28 @@ function AdminPortal({
           return;
         }
 
-        const message =
-          error instanceof ApiClientError
-            ? error.message
-            : "Unable to load inventory and pickup-date controls.";
-        setInventoryState({
-          status: "error",
-          inventory: [],
-          pageInfo: createEmptyAdminPageInfo(),
-          message,
-        });
         setPickupDateState({
           status: "error",
           pickupDates: [],
           pageInfo: createEmptyAdminPageInfo(),
-          message,
+          message:
+            error instanceof ApiClientError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Unable to load pickup-date controls.",
         });
       }
     }
 
-    void loadInventoryControls();
+    void loadPickupDateControls();
 
     return () => {
       isCancelled = true;
     };
   }, [
     apiClient,
-    primaryRequestPath,
+    pickupRetryVersion,
     reloadVersion,
     route.section,
     secondaryRequestPath,
@@ -6785,8 +6871,13 @@ function AdminPortal({
   };
 
   const handleAdminLocationChange = (path: string) => {
-    globalThis.history?.pushState(null, "", path);
-    setAdminLocation(parseAdminLocation(path));
+    const nextLocation = materializeAdminDefaultTimeRange(
+      parseAdminLocation(path),
+      route.section,
+    );
+    const nextPath = `${nextLocation.pathname}${nextLocation.search}`;
+    globalThis.history?.pushState(null, "", nextPath);
+    setAdminLocation(nextLocation);
     setSelectedOrder(null);
   };
   const handleClearFilters = () => {
@@ -6872,6 +6963,7 @@ function AdminPortal({
       filters={
         <AdminFilters
           section={route.section}
+          diagnosticsDataset={diagnosticsDataset}
           search={adminLocation.search}
           onApply={handleAdminLocationChange}
           onClear={handleClearFilters}
@@ -6985,6 +7077,34 @@ function AdminPortal({
       {route.section === "orders" || route.section === "lifecycle" ? (
         <OrdersWorkbench
           request={ordersRequest}
+          rows={ordersState.orders.map((order) => ({
+            id: order.id,
+            orderNumber: order.order_number,
+            fulfillment: formatAdminStatusLabel(order.fulfillment_mode),
+            status: formatAdminStatusLabel(order.status),
+            paymentStatus: formatAdminStatusLabel(order.payment_status),
+            total: formatMinorMoney(
+              order.total_minor,
+              order.currency_code,
+              activeConfig.market.locale,
+            ),
+            placedAt: formatAccountDate(
+              order.placed_at,
+              activeConfig.market.locale,
+            ),
+            updatedAt: formatAccountDate(
+              order.updated_at,
+              activeConfig.market.locale,
+            ),
+            nextAction:
+              order.next_statuses.length > 0
+                ? `Mark ${formatAdminStatusLabel(order.next_statuses[0] ?? "")}`
+                : "No action available",
+          }))}
+          selectedRowId={selectedOrder?.id ?? null}
+          onSelectRow={(orderId) => {
+            void handleSelectOrder(orderId);
+          }}
           activeFilterCount={activeFilterCount}
           onRetry={handleReload}
           onClearFilters={handleClearFilters}
@@ -7013,45 +7133,6 @@ function AdminPortal({
                 {ordersState.message}
               </p>
               <div className="admin-shell__orders-layout">
-                <div
-                  className="admin-shell__order-list"
-                  aria-label="Admin order list"
-                >
-                  {ordersState.orders.length > 0 ? (
-                    ordersState.orders.map((order) => (
-                      <button
-                        key={order.id}
-                        type="button"
-                        className="admin-shell__order-row"
-                        aria-pressed={selectedOrder?.id === order.id}
-                        onClick={() => {
-                          void handleSelectOrder(order.id);
-                        }}
-                      >
-                        <span>
-                          <strong>{order.order_number}</strong>
-                          <small>
-                            {formatAdminStatusLabel(order.fulfillment_mode)} /{" "}
-                            {formatAdminStatusLabel(order.status)}
-                          </small>
-                        </span>
-                        <span>
-                          {formatMinorMoney(
-                            order.total_minor,
-                            order.currency_code,
-                            activeConfig.market.locale,
-                          )}
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="admin-shell__empty-state">
-                      {ordersState.status === "loading"
-                        ? "Loading orders"
-                        : "No orders found"}
-                    </p>
-                  )}
-                </div>
                 <div className="admin-shell__order-detail">
                   <p
                     className="admin-shell__feedback"
@@ -7286,8 +7367,12 @@ function AdminPortal({
           stockRequest={inventoryRequest}
           pickupRequest={pickupRequest}
           activeFilterCount={activeFilterCount}
-          onRetryStock={handleReload}
-          onRetryPickup={handleReload}
+          onRetryStock={() => {
+            setInventoryRetryVersion((current) => current + 1);
+          }}
+          onRetryPickup={() => {
+            setPickupRetryVersion((current) => current + 1);
+          }}
           onClearFilters={handleClearFilters}
           onNextStock={() => {
             handleNextPage("stock_cursor", inventoryState.pageInfo.next_cursor);
@@ -7495,6 +7580,21 @@ function AdminPortal({
       {route.section === "webhooks" ? (
         <AdminWebhooksWorkbench
           request={webhooksRequest}
+          rows={webhookState.webhooks.map((webhook) => ({
+            id: webhook.id,
+            eventId: webhook.event_id,
+            eventType: webhook.event_type,
+            verificationStatus: formatAdminStatusLabel(
+              webhook.verification_status,
+            ),
+            processingStatus: formatAdminStatusLabel(webhook.processing_status),
+            receivedAt: formatAccountDate(
+              webhook.received_at,
+              activeConfig.market.locale,
+            ),
+          }))}
+          selectedRowId={selectedWebhook?.id ?? null}
+          onSelectRow={setSelectedWebhookId}
           activeFilterCount={activeFilterCount}
           onRetry={handleReload}
           onClearFilters={handleClearFilters}
@@ -7528,28 +7628,6 @@ function AdminPortal({
               >
                 {webhookState.webhooks.length > 0 ? (
                   <>
-                    <div
-                      className="admin-shell__webhook-event-list"
-                      aria-label="Webhook event list"
-                    >
-                      {webhookState.webhooks.map((webhook) => (
-                        <button
-                          key={webhook.id}
-                          type="button"
-                          className="admin-shell__webhook-event"
-                          aria-pressed={selectedWebhook?.id === webhook.id}
-                          onClick={() => setSelectedWebhookId(webhook.id)}
-                        >
-                          <span>
-                            <strong>{webhook.event_id}</strong>
-                            <small>{webhook.event_type}</small>
-                          </span>
-                          <span>
-                            {formatAdminStatusLabel(webhook.processing_status)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
                     {selectedWebhook ? (
                       <article
                         className="admin-shell__webhook-detail"
@@ -7629,9 +7707,17 @@ function AdminPortal({
         <AdminDiagnosticsWorkbench
           paymentRequest={paymentRequest}
           runtimeRequest={runtimeRequest}
+          activeTab={diagnosticsDataset}
+          onTabChange={(tab) => {
+            handleAdminLocationChange(`/admin/diagnostics?dataset=${tab}`);
+          }}
           activeFilterCount={activeFilterCount}
-          onRetryPayment={handleReload}
-          onRetryRuntime={handleReload}
+          onRetryPayment={() => {
+            setPaymentRetryVersion((current) => current + 1);
+          }}
+          onRetryRuntime={() => {
+            setRuntimeRetryVersion((current) => current + 1);
+          }}
           onClearFilters={handleClearFilters}
           onNextPayment={() => {
             handleNextPage(
