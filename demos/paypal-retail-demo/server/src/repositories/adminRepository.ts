@@ -11,6 +11,7 @@ import type {
 import {
   decodeAdminCursor,
   encodeAdminCursor,
+  type AdminCursorKind,
   type AdminCursorPage,
   type AdminInventoryQuery,
   type AdminLifecycleNextAction,
@@ -641,6 +642,8 @@ export function createSupabaseAdminInventoryRepository(
   return {
     async listInventory(rawQuery) {
       const query = rawQuery ?? defaultAdminInventoryQuery;
+      const offset = inventoryCursorOffset(query.cursor);
+      const fetchLimit = offset + query.limit + 1;
       const matchingProducts = query.search
         ? await queryMany<AdminInventoryProductRow>(
             supabase
@@ -678,6 +681,7 @@ export function createSupabaseAdminInventoryRepository(
               table: "central_inventory",
               columns: adminCentralInventoryColumns,
               query,
+              fetchLimit,
               ...(productIds ? { productIds } : {}),
               cursorColumn: "product_id",
               description: "List admin central inventory",
@@ -689,6 +693,7 @@ export function createSupabaseAdminInventoryRepository(
               table: "store_inventory",
               columns: adminStoreInventoryColumns,
               query,
+              fetchLimit,
               ...(productIds ? { productIds } : {}),
               cursorColumn: "id",
               description: "List admin store inventory",
@@ -707,13 +712,10 @@ export function createSupabaseAdminInventoryRepository(
         ...storeResult.rows.map(
           (row): AdminInventoryRecord => ({ type: "store", row }),
         ),
-      ]
-        .filter((record) =>
-          isAdminInventoryRecordAfterCursor(record, query.cursor),
-        )
-        .sort(compareAdminInventoryRecords);
-      const pageItems = merged.slice(0, query.limit);
-      const hasMore = merged.length > query.limit;
+      ].sort(compareAdminInventoryRecords);
+      const pageItems = merged.slice(offset, offset + query.limit);
+      const totalCount = centralResult.totalCount + storeResult.totalCount;
+      const hasMore = totalCount > offset + pageItems.length;
       const productIdsOnPage = pageItems.map((item) => item.row.product_id);
       const products = matchingProducts
         ? matchingProducts.filter((product) =>
@@ -732,9 +734,13 @@ export function createSupabaseAdminInventoryRepository(
         products,
         stores,
         page_info: {
-          total_count: centralResult.totalCount + storeResult.totalCount,
+          total_count: totalCount,
           next_cursor: hasMore
-            ? encodeInventoryCursor(pageItems.at(-1) ?? null)
+            ? encodeAdminCursor({
+                kind: "inventory-updated",
+                value: `offset:${offset + pageItems.length}`,
+                id: "inventory",
+              })
             : null,
           timezone: query.timezone,
         },
@@ -787,6 +793,7 @@ export function createSupabaseAdminInventoryRepository(
       dataQuery = applyAdminCursor(
         dataQuery,
         query.cursor,
+        "pickup-date",
         "pickup_date",
         "id",
         "ascending",
@@ -808,6 +815,7 @@ export function createSupabaseAdminInventoryRepository(
         items: pickupDates,
         stores,
         page_info: createAdminPageInfo({
+          cursorKind: "pickup-date",
           rowsWithExtra: pickupDatesWithExtra,
           items: pickupDates,
           totalCount,
@@ -860,6 +868,7 @@ export function createSupabaseAdminWebhookRepository(
       dataQuery = applyAdminCursor(
         dataQuery,
         query.cursor,
+        "webhooks-received",
         "received_at",
         "id",
       );
@@ -875,6 +884,7 @@ export function createSupabaseAdminWebhookRepository(
       return {
         items,
         page_info: createAdminPageInfo({
+          cursorKind: "webhooks-received",
           rowsWithExtra,
           items,
           totalCount,
@@ -918,7 +928,13 @@ export function createSupabaseAdminPaymentDebugRepository(
       )
         .order("updated_at", { ascending: false })
         .order("id", { ascending: false });
-      dataQuery = applyAdminCursor(dataQuery, query.cursor, "updated_at", "id");
+      dataQuery = applyAdminCursor(
+        dataQuery,
+        query.cursor,
+        "payment-updated",
+        "updated_at",
+        "id",
+      );
       const [sessionsWithExtra, totalCount] = await Promise.all([
         queryMany<AdminPaymentSessionRow>(
           dataQuery.limit(query.limit + 1),
@@ -1002,6 +1018,7 @@ export function createSupabaseAdminPaymentDebugRepository(
       return {
         items,
         page_info: createAdminPageInfo({
+          cursorKind: "payment-updated",
           rowsWithExtra: sessionsWithExtra,
           items: sessions,
           totalCount,
@@ -1083,6 +1100,7 @@ async function listAdminOrdersPage(
   dataQuery = applyAdminCursor(
     dataQuery,
     input.query.cursor,
+    input.kind === "orders" ? "orders-created" : "lifecycle-updated",
     input.sortColumn,
     "id",
   );
@@ -1098,6 +1116,8 @@ async function listAdminOrdersPage(
   return {
     items,
     page_info: createAdminPageInfo({
+      cursorKind:
+        input.kind === "orders" ? "orders-created" : "lifecycle-updated",
       rowsWithExtra,
       items,
       totalCount,
@@ -1198,6 +1218,7 @@ async function listAdminInventoryRows<
   readonly table: string;
   readonly columns: string;
   readonly query: AdminInventoryQuery;
+  readonly fetchLimit: number;
   readonly productIds?: readonly string[];
   readonly cursorColumn: string;
   readonly description: string;
@@ -1221,19 +1242,13 @@ async function listAdminInventoryRows<
       .from(input.table)
       .select(input.cursorColumn, { count: "exact", head: true }),
   );
-  let dataQuery = applyFilters(
+  const dataQuery = applyFilters(
     input.supabase.from(input.table).select(input.columns),
   )
     .order("updated_at", { ascending: false })
     .order(input.cursorColumn, { ascending: false });
-  const decodedCursor = input.query.cursor
-    ? decodeAdminCursor(input.query.cursor)
-    : null;
-  if (decodedCursor) {
-    dataQuery = dataQuery.lte("updated_at", decodedCursor.value);
-  }
   const [rows, totalCount] = await Promise.all([
-    queryMany<TRow>(dataQuery.limit(input.query.limit + 1), input.description),
+    queryMany<TRow>(dataQuery.limit(input.fetchLimit), input.description),
     queryCount(countQuery, `Count ${input.description.toLowerCase()}`),
   ]);
 
@@ -1389,11 +1404,12 @@ function postgrestIlikeValue(value: string): string {
 function applyAdminCursor(
   query: SupabaseAdminQuery,
   cursor: string | undefined,
+  cursorKind: AdminCursorKind,
   valueColumn: string,
   idColumn: string,
   direction: "ascending" | "descending" = "descending",
 ): SupabaseAdminQuery {
-  const decoded = cursor ? decodeAdminCursor(cursor) : null;
+  const decoded = cursor ? decodeAdminCursor(cursor, cursorKind) : null;
   if (!decoded) {
     return query;
   }
@@ -1405,6 +1421,7 @@ function applyAdminCursor(
 }
 
 function createAdminPageInfo<TRow>(input: {
+  readonly cursorKind: AdminCursorKind;
   readonly rowsWithExtra: readonly TRow[];
   readonly items: readonly TRow[];
   readonly totalCount: number;
@@ -1419,6 +1436,7 @@ function createAdminPageInfo<TRow>(input: {
     next_cursor:
       input.rowsWithExtra.length > input.items.length && lastItem
         ? encodeAdminCursor({
+            kind: input.cursorKind,
             value: input.getCursorValue(lastItem),
             id: input.getCursorId(lastItem),
           })
@@ -1440,37 +1458,18 @@ function compareAdminInventoryRecords(
   );
 }
 
-function isAdminInventoryRecordAfterCursor(
-  record: AdminInventoryRecord,
-  cursor: string | undefined,
-): boolean {
-  const decoded = cursor ? decodeAdminCursor(cursor) : null;
-  if (!decoded) {
-    return true;
-  }
-
-  return (
-    record.row.updated_at < decoded.value ||
-    (record.row.updated_at === decoded.value &&
-      inventoryRecordId(record) < decoded.id)
-  );
-}
-
 function inventoryRecordId(record: AdminInventoryRecord): string {
   return record.type === "store"
     ? `store:${record.row.id}`
     : `central:${record.row.profile_id}:${record.row.market_id}:${record.row.product_id}`;
 }
 
-function encodeInventoryCursor(
-  record: AdminInventoryRecord | null,
-): string | null {
-  return record
-    ? encodeAdminCursor({
-        value: record.row.updated_at,
-        id: inventoryRecordId(record),
-      })
+function inventoryCursorOffset(cursor: string | undefined): number {
+  const decoded = cursor
+    ? decodeAdminCursor(cursor, "inventory-updated")
     : null;
+  const match = decoded?.value.match(/^offset:(\d+)$/);
+  return match ? Number(match[1]) : 0;
 }
 
 function emptyAdminRowPage<TRow>(): {

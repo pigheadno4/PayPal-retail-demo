@@ -30,6 +30,7 @@ import {
   parseAdminLifecycleQuery,
   parseAdminOrdersQuery,
   parseAdminPaymentDiagnosticsQuery,
+  parseAdminPickupDatesQuery,
   parseAdminRuntimeLogsQuery,
   parseAdminWebhooksQuery,
   type AdminPageInfo,
@@ -417,7 +418,7 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
       "/admin/pickup-dates",
       input.adminSessionGuard,
       asyncRoute(async (request, response) => {
-        const parsedQuery = parseAdminInventoryQuery(request.query);
+        const parsedQuery = parseAdminPickupDatesQuery(request.query);
         if (!parsedQuery.ok) {
           sendApiError(response, 400, parsedQuery.error);
           return;
@@ -560,7 +561,11 @@ function paginateAdminRuntimeDebugLogs(
   query: AdminRuntimeLogsQuery,
 ) {
   const filtered = entries
-    .filter((entry) => {
+    .map((entry, index) => ({
+      entry,
+      cursorId: runtimeDebugCursorId(entry, index),
+    }))
+    .filter(({ entry }) => {
       const mapped = mapAdminRuntimeDebugLogEntry(entry);
       const lookupText = [
         mapped.debug_id,
@@ -589,35 +594,38 @@ function paginateAdminRuntimeDebugLogs(
       );
     })
     .sort((left, right) => {
-      const timeDifference = right.timestamp.localeCompare(left.timestamp);
-      return (
-        timeDifference ||
-        runtimeDebugCursorId(right).localeCompare(runtimeDebugCursorId(left))
+      const timeDifference = right.entry.timestamp.localeCompare(
+        left.entry.timestamp,
       );
+      return timeDifference || right.cursorId.localeCompare(left.cursorId);
     });
   const totalCount = filtered.length;
-  const decodedCursor = query.cursor ? decodeAdminCursor(query.cursor) : null;
+  const decodedCursor = query.cursor
+    ? decodeAdminCursor(query.cursor, "runtime-timestamp")
+    : null;
   const afterCursor = decodedCursor
     ? filtered.filter(
-        (entry) =>
+        ({ entry, cursorId }) =>
           entry.timestamp < decodedCursor.value ||
           (entry.timestamp === decodedCursor.value &&
-            runtimeDebugCursorId(entry) < decodedCursor.id),
+            cursorId < decodedCursor.id),
       )
     : filtered;
   const rowsWithExtra = afterCursor.slice(0, query.limit + 1);
-  const items = rowsWithExtra.slice(0, query.limit);
+  const items = rowsWithExtra.slice(0, query.limit).map(({ entry }) => entry);
   const lastItem = items.at(-1);
+  const lastPageItem = rowsWithExtra.at(items.length - 1);
 
   return {
     items,
     page_info: {
       total_count: totalCount,
       next_cursor:
-        rowsWithExtra.length > items.length && lastItem
+        rowsWithExtra.length > items.length && lastItem && lastPageItem
           ? encodeAdminCursor({
+              kind: "runtime-timestamp",
               value: lastItem.timestamp,
-              id: runtimeDebugCursorId(lastItem),
+              id: lastPageItem.cursorId,
             })
           : null,
       timezone: query.timezone,
@@ -625,13 +633,11 @@ function paginateAdminRuntimeDebugLogs(
   };
 }
 
-function runtimeDebugCursorId(entry: AdminRuntimeDebugLogEntry): string {
-  return (
-    mapAdminRuntimeDebugLogEntry(entry).debug_id ??
-    `log:${Buffer.from(`${entry.level}:${entry.message}`, "utf8").toString(
-      "base64url",
-    )}`
-  );
+function runtimeDebugCursorId(
+  entry: AdminRuntimeDebugLogEntry,
+  originalIndex: number,
+): string {
+  return entry.id ?? `legacy:${String(999_999_999 - originalIndex)}`;
 }
 
 function parseProfileMarketBody(request: Request): {

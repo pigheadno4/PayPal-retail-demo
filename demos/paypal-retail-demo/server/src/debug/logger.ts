@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 export type DebugLogLevel = "info" | "warn" | "error";
 
 export type DebugLogJson =
@@ -9,6 +11,7 @@ export type DebugLogJson =
   | { readonly [key: string]: DebugLogJson };
 
 export interface DebugLogEntry {
+  readonly id?: string;
   readonly timestamp: string;
   readonly level: DebugLogLevel;
   readonly message: string;
@@ -89,11 +92,15 @@ export function createInMemoryRuntimeDebugLogStore(
   const limit = Math.max(1, Math.floor(input.limit ?? 100));
   const downstreamSink = input.downstreamSink ?? defaultDebugLogSink;
   const sink = (entry: DebugLogEntry) => {
-    entries.unshift(entry);
+    const storedEntry = {
+      ...entry,
+      id: randomUUID(),
+    };
+    entries.unshift(storedEntry);
     if (entries.length > limit) {
       entries.length = limit;
     }
-    downstreamSink(entry);
+    downstreamSink(storedEntry);
   };
 
   return {

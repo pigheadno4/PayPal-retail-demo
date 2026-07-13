@@ -27,6 +27,7 @@ describe("Supabase Admin repository filtering and pagination", () => {
     });
     const repository = createSupabaseAdminOrderRepository(client);
     const cursor = encodeAdminCursor({
+      kind: "orders-created",
       value: "2026-07-10T10:00:00.000Z",
       id: "order_cursor",
     });
@@ -50,6 +51,7 @@ describe("Supabase Admin repository filtering and pagination", () => {
       timezone: "Asia/Shanghai",
     });
     expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
+      kind: "orders-created",
       value: "2026-07-09T11:00:00.000Z",
       id: "order_2",
     });
@@ -183,11 +185,13 @@ describe("Supabase Admin repository filtering and pagination", () => {
   it("does not repeat Inventory rows at an opaque cursor boundary", async () => {
     const client = new RecordingSupabaseAdminClient({
       store_inventory: {
-        count: 3,
+        count: 5,
         rows: [
+          storeInventoryRow("store_inventory_5", "2026-07-09T12:00:00.000Z"),
+          storeInventoryRow("store_inventory_4", "2026-07-09T12:00:00.000Z"),
           storeInventoryRow("store_inventory_3", "2026-07-09T12:00:00.000Z"),
-          storeInventoryRow("store_inventory_2", "2026-07-09T11:00:00.000Z"),
-          storeInventoryRow("store_inventory_1", "2026-07-09T10:00:00.000Z"),
+          storeInventoryRow("store_inventory_2", "2026-07-09T12:00:00.000Z"),
+          storeInventoryRow("store_inventory_1", "2026-07-09T12:00:00.000Z"),
         ],
       },
       products: {
@@ -213,8 +217,9 @@ describe("Supabase Admin repository filtering and pagination", () => {
     });
     const repository = createSupabaseAdminInventoryRepository(client);
     const cursor = encodeAdminCursor({
-      value: "2026-07-09T12:00:00.000Z",
-      id: "store:store_inventory_3",
+      kind: "inventory-updated",
+      value: "offset:2",
+      id: "inventory",
     });
 
     const page = await repository.listInventory({
@@ -227,12 +232,13 @@ describe("Supabase Admin repository filtering and pagination", () => {
     expect(page.items).toEqual([
       expect.objectContaining({
         type: "store",
-        row: expect.objectContaining({ id: "store_inventory_2" }),
+        row: expect.objectContaining({ id: "store_inventory_3" }),
       }),
     ]);
     expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
-      value: "2026-07-09T11:00:00.000Z",
-      id: "store:store_inventory_2",
+      kind: "inventory-updated",
+      value: "offset:3",
+      id: "inventory",
     });
   });
 
@@ -258,6 +264,7 @@ describe("Supabase Admin repository filtering and pagination", () => {
     });
     const repository = createSupabaseAdminInventoryRepository(client);
     const cursor = encodeAdminCursor({
+      kind: "pickup-date",
       value: "2026-07-13",
       id: "pickup_1",
     });

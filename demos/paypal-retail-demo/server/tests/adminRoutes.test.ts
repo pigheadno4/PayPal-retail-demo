@@ -1159,14 +1159,14 @@ describe("admin runtime debug log routes", () => {
               {
                 timestamp: "2026-07-12T11:00:00.000Z",
                 level: "error",
-                message: "First runtime failure",
-                context: { source: "paypal" },
+                message: "Repeated runtime failure",
+                context: { source: "paypal", sequence: "first" },
               },
               {
-                timestamp: "2026-07-12T10:00:00.000Z",
+                timestamp: "2026-07-12T11:00:00.000Z",
                 level: "error",
-                message: "Second runtime failure",
-                context: { source: "paypal" },
+                message: "Repeated runtime failure",
+                context: { source: "paypal", sequence: "second" },
               },
             ];
           },
@@ -1193,7 +1193,10 @@ describe("admin runtime debug log routes", () => {
 
     expect(firstPage.status).toBe(200);
     expect(firstPage.json.data.debug_logs).toEqual([
-      expect.objectContaining({ message: "First runtime failure" }),
+      expect.objectContaining({
+        message: "Repeated runtime failure",
+        context: expect.objectContaining({ sequence: "first" }),
+      }),
     ]);
     expect(firstPage.json.data.page_info).toEqual({
       total_count: 2,
@@ -1202,7 +1205,10 @@ describe("admin runtime debug log routes", () => {
     });
     expect(secondPage.status).toBe(200);
     expect(secondPage.json.data.debug_logs).toEqual([
-      expect.objectContaining({ message: "Second runtime failure" }),
+      expect.objectContaining({
+        message: "Repeated runtime failure",
+        context: expect.objectContaining({ sequence: "second" }),
+      }),
     ]);
   });
 

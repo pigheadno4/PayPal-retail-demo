@@ -55,13 +55,14 @@ describe("Admin URL query builder", () => {
       buildAdminQuery(
         {
           pathname: "/admin/inventory",
-          search: "?q=MOLLY&scope=store&availability=available",
+          search:
+            "?q=MOLLY&scope=store&stock_condition=low_stock&availability=available&stock_cursor=stock-cursor&pickup_cursor=pickup-cursor",
         },
         "inventory",
       ).requestPaths,
     ).toEqual([
-      "/api/admin/inventory?q=MOLLY&scope=store&availability=available",
-      "/api/admin/pickup-dates?q=MOLLY&scope=store&availability=available",
+      "/api/admin/inventory?q=MOLLY&scope=store&stock_condition=low_stock&cursor=stock-cursor",
+      "/api/admin/pickup-dates?availability=available&cursor=pickup-cursor",
     ]);
 
     expect(
@@ -82,14 +83,14 @@ describe("Admin URL query builder", () => {
         {
           pathname: "/admin/diagnostics",
           search:
-            "?lookup=dbg_123&method=paypal&level=error&category=paypal&logged_from=from",
+            "?lookup=dbg_123&method=paypal&level=error&category=paypal&logged_from=from&payment_cursor=payment-cursor&runtime_cursor=runtime-cursor",
         },
         "diagnostics",
       ),
     ).toEqual({
       requestPaths: [
-        "/api/admin/payment-debug?lookup=dbg_123&method=paypal",
-        "/api/admin/debug-logs?lookup=dbg_123&level=error&category=paypal&logged_from=from",
+        "/api/admin/payment-debug?lookup=dbg_123&method=paypal&cursor=payment-cursor",
+        "/api/admin/debug-logs?lookup=dbg_123&level=error&category=paypal&logged_from=from&cursor=runtime-cursor",
       ],
       clearPath: "/admin/diagnostics",
       activeParameters: [

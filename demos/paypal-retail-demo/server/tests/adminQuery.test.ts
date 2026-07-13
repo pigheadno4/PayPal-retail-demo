@@ -6,6 +6,7 @@ import {
   parseAdminLifecycleQuery,
   parseAdminOrdersQuery,
   parseAdminPaymentDiagnosticsQuery,
+  parseAdminPickupDatesQuery,
   parseAdminRuntimeLogsQuery,
   parseAdminWebhooksQuery,
 } from "../src/routes/adminQuery.js";
@@ -13,6 +14,7 @@ import {
 describe("Admin query parsers", () => {
   it("normalizes allowed Orders filters, ISO boundaries, timezone, and cursor", () => {
     const cursor = encodeAdminCursor({
+      kind: "orders-created",
       value: "2026-07-12T10:00:00.000Z",
       id: "order_1",
     });
@@ -116,6 +118,7 @@ describe("Admin query parsers", () => {
 
   it("rejects structurally valid cursors with unsafe sort values or IDs", () => {
     const cursor = encodeAdminCursor({
+      kind: "orders-created",
       value: "not-an-iso-timestamp",
       id: "order_1),status.eq.paid",
     });
@@ -130,6 +133,68 @@ describe("Admin query parsers", () => {
         },
       },
     });
+  });
+
+  it("rejects non-canonical and cross-resource cursors", () => {
+    const ordersCursor = encodeAdminCursor({
+      kind: "orders-created",
+      value: "2026-07-12T10:00:00.000Z",
+      id: "order_1",
+    });
+
+    expect(parseAdminOrdersQuery({ cursor: `${ordersCursor}!!!` })).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_ADMIN_FILTERS",
+        message: "One or more Admin filters are invalid.",
+        details: { invalid_fields: ["cursor"] },
+      },
+    });
+    expect(parseAdminLifecycleQuery({ cursor: ordersCursor })).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_ADMIN_FILTERS",
+        message: "One or more Admin filters are invalid.",
+        details: { invalid_fields: ["cursor"] },
+      },
+    });
+
+    const inventoryCursor = encodeAdminCursor({
+      kind: "inventory-updated",
+      value: "offset:10",
+      id: "inventory",
+    });
+    const excessiveInventoryCursor = encodeAdminCursor({
+      kind: "inventory-updated",
+      value: "offset:1000001",
+      id: "inventory",
+    });
+    const pickupCursor = encodeAdminCursor({
+      kind: "pickup-date",
+      value: "2026-07-14",
+      id: "pickup_1",
+    });
+    const pickupTimestampCursor = encodeAdminCursor({
+      kind: "pickup-date",
+      value: "2026-07-14T00:00:00.000Z",
+      id: "pickup_1",
+    });
+    const ordersDateCursor = encodeAdminCursor({
+      kind: "orders-created",
+      value: "2026-07-14",
+      id: "order_1",
+    });
+    expect(parseAdminPickupDatesQuery({ cursor: inventoryCursor }).ok).toBe(
+      false,
+    );
+    expect(
+      parseAdminPickupDatesQuery({ cursor: pickupTimestampCursor }).ok,
+    ).toBe(false);
+    expect(parseAdminInventoryQuery({ cursor: pickupCursor }).ok).toBe(false);
+    expect(
+      parseAdminInventoryQuery({ cursor: excessiveInventoryCursor }).ok,
+    ).toBe(false);
+    expect(parseAdminOrdersQuery({ cursor: ordersDateCursor }).ok).toBe(false);
   });
 
   it("normalizes Lifecycle, Inventory, and Payment Diagnostics filters", () => {

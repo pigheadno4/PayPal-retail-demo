@@ -1,8 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { createDebugLogger } from "../src/debug/logger.js";
+import {
+  createDebugLogger,
+  createInMemoryRuntimeDebugLogStore,
+} from "../src/debug/logger.js";
 
 describe("sanitized debug logger", () => {
+  it("assigns immutable unique IDs when runtime entries enter the store", async () => {
+    const store = createInMemoryRuntimeDebugLogStore({
+      downstreamSink: () => undefined,
+    });
+    const entry = {
+      id: "caller-supplied-id",
+      timestamp: "2026-07-12T11:00:00.000Z",
+      level: "error" as const,
+      message: "Repeated runtime failure",
+      context: { source: "paypal" },
+    };
+
+    store.sink(entry);
+    store.sink(entry);
+
+    const stored = await store.listRuntimeDebugLogs();
+    expect(stored).toHaveLength(2);
+    expect(stored[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(stored[1]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(stored[0]?.id).not.toBe(stored[1]?.id);
+    expect(stored.map(({ id }) => id)).not.toContain("caller-supplied-id");
+  });
+
   it("redacts secrets and preserves safe debug context", () => {
     const entries: unknown[] = [];
     const logger = createDebugLogger({
@@ -18,11 +44,11 @@ describe("sanitized debug logger", () => {
       authorization: "Bearer secret-access-token",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-value",
       nested: {
-      client_secret: "paypal-client-secret",
-      client_token: "browser-client-token",
-      cart_client_secret: "cart-secret-value",
-      card_number: "4111111111111111",
-      safe_status: "created",
+        client_secret: "paypal-client-secret",
+        client_token: "browser-client-token",
+        cart_client_secret: "cart-secret-value",
+        card_number: "4111111111111111",
+        safe_status: "created",
       },
     });
 

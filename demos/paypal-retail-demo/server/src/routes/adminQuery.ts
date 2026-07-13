@@ -16,9 +16,19 @@ export interface AdminPageInfo {
 }
 
 export interface AdminCursorValue {
+  readonly kind: AdminCursorKind;
   readonly value: string;
   readonly id: string;
 }
+
+export type AdminCursorKind =
+  | "orders-created"
+  | "lifecycle-updated"
+  | "inventory-updated"
+  | "pickup-date"
+  | "webhooks-received"
+  | "payment-updated"
+  | "runtime-timestamp";
 
 interface AdminBaseQuery {
   readonly cursor?: string;
@@ -144,6 +154,7 @@ interface ParsedTimeRange {
 
 const defaultLimit = 25;
 const maximumLimit = 100;
+const maximumInventoryCursorOffset = 1_000_000;
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
 const orderStatuses: readonly OrderStatus[] = [
@@ -235,7 +246,7 @@ export function parseAdminOrdersQuery(
     "created_to",
     invalidFields,
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, "orders-created");
 
   return finishParse(invalidFields, {
     ...(orderNumber ? { orderNumber } : {}),
@@ -282,7 +293,7 @@ export function parseAdminLifecycleQuery(
     "updated_to",
     invalidFields,
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, "lifecycle-updated");
 
   return finishParse(invalidFields, {
     ...(orderNumber ? { orderNumber } : {}),
@@ -298,6 +309,19 @@ export function parseAdminLifecycleQuery(
 
 export function parseAdminInventoryQuery(
   source: AdminQuerySource,
+): AdminQueryParseResult<AdminInventoryQuery> {
+  return parseAdminInventoryLikeQuery(source, "inventory-updated");
+}
+
+export function parseAdminPickupDatesQuery(
+  source: AdminQuerySource,
+): AdminQueryParseResult<AdminInventoryQuery> {
+  return parseAdminInventoryLikeQuery(source, "pickup-date");
+}
+
+function parseAdminInventoryLikeQuery(
+  source: AdminQuerySource,
+  cursorKind: "inventory-updated" | "pickup-date",
 ): AdminQueryParseResult<AdminInventoryQuery> {
   const invalidFields: string[] = [];
   const search = parseOptionalText(source, "q");
@@ -326,7 +350,7 @@ export function parseAdminInventoryQuery(
     "changed_to",
     invalidFields,
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, cursorKind);
 
   return finishParse(invalidFields, {
     ...(search ? { search } : {}),
@@ -372,7 +396,7 @@ export function parseAdminWebhooksQuery(
     invalidFields,
     defaultLastDay(options.now),
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, "webhooks-received");
 
   return finishParse(invalidFields, {
     ...(eventId ? { eventId } : {}),
@@ -415,7 +439,7 @@ export function parseAdminPaymentDiagnosticsQuery(
     "updated_to",
     invalidFields,
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, "payment-updated");
 
   return finishParse(invalidFields, {
     ...(lookup ? { lookup } : {}),
@@ -449,7 +473,7 @@ export function parseAdminRuntimeLogsQuery(
     invalidFields,
     defaultLastDay(options.now),
   );
-  const common = parseCommonQuery(source, invalidFields);
+  const common = parseCommonQuery(source, invalidFields, "runtime-timestamp");
 
   return finishParse(invalidFields, {
     ...(lookup ? { lookup } : {}),
@@ -464,21 +488,44 @@ export function parseAdminRuntimeLogsQuery(
 
 export function encodeAdminCursor(cursor: AdminCursorValue): string {
   return Buffer.from(
-    JSON.stringify({ version: 1, value: cursor.value, id: cursor.id }),
+    JSON.stringify({
+      version: 1,
+      kind: cursor.kind,
+      value: cursor.value,
+      id: cursor.id,
+    }),
     "utf8",
   ).toString("base64url");
 }
 
-export function decodeAdminCursor(value: string): AdminCursorValue | null {
+export function decodeAdminCursor(
+  value: string,
+  expectedKind?: AdminCursorKind,
+): AdminCursorValue | null {
+  if (
+    value.length === 0 ||
+    value.length > 1024 ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    return null;
+  }
+
   try {
-    const parsed = JSON.parse(
-      Buffer.from(value, "base64url").toString("utf8"),
-    ) as Record<string, unknown>;
+    const decoded = Buffer.from(value, "base64url");
+    if (decoded.toString("base64url") !== value) {
+      return null;
+    }
+    const parsed = JSON.parse(decoded.toString("utf8")) as Record<
+      string,
+      unknown
+    >;
 
     if (
       parsed.version !== 1 ||
+      !isAdminCursorKind(parsed.kind) ||
+      (expectedKind && parsed.kind !== expectedKind) ||
       typeof parsed.value !== "string" ||
-      !isValidCursorSortValue(parsed.value) ||
+      !isValidCursorSortValue(parsed.kind, parsed.value) ||
       typeof parsed.id !== "string" ||
       !/^[A-Za-z0-9._:-]+$/.test(parsed.id)
     ) {
@@ -486,6 +533,7 @@ export function decodeAdminCursor(value: string): AdminCursorValue | null {
     }
 
     return {
+      kind: parsed.kind,
       value: parsed.value,
       id: parsed.id,
     };
@@ -494,9 +542,29 @@ export function decodeAdminCursor(value: string): AdminCursorValue | null {
   }
 }
 
-function isValidCursorSortValue(value: string): boolean {
-  if (parseIsoTimestamp(value)) {
-    return true;
+function isAdminCursorKind(value: unknown): value is AdminCursorKind {
+  return (
+    value === "orders-created" ||
+    value === "lifecycle-updated" ||
+    value === "inventory-updated" ||
+    value === "pickup-date" ||
+    value === "webhooks-received" ||
+    value === "payment-updated" ||
+    value === "runtime-timestamp"
+  );
+}
+
+function isValidCursorSortValue(kind: AdminCursorKind, value: string): boolean {
+  if (kind === "inventory-updated") {
+    const match = value.match(/^offset:(\d+)$/);
+    const offset = match ? Number(match[1]) : Number.NaN;
+    return (
+      Number.isSafeInteger(offset) && offset <= maximumInventoryCursorOffset
+    );
+  }
+
+  if (kind !== "pickup-date") {
+    return Boolean(parseIsoTimestamp(value));
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -513,6 +581,7 @@ function isValidCursorSortValue(value: string): boolean {
 function parseCommonQuery(
   source: AdminQuerySource,
   invalidFields: string[],
+  cursorKind: AdminCursorKind,
 ): ParsedCommonQuery {
   const timezoneValue = firstQueryString(source.timezone);
   const timezone = timezoneValue || "UTC";
@@ -521,7 +590,7 @@ function parseCommonQuery(
   }
 
   const cursor = firstQueryString(source.cursor);
-  if (cursor && !decodeAdminCursor(cursor)) {
+  if (cursor && !decodeAdminCursor(cursor, cursorKind)) {
     invalidFields.push("cursor");
   }
 

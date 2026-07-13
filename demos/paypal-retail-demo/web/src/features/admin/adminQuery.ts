@@ -44,7 +44,8 @@ const parametersBySection: Readonly<Record<AdminSection, readonly string[]>> = {
     "changed_from",
     "changed_to",
     "timezone",
-    "cursor",
+    "stock_cursor",
+    "pickup_cursor",
     "limit",
   ],
   webhooks: [
@@ -72,10 +73,31 @@ const parametersBySection: Readonly<Record<AdminSection, readonly string[]>> = {
     "logged_from",
     "logged_to",
     "timezone",
-    "cursor",
+    "payment_cursor",
+    "runtime_cursor",
     "limit",
   ],
 };
+
+const inventoryStockParameters = new Set([
+  "q",
+  "scope",
+  "store_id",
+  "stock_condition",
+  "changed_from",
+  "changed_to",
+  "timezone",
+  "limit",
+]);
+
+const inventoryPickupParameters = new Set([
+  "store_id",
+  "availability",
+  "changed_from",
+  "changed_to",
+  "timezone",
+  "limit",
+]);
 
 const diagnosticsPaymentParameters = new Set([
   "lookup",
@@ -85,7 +107,7 @@ const diagnosticsPaymentParameters = new Set([
   "updated_from",
   "updated_to",
   "timezone",
-  "cursor",
+  "payment_cursor",
   "limit",
 ]);
 
@@ -97,7 +119,7 @@ const diagnosticsRuntimeParameters = new Set([
   "logged_from",
   "logged_to",
   "timezone",
-  "cursor",
+  "runtime_cursor",
   "limit",
 ]);
 
@@ -110,23 +132,52 @@ export function buildAdminQuery(
     new URLSearchParams(location.search).entries(),
   ).filter(([key]) => allowedParameters.has(key));
   const activeParameters = requestParameters.filter(
-    ([key]) => key !== "cursor" && key !== "limit",
+    ([key]) => !key.endsWith("_cursor") && key !== "cursor" && key !== "limit",
   );
   const clearPath = `/admin/${section}`;
+
+  if (section === "inventory") {
+    return {
+      requestPaths: [
+        buildRequestPath(
+          "/api/admin/inventory",
+          resourceParameters(
+            requestParameters,
+            inventoryStockParameters,
+            "stock_cursor",
+          ),
+        ),
+        buildRequestPath(
+          "/api/admin/pickup-dates",
+          resourceParameters(
+            requestParameters,
+            inventoryPickupParameters,
+            "pickup_cursor",
+          ),
+        ),
+      ],
+      clearPath,
+      activeParameters,
+    };
+  }
 
   if (section === "diagnostics") {
     return {
       requestPaths: [
         buildRequestPath(
           "/api/admin/payment-debug",
-          requestParameters.filter(([key]) =>
-            diagnosticsPaymentParameters.has(key),
+          resourceParameters(
+            requestParameters,
+            diagnosticsPaymentParameters,
+            "payment_cursor",
           ),
         ),
         buildRequestPath(
           "/api/admin/debug-logs",
-          requestParameters.filter(([key]) =>
-            diagnosticsRuntimeParameters.has(key),
+          resourceParameters(
+            requestParameters,
+            diagnosticsRuntimeParameters,
+            "runtime_cursor",
           ),
         ),
       ],
@@ -136,11 +187,13 @@ export function buildAdminQuery(
   }
 
   const basePaths: Readonly<
-    Record<Exclude<AdminSection, "diagnostics">, readonly string[]>
+    Record<
+      Exclude<AdminSection, "diagnostics" | "inventory">,
+      readonly string[]
+    >
   > = {
     orders: ["/api/admin/orders"],
     lifecycle: ["/api/admin/lifecycle"],
-    inventory: ["/api/admin/inventory", "/api/admin/pickup-dates"],
     webhooks: ["/api/admin/webhooks"],
   };
 
@@ -151,6 +204,19 @@ export function buildAdminQuery(
     clearPath,
     activeParameters,
   };
+}
+
+function resourceParameters(
+  parameters: readonly (readonly [string, string])[],
+  allowed: ReadonlySet<string>,
+  cursorParameter: string,
+): readonly (readonly [string, string])[] {
+  return parameters.flatMap(([key, value]) => {
+    if (key === cursorParameter) {
+      return [["cursor", value] as const];
+    }
+    return allowed.has(key) ? [[key, value] as const] : [];
+  });
 }
 
 function buildRequestPath(
