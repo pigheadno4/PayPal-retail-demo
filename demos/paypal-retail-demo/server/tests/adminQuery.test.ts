@@ -321,4 +321,25 @@ describe("Admin query parsers", () => {
       },
     });
   });
+
+  it("rejects the PostgREST wildcard alias only for Runtime Logs lookup", () => {
+    expect(parseAdminRuntimeLogsQuery({ lookup: "dbg_*_1" })).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_ADMIN_FILTERS",
+        message: "One or more Admin filters are invalid.",
+        details: {
+          invalid_fields: ["lookup"],
+        },
+      },
+    });
+    expect(parseAdminPaymentDiagnosticsQuery({ lookup: "dbg_*_1" })).toEqual({
+      ok: true,
+      query: {
+        lookup: "dbg_*_1",
+        timezone: "UTC",
+        limit: 25,
+      },
+    });
+  });
 });

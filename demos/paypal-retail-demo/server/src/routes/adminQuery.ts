@@ -457,6 +457,9 @@ export function parseAdminRuntimeLogsQuery(
 ): AdminQueryParseResult<AdminRuntimeLogsQuery> {
   const invalidFields: string[] = [];
   const lookup = parseOptionalText(source, "lookup");
+  if (lookup?.includes("*")) {
+    invalidFields.push("lookup");
+  }
   const level = parseAllowedValue(
     source,
     "level",

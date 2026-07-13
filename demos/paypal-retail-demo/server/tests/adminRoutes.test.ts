@@ -1270,6 +1270,55 @@ describe("admin runtime debug log routes", () => {
     });
   });
 
+  it("rejects the PostgREST wildcard alias before reading runtime logs", async () => {
+    let listCalls = 0;
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        runtimeDebugLogRepository: {
+          async listRuntimeDebugLogs() {
+            listCalls += 1;
+            return {
+              items: [],
+              page_info: {
+                total_count: 0,
+                next_cursor: null,
+                timezone: "UTC",
+              },
+            };
+          },
+        },
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/admin/debug-logs?lookup=*",
+      { headers: { "x-admin-session": createAdminToken() } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_ADMIN_FILTERS",
+        message: "One or more Admin filters are invalid.",
+        details: {
+          invalid_fields: ["lookup"],
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(listCalls).toBe(0);
+  });
+
   it("delegates runtime filters and cursor pagination to the repository", async () => {
     const runtimeQueries: unknown[] = [];
     const cursor = encodeAdminCursor({
