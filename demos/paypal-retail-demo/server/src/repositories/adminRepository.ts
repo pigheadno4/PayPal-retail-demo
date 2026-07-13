@@ -4,9 +4,13 @@ import type {
   SupabaseCatalogClient,
 } from "./catalogRepository.js";
 import type { OrderStatus } from "../../../shared/src/orders.js";
-import type {
-  RuntimeDebugLogEntry,
-  RuntimeDebugLogRepository,
+import {
+  allowlistRuntimeDebugLogEntry,
+  type DebugLogEntry,
+  sanitizeDebugLogContext,
+  type RuntimeDebugLogEntry,
+  type RuntimeDebugLogRepository,
+  type RuntimeDebugLogPersistenceRepository,
 } from "../debug/logger.js";
 import {
   decodeAdminCursor,
@@ -18,6 +22,7 @@ import {
   type AdminLifecycleQuery,
   type AdminOrdersQuery,
   type AdminPaymentDiagnosticsQuery,
+  type AdminRuntimeLogsQuery,
   type AdminWebhooksQuery,
 } from "../routes/adminQuery.js";
 
@@ -437,7 +442,47 @@ export interface AdminPaymentDebugRepository {
 
 export type AdminRuntimeDebugLogEntry = RuntimeDebugLogEntry;
 
-export type AdminRuntimeDebugLogRepository = RuntimeDebugLogRepository;
+export interface AdminRuntimeDebugLogRepository {
+  readonly listRuntimeDebugLogs: (
+    query?: AdminRuntimeLogsQuery,
+  ) => Promise<AdminCursorPage<AdminRuntimeDebugLogEntry>>;
+}
+
+export interface SupabaseAdminRuntimeDebugLogRepository
+  extends
+    AdminRuntimeDebugLogRepository,
+    RuntimeDebugLogPersistenceRepository {}
+
+export function createAdminRuntimeDebugLogRepositoryWithFallback(input: {
+  readonly primary: AdminRuntimeDebugLogRepository;
+  readonly fallback: RuntimeDebugLogRepository;
+}): AdminRuntimeDebugLogRepository {
+  return {
+    async listRuntimeDebugLogs(rawQuery) {
+      const query = rawQuery ?? defaultAdminRuntimeLogsQuery;
+      try {
+        return await input.primary.listRuntimeDebugLogs(query);
+      } catch {
+        return paginateRuntimeDebugLogEntries(
+          await input.fallback.listRuntimeDebugLogs(),
+          query,
+        );
+      }
+    },
+  };
+}
+
+interface AdminRuntimeDebugLogRow {
+  readonly id: string;
+  readonly profile_id: string | null;
+  readonly order_id: string | null;
+  readonly payment_session_id: string | null;
+  readonly level: "info" | "warn" | "error";
+  readonly category: string;
+  readonly message: string;
+  readonly context_json: unknown;
+  readonly created_at: string;
+}
 
 export function createSupabaseAdminProfileMarketRepository(
   supabase: SupabaseCatalogClient,
@@ -1030,6 +1075,96 @@ export function createSupabaseAdminPaymentDebugRepository(
   };
 }
 
+export function createSupabaseAdminRuntimeDebugLogRepository(
+  supabase: SupabaseAdminClient,
+): SupabaseAdminRuntimeDebugLogRepository {
+  return {
+    async listRuntimeDebugLogs(rawQuery) {
+      const query = rawQuery ?? defaultAdminRuntimeLogsQuery;
+      const countQuery = applyRuntimeDebugLogFilters(
+        supabase
+          .from("runtime_debug_logs")
+          .select("id", { count: "exact", head: true }),
+        query,
+      );
+      let dataQuery = applyRuntimeDebugLogFilters(
+        supabase.from("runtime_debug_logs").select(adminRuntimeDebugLogColumns),
+        query,
+      )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+      dataQuery = applyAdminCursor(
+        dataQuery,
+        query.cursor,
+        "runtime-timestamp",
+        "created_at",
+        "id",
+      );
+      const [rowsWithExtra, totalCount] = await Promise.all([
+        queryMany<AdminRuntimeDebugLogRow>(
+          dataQuery.limit(query.limit + 1),
+          "List admin runtime debug logs",
+        ),
+        queryCount(countQuery, "Count admin runtime debug logs"),
+      ]);
+      const allowlistedRowsWithExtra = rowsWithExtra.flatMap((row) => {
+        const entry = allowlistRuntimeDebugLogEntry({
+          timestamp: row.created_at,
+          level: row.level,
+          message: row.message,
+          context: sanitizeDebugLogContext(row.context_json),
+        });
+        return entry ? [{ ...entry, id: row.id }] : [];
+      });
+      const items = allowlistedRowsWithExtra.slice(0, query.limit);
+
+      return {
+        items,
+        page_info: createAdminPageInfo({
+          cursorKind: "runtime-timestamp",
+          rowsWithExtra: allowlistedRowsWithExtra,
+          items,
+          totalCount,
+          timezone: query.timezone,
+          getCursorValue: (entry) => entry.timestamp,
+          getCursorId: (entry) => entry.id,
+        }),
+      };
+    },
+    async insertRuntimeDebugLog(entry) {
+      const allowlistedEntry = allowlistRuntimeDebugLogEntry(entry);
+      if (!allowlistedEntry) {
+        return;
+      }
+      const context = runtimeDebugLogContextObject(allowlistedEntry);
+
+      await queryVoid(
+        supabase.from("runtime_debug_logs").insert({
+          profile_id: readRuntimeDebugContextString(context, "profile_id"),
+          order_id: readRuntimeDebugContextString(context, "order_id"),
+          payment_session_id: readRuntimeDebugContextString(
+            context,
+            "payment_session_id",
+          ),
+          level: allowlistedEntry.level,
+          category:
+            readRuntimeDebugContextString(context, "source") ?? "runtime",
+          message: allowlistedEntry.message,
+          context_json: allowlistedEntry.context,
+          created_at: allowlistedEntry.timestamp,
+        }),
+        "Persist runtime debug log",
+      );
+    },
+    async deleteRuntimeDebugLogsBefore(cutoff) {
+      await queryVoid(
+        supabase.from("runtime_debug_logs").delete().lt("created_at", cutoff),
+        "Delete expired runtime debug logs",
+      );
+    },
+  };
+}
+
 const defaultAdminOrdersQuery: AdminOrdersQuery = {
   limit: 50,
   timezone: "UTC",
@@ -1051,6 +1186,11 @@ const defaultAdminWebhooksQuery: AdminWebhooksQuery = {
 };
 
 const defaultAdminPaymentDiagnosticsQuery: AdminPaymentDiagnosticsQuery = {
+  limit: 75,
+  timezone: "UTC",
+};
+
+const defaultAdminRuntimeLogsQuery: AdminRuntimeLogsQuery = {
   limit: 75,
   timezone: "UTC",
 };
@@ -1399,6 +1539,110 @@ function applyPaymentDebugFilters(
   return nextQuery;
 }
 
+function applyRuntimeDebugLogFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminRuntimeLogsQuery,
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.lookup) {
+    const lookup = postgrestIlikeValue(filters.lookup);
+    nextQuery = nextQuery.or(
+      [
+        `message.ilike.${lookup}`,
+        `context_json->>debug_id.ilike.${lookup}`,
+        `context_json->>order_id.ilike.${lookup}`,
+        `context_json->>order_number.ilike.${lookup}`,
+        `context_json->>payment_session_id.ilike.${lookup}`,
+        `context_json->>paypal_order_id.ilike.${lookup}`,
+        `context_json->>paypal_capture_id.ilike.${lookup}`,
+        `context_json->>event_id.ilike.${lookup}`,
+      ].join(","),
+    );
+  }
+  if (filters.level) {
+    nextQuery = nextQuery.eq("level", filters.level);
+  }
+  if (filters.category) {
+    nextQuery = nextQuery.eq("category", filters.category);
+  }
+  if (filters.event) {
+    nextQuery = nextQuery.eq("context_json->>event", filters.event);
+  }
+  if (filters.loggedFrom) {
+    nextQuery = nextQuery.gte("created_at", filters.loggedFrom);
+  }
+  if (filters.loggedTo) {
+    nextQuery = nextQuery.lte("created_at", filters.loggedTo);
+  }
+
+  return nextQuery;
+}
+
+function paginateRuntimeDebugLogEntries(
+  entries: readonly RuntimeDebugLogEntry[],
+  query: AdminRuntimeLogsQuery,
+): AdminCursorPage<AdminRuntimeDebugLogEntry> {
+  const filtered = entries
+    .flatMap((entry) => {
+      const allowlisted = allowlistRuntimeDebugLogEntry(entry);
+      return allowlisted ? [{ ...allowlisted, id: entry.id }] : [];
+    })
+    .filter((entry) => {
+      const context = runtimeDebugLogContextObject(entry);
+      const source = readRuntimeDebugContextString(context, "source");
+      const event = readRuntimeDebugContextString(context, "event");
+      const lookupText = [entry.message, ...Object.values(context)]
+        .filter(
+          (value): value is string | number | boolean =>
+            typeof value === "string" ||
+            typeof value === "number" ||
+            typeof value === "boolean",
+        )
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        (!query.lookup || lookupText.includes(query.lookup.toLowerCase())) &&
+        (!query.level || entry.level === query.level) &&
+        (!query.category || source === query.category) &&
+        (!query.event || event === query.event) &&
+        (!query.loggedFrom || entry.timestamp >= query.loggedFrom) &&
+        (!query.loggedTo || entry.timestamp <= query.loggedTo)
+      );
+    })
+    .sort((left, right) => {
+      const timeDifference = right.timestamp.localeCompare(left.timestamp);
+      return timeDifference || right.id.localeCompare(left.id);
+    });
+  const decodedCursor = query.cursor
+    ? decodeAdminCursor(query.cursor, "runtime-timestamp")
+    : null;
+  const afterCursor = decodedCursor
+    ? filtered.filter(
+        (entry) =>
+          entry.timestamp < decodedCursor.value ||
+          (entry.timestamp === decodedCursor.value &&
+            entry.id < decodedCursor.id),
+      )
+    : filtered;
+  const rowsWithExtra = afterCursor.slice(0, query.limit + 1);
+  const items = rowsWithExtra.slice(0, query.limit);
+
+  return {
+    items,
+    page_info: createAdminPageInfo({
+      cursorKind: "runtime-timestamp",
+      rowsWithExtra,
+      items,
+      totalCount: filtered.length,
+      timezone: query.timezone,
+      getCursorValue: (entry) => entry.timestamp,
+      getCursorId: (entry) => entry.id,
+    }),
+  };
+}
+
 function postgrestIlikeValue(value: string): string {
   const pattern = `%${value}%`;
   if (!/[",()\\]/.test(pattern)) {
@@ -1657,6 +1901,18 @@ const adminWebhookEventColumns = [
   "processed_at",
 ].join(", ");
 
+const adminRuntimeDebugLogColumns = [
+  "id",
+  "profile_id",
+  "order_id",
+  "payment_session_id",
+  "level",
+  "category",
+  "message",
+  "context_json",
+  "created_at",
+].join(", ");
+
 const adminCentralInventoryColumns = [
   "id",
   "profile_id",
@@ -1826,4 +2082,34 @@ async function queryCount(
     throw new Error(`${description}: ${result.error.message}`);
   }
   return typeof result.count === "number" ? result.count : 0;
+}
+
+async function queryVoid(
+  query: PromiseLike<SupabaseAdminResult<unknown>>,
+  description: string,
+): Promise<void> {
+  const result = await query;
+  if (result.error) {
+    throw new Error(`${description}: ${result.error.message}`);
+  }
+}
+
+function runtimeDebugLogContextObject(
+  entry: DebugLogEntry,
+): Readonly<Record<string, unknown>> {
+  return isRuntimeDebugLogContextObject(entry.context) ? entry.context : {};
+}
+
+function isRuntimeDebugLogContextObject(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readRuntimeDebugContextString(
+  context: Readonly<Record<string, unknown>>,
+  key: string,
+): string | null {
+  const value = context[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

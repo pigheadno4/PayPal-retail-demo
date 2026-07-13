@@ -2,7 +2,10 @@ import { Router, type Request, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
 
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
-import { sanitizeDebugLogContext, type DebugLogJson } from "../debug/logger.js";
+import {
+  allowlistRuntimeDebugLogEntry,
+  type DebugLogJson,
+} from "../debug/logger.js";
 import {
   buyerLifecycleNoteMaxLength,
   parseBuyerSafeLifecycleNote,
@@ -28,8 +31,6 @@ import type {
   AdminWebhookRepository,
 } from "../repositories/adminRepository.js";
 import {
-  decodeAdminCursor,
-  encodeAdminCursor,
   parseAdminInventoryQuery,
   parseAdminLifecycleQuery,
   parseAdminOrdersQuery,
@@ -38,7 +39,6 @@ import {
   parseAdminRuntimeLogsQuery,
   parseAdminWebhooksQuery,
   type AdminPageInfo,
-  type AdminRuntimeLogsQuery,
 } from "./adminQuery.js";
 import type { ActiveStorefrontContextStore } from "../state/storefrontContext.js";
 import type { CatalogRepository, StorefrontContext } from "./catalog.js";
@@ -555,16 +555,19 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
           sendApiError(response, 400, parsedQuery.error);
           return;
         }
-        const debugLogs =
-          await input.runtimeDebugLogRepository?.listRuntimeDebugLogs();
-        const page = paginateAdminRuntimeDebugLogs(
-          debugLogs ?? [],
-          parsedQuery.query,
-        );
+        const page =
+          await input.runtimeDebugLogRepository?.listRuntimeDebugLogs(
+            parsedQuery.query,
+          );
+        const debugLogs = (page?.items ?? []).flatMap((entry) => {
+          const mapped = mapAdminRuntimeDebugLogEntry(entry);
+          return mapped ? [mapped] : [];
+        });
 
         sendApiSuccess(response, {
-          debug_logs: page.items.map(mapAdminRuntimeDebugLogEntry),
-          page_info: page.page_info,
+          debug_logs: debugLogs,
+          page_info:
+            page?.page_info ?? emptyAdminPageInfo(parsedQuery.query.timezone),
         });
       }),
     );
@@ -578,76 +581,6 @@ function emptyAdminPageInfo(timezone: string): AdminPageInfo {
     total_count: 0,
     next_cursor: null,
     timezone,
-  };
-}
-
-function paginateAdminRuntimeDebugLogs(
-  entries: readonly AdminRuntimeDebugLogEntry[],
-  query: AdminRuntimeLogsQuery,
-) {
-  const filtered = entries
-    .filter((entry) => {
-      const mapped = mapAdminRuntimeDebugLogEntry(entry);
-      const lookupText = [
-        mapped.debug_id,
-        mapped.message,
-        mapped.request_path,
-        JSON.stringify(mapped.context),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      const eventName = readDebugContextString(mapped.context, [
-        "event",
-        "event_name",
-        "event_type",
-      ]);
-
-      return (
-        (!query.lookup || lookupText.includes(query.lookup.toLowerCase())) &&
-        (!query.level || entry.level === query.level) &&
-        (!query.category ||
-          mapped.source?.toLowerCase() === query.category.toLowerCase()) &&
-        (!query.event ||
-          eventName?.toLowerCase() === query.event.toLowerCase()) &&
-        (!query.loggedFrom || entry.timestamp >= query.loggedFrom) &&
-        (!query.loggedTo || entry.timestamp <= query.loggedTo)
-      );
-    })
-    .sort((left, right) => {
-      const timeDifference = right.timestamp.localeCompare(left.timestamp);
-      return timeDifference || right.id.localeCompare(left.id);
-    });
-  const totalCount = filtered.length;
-  const decodedCursor = query.cursor
-    ? decodeAdminCursor(query.cursor, "runtime-timestamp")
-    : null;
-  const afterCursor = decodedCursor
-    ? filtered.filter(
-        (entry) =>
-          entry.timestamp < decodedCursor.value ||
-          (entry.timestamp === decodedCursor.value &&
-            entry.id < decodedCursor.id),
-      )
-    : filtered;
-  const rowsWithExtra = afterCursor.slice(0, query.limit + 1);
-  const items = rowsWithExtra.slice(0, query.limit);
-  const lastItem = items.at(-1);
-
-  return {
-    items,
-    page_info: {
-      total_count: totalCount,
-      next_cursor:
-        rowsWithExtra.length > items.length && lastItem
-          ? encodeAdminCursor({
-              kind: "runtime-timestamp",
-              value: lastItem.timestamp,
-              id: lastItem.id,
-            })
-          : null,
-      timezone: query.timezone,
-    },
   };
 }
 
@@ -1081,12 +1014,16 @@ function mapAdminPaymentDebugEntry(entry: AdminPaymentDebugEntry) {
 }
 
 function mapAdminRuntimeDebugLogEntry(entry: AdminRuntimeDebugLogEntry) {
-  const context = sanitizeDebugLogContext(entry.context);
+  const allowlistedEntry = allowlistRuntimeDebugLogEntry(entry);
+  if (!allowlistedEntry) {
+    return null;
+  }
+  const context = allowlistedEntry.context;
 
   return {
-    timestamp: entry.timestamp,
-    level: entry.level,
-    message: entry.message,
+    timestamp: allowlistedEntry.timestamp,
+    level: allowlistedEntry.level,
+    message: allowlistedEntry.message,
     debug_id: readDebugContextString(context, ["debug_id", "debugId"]),
     source: readDebugContextString(context, ["source"]),
     request_path: readDebugContextString(context, [

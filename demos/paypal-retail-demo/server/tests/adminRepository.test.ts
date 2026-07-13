@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { createInMemoryRuntimeDebugLogStore } from "../src/debug/logger.js";
 import {
+  createAdminRuntimeDebugLogRepositoryWithFallback,
   createSupabaseAdminInventoryRepository,
   createSupabaseAdminOrderRepository,
   createSupabaseAdminPaymentDebugRepository,
+  createSupabaseAdminRuntimeDebugLogRepository,
   createSupabaseAdminWebhookRepository,
   type AdminOrderRow,
   type SupabaseAdminClient,
@@ -62,9 +65,9 @@ describe("Supabase Admin repository filtering and pagination", () => {
     expect(client.queries.map((query) => query.table)).toEqual([
       "rpc:transition_admin_order_lifecycle",
     ]);
-    expect(client.rpcQuery("transition_admin_order_lifecycle").operations).toEqual([
-      operation("single"),
-    ]);
+    expect(
+      client.rpcQuery("transition_admin_order_lifecycle").operations,
+    ).toEqual([operation("single")]);
   });
 
   it("maps stale and missing lifecycle RPC outcomes without a second mutation", async () => {
@@ -563,6 +566,215 @@ describe("Supabase Admin repository filtering and pagination", () => {
       ]),
     );
   });
+
+  it("maps allowlisted runtime entries to the existing persistence schema", async () => {
+    const client = new RecordingSupabaseAdminClient({
+      runtime_debug_logs: { rows: [] },
+    });
+    const repository = createSupabaseAdminRuntimeDebugLogRepository(client);
+    const context = {
+      source: "payment_amount_guard",
+      event: "paypal_capture_prepared",
+      debug_id: "dbg_capture_1",
+      profile_id: "profile-uuid-1",
+      order_id: "order-uuid-1",
+      order_number: "DO-20260713-000001",
+      payment_session_id: "payment-session-uuid-1",
+      paypal_order_id: "PAYPAL-ORDER-1",
+      amount_guard_status: "matched",
+      amount_total_minor: 4337,
+    } as const;
+
+    await repository.insertRuntimeDebugLog({
+      timestamp: "2026-07-13T03:00:00.000Z",
+      level: "info",
+      message: "paypal_capture_prepared",
+      context,
+    });
+    await repository.deleteRuntimeDebugLogsBefore("2026-07-06T03:00:00.000Z");
+
+    const runtimeQueries = client.queries.filter(
+      (query) => query.table === "runtime_debug_logs",
+    );
+    expect(runtimeQueries).toHaveLength(2);
+    expect(runtimeQueries[0]?.operations).toEqual([
+      operation("insert", {
+        profile_id: "profile-uuid-1",
+        order_id: "order-uuid-1",
+        payment_session_id: "payment-session-uuid-1",
+        level: "info",
+        category: "payment_amount_guard",
+        message: "paypal_capture_prepared",
+        context_json: context,
+        created_at: "2026-07-13T03:00:00.000Z",
+      }),
+    ]);
+    expect(runtimeQueries[1]?.operations).toEqual([
+      operation("delete"),
+      operation("lt", "created_at", "2026-07-06T03:00:00.000Z"),
+    ]);
+  });
+
+  it("applies runtime lookup, event, date boundaries, and cursor in Supabase", async () => {
+    const client = new RecordingSupabaseAdminClient({
+      runtime_debug_logs: {
+        count: 5,
+        rows: [
+          runtimeDebugLogRow("runtime-log-3", "2026-07-13T02:30:00.000Z"),
+          runtimeDebugLogRow("runtime-log-2", "2026-07-13T02:00:00.000Z"),
+          runtimeDebugLogRow("runtime-log-1", "2026-07-13T01:30:00.000Z"),
+        ],
+      },
+    });
+    const repository = createSupabaseAdminRuntimeDebugLogRepository(client);
+    const cursor = encodeAdminCursor({
+      kind: "runtime-timestamp",
+      value: "2026-07-13T03:00:00.000Z",
+      id: "runtime-log-cursor",
+    });
+
+    const page = await repository.listRuntimeDebugLogs({
+      lookup: "dbg_capture_1",
+      level: "warn",
+      category: "payment_amount_guard",
+      event: "paypal_capture_prepared",
+      loggedFrom: "2026-07-06T03:00:00.000Z",
+      loggedTo: "2026-07-13T03:00:00.000Z",
+      cursor,
+      limit: 2,
+      timezone: "Asia/Shanghai",
+    });
+
+    expect(page.items.map((entry) => entry.id)).toEqual([
+      "runtime-log-3",
+      "runtime-log-2",
+    ]);
+    expect(page.page_info).toEqual({
+      total_count: 5,
+      next_cursor: expect.any(String),
+      timezone: "Asia/Shanghai",
+    });
+    expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
+      kind: "runtime-timestamp",
+      value: "2026-07-13T02:00:00.000Z",
+      id: "runtime-log-2",
+    });
+    expect(client.dataQuery("runtime_debug_logs").operations).toEqual(
+      expect.arrayContaining([
+        operation(
+          "or",
+          "message.ilike.%dbg_capture_1%,context_json->>debug_id.ilike.%dbg_capture_1%,context_json->>order_id.ilike.%dbg_capture_1%,context_json->>order_number.ilike.%dbg_capture_1%,context_json->>payment_session_id.ilike.%dbg_capture_1%,context_json->>paypal_order_id.ilike.%dbg_capture_1%,context_json->>paypal_capture_id.ilike.%dbg_capture_1%,context_json->>event_id.ilike.%dbg_capture_1%",
+        ),
+        operation("eq", "level", "warn"),
+        operation("eq", "category", "payment_amount_guard"),
+        operation("eq", "context_json->>event", "paypal_capture_prepared"),
+        operation("gte", "created_at", "2026-07-06T03:00:00.000Z"),
+        operation("lte", "created_at", "2026-07-13T03:00:00.000Z"),
+        operation(
+          "or",
+          "created_at.lt.2026-07-13T03:00:00.000Z,and(created_at.eq.2026-07-13T03:00:00.000Z,id.lt.runtime-log-cursor)",
+        ),
+        operation("order", "created_at", { ascending: false }),
+        operation("order", "id", { ascending: false }),
+        operation("limit", 3),
+      ]),
+    );
+  });
+
+  it("starts best-effort retention cleanup no more than once per 24 hours", async () => {
+    let now = new Date("2026-07-13T03:00:00.000Z");
+    const cleanupCutoffs: string[] = [];
+    const store = createInMemoryRuntimeDebugLogStore({
+      clock: () => now,
+      downstreamSink: () => undefined,
+      persistenceRepository: {
+        async insertRuntimeDebugLog() {},
+        async deleteRuntimeDebugLogsBefore(cutoff) {
+          cleanupCutoffs.push(cutoff);
+        },
+      },
+    });
+    const logApprovedEvent = () =>
+      store.logger.warn("paypal_capture_amount_mismatch", {
+        debug_id: "dbg_capture_1",
+        mismatch_count: 1,
+        paypal_order_id: "PAYPAL-ORDER-1",
+      });
+
+    logApprovedEvent();
+    logApprovedEvent();
+    await vi.waitFor(() => expect(cleanupCutoffs).toHaveLength(1));
+    expect(cleanupCutoffs).toEqual(["2026-07-06T03:00:00.000Z"]);
+
+    now = new Date("2026-07-14T02:59:59.999Z");
+    logApprovedEvent();
+    await Promise.resolve();
+    expect(cleanupCutoffs).toHaveLength(1);
+
+    now = new Date("2026-07-14T03:00:00.000Z");
+    logApprovedEvent();
+    await vi.waitFor(() => expect(cleanupCutoffs).toHaveLength(2));
+    expect(cleanupCutoffs[1]).toBe("2026-07-07T03:00:00.000Z");
+  });
+
+  it("uses the bounded allowlisted buffer when persistent runtime reads fail", async () => {
+    let fallbackReads = 0;
+    const repository = createAdminRuntimeDebugLogRepositoryWithFallback({
+      primary: {
+        async listRuntimeDebugLogs() {
+          throw new Error("persistent runtime logs unavailable");
+        },
+      },
+      fallback: {
+        async listRuntimeDebugLogs() {
+          fallbackReads += 1;
+          return [
+            {
+              id: "runtime-log-2",
+              timestamp: "2026-07-13T02:00:00.000Z",
+              level: "warn" as const,
+              message: "paypal_capture_prepared",
+              context: {
+                source: "payment_amount_guard",
+                event: "paypal_capture_prepared",
+                debug_id: "dbg_capture_2",
+                amount_guard_status: "mismatch",
+              },
+            },
+            {
+              id: "runtime-log-1",
+              timestamp: "2026-07-13T01:00:00.000Z",
+              level: "info" as const,
+              message: "paypal_capture_prepared",
+              context: {
+                source: "payment_amount_guard",
+                event: "paypal_capture_prepared",
+                debug_id: "dbg_capture_1",
+                amount_guard_status: "matched",
+              },
+            },
+          ];
+        },
+      },
+    });
+
+    const page = await repository.listRuntimeDebugLogs({
+      category: "payment_amount_guard",
+      event: "paypal_capture_prepared",
+      loggedFrom: "2026-07-06T03:00:00.000Z",
+      loggedTo: "2026-07-13T03:00:00.000Z",
+      limit: 1,
+      timezone: "UTC",
+    });
+
+    expect(fallbackReads).toBe(1);
+    expect(page.items.map((entry) => entry.id)).toEqual(["runtime-log-2"]);
+    expect(page.page_info).toEqual({
+      total_count: 2,
+      next_cursor: expect.any(String),
+      timezone: "UTC",
+    });
+  });
 });
 
 interface FakeTableResult {
@@ -817,5 +1029,26 @@ function pickupDateRow(id: string, pickupDate: string) {
     is_available: true,
     created_at: "2026-07-01T00:00:00.000Z",
     updated_at: "2026-07-01T00:00:00.000Z",
+  };
+}
+
+function runtimeDebugLogRow(id: string, createdAt: string) {
+  return {
+    id,
+    profile_id: "profile-uuid-1",
+    order_id: "order-uuid-1",
+    payment_session_id: "payment-session-uuid-1",
+    level: "warn",
+    category: "payment_amount_guard",
+    message: "paypal_capture_prepared",
+    context_json: {
+      source: "payment_amount_guard",
+      event: "paypal_capture_prepared",
+      debug_id: "dbg_capture_1",
+      order_number: "DO-20260713-000001",
+      paypal_order_id: "PAYPAL-ORDER-1",
+      amount_guard_status: "mismatch",
+    },
+    created_at: createdAt,
   };
 }

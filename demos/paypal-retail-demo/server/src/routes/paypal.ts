@@ -302,6 +302,12 @@ export interface PayPalWebhookProcessingRepository {
   ) => Promise<PayPalWebhookProcessingResult>;
 }
 
+type ParsedPayPalWebhookEvent = {
+  readonly id: string;
+  readonly event_type: string;
+  readonly [key: string]: PayPalSnapshotJson;
+};
+
 export interface CreatePayPalRouterInput {
   readonly environment: PayPalEnvironment;
   readonly clientId: string;
@@ -581,6 +587,13 @@ async function handlePayPalWebhookRoute(
     return;
   }
 
+  const webhookLogContext = {
+    debug_id: getResponseDebugId(response),
+    event_id: String(event.id),
+    event_type: String(event.event_type),
+  };
+  logPayPalRouteInfo(input, "paypal_webhook_received", webhookLogContext);
+
   const verification = await input.webhookGateway.verifyWebhookSignature({
     webhookId: input.webhookId,
     transmissionId: headers.transmission_id,
@@ -592,10 +605,27 @@ async function handlePayPalWebhookRoute(
   });
   const verificationStatus =
     verification.verificationStatus === "SUCCESS" ? "valid" : "invalid";
+  const logVerificationOutcome =
+    verificationStatus === "valid" ? logPayPalRouteInfo : logPayPalRouteWarn;
+  logVerificationOutcome(input, "paypal_webhook_verification_outcome", {
+    ...webhookLogContext,
+    verification_status: verificationStatus,
+  });
   const result = await input.webhookRepository.processWebhook({
     verificationStatus,
     headers,
     event,
+  });
+  const logProcessingOutcome =
+    result.processingStatus === "failed"
+      ? logPayPalRouteWarn
+      : logPayPalRouteInfo;
+  logProcessingOutcome(input, "paypal_webhook_processing_outcome", {
+    ...webhookLogContext,
+    linked_order_id: result.linkedOrderId,
+    linked_payment_session_id: result.linkedPaymentSessionId,
+    processing_status: result.processingStatus,
+    verification_status: result.verificationStatus,
   });
 
   if (verificationStatus !== "valid") {
@@ -698,6 +728,19 @@ async function handleCreateOrderRoute(
     });
     stage = "amount_consistency";
     const amountConsistency = checkPayPalCreateOrderAmountConsistency(payload);
+    const logAmountGuardOutcome =
+      amountConsistency.status === "matched"
+        ? logPayPalRouteInfo
+        : logPayPalRouteWarn;
+    logAmountGuardOutcome(input, "paypal_create_order_amount_guard_outcome", {
+      ...routeLogContext,
+      amount_currency_code: merchantSnapshot.currencyCode,
+      amount_guard_status: amountConsistency.status,
+      amount_total_minor: merchantSnapshot.totalMinor,
+      mismatch_count: amountConsistency.mismatches.length,
+      order_number: preparedOrder.orderNumber,
+      payment_session_id: preparedOrder.paymentSessionId,
+    });
 
     if (amountConsistency.status !== "matched") {
       logPayPalRouteWarn(input, "paypal_create_order_amount_mismatch", {
@@ -1060,7 +1103,9 @@ function parsePayPalShippingCallbackAddress(
   };
 }
 
-function parsePayPalWebhookEvent(value: unknown): PayPalSnapshotJson | null {
+function parsePayPalWebhookEvent(
+  value: unknown,
+): ParsedPayPalWebhookEvent | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -1074,7 +1119,7 @@ function parsePayPalWebhookEvent(value: unknown): PayPalSnapshotJson | null {
     return null;
   }
 
-  return value as PayPalSnapshotJson;
+  return value as ParsedPayPalWebhookEvent;
 }
 
 function parsePayPalWebhookHeaders(

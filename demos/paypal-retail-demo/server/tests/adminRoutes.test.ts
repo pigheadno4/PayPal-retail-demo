@@ -19,6 +19,7 @@ import type {
 } from "../src/repositories/adminRepository.js";
 import type { CatalogJson, CatalogRepository } from "../src/routes/catalog.js";
 import type { StorefrontContext } from "../src/routes/catalog.js";
+import { encodeAdminCursor } from "../src/routes/adminQuery.js";
 import { requestApp } from "./helpers/requestApp.js";
 
 describe("admin profile and market routes", () => {
@@ -1269,44 +1270,44 @@ describe("admin runtime debug log routes", () => {
     });
   });
 
-  it("paginates runtime logs without requiring a debug ID", async () => {
-    let runtimeLogReads = 0;
+  it("delegates runtime filters and cursor pagination to the repository", async () => {
+    const runtimeQueries: unknown[] = [];
+    const cursor = encodeAdminCursor({
+      kind: "runtime-timestamp",
+      value: "2026-07-12T12:00:00.000Z",
+      id: "runtime_log_3",
+    });
     const app = createApp({
       catalogRepository: createCatalogRepository(),
       admin: {
         adminPasscode: "local-admin-passcode",
         profileMarketRepository: createProfileMarketRepository(),
         runtimeDebugLogRepository: {
-          async listRuntimeDebugLogs() {
-            runtimeLogReads += 1;
-            const existingLogs = [
-              {
-                id: "runtime_log_2",
-                timestamp: "2026-07-12T11:00:00.000Z",
-                level: "error",
-                message: "Repeated runtime failure",
-                context: { source: "paypal", sequence: "first" },
-              },
-              {
-                id: "runtime_log_1",
-                timestamp: "2026-07-12T11:00:00.000Z",
-                level: "error",
-                message: "Repeated runtime failure",
-                context: { source: "paypal", sequence: "second" },
-              },
-            ];
-            return runtimeLogReads === 1
-              ? existingLogs
-              : [
-                  {
-                    id: "runtime_log_3",
-                    timestamp: "2026-07-12T12:00:00.000Z",
-                    level: "warn" as const,
-                    message: "Newer runtime warning",
-                    context: { source: "paypal", sequence: "new" },
+          async listRuntimeDebugLogs(query) {
+            runtimeQueries.push(query);
+            return {
+              items: [
+                {
+                  id: "runtime_log_2",
+                  timestamp: "2026-07-12T11:00:00.000Z",
+                  level: "warn",
+                  message: "paypal_capture_prepared",
+                  context: {
+                    source: "payment_amount_guard",
+                    event: "paypal_capture_prepared",
+                    debug_id: "dbg_capture_1",
+                    payment_session_id: "payment-session-1",
+                    paypal_order_id: "PAYPAL-ORDER-1",
+                    amount_guard_status: "mismatch",
                   },
-                  ...existingLogs,
-                ];
+                },
+              ],
+              page_info: {
+                total_count: 2,
+                next_cursor: "cursor-from-repository",
+                timezone: query?.timezone ?? "UTC",
+              },
+            };
           },
         },
         activeStorefrontContextStore: createActiveStorefrontContextStore({
@@ -1315,39 +1316,38 @@ describe("admin runtime debug log routes", () => {
         }),
       },
     });
-    const basePath =
-      "/api/admin/debug-logs?logged_from=2026-07-12T00%3A00%3A00.000Z&logged_to=2026-07-13T00%3A00%3A00.000Z&limit=1";
-
-    const firstPage = await requestApp(app, "GET", basePath, {
-      headers: { "x-admin-session": createAdminToken() },
-    });
-    const cursor = firstPage.json.data.page_info.next_cursor;
-    const secondPage = await requestApp(
+    const response = await requestApp(
       app,
       "GET",
-      `${basePath}&cursor=${encodeURIComponent(cursor)}`,
+      `/api/admin/debug-logs?lookup=PAYPAL-ORDER-1&level=warn&category=payment_amount_guard&event=paypal_capture_prepared&logged_from=2026-07-12T00%3A00%3A00.000Z&logged_to=2026-07-13T00%3A00%3A00.000Z&timezone=Asia%2FShanghai&cursor=${encodeURIComponent(cursor)}&limit=1`,
       { headers: { "x-admin-session": createAdminToken() } },
     );
 
-    expect(firstPage.status).toBe(200);
-    expect(firstPage.json.data.debug_logs).toEqual([
+    expect(response.status).toBe(200);
+    expect(runtimeQueries).toEqual([
+      {
+        lookup: "PAYPAL-ORDER-1",
+        level: "warn",
+        category: "payment_amount_guard",
+        event: "paypal_capture_prepared",
+        loggedFrom: "2026-07-12T00:00:00.000Z",
+        loggedTo: "2026-07-13T00:00:00.000Z",
+        timezone: "Asia/Shanghai",
+        cursor,
+        limit: 1,
+      },
+    ]);
+    expect(response.json.data.debug_logs).toEqual([
       expect.objectContaining({
-        message: "Repeated runtime failure",
-        context: expect.objectContaining({ sequence: "first" }),
+        message: "paypal_capture_prepared",
+        debug_id: "dbg_capture_1",
       }),
     ]);
-    expect(firstPage.json.data.page_info).toEqual({
+    expect(response.json.data.page_info).toEqual({
       total_count: 2,
-      next_cursor: expect.any(String),
-      timezone: "UTC",
+      next_cursor: "cursor-from-repository",
+      timezone: "Asia/Shanghai",
     });
-    expect(secondPage.status).toBe(200);
-    expect(secondPage.json.data.debug_logs).toEqual([
-      expect.objectContaining({
-        message: "Repeated runtime failure",
-        context: expect.objectContaining({ sequence: "second" }),
-      }),
-    ]);
   });
 
   it("lists sanitized runtime debug logs without exposing secret values", async () => {
@@ -1382,20 +1382,22 @@ describe("admin runtime debug log routes", () => {
         debug_logs: [
           {
             timestamp: "2026-06-24T10:30:00.000Z",
-            level: "error",
-            message: "PayPal create order failed",
+            level: "warn",
+            message: "paypal_capture_prepared",
             debug_id: "dbg_runtime_1",
-            source: "paypal",
-            request_path: "/api/paypal/orders/delivery",
+            source: "payment_amount_guard",
+            request_path: "/api/paypal/orders/PAYPAL-ORDER-1/capture",
             context: {
+              source: "payment_amount_guard",
+              event: "paypal_capture_prepared",
               debug_id: "dbg_runtime_1",
-              source: "paypal",
-              path: "/api/paypal/orders/delivery",
+              path: "/api/paypal/orders/PAYPAL-ORDER-1/capture",
+              order_number: "DO-20260713-000001",
               payment_session_id: "payment_session_1",
-              access_token: "[redacted]",
-              nested: {
-                client_secret: "[redacted]",
-              },
+              paypal_order_id: "PAYPAL-ORDER-1",
+              action: "continue",
+              amount_guard_status: "matched",
+              amount_total_minor: 4337,
             },
           },
         ],
@@ -2016,25 +2018,42 @@ function createAdminPaymentDebugRepository(): AdminPaymentDebugRepository {
 
 function createAdminRuntimeDebugLogRepository(): AdminRuntimeDebugLogRepository {
   return {
-    async listRuntimeDebugLogs() {
-      return [
-        {
-          id: "runtime_log_1",
-          timestamp: "2026-06-24T10:30:00.000Z",
-          level: "error",
-          message: "PayPal create order failed",
-          context: {
-            debug_id: "dbg_runtime_1",
-            source: "paypal",
-            path: "/api/paypal/orders/delivery",
-            payment_session_id: "payment_session_1",
-            access_token: "secret-access-token",
-            nested: {
-              client_secret: "paypal-client-secret",
+    async listRuntimeDebugLogs(query) {
+      return {
+        items: [
+          {
+            id: "runtime_log_1",
+            timestamp: "2026-06-24T10:30:00.000Z",
+            level: "warn",
+            message: "paypal_capture_prepared",
+            context: {
+              source: "payment_amount_guard",
+              event: "paypal_capture_prepared",
+              debug_id: "dbg_runtime_1",
+              path: "/api/paypal/orders/PAYPAL-ORDER-1/capture",
+              order_number: "DO-20260713-000001",
+              payment_session_id: "payment_session_1",
+              paypal_order_id: "PAYPAL-ORDER-1",
+              action: "continue",
+              amount_guard_status: "matched",
+              amount_total_minor: 4337,
+              access_token: "secret-access-token",
+              buyer_email: "buyer@example.test",
+              shipping_address: {
+                address_line1: "1 Buyer Street",
+              },
+              nested: {
+                client_secret: "paypal-client-secret",
+              },
             },
           },
+        ],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
         },
-      ];
+      };
     },
   };
 }

@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import {
-  createDebugLogger,
-  type DebugLogEntry,
-} from "../src/debug/logger.js";
+import { createDebugLogger, type DebugLogEntry } from "../src/debug/logger.js";
 import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
   PayPalClientTokenGateway,
@@ -428,6 +425,19 @@ describe("PayPal routes", () => {
           }),
         }),
         expect.objectContaining({
+          message: "paypal_create_order_amount_guard_outcome",
+          context: expect.objectContaining({
+            amount_currency_code: "USD",
+            amount_guard_status: "matched",
+            amount_total_minor: 2999,
+            debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+            kind: "express_delivery",
+            mismatch_count: 0,
+            order_number: "DO-20260601-000002",
+            payment_session_id: "payment_session_express",
+          }),
+        }),
+        expect.objectContaining({
           message: "paypal_create_order_gateway_created",
           context: expect.objectContaining({
             debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
@@ -810,6 +820,7 @@ describe("PayPal routes", () => {
   });
 
   it("processes valid PayPal vault webhooks and returns a standard success envelope", async () => {
+    const entries: DebugLogEntry[] = [];
     const gateway = createPayPalGateway({
       webhookVerificationStatus: "SUCCESS",
     });
@@ -824,7 +835,14 @@ describe("PayPal routes", () => {
         savedPaymentMethodId: "saved_payment_123",
       },
     });
-    const app = createPayPalApp(gateway, undefined, webhookRepository);
+    const app = createPayPalApp(
+      gateway,
+      undefined,
+      webhookRepository,
+      createDebugLogger({
+        sink: (entry) => entries.push(entry),
+      }),
+    );
 
     const response = await requestApp(app, "POST", "/api/paypal/webhooks", {
       headers: paypalWebhookHeaders(),
@@ -845,6 +863,49 @@ describe("PayPal routes", () => {
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
+    expect(
+      entries
+        .filter((entry) => entry.message.startsWith("paypal_webhook_"))
+        .map((entry) => entry.message),
+    ).toEqual([
+      "paypal_webhook_received",
+      "paypal_webhook_verification_outcome",
+      "paypal_webhook_processing_outcome",
+    ]);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "paypal_webhook_received",
+          context: expect.objectContaining({
+            debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+            event_id: "WH-VAULT-CREATED",
+            event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+          }),
+        }),
+        expect.objectContaining({
+          message: "paypal_webhook_verification_outcome",
+          context: expect.objectContaining({
+            event_id: "WH-VAULT-CREATED",
+            event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+            verification_status: "valid",
+          }),
+        }),
+        expect.objectContaining({
+          message: "paypal_webhook_processing_outcome",
+          context: expect.objectContaining({
+            event_id: "WH-VAULT-CREATED",
+            event_type: "VAULT.PAYMENT-TOKEN.CREATED",
+            linked_order_id: "order_existing",
+            linked_payment_session_id: "payment_session_existing",
+            processing_status: "processed",
+            verification_status: "valid",
+          }),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(entries)).not.toContain("vault_card_123");
+    expect(JSON.stringify(entries)).not.toContain("paypal_customer_123");
+    expect(JSON.stringify(entries)).not.toContain("signature-123");
   });
 });
 

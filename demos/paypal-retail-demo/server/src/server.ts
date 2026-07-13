@@ -13,10 +13,12 @@ import {
   type SupabaseAccountClient,
 } from "./repositories/accountRepository.js";
 import {
+  createAdminRuntimeDebugLogRepositoryWithFallback,
   createSupabaseAdminInventoryRepository,
   createSupabaseAdminOrderRepository,
   createSupabaseAdminPaymentDebugRepository,
   createSupabaseAdminProfileMarketRepository,
+  createSupabaseAdminRuntimeDebugLogRepository,
   createSupabaseAdminWebhookRepository,
   type SupabaseAdminClient,
 } from "./repositories/adminRepository.js";
@@ -64,7 +66,17 @@ type SupabaseRuntimeClient = SupabaseCatalogClient &
 
 export function startServer(env: RawServerEnv = process.env) {
   const config = parseServerEnv(env);
-  const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore();
+  const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
+  const persistentRuntimeDebugLogRepository =
+    createSupabaseAdminRuntimeDebugLogRepository(supabase);
+  const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore({
+    persistenceRepository: persistentRuntimeDebugLogRepository,
+  });
+  const runtimeDebugLogRepository =
+    createAdminRuntimeDebugLogRepositoryWithFallback({
+      primary: persistentRuntimeDebugLogRepository,
+      fallback: runtimeDebugLogStore,
+    });
   runtimeDebugLogStore.logger.info("server_starting", {
     app_base_url: config.appBaseUrl,
     environment: config.paypalEnvironment,
@@ -77,7 +89,6 @@ export function startServer(env: RawServerEnv = process.env) {
     static_asset_directory: resolve(process.cwd(), "web/dist"),
     supabase_service_configured: Boolean(config.supabaseServiceRoleKey),
   });
-  const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
   const activeStorefrontContextStore =
     createInMemoryActiveStorefrontContextStore();
   const catalogRepository = createSupabaseCatalogRepository({
@@ -124,7 +135,7 @@ export function startServer(env: RawServerEnv = process.env) {
       inventoryRepository: createSupabaseAdminInventoryRepository(supabase),
       webhookRepository: createSupabaseAdminWebhookRepository(supabase),
       debugRepository: createSupabaseAdminPaymentDebugRepository(supabase),
-      runtimeDebugLogRepository: runtimeDebugLogStore,
+      runtimeDebugLogRepository,
       activeStorefrontContextStore,
     },
     cart: {

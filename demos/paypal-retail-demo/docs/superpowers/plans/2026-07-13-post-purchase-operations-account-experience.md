@@ -319,13 +319,13 @@ export interface RuntimeDebugLogPersistenceRepository {
 }
 ```
 
-- [ ] **Step 1:** Write failing logger tests for recursive redaction, event-specific allowlists, async sink rejection, non-recursion, and unchanged business-call resolution.
-- [ ] **Step 2:** Write failing repository tests for insert mapping, query boundaries, and cleanup no more than once per 24 hours.
-- [ ] **Step 3:** Add a fire-and-forget downstream sink that receives only already-sanitized entries and swallows persistence errors without logging them through itself.
-- [ ] **Step 4:** Add the 7-day cleanup throttle and preserve the in-memory limit plus JSON console sink.
-- [ ] **Step 5:** Add only the approved correlated events for lifecycle, inventory/capacity, webhook outcomes, Account load failure, and payment amount-guard outcomes.
-- [ ] **Step 6:** Run `npm test -- server/tests/debugLogger.test.ts server/tests/adminRepository.test.ts server/tests/adminRoutes.test.ts` and `npm run typecheck`.
-- [ ] **Step 7:** Commit with `git commit -m "feat: persist sanitized runtime diagnostics"`.
+- [x] **Step 1:** Write failing logger tests for recursive redaction, event-specific allowlists, async sink rejection, non-recursion, and unchanged business-call resolution.
+- [x] **Step 2:** Write failing repository tests for insert mapping, query boundaries, and cleanup no more than once per 24 hours.
+- [x] **Step 3:** Add a fire-and-forget downstream sink that receives only already-sanitized entries and swallows persistence errors without logging them through itself.
+- [x] **Step 4:** Add the 7-day cleanup throttle and preserve the in-memory limit plus JSON console sink.
+- [x] **Step 5:** Add only the approved correlated events for lifecycle, inventory/capacity, webhook outcomes, Account load failure, and payment amount-guard outcomes.
+- [x] **Step 6:** Run `npm test -- server/tests/debugLogger.test.ts server/tests/adminRepository.test.ts server/tests/adminRoutes.test.ts` and `npm run typecheck`.
+- [x] **Step 7:** Commit with `git commit -m "feat: persist sanitized runtime diagnostics"`.
 
 ---
 
