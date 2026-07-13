@@ -69,13 +69,18 @@ export function startServer(env: RawServerEnv = process.env) {
   const supabase = createSupabaseServerClient<SupabaseRuntimeClient>(config);
   const persistentRuntimeDebugLogRepository =
     createSupabaseAdminRuntimeDebugLogRepository(supabase);
+  let runtimeDebugLogPersistenceDegraded = false;
   const runtimeDebugLogStore = createInMemoryRuntimeDebugLogStore({
+    onPersistenceInsertFailure() {
+      runtimeDebugLogPersistenceDegraded = true;
+    },
     persistenceRepository: persistentRuntimeDebugLogRepository,
   });
   const runtimeDebugLogRepository =
     createAdminRuntimeDebugLogRepositoryWithFallback({
       primary: persistentRuntimeDebugLogRepository,
       fallback: runtimeDebugLogStore,
+      isPersistentReadDegraded: () => runtimeDebugLogPersistenceDegraded,
     });
   runtimeDebugLogStore.logger.info("server_starting", {
     app_base_url: config.appBaseUrl,

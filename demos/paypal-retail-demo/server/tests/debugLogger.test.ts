@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  allowlistRuntimeDebugLogEntry,
   createDebugLogger,
   createInMemoryRuntimeDebugLogStore,
 } from "../src/debug/logger.js";
@@ -83,6 +84,47 @@ describe("sanitized debug logger", () => {
     expect(JSON.stringify(entries)).not.toContain("4111111111111111");
     expect(JSON.stringify(entries)).not.toContain("browser-client-token");
     expect(JSON.stringify(entries)).not.toContain("cart-secret-value");
+  });
+
+  it("redacts camelCase secrets and removes query values from console paths", () => {
+    const entries: unknown[] = [];
+    const logger = createDebugLogger({
+      clock: () => new Date("2026-07-13T03:00:00.000Z"),
+      sink: (entry) => entries.push(entry),
+    });
+
+    logger.info("api_request_completed", {
+      OAuthToken: "oauth-camel-secret",
+      paypalClientSecret: "paypal-camel-secret",
+      path: "/api/admin/orders?admin_session=console-secret",
+      requestPath: "/api/account/orders?buyer_email=buyer@example.test",
+      route: "/api/paypal/webhooks?signature=webhook-secret",
+      nested: {
+        cartClientSecret: "cart-camel-secret",
+      },
+    });
+
+    expect(entries).toEqual([
+      {
+        timestamp: "2026-07-13T03:00:00.000Z",
+        level: "info",
+        message: "api_request_completed",
+        context: {
+          OAuthToken: "[redacted]",
+          paypalClientSecret: "[redacted]",
+          path: "/api/admin/orders",
+          requestPath: "/api/account/orders",
+          route: "/api/paypal/webhooks",
+          nested: {
+            cartClientSecret: "[redacted]",
+          },
+        },
+      },
+    ]);
+    expect(JSON.stringify(entries)).not.toContain("oauth-camel-secret");
+    expect(JSON.stringify(entries)).not.toContain("console-secret");
+    expect(JSON.stringify(entries)).not.toContain("buyer@example.test");
+    expect(JSON.stringify(entries)).not.toContain("webhook-secret");
   });
 
   it("persists only event-allowlisted context after recursive redaction", async () => {
@@ -172,6 +214,61 @@ describe("sanitized debug logger", () => {
     );
     expect(JSON.stringify(persistedEntries)).not.toContain("oauth-secret");
     expect(JSON.stringify(persistedEntries)).not.toContain("paypal-secret");
+  });
+
+  it("drops non-scalar and overlong values from allowlisted persistence fields", async () => {
+    const persistedEntries: unknown[] = [];
+    const store = createInMemoryRuntimeDebugLogStore({
+      downstreamSink: () => undefined,
+      persistenceRepository: {
+        async insertRuntimeDebugLog(entry) {
+          persistedEntries.push(entry);
+        },
+        async deleteRuntimeDebugLogsBefore() {},
+      },
+    });
+
+    store.logger.warn("paypal_capture_prepared", {
+      amount_guard_status: "matched",
+      amount_total_minor: 4337,
+      debug_id: {
+        buyer_email: "buyer@example.test",
+        OAuthToken: "nested-oauth-secret",
+      },
+      order_id: ["order-uuid-1", { buyer_phone: "+1-555-0100" }],
+      order_number: "D".repeat(2_000),
+      path: {
+        access_token: "nested-access-secret",
+        buyer_address: "1 Buyer Street",
+      },
+      paypal_order_id: "PAYPAL-ORDER-1",
+      payment_session_id: "payment-session-1",
+      status_code: { authorization: "Bearer nested-secret" },
+    });
+
+    await vi.waitFor(() => expect(persistedEntries).toHaveLength(1));
+    expect(persistedEntries).toEqual([
+      {
+        timestamp: expect.any(String),
+        level: "warn",
+        message: "paypal_capture_prepared",
+        context: {
+          source: "payment_amount_guard",
+          event: "paypal_capture_prepared",
+          payment_session_id: "payment-session-1",
+          paypal_order_id: "PAYPAL-ORDER-1",
+          amount_guard_status: "matched",
+          amount_total_minor: 4337,
+        },
+      },
+    ]);
+    expect(JSON.stringify(persistedEntries)).not.toContain(
+      "buyer@example.test",
+    );
+    expect(JSON.stringify(persistedEntries)).not.toContain(
+      "nested-oauth-secret",
+    );
+    expect(JSON.stringify(persistedEntries)).not.toContain("1 Buyer Street");
   });
 
   it("classifies approved API outcomes with route-specific context allowlists", async () => {
@@ -307,6 +404,56 @@ describe("sanitized debug logger", () => {
     );
   });
 
+  it("does not persist the unreachable paypal_webhook_failed event", async () => {
+    const persistedEntries: unknown[] = [];
+    const store = createInMemoryRuntimeDebugLogStore({
+      downstreamSink: () => undefined,
+      persistenceRepository: {
+        async insertRuntimeDebugLog(entry) {
+          persistedEntries.push(entry);
+        },
+        async deleteRuntimeDebugLogsBefore() {},
+      },
+    });
+
+    store.logger.error("paypal_webhook_failed", {
+      debug_id: "dbg_dead_webhook_event",
+      error_name: "WebhookError",
+      event_id: "WH-DEAD-EVENT",
+      processing_status: "failed",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(persistedEntries).toEqual([]);
+    await expect(store.listRuntimeDebugLogs()).resolves.toEqual([]);
+  });
+
+  it("re-accepts only canonical approved generic persistence shapes", () => {
+    const entry = {
+      timestamp: "2026-07-13T03:00:00.000Z",
+      level: "info" as const,
+      message: "api_request_completed",
+      context: {
+        source: "inventory",
+        event: "inventory_request_completed",
+        debug_id: "dbg_legacy_inventory",
+        status_code: 200,
+      },
+    };
+
+    expect(allowlistRuntimeDebugLogEntry(entry)).toEqual(entry);
+    expect(
+      allowlistRuntimeDebugLogEntry({
+        ...entry,
+        context: {
+          ...entry.context,
+          source: "webhook",
+        },
+      }),
+    ).toBeNull();
+  });
+
   it("swallows asynchronous persistence failures without recursive logging", async () => {
     const consoleEntries: unknown[] = [];
     const store = createInMemoryRuntimeDebugLogStore({
@@ -338,6 +485,24 @@ describe("sanitized debug logger", () => {
     expect(JSON.stringify(consoleEntries)).not.toContain("insert failed");
     expect(JSON.stringify(consoleEntries)).not.toContain("cleanup failed");
     expect(JSON.stringify(consoleEntries)).not.toContain("service-role-secret");
+  });
+
+  it("starts retention cleanup on a quiet store without an approved event", async () => {
+    const cleanupCutoffs: string[] = [];
+
+    createInMemoryRuntimeDebugLogStore({
+      clock: () => new Date("2026-07-13T03:00:00.000Z"),
+      downstreamSink: () => undefined,
+      persistenceRepository: {
+        async insertRuntimeDebugLog() {},
+        async deleteRuntimeDebugLogsBefore(cutoff) {
+          cleanupCutoffs.push(cutoff);
+        },
+      },
+    });
+
+    await vi.waitFor(() => expect(cleanupCutoffs).toHaveLength(1));
+    expect(cleanupCutoffs).toEqual(["2026-07-06T03:00:00.000Z"]);
   });
 
   it("does not wait for persistence before resolving the business call", async () => {

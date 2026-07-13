@@ -7,6 +7,8 @@ import type { OrderStatus } from "../../../shared/src/orders.js";
 import {
   allowlistRuntimeDebugLogEntry,
   type DebugLogEntry,
+  runtimeDebugLogApprovedShapes,
+  runtimeDebugLogLookupContextKeys,
   sanitizeDebugLogContext,
   type RuntimeDebugLogEntry,
   type RuntimeDebugLogRepository,
@@ -456,17 +458,24 @@ export interface SupabaseAdminRuntimeDebugLogRepository
 export function createAdminRuntimeDebugLogRepositoryWithFallback(input: {
   readonly primary: AdminRuntimeDebugLogRepository;
   readonly fallback: RuntimeDebugLogRepository;
+  readonly isPersistentReadDegraded?: () => boolean;
 }): AdminRuntimeDebugLogRepository {
+  const listFallback = async (query: AdminRuntimeLogsQuery) =>
+    paginateRuntimeDebugLogEntries(
+      await input.fallback.listRuntimeDebugLogs(),
+      query,
+    );
+
   return {
     async listRuntimeDebugLogs(rawQuery) {
       const query = rawQuery ?? defaultAdminRuntimeLogsQuery;
+      if (input.isPersistentReadDegraded?.()) {
+        return listFallback(query);
+      }
       try {
         return await input.primary.listRuntimeDebugLogs(query);
       } catch {
-        return paginateRuntimeDebugLogEntries(
-          await input.fallback.listRuntimeDebugLogs(),
-          query,
-        );
+        return listFallback(query);
       }
     },
   };
@@ -1543,20 +1552,16 @@ function applyRuntimeDebugLogFilters(
   query: SupabaseAdminQuery,
   filters: AdminRuntimeLogsQuery,
 ): SupabaseAdminQuery {
-  let nextQuery = query;
+  let nextQuery = query.or(runtimeDebugLogApprovedPopulationFilter);
 
   if (filters.lookup) {
     const lookup = postgrestIlikeValue(filters.lookup);
     nextQuery = nextQuery.or(
       [
         `message.ilike.${lookup}`,
-        `context_json->>debug_id.ilike.${lookup}`,
-        `context_json->>order_id.ilike.${lookup}`,
-        `context_json->>order_number.ilike.${lookup}`,
-        `context_json->>payment_session_id.ilike.${lookup}`,
-        `context_json->>paypal_order_id.ilike.${lookup}`,
-        `context_json->>paypal_capture_id.ilike.${lookup}`,
-        `context_json->>event_id.ilike.${lookup}`,
+        ...runtimeDebugLogLookupContextKeys.map(
+          (key) => `context_json->>${key}.ilike.${lookup}`,
+        ),
       ].join(","),
     );
   }
@@ -1579,6 +1584,13 @@ function applyRuntimeDebugLogFilters(
   return nextQuery;
 }
 
+const runtimeDebugLogApprovedPopulationFilter = runtimeDebugLogApprovedShapes
+  .map(
+    ({ message, source, event }) =>
+      `and(category.eq.${source},message.eq.${message},context_json->>source.eq.${source},context_json->>event.eq.${event})`,
+  )
+  .join(",");
+
 function paginateRuntimeDebugLogEntries(
   entries: readonly RuntimeDebugLogEntry[],
   query: AdminRuntimeLogsQuery,
@@ -1592,7 +1604,10 @@ function paginateRuntimeDebugLogEntries(
       const context = runtimeDebugLogContextObject(entry);
       const source = readRuntimeDebugContextString(context, "source");
       const event = readRuntimeDebugContextString(context, "event");
-      const lookupText = [entry.message, ...Object.values(context)]
+      const lookupText = [
+        entry.message,
+        ...runtimeDebugLogLookupContextKeys.map((key) => context[key]),
+      ]
         .filter(
           (value): value is string | number | boolean =>
             typeof value === "string" ||

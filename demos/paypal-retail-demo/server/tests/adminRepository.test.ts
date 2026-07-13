@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createInMemoryRuntimeDebugLogStore } from "../src/debug/logger.js";
+import {
+  createInMemoryRuntimeDebugLogStore,
+  runtimeDebugLogLookupContextKeys,
+} from "../src/debug/logger.js";
 import {
   createAdminRuntimeDebugLogRepositoryWithFallback,
   createSupabaseAdminInventoryRepository,
@@ -663,7 +666,13 @@ describe("Supabase Admin repository filtering and pagination", () => {
       expect.arrayContaining([
         operation(
           "or",
-          "message.ilike.%dbg_capture_1%,context_json->>debug_id.ilike.%dbg_capture_1%,context_json->>order_id.ilike.%dbg_capture_1%,context_json->>order_number.ilike.%dbg_capture_1%,context_json->>payment_session_id.ilike.%dbg_capture_1%,context_json->>paypal_order_id.ilike.%dbg_capture_1%,context_json->>paypal_capture_id.ilike.%dbg_capture_1%,context_json->>event_id.ilike.%dbg_capture_1%",
+          [
+            "message.ilike.%dbg_capture_1%",
+            ...runtimeDebugLogLookupContextKeys.map(
+              (field) =>
+                `context_json->>${field}.ilike.%dbg_capture_1%`,
+            ),
+          ].join(","),
         ),
         operation("eq", "level", "warn"),
         operation("eq", "category", "payment_amount_guard"),
@@ -678,6 +687,95 @@ describe("Supabase Admin repository filtering and pagination", () => {
         operation("order", "id", { ascending: false }),
         operation("limit", 3),
       ]),
+    );
+  });
+
+  it("pages and counts only the database-constrained approved runtime population", async () => {
+    const validNewest = runtimeDebugLogRow(
+      "runtime-log-valid-3",
+      "2026-07-13T03:00:00.000Z",
+    );
+    const validMiddle = runtimeDebugLogRow(
+      "runtime-log-valid-2",
+      "2026-07-13T02:00:00.000Z",
+    );
+    const validOldest = runtimeDebugLogRow(
+      "runtime-log-valid-1",
+      "2026-07-13T01:00:00.000Z",
+    );
+    const disallowedNewer = {
+      ...runtimeDebugLogRow(
+        "runtime-log-disallowed-2",
+        "2026-07-13T02:30:00.000Z",
+      ),
+      category: "runtime",
+      message: "server_started",
+      context_json: { event: "server_started", source: "runtime" },
+    };
+    const disallowedOlder = {
+      ...runtimeDebugLogRow(
+        "runtime-log-disallowed-1",
+        "2026-07-13T01:30:00.000Z",
+      ),
+      category: "webhook",
+      message: "paypal_webhook_failed",
+      context_json: {
+        event: "paypal_webhook_failed",
+        source: "webhook",
+      },
+    };
+    const client = new RecordingSupabaseAdminClient({
+      runtime_debug_logs: {
+        count: 5,
+        rows: [
+          validNewest,
+          disallowedNewer,
+          validMiddle,
+          disallowedOlder,
+          validOldest,
+        ],
+        safeCount: 3,
+        safeRows: [validNewest, validMiddle, validOldest],
+      },
+    });
+    const repository = createSupabaseAdminRuntimeDebugLogRepository(client);
+
+    const page = await repository.listRuntimeDebugLogs({
+      limit: 2,
+      timezone: "UTC",
+    });
+
+    expect(page.items.map((entry) => entry.id)).toEqual([
+      "runtime-log-valid-3",
+      "runtime-log-valid-2",
+    ]);
+    expect(page.page_info).toEqual({
+      total_count: 3,
+      next_cursor: expect.any(String),
+      timezone: "UTC",
+    });
+    expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
+      kind: "runtime-timestamp",
+      value: "2026-07-13T02:00:00.000Z",
+      id: "runtime-log-valid-2",
+    });
+
+    const runtimeQueries = client.queries.filter(
+      (query) => query.table === "runtime_debug_logs",
+    );
+    const approvedPopulationFilters = runtimeQueries.map((query) =>
+      query.operations.find(
+        ({ method, args }) =>
+          method === "or" &&
+          typeof args[0] === "string" &&
+          args[0].includes("context_json->>source.eq.") &&
+          args[0].includes("context_json->>event.eq."),
+      ),
+    );
+    expect(approvedPopulationFilters).toHaveLength(2);
+    expect(approvedPopulationFilters.every(Boolean)).toBe(true);
+    expect(approvedPopulationFilters[0]).toEqual(
+      approvedPopulationFilters[1],
     );
   });
 
@@ -775,11 +873,194 @@ describe("Supabase Admin repository filtering and pagination", () => {
       timezone: "UTC",
     });
   });
+
+  it("keeps a failed insert visible when later persistent reads succeed", async () => {
+    let persistenceDegraded = false;
+    let primaryReads = 0;
+    const store = createInMemoryRuntimeDebugLogStore({
+      downstreamSink: () => undefined,
+      onPersistenceInsertFailure() {
+        persistenceDegraded = true;
+      },
+      persistenceRepository: {
+        async insertRuntimeDebugLog() {
+          throw new Error("runtime insert unavailable");
+        },
+        async deleteRuntimeDebugLogsBefore() {},
+      },
+    });
+    const repository = createAdminRuntimeDebugLogRepositoryWithFallback({
+      primary: {
+        async listRuntimeDebugLogs(query) {
+          primaryReads += 1;
+          return {
+            items: [],
+            page_info: {
+              total_count: 0,
+              next_cursor: null,
+              timezone: query?.timezone ?? "UTC",
+            },
+          };
+        },
+      },
+      fallback: store,
+      isPersistentReadDegraded: () => persistenceDegraded,
+    });
+
+    store.logger.warn("paypal_capture_amount_mismatch", {
+      debug_id: "dbg_failed_insert",
+      mismatch_count: 1,
+      paypal_order_id: "PAYPAL-ORDER-FAILED-INSERT",
+    });
+    await vi.waitFor(() => expect(persistenceDegraded).toBe(true));
+
+    const query = {
+      lookup: "dbg_failed_insert",
+      limit: 10,
+      timezone: "UTC",
+    } as const;
+    const firstPage = await repository.listRuntimeDebugLogs(query);
+    const secondPage = await repository.listRuntimeDebugLogs(query);
+
+    expect(primaryReads).toBe(0);
+    expect(firstPage.items).toEqual([
+      expect.objectContaining({
+        message: "paypal_capture_amount_mismatch",
+        context: expect.objectContaining({ debug_id: "dbg_failed_insert" }),
+      }),
+    ]);
+    expect(secondPage.items).toEqual(firstPage.items);
+  });
+
+  it("uses one correlation lookup field set for persistent and fallback reads", async () => {
+    const lookupFields = [
+      "debug_id",
+      "order_id",
+      "order_number",
+      "payment_session_id",
+      "linked_order_id",
+      "linked_payment_session_id",
+      "paypal_order_id",
+      "paypal_capture_id",
+      "webhook_event_id",
+      "event_id",
+      "event_type",
+      "profile_id",
+      "market_id",
+      "market",
+      "method",
+      "path",
+      "route",
+      "request_path",
+      "status",
+      "status_code",
+      "duration_ms",
+    ] as const;
+    const persistentClient = new RecordingSupabaseAdminClient({
+      runtime_debug_logs: { count: 0, rows: [] },
+    });
+    const persistentRepository =
+      createSupabaseAdminRuntimeDebugLogRepository(persistentClient);
+    await persistentRepository.listRuntimeDebugLogs({
+      lookup: "needle",
+      limit: 10,
+      timezone: "UTC",
+    });
+    const persistentLookupFilter = persistentClient
+      .dataQuery("runtime_debug_logs")
+      .operations.find(
+        ({ method, args }) =>
+          method === "or" &&
+          typeof args[0] === "string" &&
+          args[0].startsWith("message.ilike."),
+      );
+    expect(persistentLookupFilter).toEqual(
+      operation(
+        "or",
+        [
+          "message.ilike.%needle%",
+          ...lookupFields.map(
+            (field) => `context_json->>${field}.ilike.%needle%`,
+          ),
+        ].join(","),
+      ),
+    );
+
+    const fallbackEntries = lookupFields.map((field, index) => {
+      const value =
+        field === "status_code"
+          ? 207
+          : field === "duration_ms"
+            ? 1_234
+            : `needle-${index}-value`;
+      return {
+        id: `runtime-lookup-${index}`,
+        timestamp: `2026-07-13T${String(20 - index).padStart(2, "0")}:00:00.000Z`,
+        level: "info" as const,
+        message: "paypal_webhook_processing_outcome",
+        context: {
+          source: "webhook",
+          event: "paypal_webhook_processing_outcome",
+          [field]: value,
+        },
+      };
+    });
+    const fallbackOnlyEntry = {
+      id: "runtime-fallback-extra",
+      timestamp: "2026-07-12T00:00:00.000Z",
+      level: "info" as const,
+      message: "paypal_webhook_processing_outcome",
+      context: {
+        source: "webhook",
+        event: "paypal_webhook_processing_outcome",
+        processing_status: "fallback-only-needle",
+      },
+    };
+    const fallbackRepository =
+      createAdminRuntimeDebugLogRepositoryWithFallback({
+        primary: {
+          async listRuntimeDebugLogs() {
+            throw new Error("force bounded fallback");
+          },
+        },
+        fallback: {
+          async listRuntimeDebugLogs() {
+            return [...fallbackEntries, fallbackOnlyEntry];
+          },
+        },
+      });
+
+    for (const [index, field] of lookupFields.entries()) {
+      const lookup =
+        field === "status_code"
+          ? "207"
+          : field === "duration_ms"
+            ? "1234"
+            : `needle-${index}-value`;
+      const page = await fallbackRepository.listRuntimeDebugLogs({
+        lookup,
+        limit: 10,
+        timezone: "UTC",
+      });
+      expect(page.items.map((entry) => entry.id), field).toEqual([
+        `runtime-lookup-${index}`,
+      ]);
+    }
+
+    const excludedPage = await fallbackRepository.listRuntimeDebugLogs({
+      lookup: "fallback-only-needle",
+      limit: 10,
+      timezone: "UTC",
+    });
+    expect(excludedPage.items).toEqual([]);
+  });
 });
 
 interface FakeTableResult {
   readonly rows?: readonly unknown[];
   readonly count?: number;
+  readonly safeRows?: readonly unknown[];
+  readonly safeCount?: number;
 }
 
 interface RecordedRpcCall {
@@ -944,10 +1225,23 @@ class RecordingSupabaseAdminQuery implements PromiseLike<{
       | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    const hasApprovedRuntimePopulationFilter =
+      this.table === "runtime_debug_logs" &&
+      this.operations.some(
+        ({ method, args }) =>
+          method === "or" &&
+          typeof args[0] === "string" &&
+          args[0].includes("context_json->>source.eq.") &&
+          args[0].includes("context_json->>event.eq."),
+      );
     const limit = [...this.operations]
       .reverse()
       .find(({ method }) => method === "limit")?.args[0];
-    const rows = [...(this.result.rows ?? [])].slice(
+    const rows = [
+      ...(hasApprovedRuntimePopulationFilter && this.result.safeRows
+        ? this.result.safeRows
+        : (this.result.rows ?? [])),
+    ].slice(
       0,
       typeof limit === "number" ? limit : undefined,
     );
@@ -955,7 +1249,15 @@ class RecordingSupabaseAdminQuery implements PromiseLike<{
       ({ method }) => method === "single" || method === "maybeSingle",
     );
     const response = this.isCountQuery
-      ? { data: null, error: null as const, count: this.result.count ?? 0 }
+      ? {
+          data: null,
+          error: null as const,
+          count:
+            hasApprovedRuntimePopulationFilter &&
+            this.result.safeCount !== undefined
+              ? this.result.safeCount
+              : (this.result.count ?? 0),
+        }
       : {
           data: isSingleRow ? (rows[0] ?? null) : rows,
           error: null as const,

@@ -116,9 +116,9 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Buyer auth middleware supports guest context, verified Supabase bearer tokens, and standard 401 errors.
 - [x] Guest cart middleware parses paired cart ID/secret headers and rejects incomplete guest cart headers.
 - [x] Admin session guard accepts signed unexpired admin session tokens and rejects invalid or expired tokens.
-- [x] Runtime debug logger recursively redacts secrets, access tokens, service-role keys, auth headers, and card-like fields, then applies event-specific persistence allowlists that remove buyer/Admin/provider payload fields.
-- [x] Runtime persistence is fire-and-forget: rejected insert/cleanup promises do not change the business-call result, block the caller, or recursively enter the logger.
-- [x] Runtime retention deletes rows older than 7 days and starts cleanup no more than once per 24 hours, while JSON console output and the bounded current-process fallback remain available.
+- [x] Runtime debug logger recursively redacts snake/kebab/space and camel/Pascal secret-key variants, access tokens, service-role keys, auth headers, and card-like fields; removes query values from console/persisted paths; then applies event-specific bounded-scalar persistence allowlists that drop nested, invalid, overlong, buyer/Admin, and provider payload fields.
+- [x] Runtime persistence is fire-and-forget: rejected insert/cleanup promises do not change the business-call result, block the caller, or recursively enter the logger; an insert failure conservatively routes current-process reads to the bounded buffer so the failed event remains visible.
+- [x] Runtime retention deletes rows older than 7 days, schedules cleanup on quiet store startup, and starts cleanup no more than once per 24 hours, while JSON console output and the bounded current-process fallback remain available.
 - [x] Storefront API route contracts return config, homepage, categories, products, PDP, and release events in the standard response envelope.
 - [x] Storefront product list API normalizes category, release status, pickup availability, price, and sort filters before repository lookup.
 - [x] Storefront PDP API returns released/unreleased checkout and review visibility states from repository data, and buyer-safe 404 for missing products.
@@ -402,7 +402,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Admin filters: URL query state, server-side filtering, explicit timezone date presets/custom range, active chips, clear action, result counts, and cursor pagination survive refresh/back navigation.
 - [x] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, reject or mask unsafe buyer notes, refresh the active filtered queue, and never increase webhook-event count.
 - [x] Webhook explorer filters genuine received PayPal events by event ID/type, verification, processing, linkage, and received range and exposes only sanitized read-only detail.
-- [x] Diagnostics joins canonical payment evidence and persists allowlisted/redacted runtime events across server restart; database-side lookup/level/category/event/time/cursor filters preserve the Task 2 page contract, bounded fallback reads remain available, and diagnostics sink failures never block business operations or recursively log themselves.
+- [x] Diagnostics joins canonical payment evidence and persists allowlisted/redacted runtime events across server restart; count/data queries first constrain the same canonical safe population, persistent/fallback lookup use the same explicit fields, database-side level/category/event/time/cursor filters preserve the Task 2 page contract, bounded fallback reads remain available, and diagnostics sink failures never block business operations or recursively log themselves.
 - [ ] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, Delivery/Pickup details, buyer-safe retry/empty states, and no technical IDs.
 - [ ] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths.
 

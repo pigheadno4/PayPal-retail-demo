@@ -50,6 +50,7 @@ export interface CreateInMemoryRuntimeDebugLogStoreInput {
   readonly clock?: () => Date;
   readonly limit?: number;
   readonly downstreamSink?: (entry: DebugLogEntry) => void;
+  readonly onPersistenceInsertFailure?: () => void;
   readonly persistenceRepository?: RuntimeDebugLogPersistenceRepository;
 }
 
@@ -85,27 +86,200 @@ const sensitiveDebugKeys = new Set([
   "service_role_key",
   "supabase_service_role_key",
 ]);
+const compactSensitiveDebugKeys = new Set(
+  [...sensitiveDebugKeys].map((key) => key.replaceAll("_", "")),
+);
+const debugLogPathKeys = new Set(["path", "request_path", "route"]);
 
 const runtimeLogRetentionMilliseconds = 7 * 24 * 60 * 60 * 1_000;
 const runtimeLogCleanupIntervalMilliseconds = 24 * 60 * 60 * 1_000;
 
+type RuntimeDebugScalarRule =
+  | { readonly type: "string"; readonly maxLength: number }
+  | {
+      readonly type: "integer";
+      readonly min: number;
+      readonly max: number;
+    };
+
+const runtimeDebugScalarRules: Readonly<
+  Record<string, RuntimeDebugScalarRule>
+> = {
+  debug_id: { type: "string", maxLength: 160 },
+  order_id: { type: "string", maxLength: 160 },
+  order_number: { type: "string", maxLength: 160 },
+  payment_session_id: { type: "string", maxLength: 160 },
+  paypal_order_id: { type: "string", maxLength: 160 },
+  paypal_capture_id: { type: "string", maxLength: 160 },
+  webhook_event_id: { type: "string", maxLength: 160 },
+  event_id: { type: "string", maxLength: 160 },
+  event_type: { type: "string", maxLength: 160 },
+  profile_id: { type: "string", maxLength: 160 },
+  market_id: { type: "string", maxLength: 160 },
+  market: { type: "string", maxLength: 32 },
+  method: { type: "string", maxLength: 32 },
+  path: { type: "string", maxLength: 1_024 },
+  route: { type: "string", maxLength: 1_024 },
+  request_path: { type: "string", maxLength: 1_024 },
+  status: { type: "string", maxLength: 80 },
+  status_code: { type: "integer", min: 100, max: 599 },
+  duration_ms: { type: "integer", min: 0, max: 86_400_000 },
+  error_name: { type: "string", maxLength: 160 },
+  order_count: { type: "integer", min: 0, max: 1_000_000 },
+  action: { type: "string", maxLength: 80 },
+  amount_guard_status: { type: "string", maxLength: 80 },
+  amount_total_minor: {
+    type: "integer",
+    min: 0,
+    max: Number.MAX_SAFE_INTEGER,
+  },
+  amount_currency_code: { type: "string", maxLength: 16 },
+  kind: { type: "string", maxLength: 80 },
+  mismatch_count: { type: "integer", min: 0, max: 1_000_000 },
+  linked_order_id: { type: "string", maxLength: 160 },
+  linked_payment_session_id: { type: "string", maxLength: 160 },
+  processing_status: { type: "string", maxLength: 80 },
+  verification_status: { type: "string", maxLength: 80 },
+};
+
+export type RuntimeDebugLogSource =
+  | "account"
+  | "inventory"
+  | "lifecycle"
+  | "payment_amount_guard"
+  | "pickup_capacity"
+  | "webhook";
+
 interface RuntimeDebugLogPolicy {
-  readonly source:
-    | "account"
-    | "inventory"
-    | "lifecycle"
-    | "payment_amount_guard"
-    | "pickup_capacity"
-    | "webhook";
+  readonly source: RuntimeDebugLogSource;
   readonly event: string;
   readonly allowedContextKeys: readonly string[];
 }
+
+export interface RuntimeDebugLogApprovedShape {
+  readonly message: string;
+  readonly source: RuntimeDebugLogSource;
+  readonly event: string;
+}
+
+export const runtimeDebugLogApprovedShapes: readonly RuntimeDebugLogApprovedShape[] =
+  [
+    {
+      message: "account_orders_load_failed",
+      source: "account",
+      event: "account_orders_load_failed",
+    },
+    {
+      message: "paypal_capture_amount_mismatch",
+      source: "payment_amount_guard",
+      event: "paypal_capture_amount_mismatch",
+    },
+    {
+      message: "paypal_capture_prepared",
+      source: "payment_amount_guard",
+      event: "paypal_capture_prepared",
+    },
+    {
+      message: "paypal_create_order_amount_mismatch",
+      source: "payment_amount_guard",
+      event: "paypal_create_order_amount_mismatch",
+    },
+    {
+      message: "paypal_create_order_amount_guard_outcome",
+      source: "payment_amount_guard",
+      event: "paypal_create_order_amount_guard_outcome",
+    },
+    {
+      message: "paypal_webhook_processing_outcome",
+      source: "webhook",
+      event: "paypal_webhook_processing_outcome",
+    },
+    {
+      message: "paypal_webhook_received",
+      source: "webhook",
+      event: "paypal_webhook_received",
+    },
+    {
+      message: "paypal_webhook_verification_outcome",
+      source: "webhook",
+      event: "paypal_webhook_verification_outcome",
+    },
+    {
+      message: "api_request_completed",
+      source: "lifecycle",
+      event: "lifecycle_request_completed",
+    },
+    {
+      message: "api_request_failed",
+      source: "lifecycle",
+      event: "lifecycle_request_failed",
+    },
+    {
+      message: "api_request_completed",
+      source: "inventory",
+      event: "inventory_request_completed",
+    },
+    {
+      message: "api_request_failed",
+      source: "inventory",
+      event: "inventory_request_failed",
+    },
+    {
+      message: "api_request_completed",
+      source: "pickup_capacity",
+      event: "pickup_capacity_request_completed",
+    },
+    {
+      message: "api_request_failed",
+      source: "pickup_capacity",
+      event: "pickup_capacity_request_failed",
+    },
+    {
+      message: "api_request_completed",
+      source: "webhook",
+      event: "webhook_request_completed",
+    },
+    {
+      message: "api_request_failed",
+      source: "webhook",
+      event: "webhook_request_failed",
+    },
+    {
+      message: "api_request_failed",
+      source: "account",
+      event: "account_orders_load_failed",
+    },
+  ];
 
 const runtimeCorrelationContextKeys = [
   "debug_id",
   "order_id",
   "order_number",
   "payment_session_id",
+  "paypal_order_id",
+  "paypal_capture_id",
+  "webhook_event_id",
+  "event_id",
+  "event_type",
+  "profile_id",
+  "market_id",
+  "market",
+  "method",
+  "path",
+  "route",
+  "request_path",
+  "status",
+  "status_code",
+  "duration_ms",
+] as const;
+
+export const runtimeDebugLogLookupContextKeys = [
+  "debug_id",
+  "order_id",
+  "order_number",
+  "payment_session_id",
+  "linked_order_id",
+  "linked_payment_session_id",
   "paypal_order_id",
   "paypal_capture_id",
   "webhook_event_id",
@@ -180,15 +354,6 @@ const runtimeEventPolicies: Readonly<
       "mismatch_count",
     ],
   },
-  paypal_webhook_failed: {
-    source: "webhook",
-    allowedContextKeys: [
-      ...runtimeCorrelationContextKeys,
-      "error_name",
-      "processing_status",
-      "verification_status",
-    ],
-  },
   paypal_webhook_processing_outcome: {
     source: "webhook",
     allowedContextKeys: [
@@ -239,9 +404,35 @@ export function createInMemoryRuntimeDebugLogStore(
   const limit = Math.max(1, Math.floor(input.limit ?? 100));
   const downstreamSink = input.downstreamSink ?? defaultDebugLogSink;
   let lastCleanupStartedAt: number | null = null;
+  const maybeScheduleRetentionCleanup = () => {
+    const persistenceRepository = input.persistenceRepository;
+    if (!persistenceRepository) {
+      return;
+    }
+
+    const cleanupStartedAt = clock().getTime();
+    if (
+      lastCleanupStartedAt !== null &&
+      cleanupStartedAt - lastCleanupStartedAt <
+        runtimeLogCleanupIntervalMilliseconds
+    ) {
+      return;
+    }
+
+    lastCleanupStartedAt = cleanupStartedAt;
+    const cutoff = new Date(
+      cleanupStartedAt - runtimeLogRetentionMilliseconds,
+    ).toISOString();
+    scheduleBestEffort(() =>
+      persistenceRepository.deleteRuntimeDebugLogsBefore(cutoff),
+    );
+  };
+  maybeScheduleRetentionCleanup();
+
   const sink = (entry: DebugLogEntry) => {
     const sanitizedEntry = sanitizeDebugLogEntry(entry);
     downstreamSink(sanitizedEntry);
+    maybeScheduleRetentionCleanup();
     const allowlistedEntry = allowlistRuntimeDebugLogEntry(sanitizedEntry);
     if (!allowlistedEntry) {
       return;
@@ -256,25 +447,12 @@ export function createInMemoryRuntimeDebugLogStore(
       entries.length = limit;
     }
 
-    if (input.persistenceRepository) {
-      scheduleBestEffort(() =>
-        input.persistenceRepository!.insertRuntimeDebugLog(allowlistedEntry),
+    const persistenceRepository = input.persistenceRepository;
+    if (persistenceRepository) {
+      scheduleBestEffort(
+        () => persistenceRepository.insertRuntimeDebugLog(allowlistedEntry),
+        input.onPersistenceInsertFailure,
       );
-
-      const cleanupStartedAt = clock().getTime();
-      if (
-        lastCleanupStartedAt === null ||
-        cleanupStartedAt - lastCleanupStartedAt >=
-          runtimeLogCleanupIntervalMilliseconds
-      ) {
-        lastCleanupStartedAt = cleanupStartedAt;
-        const cutoff = new Date(
-          cleanupStartedAt - runtimeLogRetentionMilliseconds,
-        ).toISOString();
-        scheduleBestEffort(() =>
-          input.persistenceRepository!.deleteRuntimeDebugLogsBefore(cutoff),
-        );
-      }
     }
   };
 
@@ -309,7 +487,10 @@ export function allowlistRuntimeDebugLogEntry(
     if (value === undefined) {
       continue;
     }
-    allowlistedContext[key] = sanitizeAllowlistedRuntimeValue(key, value);
+    const allowlistedValue = sanitizeAllowlistedRuntimeValue(key, value);
+    if (allowlistedValue !== undefined) {
+      allowlistedContext[key] = allowlistedValue;
+    }
   }
 
   return {
@@ -355,9 +536,12 @@ export function sanitizeDebugLogContext(context: unknown): DebugLogJson {
       if (value === undefined) {
         continue;
       }
+      const normalizedKey = normalizeDebugKey(key);
       sanitized[key] = isSensitiveDebugKey(key)
         ? redactedValue
-        : sanitizeDebugLogContext(value);
+        : debugLogPathKeys.has(normalizedKey) && typeof value === "string"
+          ? stripDebugLogQueryString(value)
+          : sanitizeDebugLogContext(value);
     }
     return sanitized;
   }
@@ -401,6 +585,23 @@ function resolveRuntimeDebugLogPolicy(
     return null;
   }
 
+  const errorKeys = message === "api_request_failed" ? ["error_name"] : [];
+  const source = readDebugLogString(context.source);
+  const event = readDebugLogString(context.event);
+  const approvedShape = runtimeDebugLogApprovedShapes.find(
+    (shape) =>
+      shape.message === message &&
+      shape.source === source &&
+      shape.event === event,
+  );
+  if (approvedShape) {
+    return {
+      source: approvedShape.source,
+      event: approvedShape.event,
+      allowedContextKeys: [...runtimeCorrelationContextKeys, ...errorKeys],
+    };
+  }
+
   const path =
     readDebugLogString(context.path) ??
     readDebugLogString(context.request_path) ??
@@ -413,7 +614,6 @@ function resolveRuntimeDebugLogPolicy(
     message === "api_request_completed"
       ? "request_completed"
       : "request_failed";
-  const errorKeys = message === "api_request_failed" ? ["error_name"] : [];
   if (/^\/api\/admin\/orders\/[^/?]+\/lifecycle(?:[/?]|$)/.test(path)) {
     return {
       source: "lifecycle",
@@ -475,29 +675,65 @@ function readDebugLogString(value: DebugLogJson | undefined): string | null {
 function sanitizeAllowlistedRuntimeValue(
   key: string,
   value: DebugLogJson,
-): DebugLogJson {
-  if (
-    (key === "path" || key === "request_path" || key === "route") &&
-    typeof value === "string"
-  ) {
-    return value.split("?", 1)[0] ?? value;
+): DebugLogJson | undefined {
+  const rule = runtimeDebugScalarRules[key];
+  if (!rule) {
+    return undefined;
   }
-  return value;
+
+  if (rule.type === "string") {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const sanitizedValue =
+      key === "path" || key === "request_path" || key === "route"
+        ? stripDebugLogQueryString(value)
+        : value;
+    return sanitizedValue.trim() && sanitizedValue.length <= rule.maxLength
+      ? sanitizedValue
+      : undefined;
+  }
+
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= rule.min &&
+    value <= rule.max
+    ? value
+    : undefined;
 }
 
-function scheduleBestEffort(operation: () => Promise<void>): void {
+function stripDebugLogQueryString(value: string): string {
+  return value.split("?", 1)[0] ?? value;
+}
+
+function scheduleBestEffort(
+  operation: () => Promise<void>,
+  onFailure?: () => void,
+): void {
   void Promise.resolve()
     .then(operation)
-    .catch(() => undefined);
+    .catch(() => {
+      try {
+        onFailure?.();
+      } catch {
+        // Diagnostics persistence health callbacks must remain best effort too.
+      }
+    });
 }
 
 function isSensitiveDebugKey(key: string): boolean {
-  return sensitiveDebugKeys.has(normalizeDebugKey(key));
+  const normalizedKey = normalizeDebugKey(key);
+  return (
+    sensitiveDebugKeys.has(normalizedKey) ||
+    compactSensitiveDebugKeys.has(normalizedKey.replaceAll("_", ""))
+  );
 }
 
 function normalizeDebugKey(key: string): string {
   return key
     .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
     .toLowerCase()
     .replace(/[-\s]+/g, "_");
 }
