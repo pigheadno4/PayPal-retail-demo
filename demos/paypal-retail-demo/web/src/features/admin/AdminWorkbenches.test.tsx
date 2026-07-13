@@ -279,6 +279,44 @@ describe("Admin post-purchase workbenches", () => {
     );
   });
 
+  it("rejects DST gaps and chooses the earlier instant for repeated wall times", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+
+    render(
+      <AdminFilters
+        section="orders"
+        search="?timezone=America%2FLos_Angeles"
+        onApply={onApply}
+        onClear={() => undefined}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Orders filters" });
+    const createdFrom = within(form).getByLabelText(
+      "Created from",
+    ) as HTMLInputElement;
+    await user.type(createdFrom, "2026-03-08T02:30");
+
+    expect(within(form).getByRole("alert").textContent).toContain(
+      "does not exist in America/Los_Angeles",
+    );
+    await user.click(
+      within(form).getByRole("button", { name: "Apply filters" }),
+    );
+    expect(onApply).not.toHaveBeenCalled();
+
+    await user.clear(createdFrom);
+    await user.type(createdFrom, "2026-11-01T01:30");
+    expect(within(form).queryByRole("alert")).toBeNull();
+    await user.click(
+      within(form).getByRole("button", { name: "Apply filters" }),
+    );
+    expect(onApply).toHaveBeenCalledWith(
+      "/admin/orders?created_from=2026-11-01T08%3A30%3A00.000Z&timezone=America%2FLos_Angeles&time_preset=custom",
+    );
+  });
+
   it("distinguishes filtered-empty from true-empty and exposes recovery", async () => {
     const user = userEvent.setup();
     const onClearFilters = vi.fn();
@@ -443,6 +481,46 @@ describe("Admin post-purchase workbenches", () => {
     expect(screen.getByRole("tab", { name: "Runtime logs" })).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Runtime logs" }));
     expect(screen.getByText("Runtime row")).toBeTruthy();
+  });
+
+  it("uses dataset-specific active filter counts for Inventory empty states", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminInventoryWorkbench
+        stockRequest={{ ...readyRequest, status: "empty", totalCount: 0 }}
+        pickupRequest={{ ...readyRequest, status: "empty", totalCount: 0 }}
+        stockActiveFilterCount={1}
+        pickupActiveFilterCount={0}
+      />,
+    );
+
+    expect(screen.getByText("No stock rows match these filters.")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Pickup capacity" }));
+    expect(screen.getByText("No pickup dates are available yet.")).toBeTruthy();
+  });
+
+  it("does not apply Stock-only URL filters to Pickup empty-state copy", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient();
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-inventory-filter-count-token",
+    );
+
+    render(
+      <App
+        apiClient={apiClient.client}
+        initialPathname="/admin/inventory?q=MOLLY"
+      />,
+    );
+
+    expect(
+      await screen.findByText("No stock rows match these filters."),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Pickup capacity" }));
+    expect(
+      await screen.findByText("No pickup dates are available yet."),
+    ).toBeTruthy();
   });
 
   it("uses restored URL filters for requests and reloads on apply and popstate", async () => {

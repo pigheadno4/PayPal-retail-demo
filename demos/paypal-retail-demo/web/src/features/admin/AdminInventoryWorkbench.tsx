@@ -12,6 +12,8 @@ interface AdminInventoryWorkbenchProps {
   readonly pickupContent?: ReactNode;
   readonly children?: ReactNode;
   readonly activeFilterCount?: number;
+  readonly stockActiveFilterCount?: number;
+  readonly pickupActiveFilterCount?: number;
   readonly onRetryStock?: () => void;
   readonly onRetryPickup?: () => void;
   readonly onClearFilters?: () => void;
@@ -26,6 +28,8 @@ export function AdminInventoryWorkbench({
   pickupContent,
   children,
   activeFilterCount = 0,
+  stockActiveFilterCount = activeFilterCount,
+  pickupActiveFilterCount = activeFilterCount,
   onRetryStock,
   onRetryPickup,
   onClearFilters,
@@ -44,7 +48,9 @@ export function AdminInventoryWorkbench({
       emptyLabel={tab === "stock" ? "stock rows" : "pickup dates"}
       request={request}
       renderChildrenAlways
-      activeFilterCount={activeFilterCount}
+      activeFilterCount={
+        tab === "stock" ? stockActiveFilterCount : pickupActiveFilterCount
+      }
       {...(tab === "stock" && onRetryStock
         ? { onRetry: onRetryStock }
         : tab === "pickup" && onRetryPickup

@@ -7153,7 +7153,7 @@ p {
 .admin-shell__webhook-list {
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1fr);
   margin-top: 14px;
 }
 
@@ -7650,6 +7650,13 @@ p {
 .admin-filters__checkbox input {
   min-height: 18px;
   width: 18px;
+}
+
+.admin-filters__field-error {
+  color: #b42318;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .admin-filters__actions,
@@ -8534,7 +8541,9 @@ p {
   .admin-filters__fields input,
   .admin-filters__fields select,
   .admin-filters__checkbox,
-  .admin-shell__select {
+  .admin-shell__select,
+  .admin-shell__input,
+  .admin-shell__checkbox-label {
     min-height: 44px;
   }
 

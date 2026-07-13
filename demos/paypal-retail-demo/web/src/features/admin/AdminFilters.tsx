@@ -335,11 +335,15 @@ export function AdminFilters({
   );
   const [timePreset, setTimePreset] = useState(() => readTimePreset(search));
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Readonly<Record<string, string>>
+  >({});
 
   useEffect(() => {
     setValues(readFilterValues(search, definitions));
     setTimePreset(readTimePreset(search));
     setIsMobileOpen(false);
+    setValidationErrors({});
   }, [definitions, search]);
 
   const activeFilters = useMemo(() => {
@@ -363,6 +367,9 @@ export function AdminFilters({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (Object.values(validationErrors).some(Boolean)) {
+      return false;
+    }
     const parameters = new URLSearchParams();
     if (section === "diagnostics") {
       parameters.set("dataset", diagnosticsDataset);
@@ -384,11 +391,13 @@ export function AdminFilters({
     }
     const query = parameters.toString();
     onApply(`/admin/${section}${query ? `?${query}` : ""}`);
+    return true;
   };
 
   const handleClear = () => {
     setValues(readFilterValues("", definitions));
     setTimePreset("custom");
+    setValidationErrors({});
     onClear();
   };
 
@@ -426,11 +435,14 @@ export function AdminFilters({
               definitions={definitions}
               values={values}
               setValues={setValues}
+              validationErrors={validationErrors}
+              setValidationErrors={setValidationErrors}
               timePreset={timePreset}
               setTimePreset={setTimePreset}
               onSubmit={(event) => {
-                handleSubmit(event);
-                setIsMobileOpen(false);
+                if (handleSubmit(event)) {
+                  setIsMobileOpen(false);
+                }
               }}
               onClear={() => {
                 handleClear();
@@ -446,6 +458,8 @@ export function AdminFilters({
         definitions={definitions}
         values={values}
         setValues={setValues}
+        validationErrors={validationErrors}
+        setValidationErrors={setValidationErrors}
         timePreset={timePreset}
         setTimePreset={setTimePreset}
         onSubmit={handleSubmit}
@@ -474,6 +488,8 @@ function FilterForm({
   definitions,
   values,
   setValues,
+  validationErrors,
+  setValidationErrors,
   timePreset,
   setTimePreset,
   onSubmit,
@@ -484,6 +500,12 @@ function FilterForm({
   readonly definitions: readonly FilterDefinition[];
   readonly values: Readonly<Record<string, string>>;
   readonly setValues: (
+    update: (
+      current: Readonly<Record<string, string>>,
+    ) => Readonly<Record<string, string>>,
+  ) => void;
+  readonly validationErrors: Readonly<Record<string, string>>;
+  readonly setValidationErrors: (
     update: (
       current: Readonly<Record<string, string>>,
     ) => Readonly<Record<string, string>>,
@@ -531,6 +553,12 @@ function FilterForm({
                   [toDefinition.name]: to.toISOString(),
                   timezone: current.timezone || "UTC",
                 }));
+                setValidationErrors((current) => {
+                  const next = { ...current };
+                  delete next[fromDefinition.name];
+                  delete next[toDefinition.name];
+                  return next;
+                });
               }}
             >
               <option value="1h">Last hour</option>
@@ -543,7 +571,9 @@ function FilterForm({
         ) : null}
         {definitions.map((definition) => {
           const id = `admin-filter-${surface}-${section}-${definition.name}`;
+          const errorId = `${id}-error`;
           const value = values[definition.name] ?? "";
+          const validationError = validationErrors[definition.name];
           if (definition.kind === "checkbox") {
             return (
               <label
@@ -594,6 +624,8 @@ function FilterForm({
                     definition.kind === "datetime" ? "datetime-local" : "text"
                   }
                   placeholder={definition.placeholder}
+                  aria-invalid={validationError ? "true" : undefined}
+                  aria-describedby={validationError ? errorId : undefined}
                   value={toInputValue(
                     value,
                     definition.kind,
@@ -602,18 +634,42 @@ function FilterForm({
                   onChange={(event) => {
                     if (definition.kind === "datetime") {
                       setTimePreset("custom");
+                      const result = fromInputValue(
+                        event.target.value,
+                        definition.kind,
+                        values.timezone || "UTC",
+                      );
+                      setValues((current) => ({
+                        ...current,
+                        [definition.name]: result.value,
+                      }));
+                      setValidationErrors((current) => {
+                        const next = { ...current };
+                        if (result.error) {
+                          next[definition.name] = result.error;
+                        } else {
+                          delete next[definition.name];
+                        }
+                        return next;
+                      });
+                      return;
                     }
                     setValues((current) => ({
                       ...current,
-                      [definition.name]: fromInputValue(
-                        event.target.value,
-                        definition.kind,
-                        current.timezone || "UTC",
-                      ),
+                      [definition.name]: event.target.value,
                     }));
                   }}
                 />
               )}
+              {validationError ? (
+                <span
+                  id={errorId}
+                  className="admin-filters__field-error"
+                  role="alert"
+                >
+                  {validationError}
+                </span>
+              ) : null}
             </label>
           );
         })}
@@ -663,6 +719,10 @@ function toInputValue(
     return value;
   }
 
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)) {
+    return value.slice(0, 16);
+  }
+
   const timestamp = new Date(value);
   if (Number.isNaN(timestamp.getTime())) {
     return value.replace(/Z$/, "").slice(0, 16);
@@ -676,16 +736,16 @@ function fromInputValue(
   value: string,
   kind: FilterDefinition["kind"],
   timezone: string,
-): string {
+): { readonly value: string; readonly error: string | null } {
   if (kind !== "datetime" || !value) {
-    return value;
+    return { value, error: null };
   }
 
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(
     value,
   );
   if (!match) {
-    return value;
+    return { value, error: "Enter a complete local date and time." };
   }
 
   const target = {
@@ -704,10 +764,13 @@ function fromInputValue(
     target.minute,
     target.second,
   );
-  let guess = targetTimestamp;
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const displayed = getZonedDateTimeParts(new Date(guess), timezone);
+  const candidates = new Set<number>();
+  for (let hours = -48; hours <= 48; hours += 6) {
+    const sampleTimestamp = targetTimestamp + hours * 60 * 60 * 1000;
+    const displayed = getZonedDateTimeParts(
+      new Date(sampleTimestamp),
+      timezone,
+    );
     const displayedTimestamp = Date.UTC(
       Number(displayed.year),
       Number(displayed.month) - 1,
@@ -716,14 +779,50 @@ function fromInputValue(
       Number(displayed.minute),
       Number(displayed.second),
     );
-    const adjustment = targetTimestamp - displayedTimestamp;
-    guess += adjustment;
-    if (adjustment === 0) {
-      break;
+    const offset = displayedTimestamp - sampleTimestamp;
+    const candidate = targetTimestamp - offset;
+    if (
+      matchesWallTime(
+        getZonedDateTimeParts(new Date(candidate), timezone),
+        target,
+      )
+    ) {
+      candidates.add(candidate);
     }
   }
 
-  return new Date(guess).toISOString();
+  if (candidates.size === 0) {
+    return {
+      value,
+      error: `This local time does not exist in ${timezone} because of daylight saving time. Choose another time.`,
+    };
+  }
+
+  const earlierCandidate = Math.min(...candidates);
+  return { value: new Date(earlierCandidate).toISOString(), error: null };
+}
+
+function matchesWallTime(
+  actual: Readonly<
+    Record<"year" | "month" | "day" | "hour" | "minute" | "second", string>
+  >,
+  expected: Readonly<{
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+  }>,
+): boolean {
+  return (
+    Number(actual.year) === expected.year &&
+    Number(actual.month) === expected.month &&
+    Number(actual.day) === expected.day &&
+    Number(actual.hour) === expected.hour &&
+    Number(actual.minute) === expected.minute &&
+    Number(actual.second) === expected.second
+  );
 }
 
 function getZonedDateTimeParts(

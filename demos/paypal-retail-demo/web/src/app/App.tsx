@@ -6938,6 +6938,9 @@ function AdminPortal({
     lastUpdatedAt,
   );
   const activeFilterCount = adminQuery.activeParameters.length;
+  const stockActiveFilterCount = countAdminRequestFilters(primaryRequestPath);
+  const pickupActiveFilterCount =
+    countAdminRequestFilters(secondaryRequestPath);
   const OrdersWorkbench =
     route.section === "lifecycle"
       ? AdminLifecycleWorkbench
@@ -7367,6 +7370,8 @@ function AdminPortal({
           stockRequest={inventoryRequest}
           pickupRequest={pickupRequest}
           activeFilterCount={activeFilterCount}
+          stockActiveFilterCount={stockActiveFilterCount}
+          pickupActiveFilterCount={pickupActiveFilterCount}
           onRetryStock={() => {
             setInventoryRetryVersion((current) => current + 1);
           }}
@@ -8062,6 +8067,14 @@ function parseAdminLocation(location: string): {
     pathname: parsed.pathname,
     search: parsed.search,
   };
+}
+
+function countAdminRequestFilters(requestPath: string): number {
+  const parameters = new URL(requestPath, "https://paypal-retail-demo.local")
+    .searchParams;
+  return [...parameters.keys()].filter(
+    (key) => key !== "cursor" && key !== "limit",
+  ).length;
 }
 
 function createEmptyAdminPageInfo(): AdminPageInfoResponse {

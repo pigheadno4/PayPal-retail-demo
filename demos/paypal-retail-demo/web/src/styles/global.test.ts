@@ -1148,6 +1148,7 @@ describe("global storefront visual tokens", () => {
     const workbenchBlock = cssBlock(".admin-workbench");
     const tableScrollBlock = cssBlock(".admin-workbench__table-scroll");
     const tableBlock = cssBlock(".admin-workbench__table");
+    const webhookListBlock = cssBlock(".admin-shell__webhook-list");
     const mobileFilterTriggerBlock = cssBlock(".admin-filters__mobile-trigger");
 
     expect(shellBlock).toContain("overflow-x: clip");
@@ -1159,6 +1160,7 @@ describe("global storefront visual tokens", () => {
     expect(workbenchBlock).toContain("min-width: 0");
     expect(tableScrollBlock).toContain("overflow-x: auto");
     expect(tableBlock).toContain("min-width: 760px");
+    expect(webhookListBlock).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(mobileFilterTriggerBlock).toContain("display: none");
     expect(globalCss).toContain(
       '.admin-workbench__inventory-content[data-inventory-dataset="stock"]',
@@ -1173,7 +1175,7 @@ describe("global storefront visual tokens", () => {
       ".admin-filters__mobile-trigger {\n    display: inline-flex;",
     );
     expect(globalCss).toContain(
-      ".admin-filters__fields input,\n  .admin-filters__fields select,\n  .admin-filters__checkbox,\n  .admin-shell__select {\n    min-height: 44px;",
+      ".admin-filters__fields input,\n  .admin-filters__fields select,\n  .admin-filters__checkbox,\n  .admin-shell__select,\n  .admin-shell__input,\n  .admin-shell__checkbox-label {\n    min-height: 44px;",
     );
   });
 });
