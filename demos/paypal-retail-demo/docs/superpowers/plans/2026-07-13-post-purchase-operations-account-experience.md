@@ -196,15 +196,15 @@ export interface AdminOrdersQuery {
 }
 ```
 
-- [ ] **Step 1:** Add failing parser tests for allowed values, ISO boundaries, `limit` clamping to `1..100`, invalid cursor rejection, and `Asia/Shanghai`/`UTC` timezone echo.
-- [ ] **Step 2:** Run `npm test -- server/tests/adminQuery.test.ts`; expect missing parser failures.
-- [ ] **Step 3:** Implement pure parsers in `adminQuery.ts` that return a normalized query or a `400 INVALID_ADMIN_FILTERS` detail object.
-- [ ] **Step 4:** Add failing repository tests that assert Supabase query chains receive `eq`, `gte`, `lte`, ordered cursor, and `limit + 1` operations instead of client-side filtering.
-- [ ] **Step 5:** Extend `SupabaseAdminQuery` with `gte`, `lte`, `lt`, `or`, and `range` methods and implement repository list methods that return `AdminCursorPage<T>`.
-- [ ] **Step 6:** Map route-specific envelopes as `{ orders, page_info }`, `{ lifecycle, page_info }`, `{ inventory, page_info }`, `{ webhooks, page_info }`, `{ payment_sessions, page_info }`, and `{ debug_logs, page_info }`.
-- [ ] **Step 7:** Implement `buildAdminQuery(location, section)` in the web module so URL parameters map one-to-one to backend query names and `Clear all` returns the section pathname.
-- [ ] **Step 8:** Run `npm test -- server/tests/adminQuery.test.ts server/tests/adminRepository.test.ts server/tests/adminRoutes.test.ts web/src/features/admin/adminQuery.test.ts` and `npm run typecheck`.
-- [ ] **Step 9:** Commit with `git commit -m "feat: add admin server filters and pagination"`.
+- [x] **Step 1:** Add failing parser tests for allowed values, ISO boundaries, `limit` clamping to `1..100`, invalid cursor rejection, and `Asia/Shanghai`/`UTC` timezone echo.
+- [x] **Step 2:** Run `npm test -- server/tests/adminQuery.test.ts`; expect missing parser failures.
+- [x] **Step 3:** Implement pure parsers in `adminQuery.ts` that return a normalized query or a `400 INVALID_ADMIN_FILTERS` detail object.
+- [x] **Step 4:** Add failing repository tests that assert Supabase query chains receive `eq`, `gte`, `lte`, ordered cursor, and `limit + 1` operations instead of client-side filtering.
+- [x] **Step 5:** Extend `SupabaseAdminQuery` with `gte`, `lte`, `lt`, `or`, and `range` methods and implement repository list methods that return `AdminCursorPage<T>`.
+- [x] **Step 6:** Map route-specific envelopes as `{ orders, page_info }`, `{ lifecycle, page_info }`, `{ inventory, page_info }`, `{ webhooks, page_info }`, `{ payment_sessions, page_info }`, and `{ debug_logs, page_info }`.
+- [x] **Step 7:** Implement `buildAdminQuery(location, section)` in the web module so URL parameters map one-to-one to backend query names and `Clear all` returns the section pathname.
+- [x] **Step 8:** Run `npm test -- server/tests/adminQuery.test.ts server/tests/adminRepository.test.ts server/tests/adminRoutes.test.ts web/src/features/admin/adminQuery.test.ts` and `npm run typecheck`.
+- [x] **Step 9:** Commit with `git commit -m "feat: add admin server filters and pagination"`.
 
 ---
 

@@ -447,6 +447,154 @@ describe("admin order lifecycle routes", () => {
     );
   });
 
+  it("parses Orders and Lifecycle filters into route-specific cursor envelopes", async () => {
+    const baseRepository = createAdminOrderRepository();
+    const orderDetail = await baseRepository.getOrder("order_1");
+    if (!orderDetail) {
+      throw new Error("Missing Admin order fixture");
+    }
+    const capturedQueries: unknown[] = [];
+    const orderRepository: AdminOrderRepository = {
+      ...baseRepository,
+      async listOrders(query) {
+        capturedQueries.push(query);
+        return {
+          items: [orderDetail.order],
+          page_info: {
+            total_count: 1,
+            next_cursor: "orders-next",
+            timezone: query?.timezone ?? "UTC",
+          },
+        };
+      },
+      async listLifecycle(query) {
+        capturedQueries.push(query);
+        return {
+          items: [orderDetail.order],
+          page_info: {
+            total_count: 1,
+            next_cursor: null,
+            timezone: query?.timezone ?? "UTC",
+          },
+        };
+      },
+    };
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        orderRepository,
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const ordersResponse = await requestApp(
+      app,
+      "GET",
+      "/api/admin/orders?order_number=DO-2026&status=paid&fulfillment=delivery&payment_status=captured&created_from=2026-07-01T00%3A00%3A00.000Z&created_to=2026-07-12T23%3A59%3A59.999Z&timezone=Asia%2FShanghai&limit=10",
+      { headers: { "x-admin-session": createAdminToken() } },
+    );
+    const lifecycleResponse = await requestApp(
+      app,
+      "GET",
+      "/api/admin/lifecycle?next_action=shipped&actionable=true&updated_from=2026-07-01T00%3A00%3A00.000Z",
+      { headers: { "x-admin-session": createAdminToken() } },
+    );
+
+    expect(ordersResponse.status).toBe(200);
+    expect(ordersResponse.json.data).toEqual({
+      orders: [expect.objectContaining({ id: "order_1" })],
+      page_info: {
+        total_count: 1,
+        next_cursor: "orders-next",
+        timezone: "Asia/Shanghai",
+      },
+    });
+    expect(lifecycleResponse.status).toBe(200);
+    expect(lifecycleResponse.json.data).toEqual({
+      lifecycle: [expect.objectContaining({ id: "order_1" })],
+      page_info: {
+        total_count: 1,
+        next_cursor: null,
+        timezone: "UTC",
+      },
+    });
+    expect(capturedQueries).toEqual([
+      {
+        orderNumber: "DO-2026",
+        status: "paid",
+        fulfillment: "delivery",
+        paymentStatus: "captured",
+        createdFrom: "2026-07-01T00:00:00.000Z",
+        createdTo: "2026-07-12T23:59:59.999Z",
+        timezone: "Asia/Shanghai",
+        limit: 10,
+      },
+      {
+        nextAction: "shipped",
+        actionableOnly: true,
+        updatedFrom: "2026-07-01T00:00:00.000Z",
+        timezone: "UTC",
+        limit: 25,
+      },
+    ]);
+  });
+
+  it("rejects invalid Admin filters before calling the repository", async () => {
+    let listCalls = 0;
+    const baseRepository = createAdminOrderRepository();
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        orderRepository: {
+          ...baseRepository,
+          async listOrders() {
+            listCalls += 1;
+            return {
+              items: [],
+              page_info: {
+                total_count: 0,
+                next_cursor: null,
+                timezone: "UTC",
+              },
+            };
+          },
+        },
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/admin/orders?status=complete&cursor=broken",
+      { headers: { "x-admin-session": createAdminToken() } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_ADMIN_FILTERS",
+        message: "One or more Admin filters are invalid.",
+        details: {
+          invalid_fields: ["status", "cursor"],
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(listCalls).toBe(0);
+  });
+
   it("advances delivery lifecycle and writes an admin timeline event", async () => {
     const orderRepository = createAdminOrderRepository();
     const app = createApp({
@@ -646,6 +794,11 @@ describe("admin inventory and pickup date routes", () => {
         available_quantity: 3,
       }),
     ]);
+    expect(listResponse.json.data.page_info).toEqual({
+      total_count: 2,
+      next_cursor: null,
+      timezone: "UTC",
+    });
     expect(centralPatchResponse.status).toBe(200);
     expect(centralPatchResponse.json.data.inventory).toEqual(
       expect.objectContaining({
@@ -755,6 +908,11 @@ describe("admin inventory and pickup date routes", () => {
         is_available: true,
       }),
     ]);
+    expect(listResponse.json.data.page_info).toEqual({
+      total_count: 1,
+      next_cursor: null,
+      timezone: "UTC",
+    });
     expect(patchResponse.status).toBe(200);
     expect(patchResponse.json.data.pickup_date).toEqual(
       expect.objectContaining({
@@ -845,6 +1003,11 @@ describe("admin webhook routes", () => {
             processed_at: "2026-06-24T10:18:05.000Z",
           },
         ],
+        page_info: {
+          total_count: 2,
+          next_cursor: null,
+          timezone: "UTC",
+        },
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
@@ -944,6 +1107,11 @@ describe("admin payment/order debug routes", () => {
             ],
           }),
         ],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: "UTC",
+        },
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
@@ -979,6 +1147,65 @@ describe("admin runtime debug log routes", () => {
     });
   });
 
+  it("paginates runtime logs without requiring a debug ID", async () => {
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        runtimeDebugLogRepository: {
+          async listRuntimeDebugLogs() {
+            return [
+              {
+                timestamp: "2026-07-12T11:00:00.000Z",
+                level: "error",
+                message: "First runtime failure",
+                context: { source: "paypal" },
+              },
+              {
+                timestamp: "2026-07-12T10:00:00.000Z",
+                level: "error",
+                message: "Second runtime failure",
+                context: { source: "paypal" },
+              },
+            ];
+          },
+        },
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+    const basePath =
+      "/api/admin/debug-logs?logged_from=2026-07-12T00%3A00%3A00.000Z&logged_to=2026-07-13T00%3A00%3A00.000Z&limit=1";
+
+    const firstPage = await requestApp(app, "GET", basePath, {
+      headers: { "x-admin-session": createAdminToken() },
+    });
+    const cursor = firstPage.json.data.page_info.next_cursor;
+    const secondPage = await requestApp(
+      app,
+      "GET",
+      `${basePath}&cursor=${encodeURIComponent(cursor)}`,
+      { headers: { "x-admin-session": createAdminToken() } },
+    );
+
+    expect(firstPage.status).toBe(200);
+    expect(firstPage.json.data.debug_logs).toEqual([
+      expect.objectContaining({ message: "First runtime failure" }),
+    ]);
+    expect(firstPage.json.data.page_info).toEqual({
+      total_count: 2,
+      next_cursor: expect.any(String),
+      timezone: "UTC",
+    });
+    expect(secondPage.status).toBe(200);
+    expect(secondPage.json.data.debug_logs).toEqual([
+      expect.objectContaining({ message: "Second runtime failure" }),
+    ]);
+  });
+
   it("lists sanitized runtime debug logs without exposing secret values", async () => {
     const app = createApp({
       catalogRepository: createCatalogRepository(),
@@ -993,11 +1220,16 @@ describe("admin runtime debug log routes", () => {
       },
     });
 
-    const response = await requestApp(app, "GET", "/api/admin/debug-logs", {
-      headers: {
-        "x-admin-session": createAdminToken(),
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/admin/debug-logs?logged_from=2026-06-24T00%3A00%3A00.000Z&logged_to=2026-06-25T00%3A00%3A00.000Z",
+      {
+        headers: {
+          "x-admin-session": createAdminToken(),
+        },
       },
-    });
+    );
 
     expect(response.status).toBe(200);
     expect(response.json).toEqual({
@@ -1023,6 +1255,11 @@ describe("admin runtime debug log routes", () => {
             },
           },
         ],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: "UTC",
+        },
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
@@ -1137,8 +1374,25 @@ function createAdminOrderRepository(
 
   return {
     lifecycleEvents,
-    async listOrders() {
-      return [order];
+    async listOrders(query) {
+      return {
+        items: [order],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
+        },
+      };
+    },
+    async listLifecycle(query) {
+      return {
+        items: [order],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
+        },
+      };
     },
     async getOrder(orderId) {
       if (orderId !== order.id) {
@@ -1362,12 +1616,25 @@ function createAdminInventoryRepository(): AdminInventoryRepository & {
     centralInventory,
     storeInventory,
     pickupDates,
-    async listInventory() {
+    async listInventory(query) {
       return {
-        centralInventory,
-        storeInventory,
+        items: [
+          ...centralInventory.map((row) => ({
+            type: "central" as const,
+            row,
+          })),
+          ...storeInventory.map((row) => ({
+            type: "store" as const,
+            row,
+          })),
+        ],
         products,
         stores,
+        page_info: {
+          total_count: centralInventory.length + storeInventory.length,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
+        },
       };
     },
     async updateCentralInventory(input) {
@@ -1407,10 +1674,15 @@ function createAdminInventoryRepository(): AdminInventoryRepository & {
       storeInventory[rowIndex] = row;
       return row;
     },
-    async listPickupDates() {
+    async listPickupDates(query) {
       return {
-        pickupDates,
+        items: pickupDates,
         stores,
+        page_info: {
+          total_count: pickupDates.length,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
+        },
       };
     },
     async updatePickupDate(input) {
@@ -1441,109 +1713,124 @@ function createAdminInventoryRepository(): AdminInventoryRepository & {
 
 function createAdminWebhookRepository(): AdminWebhookRepository {
   return {
-    async listWebhooks() {
-      return [
-        {
-          id: "webhook_invalid_1",
-          event_id: "WH-INVALID-1",
-          event_type: "BILLING.SUBSCRIPTION.CREATED",
-          verification_status: "invalid",
-          linked_order_id: null,
-          linked_payment_session_id: null,
-          processing_status: "ignored",
-          received_at: "2026-06-24T10:25:00.000Z",
-          processed_at: null,
+    async listWebhooks(query) {
+      return {
+        items: [
+          {
+            id: "webhook_invalid_1",
+            event_id: "WH-INVALID-1",
+            event_type: "BILLING.SUBSCRIPTION.CREATED",
+            verification_status: "invalid",
+            linked_order_id: null,
+            linked_payment_session_id: null,
+            processing_status: "ignored",
+            received_at: "2026-06-24T10:25:00.000Z",
+            processed_at: null,
+          },
+          {
+            id: "webhook_valid_1",
+            event_id: "WH-ORDER-1",
+            event_type: "CHECKOUT.ORDER.APPROVED",
+            verification_status: "valid",
+            linked_order_id: "order_1",
+            linked_payment_session_id: "payment_session_1",
+            processing_status: "processed",
+            received_at: "2026-06-24T10:18:00.000Z",
+            processed_at: "2026-06-24T10:18:05.000Z",
+          },
+        ],
+        page_info: {
+          total_count: 2,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
         },
-        {
-          id: "webhook_valid_1",
-          event_id: "WH-ORDER-1",
-          event_type: "CHECKOUT.ORDER.APPROVED",
-          verification_status: "valid",
-          linked_order_id: "order_1",
-          linked_payment_session_id: "payment_session_1",
-          processing_status: "processed",
-          received_at: "2026-06-24T10:18:00.000Z",
-          processed_at: "2026-06-24T10:18:05.000Z",
-        },
-      ];
+      };
     },
   };
 }
 
 function createAdminPaymentDebugRepository(): AdminPaymentDebugRepository {
-  const order = createAdminOrderRepository().listOrders();
+  const orderPage = createAdminOrderRepository().listOrders();
 
   return {
-    async listPaymentDebug() {
-      const [orderRow] = await order;
-      return [
-        {
-          session: {
-            id: "payment_session_1",
-            order_id: "order_1",
-            provider: "paypal",
-            method: "paypal",
-            status: "captured",
-            attempt_number: 1,
-            paypal_order_id: "PAYPAL_ORDER_1",
-            paypal_capture_id: "PAYPAL_CAPTURE_1",
-            paypal_invoice_id: "DO-20260624-000001-01",
-            paypal_request_id: "request_1",
-            vault_requested: false,
-            merchant_total_minor: 2633,
-            provider_total_minor: 2633,
-            amount_consistency_status: "matched",
-            currency_code: "USD",
-            created_at: "2026-06-24T10:16:00.000Z",
-            updated_at: "2026-06-24T10:20:00.000Z",
-          },
-          order: orderRow ?? null,
-          totalSnapshots: [
-            {
-              id: "total_snapshot_1",
+    async listPaymentDebug(query) {
+      const { items: orders } = await orderPage;
+      const [orderRow] = orders;
+      return {
+        items: [
+          {
+            session: {
+              id: "payment_session_1",
               order_id: "order_1",
-              payment_session_id: "payment_session_1",
-              fulfillment_mode: "delivery",
-              calculation_stage: "capture",
-              currency_code: "USD",
-              merchandise_subtotal_minor: 1969,
-              product_discount_minor: 0,
-              promo_discount_minor: 0,
-              taxable_subtotal_minor: 1969,
-              tax_minor: 165,
-              shipping_minor: 499,
-              total_minor: 2633,
-              promo_evaluation_id: "promo_evaluation_1",
-              created_at: "2026-06-24T10:20:00.000Z",
-            },
-          ],
-          paypalSnapshots: [
-            {
-              id: "paypal_snapshot_1",
-              payment_session_id: "payment_session_1",
+              provider: "paypal",
+              method: "paypal",
+              status: "captured",
+              attempt_number: 1,
+              paypal_order_id: "PAYPAL_ORDER_1",
+              paypal_capture_id: "PAYPAL_CAPTURE_1",
               paypal_invoice_id: "DO-20260624-000001-01",
               paypal_request_id: "request_1",
-              request_json: { intent: "CAPTURE" },
-              response_json: { status: "COMPLETED" },
-              merchant_snapshot_json: { total_minor: 2633 },
-              created_at: "2026-06-24T10:20:00.000Z",
+              vault_requested: false,
+              merchant_total_minor: 2633,
+              provider_total_minor: 2633,
+              amount_consistency_status: "matched",
+              currency_code: "USD",
+              created_at: "2026-06-24T10:16:00.000Z",
+              updated_at: "2026-06-24T10:20:00.000Z",
             },
-          ],
-          linkedWebhooks: [
-            {
-              id: "webhook_1",
-              event_id: "WH-ORDER-1",
-              event_type: "CHECKOUT.ORDER.APPROVED",
-              verification_status: "valid",
-              linked_order_id: "order_1",
-              linked_payment_session_id: "payment_session_1",
-              processing_status: "processed",
-              received_at: "2026-06-24T10:18:00.000Z",
-              processed_at: "2026-06-24T10:18:05.000Z",
-            },
-          ],
+            order: orderRow ?? null,
+            totalSnapshots: [
+              {
+                id: "total_snapshot_1",
+                order_id: "order_1",
+                payment_session_id: "payment_session_1",
+                fulfillment_mode: "delivery",
+                calculation_stage: "capture",
+                currency_code: "USD",
+                merchandise_subtotal_minor: 1969,
+                product_discount_minor: 0,
+                promo_discount_minor: 0,
+                taxable_subtotal_minor: 1969,
+                tax_minor: 165,
+                shipping_minor: 499,
+                total_minor: 2633,
+                promo_evaluation_id: "promo_evaluation_1",
+                created_at: "2026-06-24T10:20:00.000Z",
+              },
+            ],
+            paypalSnapshots: [
+              {
+                id: "paypal_snapshot_1",
+                payment_session_id: "payment_session_1",
+                paypal_invoice_id: "DO-20260624-000001-01",
+                paypal_request_id: "request_1",
+                request_json: { intent: "CAPTURE" },
+                response_json: { status: "COMPLETED" },
+                merchant_snapshot_json: { total_minor: 2633 },
+                created_at: "2026-06-24T10:20:00.000Z",
+              },
+            ],
+            linkedWebhooks: [
+              {
+                id: "webhook_1",
+                event_id: "WH-ORDER-1",
+                event_type: "CHECKOUT.ORDER.APPROVED",
+                verification_status: "valid",
+                linked_order_id: "order_1",
+                linked_payment_session_id: "payment_session_1",
+                processing_status: "processed",
+                received_at: "2026-06-24T10:18:00.000Z",
+                processed_at: "2026-06-24T10:18:05.000Z",
+              },
+            ],
+          },
+        ],
+        page_info: {
+          total_count: 1,
+          next_cursor: null,
+          timezone: query?.timezone ?? "UTC",
         },
-      ];
+      };
     },
   };
 }

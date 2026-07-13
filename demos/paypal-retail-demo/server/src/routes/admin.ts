@@ -5,17 +5,17 @@ import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import { sanitizeDebugLogContext, type DebugLogJson } from "../debug/logger.js";
 import type {
   AdminCentralInventoryRow,
+  AdminInventoryPage,
   AdminInventoryProductRow,
   AdminInventoryRepository,
-  AdminInventorySnapshot,
   AdminInventoryStoreRow,
   AdminOrderDetail,
   AdminOrderRepository,
   AdminOrderRow,
   AdminPaymentDebugEntry,
   AdminPaymentDebugRepository,
+  AdminPickupDatePage,
   AdminPickupDateRow,
-  AdminPickupDateSnapshot,
   AdminProfileMarketRepository,
   AdminRuntimeDebugLogEntry,
   AdminRuntimeDebugLogRepository,
@@ -23,6 +23,18 @@ import type {
   AdminWebhookEventRow,
   AdminWebhookRepository,
 } from "../repositories/adminRepository.js";
+import {
+  decodeAdminCursor,
+  encodeAdminCursor,
+  parseAdminInventoryQuery,
+  parseAdminLifecycleQuery,
+  parseAdminOrdersQuery,
+  parseAdminPaymentDiagnosticsQuery,
+  parseAdminRuntimeLogsQuery,
+  parseAdminWebhooksQuery,
+  type AdminPageInfo,
+  type AdminRuntimeLogsQuery,
+} from "./adminQuery.js";
 import type { ActiveStorefrontContextStore } from "../state/storefrontContext.js";
 import type { CatalogRepository, StorefrontContext } from "./catalog.js";
 
@@ -194,11 +206,39 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/orders",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
-        const orders = await input.orderRepository?.listOrders();
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminOrdersQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const page = await input.orderRepository?.listOrders(parsedQuery.query);
 
         sendApiSuccess(response, {
-          orders: (orders ?? []).map(mapAdminOrderSummary),
+          orders: (page?.items ?? []).map(mapAdminOrderSummary),
+          page_info:
+            page?.page_info ?? emptyAdminPageInfo(parsedQuery.query.timezone),
+        });
+      }),
+    );
+
+    router.get(
+      "/admin/lifecycle",
+      input.adminSessionGuard,
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminLifecycleQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const page = await input.orderRepository?.listLifecycle(
+          parsedQuery.query,
+        );
+
+        sendApiSuccess(response, {
+          lifecycle: (page?.items ?? []).map(mapAdminOrderSummary),
+          page_info:
+            page?.page_info ?? emptyAdminPageInfo(parsedQuery.query.timezone),
         });
       }),
     );
@@ -307,10 +347,20 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/inventory",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
-        const inventory = await input.inventoryRepository?.listInventory();
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminInventoryQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const inventory = await input.inventoryRepository?.listInventory(
+          parsedQuery.query,
+        );
 
-        sendApiSuccess(response, mapAdminInventorySnapshot(inventory));
+        sendApiSuccess(
+          response,
+          mapAdminInventoryPage(inventory, parsedQuery.query.timezone),
+        );
       }),
     );
 
@@ -366,10 +416,20 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/pickup-dates",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
-        const pickupDates = await input.inventoryRepository?.listPickupDates();
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminInventoryQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const pickupDates = await input.inventoryRepository?.listPickupDates(
+          parsedQuery.query,
+        );
 
-        sendApiSuccess(response, mapAdminPickupDateSnapshot(pickupDates));
+        sendApiSuccess(
+          response,
+          mapAdminPickupDatePage(pickupDates, parsedQuery.query.timezone),
+        );
       }),
     );
 
@@ -417,11 +477,20 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/webhooks",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
-        const webhooks = await input.webhookRepository?.listWebhooks();
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminWebhooksQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const page = await input.webhookRepository?.listWebhooks(
+          parsedQuery.query,
+        );
 
         sendApiSuccess(response, {
-          webhooks: (webhooks ?? []).map(mapAdminWebhookEvent),
+          webhooks: (page?.items ?? []).map(mapAdminWebhookEvent),
+          page_info:
+            page?.page_info ?? emptyAdminPageInfo(parsedQuery.query.timezone),
         });
       }),
     );
@@ -431,11 +500,20 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/payment-debug",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
-        const paymentDebug = await input.debugRepository?.listPaymentDebug();
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminPaymentDiagnosticsQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
+        const page = await input.debugRepository?.listPaymentDebug(
+          parsedQuery.query,
+        );
 
         sendApiSuccess(response, {
-          payment_sessions: (paymentDebug ?? []).map(mapAdminPaymentDebugEntry),
+          payment_sessions: (page?.items ?? []).map(mapAdminPaymentDebugEntry),
+          page_info:
+            page?.page_info ?? emptyAdminPageInfo(parsedQuery.query.timezone),
         });
       }),
     );
@@ -445,18 +523,115 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
     router.get(
       "/admin/debug-logs",
       input.adminSessionGuard,
-      asyncRoute(async (_request, response) => {
+      asyncRoute(async (request, response) => {
+        const parsedQuery = parseAdminRuntimeLogsQuery(request.query);
+        if (!parsedQuery.ok) {
+          sendApiError(response, 400, parsedQuery.error);
+          return;
+        }
         const debugLogs =
           await input.runtimeDebugLogRepository?.listRuntimeDebugLogs();
+        const page = paginateAdminRuntimeDebugLogs(
+          debugLogs ?? [],
+          parsedQuery.query,
+        );
 
         sendApiSuccess(response, {
-          debug_logs: (debugLogs ?? []).map(mapAdminRuntimeDebugLogEntry),
+          debug_logs: page.items.map(mapAdminRuntimeDebugLogEntry),
+          page_info: page.page_info,
         });
       }),
     );
   }
 
   return router;
+}
+
+function emptyAdminPageInfo(timezone: string): AdminPageInfo {
+  return {
+    total_count: 0,
+    next_cursor: null,
+    timezone,
+  };
+}
+
+function paginateAdminRuntimeDebugLogs(
+  entries: readonly AdminRuntimeDebugLogEntry[],
+  query: AdminRuntimeLogsQuery,
+) {
+  const filtered = entries
+    .filter((entry) => {
+      const mapped = mapAdminRuntimeDebugLogEntry(entry);
+      const lookupText = [
+        mapped.debug_id,
+        mapped.message,
+        mapped.request_path,
+        JSON.stringify(mapped.context),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const eventName = readDebugContextString(mapped.context, [
+        "event",
+        "event_name",
+        "event_type",
+      ]);
+
+      return (
+        (!query.lookup || lookupText.includes(query.lookup.toLowerCase())) &&
+        (!query.level || entry.level === query.level) &&
+        (!query.category ||
+          mapped.source?.toLowerCase() === query.category.toLowerCase()) &&
+        (!query.event ||
+          eventName?.toLowerCase() === query.event.toLowerCase()) &&
+        (!query.loggedFrom || entry.timestamp >= query.loggedFrom) &&
+        (!query.loggedTo || entry.timestamp <= query.loggedTo)
+      );
+    })
+    .sort((left, right) => {
+      const timeDifference = right.timestamp.localeCompare(left.timestamp);
+      return (
+        timeDifference ||
+        runtimeDebugCursorId(right).localeCompare(runtimeDebugCursorId(left))
+      );
+    });
+  const totalCount = filtered.length;
+  const decodedCursor = query.cursor ? decodeAdminCursor(query.cursor) : null;
+  const afterCursor = decodedCursor
+    ? filtered.filter(
+        (entry) =>
+          entry.timestamp < decodedCursor.value ||
+          (entry.timestamp === decodedCursor.value &&
+            runtimeDebugCursorId(entry) < decodedCursor.id),
+      )
+    : filtered;
+  const rowsWithExtra = afterCursor.slice(0, query.limit + 1);
+  const items = rowsWithExtra.slice(0, query.limit);
+  const lastItem = items.at(-1);
+
+  return {
+    items,
+    page_info: {
+      total_count: totalCount,
+      next_cursor:
+        rowsWithExtra.length > items.length && lastItem
+          ? encodeAdminCursor({
+              value: lastItem.timestamp,
+              id: runtimeDebugCursorId(lastItem),
+            })
+          : null,
+      timezone: query.timezone,
+    },
+  };
+}
+
+function runtimeDebugCursorId(entry: AdminRuntimeDebugLogEntry): string {
+  return (
+    mapAdminRuntimeDebugLogEntry(entry).debug_id ??
+    `log:${Buffer.from(`${entry.level}:${entry.message}`, "utf8").toString(
+      "base64url",
+    )}`
+  );
 }
 
 function parseProfileMarketBody(request: Request): {
@@ -909,27 +1084,27 @@ function isDebugLogObject(
   );
 }
 
-function mapAdminInventorySnapshot(
-  snapshot: AdminInventorySnapshot | undefined,
+function mapAdminInventoryPage(
+  page: AdminInventoryPage | undefined,
+  timezone: string,
 ) {
-  if (!snapshot) {
+  if (!page) {
     return {
       inventory: [],
+      page_info: emptyAdminPageInfo(timezone),
     };
   }
 
-  const productsById = mapById(snapshot.products);
-  const storesById = mapById(snapshot.stores);
+  const productsById = mapById(page.products);
+  const storesById = mapById(page.stores);
 
   return {
-    inventory: [
-      ...snapshot.centralInventory.map((row) =>
-        mapAdminCentralInventory(row, productsById),
-      ),
-      ...snapshot.storeInventory.map((row) =>
-        mapAdminStoreInventory(row, productsById, storesById),
-      ),
-    ],
+    inventory: page.items.map((item) =>
+      item.type === "central"
+        ? mapAdminCentralInventory(item.row, productsById)
+        : mapAdminStoreInventory(item.row, productsById, storesById),
+    ),
+    page_info: page.page_info,
   };
 }
 
@@ -990,19 +1165,20 @@ function mapAdminStoreInventory(
   };
 }
 
-function mapAdminPickupDateSnapshot(
-  snapshot: AdminPickupDateSnapshot | undefined,
+function mapAdminPickupDatePage(
+  page: AdminPickupDatePage | undefined,
+  timezone: string,
 ) {
-  if (!snapshot) {
+  if (!page) {
     return {
       pickup_dates: [],
+      page_info: emptyAdminPageInfo(timezone),
     };
   }
 
   return {
-    pickup_dates: snapshot.pickupDates.map((row) =>
-      mapAdminPickupDate(row, snapshot.stores),
-    ),
+    pickup_dates: page.items.map((row) => mapAdminPickupDate(row, page.stores)),
+    page_info: page.page_info,
   };
 }
 

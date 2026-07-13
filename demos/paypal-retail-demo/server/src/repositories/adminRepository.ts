@@ -8,6 +8,17 @@ import type {
   DebugLogEntry,
   RuntimeDebugLogRepository,
 } from "../debug/logger.js";
+import {
+  decodeAdminCursor,
+  encodeAdminCursor,
+  type AdminCursorPage,
+  type AdminInventoryQuery,
+  type AdminLifecycleNextAction,
+  type AdminLifecycleQuery,
+  type AdminOrdersQuery,
+  type AdminPaymentDiagnosticsQuery,
+  type AdminWebhooksQuery,
+} from "../routes/adminQuery.js";
 
 interface SupabaseAdminError {
   readonly message: string;
@@ -16,6 +27,7 @@ interface SupabaseAdminError {
 interface SupabaseAdminResult<TData> {
   readonly data: TData | null;
   readonly error: SupabaseAdminError | null;
+  readonly count?: number | null;
 }
 
 type SupabaseAdminPrimitive = string | number | boolean | null;
@@ -26,6 +38,15 @@ interface SupabaseAdminQuery extends PromiseLike<SupabaseAdminResult<unknown>> {
     column: string,
     value: SupabaseAdminPrimitive,
   ) => SupabaseAdminQuery;
+  readonly gte: (
+    column: string,
+    value: SupabaseAdminPrimitive,
+  ) => SupabaseAdminQuery;
+  readonly gt: (
+    column: string,
+    value: SupabaseAdminPrimitive,
+  ) => SupabaseAdminQuery;
+  readonly ilike: (column: string, pattern: string) => SupabaseAdminQuery;
   readonly in: (
     column: string,
     values: readonly SupabaseAdminPrimitive[],
@@ -34,12 +55,28 @@ interface SupabaseAdminQuery extends PromiseLike<SupabaseAdminResult<unknown>> {
     value: Record<string, unknown> | readonly Record<string, unknown>[],
   ) => SupabaseAdminQuery;
   readonly limit: (count: number) => SupabaseAdminQuery;
+  readonly lt: (
+    column: string,
+    value: SupabaseAdminPrimitive,
+  ) => SupabaseAdminQuery;
+  readonly lte: (
+    column: string,
+    value: SupabaseAdminPrimitive,
+  ) => SupabaseAdminQuery;
   readonly maybeSingle: () => PromiseLike<SupabaseAdminResult<unknown>>;
   readonly order: (
     column: string,
     options?: { readonly ascending?: boolean },
   ) => SupabaseAdminQuery;
-  readonly select: (columns: string) => SupabaseAdminQuery;
+  readonly or: (filters: string) => SupabaseAdminQuery;
+  readonly range: (from: number, to: number) => SupabaseAdminQuery;
+  readonly select: (
+    columns: string,
+    options?: {
+      readonly count?: "exact";
+      readonly head?: boolean;
+    },
+  ) => SupabaseAdminQuery;
   readonly single: () => PromiseLike<SupabaseAdminResult<unknown>>;
   readonly update: (values: Record<string, unknown>) => SupabaseAdminQuery;
 }
@@ -273,8 +310,27 @@ export interface AdminInventorySnapshot {
   readonly stores: readonly AdminInventoryStoreRow[];
 }
 
+export type AdminInventoryRecord =
+  | {
+      readonly type: "central";
+      readonly row: AdminCentralInventoryRow;
+    }
+  | {
+      readonly type: "store";
+      readonly row: AdminStoreInventoryRow;
+    };
+
+export interface AdminInventoryPage extends AdminCursorPage<AdminInventoryRecord> {
+  readonly products: readonly AdminInventoryProductRow[];
+  readonly stores: readonly AdminInventoryStoreRow[];
+}
+
 export interface AdminPickupDateSnapshot {
   readonly pickupDates: readonly AdminPickupDateRow[];
+  readonly stores: readonly AdminInventoryStoreRow[];
+}
+
+export interface AdminPickupDatePage extends AdminCursorPage<AdminPickupDateRow> {
   readonly stores: readonly AdminInventoryStoreRow[];
 }
 
@@ -307,7 +363,12 @@ export interface AdminProfileMarketRepository {
 }
 
 export interface AdminOrderRepository {
-  readonly listOrders: () => Promise<readonly AdminOrderRow[]>;
+  readonly listOrders: (
+    query?: AdminOrdersQuery,
+  ) => Promise<AdminCursorPage<AdminOrderRow>>;
+  readonly listLifecycle: (
+    query?: AdminLifecycleQuery,
+  ) => Promise<AdminCursorPage<AdminOrderRow>>;
   readonly getOrder: (orderId: string) => Promise<AdminOrderDetail | null>;
   readonly updateOrderStatus: (input: {
     readonly orderId: string;
@@ -325,7 +386,9 @@ export interface AdminOrderRepository {
 }
 
 export interface AdminInventoryRepository {
-  readonly listInventory: () => Promise<AdminInventorySnapshot>;
+  readonly listInventory: (
+    query?: AdminInventoryQuery,
+  ) => Promise<AdminInventoryPage>;
   readonly updateCentralInventory: (input: {
     readonly profileId: string;
     readonly marketId: string;
@@ -338,7 +401,9 @@ export interface AdminInventoryRepository {
     readonly availableQuantity: number;
     readonly updatedAt: string;
   }) => Promise<AdminStoreInventoryRow | null>;
-  readonly listPickupDates: () => Promise<AdminPickupDateSnapshot>;
+  readonly listPickupDates: (
+    query?: AdminInventoryQuery,
+  ) => Promise<AdminPickupDatePage>;
   readonly updatePickupDate: (input: {
     readonly pickupDateId: string;
     readonly capacity?: number;
@@ -348,11 +413,15 @@ export interface AdminInventoryRepository {
 }
 
 export interface AdminWebhookRepository {
-  readonly listWebhooks: () => Promise<readonly AdminWebhookEventRow[]>;
+  readonly listWebhooks: (
+    query?: AdminWebhooksQuery,
+  ) => Promise<AdminCursorPage<AdminWebhookEventRow>>;
 }
 
 export interface AdminPaymentDebugRepository {
-  readonly listPaymentDebug: () => Promise<readonly AdminPaymentDebugEntry[]>;
+  readonly listPaymentDebug: (
+    query?: AdminPaymentDiagnosticsQuery,
+  ) => Promise<AdminCursorPage<AdminPaymentDebugEntry>>;
 }
 
 export type AdminRuntimeDebugLogEntry = DebugLogEntry;
@@ -386,15 +455,25 @@ export function createSupabaseAdminOrderRepository(
   supabase: SupabaseAdminClient,
 ): AdminOrderRepository {
   return {
-    async listOrders() {
-      return queryMany<AdminOrderRow>(
-        supabase
-          .from("orders")
-          .select(adminOrderColumns)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        "List admin orders",
-      );
+    async listOrders(rawQuery) {
+      const query = rawQuery ?? defaultAdminOrdersQuery;
+      return listAdminOrdersPage({
+        kind: "orders",
+        supabase,
+        query,
+        sortColumn: "created_at",
+        description: "List admin orders",
+      });
+    },
+    async listLifecycle(rawQuery) {
+      const query = rawQuery ?? defaultAdminLifecycleQuery;
+      return listAdminOrdersPage({
+        kind: "lifecycle",
+        supabase,
+        query,
+        sortColumn: "updated_at",
+        description: "List admin lifecycle orders",
+      });
     },
     async getOrder(orderId) {
       const order = await queryOne<AdminOrderRow>(
@@ -560,39 +639,105 @@ export function createSupabaseAdminInventoryRepository(
   supabase: SupabaseAdminClient,
 ): AdminInventoryRepository {
   return {
-    async listInventory() {
-      const [centralInventory, storeInventory] = await Promise.all([
-        queryMany<AdminCentralInventoryRow>(
-          supabase
-            .from("central_inventory")
-            .select(adminCentralInventoryColumns)
-            .order("updated_at", { ascending: false })
-            .limit(75),
-          "List admin central inventory",
-        ),
-        queryMany<AdminStoreInventoryRow>(
-          supabase
-            .from("store_inventory")
-            .select(adminStoreInventoryColumns)
-            .order("updated_at", { ascending: false })
-            .limit(75),
-          "List admin store inventory",
-        ),
+    async listInventory(rawQuery) {
+      const query = rawQuery ?? defaultAdminInventoryQuery;
+      const matchingProducts = query.search
+        ? await queryMany<AdminInventoryProductRow>(
+            supabase
+              .from("products")
+              .select(adminInventoryProductColumns)
+              .or(
+                `sku.ilike.${postgrestIlikeValue(
+                  query.search,
+                )},name.ilike.${postgrestIlikeValue(query.search)}`,
+              ),
+            "Search admin inventory products",
+          )
+        : null;
+      const productIds = matchingProducts?.map((product) => product.id);
+
+      if (productIds && productIds.length === 0) {
+        return {
+          items: [],
+          products: [],
+          stores: [],
+          page_info: {
+            total_count: 0,
+            next_cursor: null,
+            timezone: query.timezone,
+          },
+        };
+      }
+
+      const includeCentral = query.scope !== "store";
+      const includeStore = query.scope !== "central";
+      const [centralResult, storeResult] = await Promise.all([
+        includeCentral
+          ? listAdminInventoryRows<AdminCentralInventoryRow>({
+              supabase,
+              table: "central_inventory",
+              columns: adminCentralInventoryColumns,
+              query,
+              ...(productIds ? { productIds } : {}),
+              cursorColumn: "product_id",
+              description: "List admin central inventory",
+            })
+          : emptyAdminRowPage<AdminCentralInventoryRow>(),
+        includeStore
+          ? listAdminInventoryRows<AdminStoreInventoryRow>({
+              supabase,
+              table: "store_inventory",
+              columns: adminStoreInventoryColumns,
+              query,
+              ...(productIds ? { productIds } : {}),
+              cursorColumn: "id",
+              description: "List admin store inventory",
+              applyScopeFilters(currentQuery) {
+                return query.storeId
+                  ? currentQuery.eq("store_id", query.storeId)
+                  : currentQuery;
+              },
+            })
+          : emptyAdminRowPage<AdminStoreInventoryRow>(),
       ]);
-      const products = await listInventoryProducts(supabase, [
-        ...centralInventory.map((row) => row.product_id),
-        ...storeInventory.map((row) => row.product_id),
-      ]);
+      const merged = [
+        ...centralResult.rows.map(
+          (row): AdminInventoryRecord => ({ type: "central", row }),
+        ),
+        ...storeResult.rows.map(
+          (row): AdminInventoryRecord => ({ type: "store", row }),
+        ),
+      ]
+        .filter((record) =>
+          isAdminInventoryRecordAfterCursor(record, query.cursor),
+        )
+        .sort(compareAdminInventoryRecords);
+      const pageItems = merged.slice(0, query.limit);
+      const hasMore = merged.length > query.limit;
+      const productIdsOnPage = pageItems.map((item) => item.row.product_id);
+      const products = matchingProducts
+        ? matchingProducts.filter((product) =>
+            productIdsOnPage.includes(product.id),
+          )
+        : await listInventoryProducts(supabase, productIdsOnPage);
       const stores = await listInventoryStores(
         supabase,
-        storeInventory.map((row) => row.store_id),
+        pageItems.flatMap((item) =>
+          item.type === "store" ? [item.row.store_id] : [],
+        ),
       );
 
       return {
-        centralInventory,
-        storeInventory,
+        items: pageItems,
         products,
         stores,
+        page_info: {
+          total_count: centralResult.totalCount + storeResult.totalCount,
+          next_cursor: hasMore
+            ? encodeInventoryCursor(pageItems.at(-1) ?? null)
+            : null,
+          timezone: query.timezone,
+        },
       };
     },
     async updateCentralInventory(input) {
@@ -625,23 +770,51 @@ export function createSupabaseAdminInventoryRepository(
         `Update admin store inventory ${input.inventoryId}`,
       );
     },
-    async listPickupDates() {
-      const pickupDates = await queryMany<AdminPickupDateRow>(
+    async listPickupDates(rawQuery) {
+      const query = rawQuery ?? defaultAdminInventoryQuery;
+      const countQuery = applyPickupDateFilters(
         supabase
           .from("store_pickup_dates")
-          .select(adminPickupDateColumns)
-          .order("pickup_date", { ascending: true })
-          .limit(75),
-        "List admin pickup dates",
+          .select("id", { count: "exact", head: true }),
+        query,
       );
+      let dataQuery = applyPickupDateFilters(
+        supabase.from("store_pickup_dates").select(adminPickupDateColumns),
+        query,
+      )
+        .order("pickup_date", { ascending: true })
+        .order("id", { ascending: true });
+      dataQuery = applyAdminCursor(
+        dataQuery,
+        query.cursor,
+        "pickup_date",
+        "id",
+        "ascending",
+      );
+      const [pickupDatesWithExtra, totalCount] = await Promise.all([
+        queryMany<AdminPickupDateRow>(
+          dataQuery.limit(query.limit + 1),
+          "List admin pickup dates",
+        ),
+        queryCount(countQuery, "Count admin pickup dates"),
+      ]);
+      const pickupDates = pickupDatesWithExtra.slice(0, query.limit);
       const stores = await listInventoryStores(
         supabase,
         pickupDates.map((row) => row.store_id),
       );
 
       return {
-        pickupDates,
+        items: pickupDates,
         stores,
+        page_info: createAdminPageInfo({
+          rowsWithExtra: pickupDatesWithExtra,
+          items: pickupDates,
+          totalCount,
+          timezone: query.timezone,
+          getCursorValue: (row) => row.pickup_date,
+          getCursorId: (row) => row.id,
+        }),
       };
     },
     async updatePickupDate(input) {
@@ -670,15 +843,46 @@ export function createSupabaseAdminWebhookRepository(
   supabase: SupabaseAdminClient,
 ): AdminWebhookRepository {
   return {
-    async listWebhooks() {
-      return queryMany<AdminWebhookEventRow>(
+    async listWebhooks(rawQuery) {
+      const query = rawQuery ?? defaultAdminWebhooksQuery;
+      const countQuery = applyWebhookFilters(
         supabase
           .from("webhook_events")
-          .select(adminWebhookEventColumns)
-          .order("received_at", { ascending: false })
-          .limit(75),
-        "List admin webhooks",
+          .select("id", { count: "exact", head: true }),
+        query,
       );
+      let dataQuery = applyWebhookFilters(
+        supabase.from("webhook_events").select(adminWebhookEventColumns),
+        query,
+      )
+        .order("received_at", { ascending: false })
+        .order("id", { ascending: false });
+      dataQuery = applyAdminCursor(
+        dataQuery,
+        query.cursor,
+        "received_at",
+        "id",
+      );
+      const [rowsWithExtra, totalCount] = await Promise.all([
+        queryMany<AdminWebhookEventRow>(
+          dataQuery.limit(query.limit + 1),
+          "List admin webhooks",
+        ),
+        queryCount(countQuery, "Count admin webhooks"),
+      ]);
+      const items = rowsWithExtra.slice(0, query.limit);
+
+      return {
+        items,
+        page_info: createAdminPageInfo({
+          rowsWithExtra,
+          items,
+          totalCount,
+          timezone: query.timezone,
+          getCursorValue: (row) => row.received_at,
+          getCursorId: (row) => row.id,
+        }),
+      };
     },
   };
 }
@@ -687,18 +891,52 @@ export function createSupabaseAdminPaymentDebugRepository(
   supabase: SupabaseAdminClient,
 ): AdminPaymentDebugRepository {
   return {
-    async listPaymentDebug() {
-      const sessions = await queryMany<AdminPaymentSessionRow>(
+    async listPaymentDebug(rawQuery) {
+      const query = rawQuery ?? defaultAdminPaymentDiagnosticsQuery;
+      const matchingOrderIds = query.lookup?.match(/^(?:DO|PO)-/i)
+        ? (
+            await queryMany<Pick<AdminOrderRow, "id">>(
+              supabase
+                .from("orders")
+                .select("id")
+                .ilike("order_number", `%${query.lookup}%`),
+              "Find admin payment debug orders",
+            )
+          ).map((order) => order.id)
+        : [];
+      const countQuery = applyPaymentDebugFilters(
         supabase
           .from("payment_sessions")
-          .select(adminPaymentSessionColumns)
-          .order("updated_at", { ascending: false })
-          .limit(75),
-        "List admin payment debug sessions",
+          .select("id", { count: "exact", head: true }),
+        query,
+        matchingOrderIds,
       );
+      let dataQuery = applyPaymentDebugFilters(
+        supabase.from("payment_sessions").select(adminPaymentSessionColumns),
+        query,
+        matchingOrderIds,
+      )
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false });
+      dataQuery = applyAdminCursor(dataQuery, query.cursor, "updated_at", "id");
+      const [sessionsWithExtra, totalCount] = await Promise.all([
+        queryMany<AdminPaymentSessionRow>(
+          dataQuery.limit(query.limit + 1),
+          "List admin payment debug sessions",
+        ),
+        queryCount(countQuery, "Count admin payment debug sessions"),
+      ]);
+      const sessions = sessionsWithExtra.slice(0, query.limit);
 
       if (sessions.length === 0) {
-        return [];
+        return {
+          items: [],
+          page_info: {
+            total_count: totalCount,
+            next_cursor: null,
+            timezone: query.timezone,
+          },
+        };
       }
 
       const sessionIds = uniqueStrings(sessions.map((session) => session.id));
@@ -753,15 +991,493 @@ export function createSupabaseAdminPaymentDebugRepository(
         (webhook) => webhook.linked_payment_session_id,
       );
 
-      return sessions.map((session) => ({
+      const items = sessions.map((session) => ({
         session,
         order: ordersById.get(session.order_id) ?? null,
         totalSnapshots: totalSnapshotsBySessionId.get(session.id) ?? [],
         paypalSnapshots: paypalSnapshotsBySessionId.get(session.id) ?? [],
         linkedWebhooks: webhooksBySessionId.get(session.id) ?? [],
       }));
+
+      return {
+        items,
+        page_info: createAdminPageInfo({
+          rowsWithExtra: sessionsWithExtra,
+          items: sessions,
+          totalCount,
+          timezone: query.timezone,
+          getCursorValue: (row) => row.updated_at,
+          getCursorId: (row) => row.id,
+        }),
+      };
     },
   };
+}
+
+const defaultAdminOrdersQuery: AdminOrdersQuery = {
+  limit: 50,
+  timezone: "UTC",
+};
+
+const defaultAdminLifecycleQuery: AdminLifecycleQuery = {
+  limit: 50,
+  timezone: "UTC",
+};
+
+const defaultAdminInventoryQuery: AdminInventoryQuery = {
+  limit: 75,
+  timezone: "UTC",
+};
+
+const defaultAdminWebhooksQuery: AdminWebhooksQuery = {
+  limit: 75,
+  timezone: "UTC",
+};
+
+const defaultAdminPaymentDiagnosticsQuery: AdminPaymentDiagnosticsQuery = {
+  limit: 75,
+  timezone: "UTC",
+};
+
+const actionableAdminOrderStatuses: readonly OrderStatus[] = [
+  "paid",
+  "processing",
+  "shipped",
+  "preparing_pickup",
+  "ready_for_pickup",
+];
+
+const lowStockMaximum = 5;
+
+type ListAdminOrdersPageInput =
+  | {
+      readonly kind: "orders";
+      readonly supabase: SupabaseAdminClient;
+      readonly query: AdminOrdersQuery;
+      readonly sortColumn: "created_at";
+      readonly description: string;
+    }
+  | {
+      readonly kind: "lifecycle";
+      readonly supabase: SupabaseAdminClient;
+      readonly query: AdminLifecycleQuery;
+      readonly sortColumn: "updated_at";
+      readonly description: string;
+    };
+
+async function listAdminOrdersPage(
+  input: ListAdminOrdersPageInput,
+): Promise<AdminCursorPage<AdminOrderRow>> {
+  const applyFilters = (query: SupabaseAdminQuery) =>
+    input.kind === "orders"
+      ? applyAdminOrdersFilters(query, input.query)
+      : applyAdminLifecycleFilters(query, input.query);
+  const countQuery = applyFilters(
+    input.supabase.from("orders").select("id", { count: "exact", head: true }),
+  );
+  let dataQuery = applyFilters(
+    input.supabase.from("orders").select(adminOrderColumns),
+  )
+    .order(input.sortColumn, { ascending: false })
+    .order("id", { ascending: false });
+  dataQuery = applyAdminCursor(
+    dataQuery,
+    input.query.cursor,
+    input.sortColumn,
+    "id",
+  );
+  const [rowsWithExtra, totalCount] = await Promise.all([
+    queryMany<AdminOrderRow>(
+      dataQuery.limit(input.query.limit + 1),
+      input.description,
+    ),
+    queryCount(countQuery, `Count ${input.description.toLowerCase()}`),
+  ]);
+  const items = rowsWithExtra.slice(0, input.query.limit);
+
+  return {
+    items,
+    page_info: createAdminPageInfo({
+      rowsWithExtra,
+      items,
+      totalCount,
+      timezone: input.query.timezone,
+      getCursorValue: (row) => row[input.sortColumn],
+      getCursorId: (row) => row.id,
+    }),
+  };
+}
+
+function applyAdminOrdersFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminOrdersQuery,
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.orderNumber) {
+    nextQuery = nextQuery.ilike("order_number", `%${filters.orderNumber}%`);
+  }
+
+  if (filters.status) {
+    nextQuery = nextQuery.eq("status", filters.status);
+  }
+  if (filters.fulfillment) {
+    nextQuery = nextQuery.eq("fulfillment_mode", filters.fulfillment);
+  }
+  if (filters.paymentStatus) {
+    nextQuery = nextQuery.eq("payment_status", filters.paymentStatus);
+  }
+  if (filters.createdFrom) {
+    nextQuery = nextQuery.gte("created_at", filters.createdFrom);
+  }
+  if (filters.createdTo) {
+    nextQuery = nextQuery.lte("created_at", filters.createdTo);
+  }
+
+  return nextQuery;
+}
+
+function applyAdminLifecycleFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminLifecycleQuery,
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.orderNumber) {
+    nextQuery = nextQuery.ilike("order_number", `%${filters.orderNumber}%`);
+  }
+
+  const nextActionTarget = filters.nextAction
+    ? adminLifecycleTargetByAction[filters.nextAction]
+    : null;
+  const fulfillment = nextActionTarget?.fulfillment ?? filters.fulfillment;
+  const status = nextActionTarget?.status ?? filters.status;
+
+  if (fulfillment) {
+    nextQuery = nextQuery.eq("fulfillment_mode", fulfillment);
+  }
+  if (status) {
+    nextQuery = nextQuery.eq("status", status);
+  } else if (filters.actionableOnly) {
+    nextQuery = nextQuery.in("status", actionableAdminOrderStatuses);
+  }
+  if (filters.updatedFrom) {
+    nextQuery = nextQuery.gte("updated_at", filters.updatedFrom);
+  }
+  if (filters.updatedTo) {
+    nextQuery = nextQuery.lte("updated_at", filters.updatedTo);
+  }
+
+  return nextQuery;
+}
+
+const adminLifecycleTargetByAction: Readonly<
+  Record<
+    AdminLifecycleNextAction,
+    {
+      readonly fulfillment: AdminOrderFulfillmentMode;
+      readonly status: OrderStatus;
+    }
+  >
+> = {
+  processing: { fulfillment: "delivery", status: "paid" },
+  shipped: { fulfillment: "delivery", status: "processing" },
+  delivered: { fulfillment: "delivery", status: "shipped" },
+  preparing_pickup: { fulfillment: "pickup", status: "paid" },
+  ready_for_pickup: {
+    fulfillment: "pickup",
+    status: "preparing_pickup",
+  },
+  picked_up: { fulfillment: "pickup", status: "ready_for_pickup" },
+};
+
+async function listAdminInventoryRows<
+  TRow extends { readonly product_id: string; readonly updated_at: string },
+>(input: {
+  readonly supabase: SupabaseAdminClient;
+  readonly table: string;
+  readonly columns: string;
+  readonly query: AdminInventoryQuery;
+  readonly productIds?: readonly string[];
+  readonly cursorColumn: string;
+  readonly description: string;
+  readonly applyScopeFilters?: (
+    query: SupabaseAdminQuery,
+  ) => SupabaseAdminQuery;
+}): Promise<{ readonly rows: readonly TRow[]; readonly totalCount: number }> {
+  const applyFilters = (query: SupabaseAdminQuery) => {
+    let nextQuery = applyAdminInventoryFilters(
+      query,
+      input.query,
+      input.productIds,
+    );
+    if (input.applyScopeFilters) {
+      nextQuery = input.applyScopeFilters(nextQuery);
+    }
+    return nextQuery;
+  };
+  const countQuery = applyFilters(
+    input.supabase
+      .from(input.table)
+      .select(input.cursorColumn, { count: "exact", head: true }),
+  );
+  let dataQuery = applyFilters(
+    input.supabase.from(input.table).select(input.columns),
+  )
+    .order("updated_at", { ascending: false })
+    .order(input.cursorColumn, { ascending: false });
+  const decodedCursor = input.query.cursor
+    ? decodeAdminCursor(input.query.cursor)
+    : null;
+  if (decodedCursor) {
+    dataQuery = dataQuery.lte("updated_at", decodedCursor.value);
+  }
+  const [rows, totalCount] = await Promise.all([
+    queryMany<TRow>(dataQuery.limit(input.query.limit + 1), input.description),
+    queryCount(countQuery, `Count ${input.description.toLowerCase()}`),
+  ]);
+
+  return { rows, totalCount };
+}
+
+function applyAdminInventoryFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminInventoryQuery,
+  productIds?: readonly string[],
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (productIds) {
+    nextQuery = nextQuery.in("product_id", productIds);
+  }
+  if (filters.stockCondition === "out_of_stock") {
+    nextQuery = nextQuery.eq("available_quantity", 0);
+  } else if (filters.stockCondition === "low_stock") {
+    nextQuery = nextQuery
+      .gte("available_quantity", 1)
+      .lte("available_quantity", lowStockMaximum);
+  } else if (filters.stockCondition === "in_stock") {
+    nextQuery = nextQuery.gte("available_quantity", lowStockMaximum + 1);
+  } else if (filters.availability === "available") {
+    nextQuery = nextQuery.gte("available_quantity", 1);
+  } else if (filters.availability === "unavailable") {
+    nextQuery = nextQuery.eq("available_quantity", 0);
+  }
+  if (filters.changedFrom) {
+    nextQuery = nextQuery.gte("updated_at", filters.changedFrom);
+  }
+  if (filters.changedTo) {
+    nextQuery = nextQuery.lte("updated_at", filters.changedTo);
+  }
+
+  return nextQuery;
+}
+
+function applyPickupDateFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminInventoryQuery,
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.storeId) {
+    nextQuery = nextQuery.eq("store_id", filters.storeId);
+  }
+  if (filters.availability === "available") {
+    nextQuery = nextQuery.eq("is_available", true);
+  } else if (filters.availability === "unavailable") {
+    nextQuery = nextQuery.eq("is_available", false);
+  }
+  if (filters.changedFrom) {
+    nextQuery = nextQuery.gte("updated_at", filters.changedFrom);
+  }
+  if (filters.changedTo) {
+    nextQuery = nextQuery.lte("updated_at", filters.changedTo);
+  }
+
+  return nextQuery;
+}
+
+function applyWebhookFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminWebhooksQuery,
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.eventId) {
+    nextQuery = nextQuery.ilike("event_id", `%${filters.eventId}%`);
+  }
+  if (filters.eventType) {
+    nextQuery = nextQuery.eq("event_type", filters.eventType);
+  }
+  if (filters.verificationStatus) {
+    nextQuery = nextQuery.eq("verification_status", filters.verificationStatus);
+  }
+  if (filters.processingStatus) {
+    nextQuery = nextQuery.eq("processing_status", filters.processingStatus);
+  }
+  if (filters.linkedState === "linked") {
+    nextQuery = nextQuery.or(
+      "linked_order_id.not.is.null,linked_payment_session_id.not.is.null",
+    );
+  } else if (filters.linkedState === "unlinked") {
+    nextQuery = nextQuery.or(
+      "and(linked_order_id.is.null,linked_payment_session_id.is.null)",
+    );
+  }
+  if (filters.receivedFrom) {
+    nextQuery = nextQuery.gte("received_at", filters.receivedFrom);
+  }
+  if (filters.receivedTo) {
+    nextQuery = nextQuery.lte("received_at", filters.receivedTo);
+  }
+
+  return nextQuery;
+}
+
+function applyPaymentDebugFilters(
+  query: SupabaseAdminQuery,
+  filters: AdminPaymentDiagnosticsQuery,
+  matchingOrderIds: readonly string[],
+): SupabaseAdminQuery {
+  let nextQuery = query;
+
+  if (filters.lookup) {
+    const lookup = postgrestIlikeValue(filters.lookup);
+    const lookupFilters = [
+      `id.ilike.${lookup}`,
+      `paypal_order_id.ilike.${lookup}`,
+      `paypal_capture_id.ilike.${lookup}`,
+      `paypal_invoice_id.ilike.${lookup}`,
+      `paypal_request_id.ilike.${lookup}`,
+      ...(matchingOrderIds.length > 0
+        ? [`order_id.in.(${matchingOrderIds.join(",")})`]
+        : []),
+    ];
+    nextQuery = nextQuery.or(lookupFilters.join(","));
+  }
+  if (filters.method) {
+    nextQuery = nextQuery.eq("method", filters.method);
+  }
+  if (filters.status) {
+    nextQuery = nextQuery.eq("status", filters.status);
+  }
+  if (filters.amountConsistency) {
+    nextQuery = nextQuery.eq(
+      "amount_consistency_status",
+      filters.amountConsistency,
+    );
+  }
+  if (filters.updatedFrom) {
+    nextQuery = nextQuery.gte("updated_at", filters.updatedFrom);
+  }
+  if (filters.updatedTo) {
+    nextQuery = nextQuery.lte("updated_at", filters.updatedTo);
+  }
+
+  return nextQuery;
+}
+
+function postgrestIlikeValue(value: string): string {
+  const pattern = `%${value}%`;
+  if (!/[",()\\]/.test(pattern)) {
+    return pattern;
+  }
+
+  return `"${pattern.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function applyAdminCursor(
+  query: SupabaseAdminQuery,
+  cursor: string | undefined,
+  valueColumn: string,
+  idColumn: string,
+  direction: "ascending" | "descending" = "descending",
+): SupabaseAdminQuery {
+  const decoded = cursor ? decodeAdminCursor(cursor) : null;
+  if (!decoded) {
+    return query;
+  }
+
+  const operator = direction === "ascending" ? "gt" : "lt";
+  return query.or(
+    `${valueColumn}.${operator}.${decoded.value},and(${valueColumn}.eq.${decoded.value},${idColumn}.${operator}.${decoded.id})`,
+  );
+}
+
+function createAdminPageInfo<TRow>(input: {
+  readonly rowsWithExtra: readonly TRow[];
+  readonly items: readonly TRow[];
+  readonly totalCount: number;
+  readonly timezone: string;
+  readonly getCursorValue: (row: TRow) => string;
+  readonly getCursorId: (row: TRow) => string;
+}) {
+  const lastItem = input.items.at(-1);
+
+  return {
+    total_count: input.totalCount,
+    next_cursor:
+      input.rowsWithExtra.length > input.items.length && lastItem
+        ? encodeAdminCursor({
+            value: input.getCursorValue(lastItem),
+            id: input.getCursorId(lastItem),
+          })
+        : null,
+    timezone: input.timezone,
+  };
+}
+
+function compareAdminInventoryRecords(
+  left: AdminInventoryRecord,
+  right: AdminInventoryRecord,
+): number {
+  const timeDifference = right.row.updated_at.localeCompare(
+    left.row.updated_at,
+  );
+  return (
+    timeDifference ||
+    inventoryRecordId(right).localeCompare(inventoryRecordId(left))
+  );
+}
+
+function isAdminInventoryRecordAfterCursor(
+  record: AdminInventoryRecord,
+  cursor: string | undefined,
+): boolean {
+  const decoded = cursor ? decodeAdminCursor(cursor) : null;
+  if (!decoded) {
+    return true;
+  }
+
+  return (
+    record.row.updated_at < decoded.value ||
+    (record.row.updated_at === decoded.value &&
+      inventoryRecordId(record) < decoded.id)
+  );
+}
+
+function inventoryRecordId(record: AdminInventoryRecord): string {
+  return record.type === "store"
+    ? `store:${record.row.id}`
+    : `central:${record.row.profile_id}:${record.row.market_id}:${record.row.product_id}`;
+}
+
+function encodeInventoryCursor(
+  record: AdminInventoryRecord | null,
+): string | null {
+  return record
+    ? encodeAdminCursor({
+        value: record.row.updated_at,
+        id: inventoryRecordId(record),
+      })
+    : null;
+}
+
+function emptyAdminRowPage<TRow>(): {
+  readonly rows: readonly TRow[];
+  readonly totalCount: number;
+} {
+  return { rows: [], totalCount: 0 };
 }
 
 const adminOrderColumns = [
@@ -1065,4 +1781,15 @@ async function queryMany<TRow>(
     throw new Error(`${description}: ${result.error.message}`);
   }
   return Array.isArray(result.data) ? (result.data as readonly TRow[]) : [];
+}
+
+async function queryCount(
+  query: PromiseLike<SupabaseAdminResult<unknown>>,
+  description: string,
+): Promise<number> {
+  const result = await query;
+  if (result.error) {
+    throw new Error(`${description}: ${result.error.message}`);
+  }
+  return typeof result.count === "number" ? result.count : 0;
 }
