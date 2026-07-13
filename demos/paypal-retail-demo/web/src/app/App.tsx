@@ -157,7 +157,11 @@ import { Input } from "../components/ui/input.js";
 import { AdminDiagnosticsWorkbench } from "../features/admin/AdminDiagnosticsWorkbench.js";
 import { AdminFilters } from "../features/admin/AdminFilters.js";
 import { AdminInventoryWorkbench } from "../features/admin/AdminInventoryWorkbench.js";
-import { AdminLifecycleWorkbench } from "../features/admin/AdminLifecycleWorkbench.js";
+import {
+  AdminLifecycleAction,
+  type AdminLifecycleActionResult,
+  AdminLifecycleWorkbench,
+} from "../features/admin/AdminLifecycleWorkbench.js";
 import { AdminOrdersWorkbench } from "../features/admin/AdminOrdersWorkbench.js";
 import {
   AdminShell as AdminWorkbenchShell,
@@ -6622,23 +6626,29 @@ function AdminPortal({
     }
   };
 
-  const handleAdvanceLifecycle = async (nextStatus: AdminOrderStatus) => {
+  const handleAdvanceLifecycle = async (
+    nextStatus: AdminOrderStatus,
+    note: string | null,
+  ): Promise<AdminLifecycleActionResult> => {
     if (!selectedOrder) {
-      return;
+      return "error";
     }
+    const currentOrder = selectedOrder;
 
     setLifecycleState({
       status: "saving",
-      message: `Marking ${selectedOrder.order_number} as ${formatAdminStatusLabel(
+      message: `Marking ${currentOrder.order_number} as ${formatAdminStatusLabel(
         nextStatus,
       )}.`,
     });
 
     try {
       const response = await apiClient.post<AdminOrderDetailResponse>(
-        `/api/admin/orders/${selectedOrder.id}/lifecycle`,
+        `/api/admin/orders/${currentOrder.id}/lifecycle`,
         {
+          expected_status: currentOrder.status,
           next_status: nextStatus,
+          note,
         },
         undefined,
         {
@@ -6662,7 +6672,57 @@ function AdminPortal({
           nextOrder.status,
         )}.`,
       });
+      return "updated";
     } catch (error) {
+      if (
+        error instanceof ApiClientError &&
+        error.status === 409 &&
+        error.code === "ADMIN_ORDER_LIFECYCLE_STALE"
+      ) {
+        try {
+          const canonicalResponse =
+            await apiClient.get<AdminOrderDetailResponse>(
+              `/api/admin/orders/${currentOrder.id}`,
+              undefined,
+              {
+                headers: {
+                  "x-admin-session": token,
+                },
+              },
+            );
+          const canonicalOrder = canonicalResponse.order;
+          setSelectedOrder(canonicalOrder);
+          setSelectedOrderState({
+            status: "ready",
+            message: `${canonicalOrder.order_number} canonical detail reloaded.`,
+          });
+          setOrdersState((current) => ({
+            ...current,
+            orders: current.orders.map((order) =>
+              order.id === canonicalOrder.id
+                ? toAdminOrderSummary(canonicalOrder)
+                : order,
+            ),
+          }));
+          setLifecycleState({
+            status: "error",
+            message: `Order changed before this update was saved. Canonical status reloaded as ${formatAdminStatusLabel(
+              canonicalOrder.status,
+            )}.`,
+          });
+          return "stale";
+        } catch (reloadError) {
+          setLifecycleState({
+            status: "error",
+            message:
+              reloadError instanceof ApiClientError
+                ? reloadError.message
+                : "The order changed, but its canonical detail could not be reloaded.",
+          });
+          return "error";
+        }
+      }
+
       setLifecycleState({
         status: "error",
         message:
@@ -6670,6 +6730,7 @@ function AdminPortal({
             ? error.message
             : "Unable to update order lifecycle.",
       });
+      return "error";
     }
   };
 
@@ -7329,16 +7390,20 @@ function AdminPortal({
                           <div className="admin-shell__lifecycle-actions">
                             {selectedOrder.next_statuses.length > 0 ? (
                               selectedOrder.next_statuses.map((nextStatus) => (
-                                <Button
+                                <AdminLifecycleAction
                                   key={nextStatus}
-                                  type="button"
-                                  onClick={() => {
-                                    void handleAdvanceLifecycle(nextStatus);
-                                  }}
+                                  orderNumber={selectedOrder.order_number}
+                                  currentStatusLabel={formatAdminStatusLabel(
+                                    selectedOrder.status,
+                                  )}
+                                  nextStatusLabel={formatAdminStatusLabel(
+                                    nextStatus,
+                                  )}
+                                  onConfirm={(note) =>
+                                    handleAdvanceLifecycle(nextStatus, note)
+                                  }
                                   disabled={lifecycleState.status === "saving"}
-                                >
-                                  Mark {formatAdminStatusLabel(nextStatus)}
-                                </Button>
+                                />
                               ))
                             ) : (
                               <p className="admin-shell__empty-state">

@@ -279,7 +279,7 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
         if (!orderId || !body) {
           sendApiError(response, 400, {
             code: "INVALID_ADMIN_ORDER_LIFECYCLE_REQUEST",
-            message: "order id and next_status are required.",
+            message: "order id, expected_status, and next_status are required.",
           });
           return;
         }
@@ -288,6 +288,11 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
 
         if (!order) {
           sendAdminOrderNotFound(response, orderId);
+          return;
+        }
+
+        if (order.order.status !== body.expectedStatus) {
+          sendAdminLifecycleStale(response, body, order);
           return;
         }
 
@@ -312,30 +317,29 @@ export function createAdminRouter(input: CreateAdminRouterInput): Router {
           return;
         }
 
-        const updatedOrder = await input.orderRepository?.updateOrderStatus({
-          orderId,
-          status: plan.toStatus,
-          updatedAt: plan.occurredAt,
-        });
+        const transition =
+          await input.orderRepository?.transitionOrderLifecycle({
+            orderId,
+            expectedStatus: plan.fromStatus,
+            nextStatus: plan.toStatus,
+            note: plan.timelineEvent.note,
+            occurredAt: plan.occurredAt,
+          });
 
-        if (!updatedOrder) {
+        if (!transition || transition.status === "not_found") {
           sendAdminOrderNotFound(response, orderId);
           return;
         }
-
-        await input.orderRepository?.createLifecycleEvent({
-          orderId,
-          fromStatus: plan.fromStatus,
-          toStatus: plan.toStatus,
-          actorType: "admin",
-          note: plan.timelineEvent.note,
-          createdAt: plan.occurredAt,
-        });
 
         const updatedDetail = await input.orderRepository?.getOrder(orderId);
 
         if (!updatedDetail) {
           sendAdminOrderNotFound(response, orderId);
+          return;
+        }
+
+        if (transition.status === "stale") {
+          sendAdminLifecycleStale(response, body, updatedDetail);
           return;
         }
 
@@ -638,17 +642,20 @@ function parseProfileMarketBody(request: Request): {
 }
 
 function parseOrderLifecycleBody(request: Request): {
+  readonly expectedStatus: OrderStatus;
   readonly nextStatus: OrderStatus;
   readonly note: string | null;
 } | null {
   const body = request.body as Record<string, unknown> | undefined;
+  const expectedStatus = normalizeOrderStatus(body?.expected_status);
   const nextStatus = normalizeOrderStatus(body?.next_status);
 
-  if (!nextStatus) {
+  if (!expectedStatus || !nextStatus) {
     return null;
   }
 
   return {
+    expectedStatus,
     nextStatus,
     note: normalizeOptionalBodyString(body?.note),
   };
@@ -776,6 +783,27 @@ function sendAdminOrderNotFound(
     message: "The requested admin order was not found.",
     details: {
       order_id: orderId,
+    },
+  });
+}
+
+function sendAdminLifecycleStale(
+  response: Parameters<typeof sendApiError>[0],
+  body: {
+    readonly expectedStatus: OrderStatus;
+    readonly nextStatus: OrderStatus;
+  },
+  detail: AdminOrderDetail,
+): void {
+  sendApiError(response, 409, {
+    code: "ADMIN_ORDER_LIFECYCLE_STALE",
+    message: "The order changed before this lifecycle update was saved.",
+    details: {
+      expected_status: body.expectedStatus,
+      current_status: detail.order.status,
+      next_status: body.nextStatus,
+      allowed_next_statuses: getAllowedAdminNextStatuses(detail.order),
+      order: mapAdminOrderDetail(detail).order,
     },
   });
 }

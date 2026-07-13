@@ -84,6 +84,10 @@ interface SupabaseAdminQuery extends PromiseLike<SupabaseAdminResult<unknown>> {
 
 export interface SupabaseAdminClient {
   readonly from: (table: string) => SupabaseAdminQuery;
+  readonly rpc: (
+    functionName: string,
+    args: Readonly<Record<string, unknown>>,
+  ) => SupabaseAdminQuery;
 }
 
 export type AdminOrderFulfillmentMode = "delivery" | "pickup";
@@ -357,6 +361,17 @@ export interface AdminPaymentDebugEntry {
   readonly linkedWebhooks: readonly AdminWebhookEventRow[];
 }
 
+export type AdminLifecycleTransitionResult =
+  | { readonly status: "updated"; readonly order: AdminOrderRow }
+  | { readonly status: "stale"; readonly currentStatus: OrderStatus }
+  | { readonly status: "not_found" };
+
+interface AdminLifecycleTransitionRpcRow {
+  readonly transition_status: "updated" | "stale" | "not_found";
+  readonly current_status: OrderStatus | null;
+  readonly order_data: AdminOrderRow | null;
+}
+
 export interface AdminProfileMarketRepository {
   readonly getProfileById: (id: string) => Promise<CatalogProfileRow | null>;
   readonly getMarketById: (
@@ -372,19 +387,13 @@ export interface AdminOrderRepository {
     query?: AdminLifecycleQuery,
   ) => Promise<AdminCursorPage<AdminOrderRow>>;
   readonly getOrder: (orderId: string) => Promise<AdminOrderDetail | null>;
-  readonly updateOrderStatus: (input: {
+  readonly transitionOrderLifecycle: (input: {
     readonly orderId: string;
-    readonly status: OrderStatus;
-    readonly updatedAt: string;
-  }) => Promise<AdminOrderRow | null>;
-  readonly createLifecycleEvent: (input: {
-    readonly orderId: string;
-    readonly fromStatus: OrderStatus;
-    readonly toStatus: OrderStatus;
-    readonly actorType: "admin";
+    readonly expectedStatus: OrderStatus;
+    readonly nextStatus: OrderStatus;
     readonly note: string | null;
-    readonly createdAt: string;
-  }) => Promise<AdminOrderLifecycleEventRow>;
+    readonly occurredAt: string;
+  }) => Promise<AdminLifecycleTransitionResult>;
 }
 
 export interface AdminInventoryRepository {
@@ -603,35 +612,32 @@ export function createSupabaseAdminOrderRepository(
         linkedWebhooks,
       };
     },
-    async updateOrderStatus(input) {
-      return queryOne<AdminOrderRow>(
+    async transitionOrderLifecycle(input) {
+      const row = await queryRequired<AdminLifecycleTransitionRpcRow>(
         supabase
-          .from("orders")
-          .update({
-            status: input.status,
-            updated_at: input.updatedAt,
+          .rpc("transition_admin_order_lifecycle", {
+            p_order_id: input.orderId,
+            p_expected_status: input.expectedStatus,
+            p_next_status: input.nextStatus,
+            p_note: input.note,
+            p_occurred_at: input.occurredAt,
           })
-          .eq("id", input.orderId)
-          .select(adminOrderColumns)
-          .maybeSingle(),
-        `Update admin order ${input.orderId}`,
-      );
-    },
-    async createLifecycleEvent(input) {
-      return queryRequired<AdminOrderLifecycleEventRow>(
-        supabase
-          .from("order_lifecycle_events")
-          .insert({
-            order_id: input.orderId,
-            from_status: input.fromStatus,
-            to_status: input.toStatus,
-            actor_type: input.actorType,
-            note: input.note,
-            created_at: input.createdAt,
-          })
-          .select(adminOrderLifecycleEventColumns)
           .single(),
-        `Create admin lifecycle event ${input.orderId}`,
+        `Transition admin order lifecycle ${input.orderId}`,
+      );
+
+      if (row.transition_status === "updated" && row.order_data) {
+        return { status: "updated", order: row.order_data };
+      }
+      if (row.transition_status === "stale" && row.current_status) {
+        return { status: "stale", currentStatus: row.current_status };
+      }
+      if (row.transition_status === "not_found") {
+        return { status: "not_found" };
+      }
+
+      throw new Error(
+        `Transition admin order lifecycle ${input.orderId}: invalid RPC result`,
       );
     },
   };

@@ -4271,6 +4271,11 @@ describe("App admin interactions", () => {
     await screen.findByText("Molly Imaginary Travel Blind Box");
     expect(screen.queryByText("Payment sessions")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Mark Processing" }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Confirm update",
+      }),
+    );
 
     await screen.findByText("DO-20260624-000001 is now Processing.");
     expect(apiClient.calls).toContainEqual(
@@ -4300,7 +4305,9 @@ describe("App admin interactions", () => {
         method: "post",
         path: "/api/admin/orders/order_1/lifecycle",
         body: {
+          expected_status: "paid",
           next_status: "processing",
+          note: null,
         },
         options: {
           headers: {

@@ -167,6 +167,59 @@ describe("Account routes", () => {
     ]);
   });
 
+  it("returns the canonical advanced lifecycle timeline without Diagnostics data", async () => {
+    const baseOrder = accountOrder();
+    const advancedOrder: AccountOrder = {
+      ...baseOrder,
+      status: "ready_for_pickup",
+      review_eligible: false,
+      timeline: [
+        ...baseOrder.timeline.slice(0, 1),
+        {
+          label: "Ready for pickup",
+          description: "Moved to ready for pickup by the merchant.",
+          status: "current",
+          occurred_at: "2026-07-13T02:00:00.000Z",
+        },
+      ],
+    };
+    const accountRepository = createAccountRepository({ order: advancedOrder });
+    const app = createAccountApp(accountRepository);
+
+    const response = await requestApp(
+      app,
+      "GET",
+      "/api/account/orders/PO-20260602-000118",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json.data.order).toEqual(
+      expect.objectContaining({
+        status: "ready_for_pickup",
+        timeline: expect.arrayContaining([
+          expect.objectContaining({
+            label: "Ready for pickup",
+            status: "current",
+          }),
+        ]),
+      }),
+    );
+    expect(JSON.stringify(response.json.data.order)).not.toMatch(
+      /diagnostic|debug|webhook|payment_session/i,
+    );
+    expect(accountRepository.getOrderCalls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "PO-20260602-000118",
+      },
+    ]);
+  });
+
   it("links matching guest orders to the authenticated buyer email", async () => {
     const accountRepository = createAccountRepository();
     const app = createAccountApp(accountRepository);
@@ -578,6 +631,7 @@ interface FakeAccountRepository extends AccountRepository {
 function createAccountRepository(
   options: {
     readonly deleteAddressResult?: AccountAddressDeleteResult;
+    readonly order?: AccountOrder;
     readonly refreshedAddresses?: readonly AccountAddress[];
     readonly refreshedReviewOrder?: AccountOrder;
     readonly refreshedSavedPayments?: readonly AccountSavedPaymentMethod[];
@@ -635,11 +689,13 @@ function createAccountRepository(
     },
     async listOrders(authUserId) {
       listOrderCalls.push(authUserId);
-      return [accountOrder()];
+      return [options.order ?? accountOrder()];
     },
     async getOrder(input) {
       getOrderCalls.push(input);
-      return input.orderNumber === "PO-20260602-000118" ? accountOrder() : null;
+      return input.orderNumber === "PO-20260602-000118"
+        ? (options.order ?? accountOrder())
+        : null;
     },
     async linkGuestOrders(input) {
       linkGuestOrderCalls.push(input);

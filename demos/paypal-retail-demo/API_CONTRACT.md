@@ -914,17 +914,22 @@ Lifecycle request:
 
 ```json
 {
+  "expected_status": "paid",
   "next_status": "processing",
   "note": "Packed at warehouse station A."
 }
 ```
+
+`expected_status` is the required concurrency token from the selected Admin order detail. `note` is optional and must contain only buyer-safe merchant fulfillment context.
 
 Allowed manual transitions:
 
 - Delivery: `paid -> processing -> shipped -> delivered`
 - Pickup: `paid -> preparing_pickup -> ready_for_pickup -> picked_up`
 
-Invalid transitions return `ADMIN_ORDER_LIFECYCLE_INVALID` with the current status and allowed next statuses. Successful transitions update `orders.status` and append an `order_lifecycle_events` row with `actor_type: "admin"` so buyer order timelines can reflect the change.
+Invalid one-step transitions return `ADMIN_ORDER_LIFECYCLE_INVALID` with the current status and allowed next statuses. If the persisted order no longer matches `expected_status`, the API returns `409 ADMIN_ORDER_LIFECYCLE_STALE` with the canonical current status, allowed next statuses, and refreshed order detail so the Admin client can replace stale state.
+
+Successful transitions update `orders.status` and append exactly one `order_lifecycle_events` row with `actor_type: "admin"` in one database transaction. The refreshed Admin detail and existing Account order APIs then read that canonical status/timeline. Lifecycle actions never create synthetic `webhook_events` rows.
 
 ### Inventory And Pickup Dates
 

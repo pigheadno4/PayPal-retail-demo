@@ -278,13 +278,13 @@ export type AdminLifecycleTransitionResult =
   | { readonly status: "not_found" };
 ```
 
-- [ ] **Step 1:** Write failing repository tests proving the order update and one Admin lifecycle event are one RPC transaction.
-- [ ] **Step 2:** Write failing route tests for optional note, stale `expected_status`, `409`, canonical reload detail, and unchanged webhook count.
-- [ ] **Step 3:** Add the Postgres function with `UPDATE ... WHERE id = p_order_id AND status = p_expected_status`, one lifecycle insert, and a single returned row; grant execution only to the service-role path used by the server.
-- [ ] **Step 4:** Replace the route's separate `updateOrderStatus`/`createLifecycleEvent` calls with the atomic repository method.
-- [ ] **Step 5:** Add the confirmation Dialog, merchant note, saving/success feedback, and stale-state reload behavior to Lifecycle.
-- [ ] **Step 6:** Prove Account order detail returns the new status/timeline through its existing API and no Diagnostics source is used.
-- [ ] **Step 7:** Run focused server/web tests, `npm run typecheck`, and `npm run db:lint` when local Supabase is available; document the Docker blocker otherwise.
+- [x] **Step 1:** Write failing repository tests proving the order update and one Admin lifecycle event are one RPC transaction.
+- [x] **Step 2:** Write failing route tests for optional note, stale `expected_status`, `409`, canonical reload detail, and unchanged webhook count.
+- [x] **Step 3:** Add the Postgres function with `UPDATE ... WHERE id = p_order_id AND status = p_expected_status`, one lifecycle insert, and a single returned row; grant execution only to the service-role path used by the server.
+- [x] **Step 4:** Replace the route's separate `updateOrderStatus`/`createLifecycleEvent` calls with the atomic repository method.
+- [x] **Step 5:** Add the confirmation Dialog, merchant note, saving/success feedback, and stale-state reload behavior to Lifecycle.
+- [x] **Step 6:** Prove Account order detail returns the new status/timeline through its existing API and no Diagnostics source is used.
+- [x] **Step 7:** Run focused server/web tests, `npm run typecheck`, and `npm run db:lint` when local Supabase is available; document the Docker blocker otherwise.
 - [ ] **Step 8:** Commit with `git commit -m "feat: make admin lifecycle transitions atomic"`.
 
 ---

@@ -14,6 +14,113 @@ import {
 } from "../src/routes/adminQuery.js";
 
 describe("Supabase Admin repository filtering and pagination", () => {
+  it("transitions an order and writes its Admin lifecycle event through one RPC", async () => {
+    const transitionedOrder = {
+      ...adminOrderRow("order_1", "2026-07-13T02:00:00.000Z"),
+      status: "shipped" as const,
+    };
+    const client = new RecordingSupabaseAdminClient(
+      {},
+      {
+        transition_admin_order_lifecycle: {
+          rows: [
+            {
+              transition_status: "updated",
+              current_status: "shipped",
+              order_data: transitionedOrder,
+            },
+          ],
+        },
+      },
+    );
+    const repository = createSupabaseAdminOrderRepository(client);
+
+    const result = await repository.transitionOrderLifecycle({
+      orderId: "order_1",
+      expectedStatus: "processing",
+      nextStatus: "shipped",
+      note: "Carrier handoff complete.",
+      occurredAt: "2026-07-13T02:00:00.000Z",
+    });
+
+    expect(result).toEqual({
+      status: "updated",
+      order: transitionedOrder,
+    });
+    expect(client.rpcCalls).toEqual([
+      {
+        functionName: "transition_admin_order_lifecycle",
+        args: {
+          p_order_id: "order_1",
+          p_expected_status: "processing",
+          p_next_status: "shipped",
+          p_note: "Carrier handoff complete.",
+          p_occurred_at: "2026-07-13T02:00:00.000Z",
+        },
+      },
+    ]);
+    expect(client.queries.map((query) => query.table)).toEqual([
+      "rpc:transition_admin_order_lifecycle",
+    ]);
+    expect(client.rpcQuery("transition_admin_order_lifecycle").operations).toEqual([
+      operation("single"),
+    ]);
+  });
+
+  it("maps stale and missing lifecycle RPC outcomes without a second mutation", async () => {
+    const staleClient = new RecordingSupabaseAdminClient(
+      {},
+      {
+        transition_admin_order_lifecycle: {
+          rows: [
+            {
+              transition_status: "stale",
+              current_status: "shipped",
+              order_data: null,
+            },
+          ],
+        },
+      },
+    );
+    const missingClient = new RecordingSupabaseAdminClient(
+      {},
+      {
+        transition_admin_order_lifecycle: {
+          rows: [
+            {
+              transition_status: "not_found",
+              current_status: null,
+              order_data: null,
+            },
+          ],
+        },
+      },
+    );
+
+    await expect(
+      createSupabaseAdminOrderRepository(staleClient).transitionOrderLifecycle({
+        orderId: "order_1",
+        expectedStatus: "processing",
+        nextStatus: "shipped",
+        note: null,
+        occurredAt: "2026-07-13T02:00:00.000Z",
+      }),
+    ).resolves.toEqual({ status: "stale", currentStatus: "shipped" });
+    await expect(
+      createSupabaseAdminOrderRepository(
+        missingClient,
+      ).transitionOrderLifecycle({
+        orderId: "order_missing",
+        expectedStatus: "processing",
+        nextStatus: "shipped",
+        note: null,
+        occurredAt: "2026-07-13T02:00:00.000Z",
+      }),
+    ).resolves.toEqual({ status: "not_found" });
+    expect(staleClient.rpcCalls).toHaveLength(1);
+    expect(missingClient.rpcCalls).toHaveLength(1);
+  });
+
   it("applies Orders filters and an ordered cursor before fetching limit + 1", async () => {
     const client = new RecordingSupabaseAdminClient({
       orders: {
@@ -463,6 +570,11 @@ interface FakeTableResult {
   readonly count?: number;
 }
 
+interface RecordedRpcCall {
+  readonly functionName: string;
+  readonly args: Readonly<Record<string, unknown>>;
+}
+
 interface RecordedOperation {
   readonly method: string;
   readonly args: readonly unknown[];
@@ -470,9 +582,11 @@ interface RecordedOperation {
 
 class RecordingSupabaseAdminClient implements SupabaseAdminClient {
   readonly queries: RecordingSupabaseAdminQuery[] = [];
+  readonly rpcCalls: RecordedRpcCall[] = [];
 
   constructor(
     private readonly results: Readonly<Record<string, FakeTableResult>>,
+    private readonly rpcResults: Readonly<Record<string, FakeTableResult>> = {},
   ) {}
 
   from(table: string) {
@@ -484,12 +598,32 @@ class RecordingSupabaseAdminClient implements SupabaseAdminClient {
     return query;
   }
 
+  rpc(functionName: string, args: Readonly<Record<string, unknown>>) {
+    this.rpcCalls.push({ functionName, args });
+    const query = new RecordingSupabaseAdminQuery(
+      `rpc:${functionName}`,
+      this.rpcResults[functionName] ?? {},
+    );
+    this.queries.push(query);
+    return query;
+  }
+
   dataQuery(table: string): RecordingSupabaseAdminQuery {
     const query = this.queries.find(
       (candidate) => candidate.table === table && !candidate.isCountQuery,
     );
     if (!query) {
       throw new Error(`Missing data query for ${table}`);
+    }
+    return query;
+  }
+
+  rpcQuery(functionName: string): RecordingSupabaseAdminQuery {
+    const query = this.queries.find(
+      (candidate) => candidate.table === `rpc:${functionName}`,
+    );
+    if (!query) {
+      throw new Error(`Missing RPC query for ${functionName}`);
     }
     return query;
   }
@@ -605,9 +739,15 @@ class RecordingSupabaseAdminQuery implements PromiseLike<{
       0,
       typeof limit === "number" ? limit : undefined,
     );
+    const isSingleRow = this.operations.some(
+      ({ method }) => method === "single" || method === "maybeSingle",
+    );
     const response = this.isCountQuery
       ? { data: null, error: null as const, count: this.result.count ?? 0 }
-      : { data: rows, error: null as const };
+      : {
+          data: isSingleRow ? (rows[0] ?? null) : rows,
+          error: null as const,
+        };
     return Promise.resolve(response).then(onfulfilled, onrejected);
   }
 

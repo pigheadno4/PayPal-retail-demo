@@ -10,7 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ApiClient } from "../../api/client";
+import { ApiClientError, type ApiClient } from "../../api/client";
 import { App } from "../../app/App";
 
 import { AdminDiagnosticsWorkbench } from "./AdminDiagnosticsWorkbench";
@@ -675,6 +675,108 @@ describe("Admin post-purchase workbenches", () => {
     ).toBe(false);
   });
 
+  it("confirms one lifecycle step with an optional merchant note", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient({ lifecycleOrder: true });
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-lifecycle-action-token",
+    );
+
+    render(
+      <App apiClient={apiClient.client} initialPathname="/admin/lifecycle" />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Open DO-20260713-000001" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Mark Processing" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", {
+        name: "Confirm lifecycle update",
+      }),
+    ).toBeTruthy();
+    expect(dialog.textContent).toContain("Paid to Processing");
+    await user.type(
+      within(dialog).getByLabelText("Merchant note (optional)"),
+      "Packed at warehouse station A.",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm update" }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.postCalls).toEqual([
+        {
+          path: "/api/admin/orders/order_1/lifecycle",
+          body: {
+            expected_status: "paid",
+            next_status: "processing",
+            note: "Packed at warehouse station A.",
+          },
+        },
+      ]);
+      expect(
+        screen.getByText("DO-20260713-000001 is now Processing."),
+      ).toBeTruthy();
+    });
+  });
+
+  it("reloads canonical lifecycle detail after a stale 409", async () => {
+    const user = userEvent.setup();
+    const apiClient = createAdminApiClient({
+      lifecycleOrder: true,
+      lifecyclePost: "stale",
+    });
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "admin-lifecycle-stale-token",
+    );
+
+    render(
+      <App apiClient={apiClient.client} initialPathname="/admin/lifecycle" />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Open DO-20260713-000001" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Mark Processing" }),
+    );
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Confirm update",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        apiClient.getPaths.filter(
+          (path) => path === "/api/admin/orders/order_1",
+        ),
+      ).toHaveLength(2);
+      expect(screen.getByRole("alert").textContent).toContain(
+        "Canonical status reloaded as Shipped.",
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(apiClient.postCalls).toEqual([
+      {
+        path: "/api/admin/orders/order_1/lifecycle",
+        body: {
+          expected_status: "paid",
+          next_status: "processing",
+          note: null,
+        },
+      },
+    ]);
+    expect(screen.getByText("Delivery order / Shipped")).toBeTruthy();
+  });
+
   it("retries the active workbench after a request failure", async () => {
     const user = userEvent.setup();
     const apiClient = createAdminApiClient({ failOrdersOnce: true });
@@ -752,12 +854,20 @@ function createAdminApiClient(
   options: {
     readonly failOrdersOnce?: boolean;
     readonly failPickup?: boolean;
+    readonly lifecycleOrder?: boolean;
+    readonly lifecyclePost?: "success" | "stale";
     readonly ordersNextCursor?: string;
     readonly ordersTotalCount?: number;
   } = {},
-): { readonly client: ApiClient; readonly getPaths: string[] } {
+): {
+  readonly client: ApiClient;
+  readonly getPaths: string[];
+  readonly postCalls: { readonly path: string; readonly body: unknown }[];
+} {
   const getPaths: string[] = [];
+  const postCalls: { path: string; body: unknown }[] = [];
   let failedOrders = false;
+  let orderDetailLoads = 0;
   const pageInfo = {
     total_count: 0,
     next_cursor: null,
@@ -776,6 +886,19 @@ function createAdminApiClient(
           },
         } as never;
       }
+      if (path === "/api/admin/orders/order_1") {
+        orderDetailLoads += 1;
+        const status =
+          options.lifecyclePost === "stale" && orderDetailLoads > 1
+            ? "shipped"
+            : "paid";
+        return {
+          order: adminLifecycleOrderDetail(
+            status,
+            status === "shipped" ? ["delivered"] : ["processing"],
+          ),
+        } as never;
+      }
       if (path.startsWith("/api/admin/orders")) {
         if (options.failOrdersOnce && !failedOrders) {
           failedOrders = true;
@@ -791,7 +914,15 @@ function createAdminApiClient(
         } as never;
       }
       if (path.startsWith("/api/admin/lifecycle")) {
-        return { lifecycle: [], page_info: pageInfo } as never;
+        return {
+          lifecycle: options.lifecycleOrder
+            ? [adminLifecycleOrderSummary("paid", ["processing"])]
+            : [],
+          page_info: {
+            ...pageInfo,
+            total_count: options.lifecycleOrder ? 1 : 0,
+          },
+        } as never;
       }
       if (path.startsWith("/api/admin/inventory")) {
         return { inventory: [], page_info: pageInfo } as never;
@@ -819,12 +950,101 @@ function createAdminApiClient(
     async patch() {
       return {} as never;
     },
-    async post() {
+    async post(path, body) {
+      postCalls.push({ path, body });
+      if (
+        path === "/api/admin/orders/order_1/lifecycle" &&
+        options.lifecyclePost === "stale"
+      ) {
+        throw new ApiClientError({
+          status: 409,
+          code: "ADMIN_ORDER_LIFECYCLE_STALE",
+          message: "The order changed before this lifecycle update was saved.",
+          debugId: "dbg_stale",
+          details: { current_status: "shipped" },
+        });
+      }
+      if (path === "/api/admin/orders/order_1/lifecycle") {
+        return {
+          order: adminLifecycleOrderDetail("processing", ["shipped"]),
+        } as never;
+      }
       return {} as never;
     },
   };
 
-  return { client, getPaths };
+  return { client, getPaths, postCalls };
+}
+
+function adminLifecycleOrderSummary(
+  status: "paid" | "processing" | "shipped",
+  nextStatuses: readonly ("processing" | "shipped" | "delivered")[],
+) {
+  return {
+    id: "order_1",
+    profile_id: "profile_popmart",
+    market_id: "market_us",
+    order_number: "DO-20260713-000001",
+    fulfillment_mode: "delivery" as const,
+    status,
+    payment_status: "captured",
+    currency_code: "USD",
+    total_minor: 2633,
+    placed_at: "2026-07-13T01:00:00.000Z",
+    updated_at: "2026-07-13T02:00:00.000Z",
+    next_statuses: nextStatuses,
+  };
+}
+
+function adminLifecycleOrderDetail(
+  status: "paid" | "processing" | "shipped",
+  nextStatuses: readonly ("processing" | "shipped" | "delivered")[],
+) {
+  return {
+    ...adminLifecycleOrderSummary(status, nextStatuses),
+    totals: {
+      subtotal_minor: 1969,
+      discount_minor: 0,
+      tax_minor: 165,
+      shipping_minor: 499,
+      total_minor: 2633,
+    },
+    items: [
+      {
+        id: "order_item_1",
+        product_sku: "MOLLY-BB-001",
+        product_name: "Molly Imaginary Travel Blind Box",
+        product_url: "/products/molly",
+        product_image_url: "/assets/molly.png",
+        unit_price_minor: 1969,
+        quantity: 1,
+        fulfillable_quantity: 1,
+        unavailable_quantity: 0,
+        line_subtotal_minor: 1969,
+        line_discount_minor: 0,
+        line_tax_minor: 165,
+        line_total_minor: 2134,
+      },
+    ],
+    addresses: [],
+    timeline: [
+      {
+        id: `lifecycle_${status}`,
+        from_status: status === "paid" ? "pending" : "paid",
+        to_status: status,
+        actor_type: status === "paid" ? "system" : "admin",
+        note: status === "paid" ? "Payment captured." : "Merchant update.",
+        created_at: "2026-07-13T02:00:00.000Z",
+      },
+    ],
+    payment_sessions: [],
+    total_snapshots: [],
+    paypal_snapshots: [],
+    promo_evaluations: [],
+    promo_evaluation_lines: [],
+    inventory_effects: [],
+    linked_webhooks: [],
+  };
 }
 
 function createMemoryStorage(): Storage {

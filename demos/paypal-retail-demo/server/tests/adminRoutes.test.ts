@@ -595,8 +595,9 @@ describe("admin order lifecycle routes", () => {
     expect(listCalls).toBe(0);
   });
 
-  it("advances delivery lifecycle and writes an admin timeline event", async () => {
+  it("atomically advances delivery lifecycle with an optional merchant note", async () => {
     const orderRepository = createAdminOrderRepository();
+    const webhookCountBefore = orderRepository.webhookEvents.length;
     const app = createApp({
       catalogRepository: createCatalogRepository(),
       admin: {
@@ -619,6 +620,7 @@ describe("admin order lifecycle routes", () => {
           "x-admin-session": createAdminToken(),
         },
         json: {
+          expected_status: "paid",
           next_status: "processing",
           note: "Packed at warehouse station A.",
         },
@@ -654,6 +656,72 @@ describe("admin order lifecycle routes", () => {
         note: "Packed at warehouse station A.",
       }),
     ]);
+    expect(orderRepository.transitionCalls).toEqual([
+      expect.objectContaining({
+        orderId: "order_1",
+        expectedStatus: "paid",
+        nextStatus: "processing",
+        note: "Packed at warehouse station A.",
+      }),
+    ]);
+    expect(orderRepository.webhookEvents).toHaveLength(webhookCountBefore);
+  });
+
+  it("returns 409 with canonical detail when expected_status becomes stale", async () => {
+    const orderRepository = createAdminOrderRepository(
+      { status: "processing" },
+      { staleOnTransition: "shipped" },
+    );
+    const app = createApp({
+      catalogRepository: createCatalogRepository(),
+      admin: {
+        adminPasscode: "local-admin-passcode",
+        profileMarketRepository: createProfileMarketRepository(),
+        orderRepository,
+        activeStorefrontContextStore: createActiveStorefrontContextStore({
+          profileSlug: "popmart",
+          marketCode: "US",
+        }),
+      },
+    });
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/admin/orders/order_1/lifecycle",
+      {
+        headers: {
+          "x-admin-session": createAdminToken(),
+        },
+        json: {
+          expected_status: "processing",
+          next_status: "shipped",
+        },
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "ADMIN_ORDER_LIFECYCLE_STALE",
+        message: "The order changed before this lifecycle update was saved.",
+        details: {
+          expected_status: "processing",
+          current_status: "shipped",
+          next_status: "shipped",
+          allowed_next_statuses: ["delivered"],
+          order: expect.objectContaining({
+            id: "order_1",
+            status: "shipped",
+            next_statuses: ["delivered"],
+          }),
+        },
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(orderRepository.lifecycleEvents).toEqual([]);
+    expect(orderRepository.webhookEvents).toHaveLength(1);
   });
 
   it("rejects invalid manual lifecycle transitions", async () => {
@@ -679,6 +747,7 @@ describe("admin order lifecycle routes", () => {
           "x-admin-session": createAdminToken(),
         },
         json: {
+          expected_status: "paid",
           next_status: "delivered",
         },
       },
@@ -1360,8 +1429,19 @@ function createProfileMarketRepository() {
 
 function createAdminOrderRepository(
   orderPatch: Partial<AdminOrderRow> = {},
+  options: {
+    readonly staleOnTransition?: AdminOrderRow["status"];
+  } = {},
 ): AdminOrderRepository & {
   readonly lifecycleEvents: readonly AdminOrderLifecycleEventRow[];
+  readonly transitionCalls: readonly {
+    readonly orderId: string;
+    readonly expectedStatus: AdminOrderRow["status"];
+    readonly nextStatus: AdminOrderRow["status"];
+    readonly note: string | null;
+    readonly occurredAt: string;
+  }[];
+  readonly webhookEvents: readonly { readonly id: string }[];
 } {
   let order: AdminOrderRow = {
     id: "order_1",
@@ -1382,6 +1462,14 @@ function createAdminOrderRepository(
     ...orderPatch,
   };
   const lifecycleEvents: AdminOrderLifecycleEventRow[] = [];
+  const transitionCalls: {
+    orderId: string;
+    expectedStatus: AdminOrderRow["status"];
+    nextStatus: AdminOrderRow["status"];
+    note: string | null;
+    occurredAt: string;
+  }[] = [];
+  const webhookEvents = [{ id: "webhook_1" }];
   const baseTimeline: AdminOrderLifecycleEventRow[] = [
     {
       id: "lifecycle_paid",
@@ -1396,6 +1484,8 @@ function createAdminOrderRepository(
 
   return {
     lifecycleEvents,
+    transitionCalls,
+    webhookEvents,
     async listOrders(query) {
       return {
         items: [order],
@@ -1551,31 +1641,44 @@ function createAdminOrderRepository(
         ],
       } satisfies AdminOrderDetail;
     },
-    async updateOrderStatus(input) {
+    async transitionOrderLifecycle(input) {
+      transitionCalls.push(input);
+
       if (input.orderId !== order.id) {
-        return null;
+        return { status: "not_found" } as const;
+      }
+      if (options.staleOnTransition) {
+        order = {
+          ...order,
+          status: options.staleOnTransition,
+          updated_at: input.occurredAt,
+        };
+        return {
+          status: "stale",
+          currentStatus: options.staleOnTransition,
+        } as const;
+      }
+      if (order.status !== input.expectedStatus) {
+        return { status: "stale", currentStatus: order.status } as const;
       }
 
+      const previousStatus = order.status;
       order = {
         ...order,
-        status: input.status,
-        updated_at: input.updatedAt,
+        status: input.nextStatus,
+        updated_at: input.occurredAt,
       };
-      return order;
-    },
-    async createLifecycleEvent(input) {
-      const event: AdminOrderLifecycleEventRow = {
+      lifecycleEvents.push({
         id: `lifecycle_${lifecycleEvents.length + 1}`,
         order_id: input.orderId,
-        from_status: input.fromStatus,
-        to_status: input.toStatus,
-        actor_type: input.actorType,
+        from_status: previousStatus,
+        to_status: input.nextStatus,
+        actor_type: "admin",
         note: input.note,
-        created_at: input.createdAt,
-      };
+        created_at: input.occurredAt,
+      });
 
-      lifecycleEvents.push(event);
-      return event;
+      return { status: "updated", order } as const;
     },
   };
 }
