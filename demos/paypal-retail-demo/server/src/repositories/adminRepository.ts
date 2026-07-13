@@ -5,7 +5,7 @@ import type {
 } from "./catalogRepository.js";
 import type { OrderStatus } from "../../../shared/src/orders.js";
 import type {
-  DebugLogEntry,
+  RuntimeDebugLogEntry,
   RuntimeDebugLogRepository,
 } from "../debug/logger.js";
 import {
@@ -262,6 +262,7 @@ export interface AdminWebhookEventRow {
 }
 
 export interface AdminCentralInventoryRow {
+  readonly id: string;
   readonly profile_id: string;
   readonly market_id: string;
   readonly product_id: string;
@@ -425,7 +426,7 @@ export interface AdminPaymentDebugRepository {
   ) => Promise<AdminCursorPage<AdminPaymentDebugEntry>>;
 }
 
-export type AdminRuntimeDebugLogEntry = DebugLogEntry;
+export type AdminRuntimeDebugLogEntry = RuntimeDebugLogEntry;
 
 export type AdminRuntimeDebugLogRepository = RuntimeDebugLogRepository;
 
@@ -642,8 +643,6 @@ export function createSupabaseAdminInventoryRepository(
   return {
     async listInventory(rawQuery) {
       const query = rawQuery ?? defaultAdminInventoryQuery;
-      const offset = inventoryCursorOffset(query.cursor);
-      const fetchLimit = offset + query.limit + 1;
       const matchingProducts = query.search
         ? await queryMany<AdminInventoryProductRow>(
             supabase
@@ -681,9 +680,8 @@ export function createSupabaseAdminInventoryRepository(
               table: "central_inventory",
               columns: adminCentralInventoryColumns,
               query,
-              fetchLimit,
               ...(productIds ? { productIds } : {}),
-              cursorColumn: "product_id",
+              recordType: "central",
               description: "List admin central inventory",
             })
           : emptyAdminRowPage<AdminCentralInventoryRow>(),
@@ -693,9 +691,8 @@ export function createSupabaseAdminInventoryRepository(
               table: "store_inventory",
               columns: adminStoreInventoryColumns,
               query,
-              fetchLimit,
               ...(productIds ? { productIds } : {}),
-              cursorColumn: "id",
+              recordType: "store",
               description: "List admin store inventory",
               applyScopeFilters(currentQuery) {
                 return query.storeId
@@ -713,9 +710,9 @@ export function createSupabaseAdminInventoryRepository(
           (row): AdminInventoryRecord => ({ type: "store", row }),
         ),
       ].sort(compareAdminInventoryRecords);
-      const pageItems = merged.slice(offset, offset + query.limit);
+      const pageItems = merged.slice(0, query.limit);
       const totalCount = centralResult.totalCount + storeResult.totalCount;
-      const hasMore = totalCount > offset + pageItems.length;
+      const hasMore = merged.length > pageItems.length;
       const productIdsOnPage = pageItems.map((item) => item.row.product_id);
       const products = matchingProducts
         ? matchingProducts.filter((product) =>
@@ -736,11 +733,7 @@ export function createSupabaseAdminInventoryRepository(
         page_info: {
           total_count: totalCount,
           next_cursor: hasMore
-            ? encodeAdminCursor({
-                kind: "inventory-updated",
-                value: `offset:${offset + pageItems.length}`,
-                id: "inventory",
-              })
+            ? encodeInventoryCursor(pageItems.at(-1) ?? null)
             : null,
           timezone: query.timezone,
         },
@@ -1212,15 +1205,18 @@ const adminLifecycleTargetByAction: Readonly<
 };
 
 async function listAdminInventoryRows<
-  TRow extends { readonly product_id: string; readonly updated_at: string },
+  TRow extends {
+    readonly id: string;
+    readonly product_id: string;
+    readonly updated_at: string;
+  },
 >(input: {
   readonly supabase: SupabaseAdminClient;
   readonly table: string;
   readonly columns: string;
   readonly query: AdminInventoryQuery;
-  readonly fetchLimit: number;
   readonly productIds?: readonly string[];
-  readonly cursorColumn: string;
+  readonly recordType: AdminInventoryRecord["type"];
   readonly description: string;
   readonly applyScopeFilters?: (
     query: SupabaseAdminQuery,
@@ -1240,15 +1236,20 @@ async function listAdminInventoryRows<
   const countQuery = applyFilters(
     input.supabase
       .from(input.table)
-      .select(input.cursorColumn, { count: "exact", head: true }),
+      .select("id", { count: "exact", head: true }),
   );
-  const dataQuery = applyFilters(
+  let dataQuery = applyFilters(
     input.supabase.from(input.table).select(input.columns),
   )
     .order("updated_at", { ascending: false })
-    .order(input.cursorColumn, { ascending: false });
+    .order("id", { ascending: false });
+  dataQuery = applyAdminInventoryCursor(
+    dataQuery,
+    input.query.cursor,
+    input.recordType,
+  );
   const [rows, totalCount] = await Promise.all([
-    queryMany<TRow>(dataQuery.limit(input.fetchLimit), input.description),
+    queryMany<TRow>(dataQuery.limit(input.query.limit + 1), input.description),
     queryCount(countQuery, `Count ${input.description.toLowerCase()}`),
   ]);
 
@@ -1459,17 +1460,44 @@ function compareAdminInventoryRecords(
 }
 
 function inventoryRecordId(record: AdminInventoryRecord): string {
-  return record.type === "store"
-    ? `store:${record.row.id}`
-    : `central:${record.row.profile_id}:${record.row.market_id}:${record.row.product_id}`;
+  return `${record.type}:${record.row.id}`;
 }
 
-function inventoryCursorOffset(cursor: string | undefined): number {
+function encodeInventoryCursor(record: AdminInventoryRecord | null) {
+  return record
+    ? encodeAdminCursor({
+        kind: "inventory-updated",
+        value: record.row.updated_at,
+        id: inventoryRecordId(record),
+      })
+    : null;
+}
+
+function applyAdminInventoryCursor(
+  query: SupabaseAdminQuery,
+  cursor: string | undefined,
+  recordType: AdminInventoryRecord["type"],
+): SupabaseAdminQuery {
   const decoded = cursor
     ? decodeAdminCursor(cursor, "inventory-updated")
     : null;
-  const match = decoded?.value.match(/^offset:(\d+)$/);
-  return match ? Number(match[1]) : 0;
+  if (!decoded) {
+    return query;
+  }
+
+  const separatorIndex = decoded.id.indexOf(":");
+  const cursorType = decoded.id.slice(0, separatorIndex);
+  const cursorId = decoded.id.slice(separatorIndex + 1);
+
+  if (cursorType === recordType) {
+    return query.or(
+      `updated_at.lt.${decoded.value},and(updated_at.eq.${decoded.value},id.lt.${cursorId})`,
+    );
+  }
+
+  return recordType === "central"
+    ? query.lte("updated_at", decoded.value)
+    : query.lt("updated_at", decoded.value);
 }
 
 function emptyAdminRowPage<TRow>(): {
@@ -1624,6 +1652,7 @@ const adminWebhookEventColumns = [
 ].join(", ");
 
 const adminCentralInventoryColumns = [
+  "id",
   "profile_id",
   "market_id",
   "product_id",

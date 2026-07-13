@@ -561,11 +561,7 @@ function paginateAdminRuntimeDebugLogs(
   query: AdminRuntimeLogsQuery,
 ) {
   const filtered = entries
-    .map((entry, index) => ({
-      entry,
-      cursorId: runtimeDebugCursorId(entry, index),
-    }))
-    .filter(({ entry }) => {
+    .filter((entry) => {
       const mapped = mapAdminRuntimeDebugLogEntry(entry);
       const lookupText = [
         mapped.debug_id,
@@ -594,10 +590,8 @@ function paginateAdminRuntimeDebugLogs(
       );
     })
     .sort((left, right) => {
-      const timeDifference = right.entry.timestamp.localeCompare(
-        left.entry.timestamp,
-      );
-      return timeDifference || right.cursorId.localeCompare(left.cursorId);
+      const timeDifference = right.timestamp.localeCompare(left.timestamp);
+      return timeDifference || right.id.localeCompare(left.id);
     });
   const totalCount = filtered.length;
   const decodedCursor = query.cursor
@@ -605,39 +599,31 @@ function paginateAdminRuntimeDebugLogs(
     : null;
   const afterCursor = decodedCursor
     ? filtered.filter(
-        ({ entry, cursorId }) =>
+        (entry) =>
           entry.timestamp < decodedCursor.value ||
           (entry.timestamp === decodedCursor.value &&
-            cursorId < decodedCursor.id),
+            entry.id < decodedCursor.id),
       )
     : filtered;
   const rowsWithExtra = afterCursor.slice(0, query.limit + 1);
-  const items = rowsWithExtra.slice(0, query.limit).map(({ entry }) => entry);
+  const items = rowsWithExtra.slice(0, query.limit);
   const lastItem = items.at(-1);
-  const lastPageItem = rowsWithExtra.at(items.length - 1);
 
   return {
     items,
     page_info: {
       total_count: totalCount,
       next_cursor:
-        rowsWithExtra.length > items.length && lastItem && lastPageItem
+        rowsWithExtra.length > items.length && lastItem
           ? encodeAdminCursor({
               kind: "runtime-timestamp",
               value: lastItem.timestamp,
-              id: lastPageItem.cursorId,
+              id: lastItem.id,
             })
           : null,
       timezone: query.timezone,
     },
   };
-}
-
-function runtimeDebugCursorId(
-  entry: AdminRuntimeDebugLogEntry,
-  originalIndex: number,
-): string {
-  return entry.id ?? `legacy:${String(999_999_999 - originalIndex)}`;
 }
 
 function parseProfileMarketBody(request: Request): {

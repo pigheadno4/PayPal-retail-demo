@@ -161,12 +161,12 @@ describe("Admin query parsers", () => {
 
     const inventoryCursor = encodeAdminCursor({
       kind: "inventory-updated",
-      value: "offset:10",
-      id: "inventory",
+      value: "2026-07-14T10:00:00.000Z",
+      id: "store:store_inventory_10",
     });
-    const excessiveInventoryCursor = encodeAdminCursor({
+    const offsetInventoryCursor = encodeAdminCursor({
       kind: "inventory-updated",
-      value: "offset:1000001",
+      value: "offset:10",
       id: "inventory",
     });
     const pickupCursor = encodeAdminCursor({
@@ -191,9 +191,9 @@ describe("Admin query parsers", () => {
       parseAdminPickupDatesQuery({ cursor: pickupTimestampCursor }).ok,
     ).toBe(false);
     expect(parseAdminInventoryQuery({ cursor: pickupCursor }).ok).toBe(false);
-    expect(
-      parseAdminInventoryQuery({ cursor: excessiveInventoryCursor }).ok,
-    ).toBe(false);
+    expect(parseAdminInventoryQuery({ cursor: offsetInventoryCursor }).ok).toBe(
+      false,
+    );
     expect(parseAdminOrdersQuery({ cursor: ordersDateCursor }).ok).toBe(false);
   });
 

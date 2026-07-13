@@ -84,6 +84,7 @@ const inventoryStockParameters = new Set([
   "scope",
   "store_id",
   "stock_condition",
+  "availability",
   "changed_from",
   "changed_to",
   "timezone",

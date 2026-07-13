@@ -1148,6 +1148,7 @@ describe("admin runtime debug log routes", () => {
   });
 
   it("paginates runtime logs without requiring a debug ID", async () => {
+    let runtimeLogReads = 0;
     const app = createApp({
       catalogRepository: createCatalogRepository(),
       admin: {
@@ -1155,20 +1156,35 @@ describe("admin runtime debug log routes", () => {
         profileMarketRepository: createProfileMarketRepository(),
         runtimeDebugLogRepository: {
           async listRuntimeDebugLogs() {
-            return [
+            runtimeLogReads += 1;
+            const existingLogs = [
               {
+                id: "runtime_log_2",
                 timestamp: "2026-07-12T11:00:00.000Z",
                 level: "error",
                 message: "Repeated runtime failure",
                 context: { source: "paypal", sequence: "first" },
               },
               {
+                id: "runtime_log_1",
                 timestamp: "2026-07-12T11:00:00.000Z",
                 level: "error",
                 message: "Repeated runtime failure",
                 context: { source: "paypal", sequence: "second" },
               },
             ];
+            return runtimeLogReads === 1
+              ? existingLogs
+              : [
+                  {
+                    id: "runtime_log_3",
+                    timestamp: "2026-07-12T12:00:00.000Z",
+                    level: "warn" as const,
+                    message: "Newer runtime warning",
+                    context: { source: "paypal", sequence: "new" },
+                  },
+                  ...existingLogs,
+                ];
           },
         },
         activeStorefrontContextStore: createActiveStorefrontContextStore({
@@ -1571,6 +1587,7 @@ function createAdminInventoryRepository(): AdminInventoryRepository & {
 } {
   const centralInventory: AdminCentralInventoryRow[] = [
     {
+      id: "central_inventory_1",
       profile_id: "profile_popmart",
       market_id: "market_us",
       product_id: "product_molly",
@@ -1846,6 +1863,7 @@ function createAdminRuntimeDebugLogRepository(): AdminRuntimeDebugLogRepository 
     async listRuntimeDebugLogs() {
       return [
         {
+          id: "runtime_log_1",
           timestamp: "2026-06-24T10:30:00.000Z",
           level: "error",
           message: "PayPal create order failed",

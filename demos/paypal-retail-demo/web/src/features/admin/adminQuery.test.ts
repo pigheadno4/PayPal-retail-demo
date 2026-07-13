@@ -61,7 +61,7 @@ describe("Admin URL query builder", () => {
         "inventory",
       ).requestPaths,
     ).toEqual([
-      "/api/admin/inventory?q=MOLLY&scope=store&stock_condition=low_stock&cursor=stock-cursor",
+      "/api/admin/inventory?q=MOLLY&scope=store&stock_condition=low_stock&availability=available&cursor=stock-cursor",
       "/api/admin/pickup-dates?availability=available&cursor=pickup-cursor",
     ]);
 

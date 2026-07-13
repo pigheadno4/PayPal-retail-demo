@@ -11,11 +11,14 @@ export type DebugLogJson =
   | { readonly [key: string]: DebugLogJson };
 
 export interface DebugLogEntry {
-  readonly id?: string;
   readonly timestamp: string;
   readonly level: DebugLogLevel;
   readonly message: string;
   readonly context: DebugLogJson;
+}
+
+export interface RuntimeDebugLogEntry extends DebugLogEntry {
+  readonly id: string;
 }
 
 export interface DebugLogger {
@@ -30,7 +33,7 @@ export interface CreateDebugLoggerInput {
 }
 
 export interface RuntimeDebugLogRepository {
-  readonly listRuntimeDebugLogs: () => Promise<readonly DebugLogEntry[]>;
+  readonly listRuntimeDebugLogs: () => Promise<readonly RuntimeDebugLogEntry[]>;
 }
 
 export interface RuntimeDebugLogStore extends RuntimeDebugLogRepository {
@@ -88,11 +91,11 @@ export function createDebugLogger(
 export function createInMemoryRuntimeDebugLogStore(
   input: CreateInMemoryRuntimeDebugLogStoreInput = {},
 ): RuntimeDebugLogStore {
-  const entries: DebugLogEntry[] = [];
+  const entries: RuntimeDebugLogEntry[] = [];
   const limit = Math.max(1, Math.floor(input.limit ?? 100));
   const downstreamSink = input.downstreamSink ?? defaultDebugLogSink;
   const sink = (entry: DebugLogEntry) => {
-    const storedEntry = {
+    const storedEntry: RuntimeDebugLogEntry = {
       ...entry,
       id: randomUUID(),
     };

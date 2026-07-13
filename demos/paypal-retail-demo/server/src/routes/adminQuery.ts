@@ -154,7 +154,6 @@ interface ParsedTimeRange {
 
 const defaultLimit = 25;
 const maximumLimit = 100;
-const maximumInventoryCursorOffset = 1_000_000;
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
 const orderStatuses: readonly OrderStatus[] = [
@@ -527,7 +526,7 @@ export function decodeAdminCursor(
       typeof parsed.value !== "string" ||
       !isValidCursorSortValue(parsed.kind, parsed.value) ||
       typeof parsed.id !== "string" ||
-      !/^[A-Za-z0-9._:-]+$/.test(parsed.id)
+      !isValidCursorId(parsed.kind, parsed.id)
     ) {
       return null;
     }
@@ -555,14 +554,6 @@ function isAdminCursorKind(value: unknown): value is AdminCursorKind {
 }
 
 function isValidCursorSortValue(kind: AdminCursorKind, value: string): boolean {
-  if (kind === "inventory-updated") {
-    const match = value.match(/^offset:(\d+)$/);
-    const offset = match ? Number(match[1]) : Number.NaN;
-    return (
-      Number.isSafeInteger(offset) && offset <= maximumInventoryCursorOffset
-    );
-  }
-
   if (kind !== "pickup-date") {
     return Boolean(parseIsoTimestamp(value));
   }
@@ -576,6 +567,14 @@ function isValidCursorSortValue(kind: AdminCursorKind, value: string): boolean {
     !Number.isNaN(timestamp.getTime()) &&
     timestamp.toISOString().startsWith(value)
   );
+}
+
+function isValidCursorId(kind: AdminCursorKind, id: string): boolean {
+  if (kind === "inventory-updated") {
+    return /^(?:central|store):[A-Za-z0-9._-]+$/.test(id);
+  }
+
+  return /^[A-Za-z0-9._:-]+$/.test(id);
 }
 
 function parseCommonQuery(

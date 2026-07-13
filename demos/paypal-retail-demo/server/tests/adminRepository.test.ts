@@ -182,16 +182,13 @@ describe("Supabase Admin repository filtering and pagination", () => {
     );
   });
 
-  it("does not repeat Inventory rows at an opaque cursor boundary", async () => {
+  it("keyset-paginates equal-timestamp Inventory rows without a growing offset", async () => {
     const client = new RecordingSupabaseAdminClient({
       store_inventory: {
         count: 5,
         rows: [
-          storeInventoryRow("store_inventory_5", "2026-07-09T12:00:00.000Z"),
-          storeInventoryRow("store_inventory_4", "2026-07-09T12:00:00.000Z"),
           storeInventoryRow("store_inventory_3", "2026-07-09T12:00:00.000Z"),
           storeInventoryRow("store_inventory_2", "2026-07-09T12:00:00.000Z"),
-          storeInventoryRow("store_inventory_1", "2026-07-09T12:00:00.000Z"),
         ],
       },
       products: {
@@ -218,8 +215,8 @@ describe("Supabase Admin repository filtering and pagination", () => {
     const repository = createSupabaseAdminInventoryRepository(client);
     const cursor = encodeAdminCursor({
       kind: "inventory-updated",
-      value: "offset:2",
-      id: "inventory",
+      value: "2026-07-09T12:00:00.000Z",
+      id: "store:store_inventory_4",
     });
 
     const page = await repository.listInventory({
@@ -237,9 +234,67 @@ describe("Supabase Admin repository filtering and pagination", () => {
     ]);
     expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
       kind: "inventory-updated",
-      value: "offset:3",
-      id: "inventory",
+      value: "2026-07-09T12:00:00.000Z",
+      id: "store:store_inventory_3",
     });
+    expect(client.dataQuery("store_inventory").operations).toEqual(
+      expect.arrayContaining([
+        operation(
+          "or",
+          "updated_at.lt.2026-07-09T12:00:00.000Z,and(updated_at.eq.2026-07-09T12:00:00.000Z,id.lt.store_inventory_4)",
+        ),
+        operation("limit", 2),
+      ]),
+    );
+  });
+
+  it("keeps the Central stream behind a Store cursor at the same timestamp", async () => {
+    const timestamp = "2026-07-09T12:00:00.000Z";
+    const client = new RecordingSupabaseAdminClient({
+      central_inventory: {
+        count: 1,
+        rows: [centralInventoryRow("central_inventory_1", timestamp)],
+      },
+      store_inventory: {
+        count: 1,
+        rows: [storeInventoryRow("store_inventory_3", timestamp)],
+      },
+      products: { rows: [] },
+      stores: { rows: [] },
+    });
+    const repository = createSupabaseAdminInventoryRepository(client);
+    const cursor = encodeAdminCursor({
+      kind: "inventory-updated",
+      value: timestamp,
+      id: "store:store_inventory_4",
+    });
+
+    const page = await repository.listInventory({
+      cursor,
+      limit: 1,
+      timezone: "UTC",
+    });
+
+    expect(page.items).toEqual([
+      expect.objectContaining({
+        type: "store",
+        row: expect.objectContaining({ id: "store_inventory_3" }),
+      }),
+    ]);
+    expect(decodeAdminCursor(page.page_info.next_cursor ?? "")).toEqual({
+      kind: "inventory-updated",
+      value: timestamp,
+      id: "store:store_inventory_3",
+    });
+    expect(client.dataQuery("central_inventory").operations).toContainEqual(
+      operation("lte", "updated_at", timestamp),
+    );
+    expect(client.dataQuery("store_inventory").operations).toContainEqual(
+      operation(
+        "or",
+        `updated_at.lt.${timestamp},and(updated_at.eq.${timestamp},id.lt.store_inventory_4)`,
+      ),
+    );
   });
 
   it("advances ascending Pickup dates with a greater-than cursor", async () => {
@@ -543,9 +598,16 @@ class RecordingSupabaseAdminQuery implements PromiseLike<{
       | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    const limit = [...this.operations]
+      .reverse()
+      .find(({ method }) => method === "limit")?.args[0];
+    const rows = [...(this.result.rows ?? [])].slice(
+      0,
+      typeof limit === "number" ? limit : undefined,
+    );
     const response = this.isCountQuery
       ? { data: null, error: null as const, count: this.result.count ?? 0 }
-      : { data: [...(this.result.rows ?? [])], error: null as const };
+      : { data: rows, error: null as const };
     return Promise.resolve(response).then(onfulfilled, onrejected);
   }
 
@@ -590,6 +652,17 @@ function storeInventoryRow(id: string, updatedAt: string) {
     store_id: "store_san_jose",
     product_id: "product_molly",
     available_quantity: 3,
+    updated_at: updatedAt,
+  };
+}
+
+function centralInventoryRow(id: string, updatedAt: string) {
+  return {
+    id,
+    profile_id: "profile_popmart",
+    market_id: "market_us",
+    product_id: "product_molly",
+    available_quantity: 12,
     updated_at: updatedAt,
   };
 }
