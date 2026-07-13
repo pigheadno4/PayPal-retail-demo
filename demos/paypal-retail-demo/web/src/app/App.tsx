@@ -1212,6 +1212,7 @@ function AdminShellGate({
       className="app-shell admin-shell"
       data-route-scope={route.scope}
       data-route-page={route.page}
+      data-route-section={route.section}
       data-admin-auth-state="locked"
     >
       <main className="admin-shell__main">
@@ -6041,6 +6042,10 @@ function AdminShell({
   >({});
 
   useEffect(() => {
+    if (route.section !== "orders" && route.section !== "lifecycle") {
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadAdminOrders() {
@@ -6094,9 +6099,13 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, token]);
+  }, [apiClient, route.section, token]);
 
   useEffect(() => {
+    if (route.section !== "webhooks") {
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadAdminWebhooks() {
@@ -6150,9 +6159,13 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, token]);
+  }, [apiClient, route.section, token]);
 
   useEffect(() => {
+    if (route.section !== "diagnostics") {
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadAdminPaymentDebug() {
@@ -6206,9 +6219,13 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, token]);
+  }, [apiClient, route.section, token]);
 
   useEffect(() => {
+    if (route.section !== "diagnostics") {
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadAdminRuntimeDebugLogs() {
@@ -6262,9 +6279,13 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, token]);
+  }, [apiClient, route.section, token]);
 
   useEffect(() => {
+    if (route.section !== "inventory") {
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadInventoryControls() {
@@ -6348,7 +6369,7 @@ function AdminShell({
     return () => {
       isCancelled = true;
     };
-  }, [apiClient, token]);
+  }, [apiClient, route.section, token]);
 
   const handleSelectOrder = async (orderId: string) => {
     setSelectedOrderState({
@@ -6639,6 +6660,7 @@ function AdminShell({
       className="app-shell admin-shell"
       data-route-scope={route.scope}
       data-route-page={route.page}
+      data-route-section={route.section}
     >
       <main className="admin-shell__main">
         <section className="admin-shell__panel">
@@ -6648,11 +6670,45 @@ function AdminShell({
             <p className="admin-shell__session">Session {session.session_id}</p>
           ) : null}
           <nav aria-label="Admin sections" className="admin-shell__nav">
-            <a href="/admin/orders">Orders</a>
-            <a href="/admin/inventory">Inventory</a>
-            <a href="/admin/webhooks">Webhooks</a>
-            <a href="/admin/lifecycle">Lifecycle</a>
+            <a
+              href="/admin/orders"
+              aria-current={route.section === "orders" ? "page" : undefined}
+            >
+              Orders
+            </a>
+            <a
+              href="/admin/lifecycle"
+              aria-current={route.section === "lifecycle" ? "page" : undefined}
+            >
+              Lifecycle
+            </a>
+            <a
+              href="/admin/inventory"
+              aria-current={route.section === "inventory" ? "page" : undefined}
+            >
+              Inventory
+            </a>
+            <a
+              href="/admin/webhooks"
+              aria-current={route.section === "webhooks" ? "page" : undefined}
+            >
+              Webhooks
+            </a>
+            <a
+              href="/admin/diagnostics"
+              aria-current={
+                route.section === "diagnostics" ? "page" : undefined
+              }
+            >
+              Diagnostics
+            </a>
           </nav>
+          <h2
+            id="admin-workbench-title"
+            className="admin-shell__workbench-title"
+          >
+            {formatAdminStatusLabel(route.section)}
+          </h2>
           <div className="admin-shell__grid">
             <Card className="admin-shell__card" size="sm">
               <CardHeader>
@@ -6765,6 +6821,7 @@ function AdminShell({
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
+            hidden={route.section !== "orders" && route.section !== "lifecycle"}
           >
             <CardHeader>
               <CardTitle>Orders and lifecycle</CardTitle>
@@ -6897,142 +6954,151 @@ function AdminShell({
                           </li>
                         ))}
                       </ol>
-                      <div
-                        className="admin-shell__debug-sections"
-                        aria-label="Admin order debug sections"
-                      >
-                        <div>
-                          <h3>Payment sessions</h3>
-                          {(selectedOrder.payment_sessions ?? []).map(
-                            (session) => (
-                              <p key={session.id}>
-                                {formatAdminStatusLabel(session.method)} /{" "}
-                                {formatAdminStatusLabel(session.status)} /{" "}
-                                {session.paypal_order_id ?? "No PayPal ID"} /{" "}
-                                {session.amount_consistency_status}
-                              </p>
-                            ),
-                          )}
-                          {(selectedOrder.payment_sessions ?? []).length ===
-                          0 ? (
-                            <p>No payment sessions linked.</p>
-                          ) : null}
+                      {route.section === "orders" ? (
+                        <div
+                          className="admin-shell__debug-sections"
+                          aria-label="Admin order debug sections"
+                        >
+                          <div>
+                            <h3>Payment sessions</h3>
+                            {(selectedOrder.payment_sessions ?? []).map(
+                              (session) => (
+                                <p key={session.id}>
+                                  {formatAdminStatusLabel(session.method)} /{" "}
+                                  {formatAdminStatusLabel(session.status)} /{" "}
+                                  {session.paypal_order_id ?? "No PayPal ID"} /{" "}
+                                  {session.amount_consistency_status}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.payment_sessions ?? []).length ===
+                            0 ? (
+                              <p>No payment sessions linked.</p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3>Total snapshots</h3>
+                            {(selectedOrder.total_snapshots ?? []).map(
+                              (snapshot) => (
+                                <p key={snapshot.id}>
+                                  {snapshot.calculation_stage} /{" "}
+                                  {formatMinorMoney(
+                                    snapshot.total_minor,
+                                    snapshot.currency_code,
+                                    activeConfig.market.locale,
+                                  )}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.total_snapshots ?? []).length ===
+                            0 ? (
+                              <p>No total snapshots linked.</p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3>PayPal snapshots</h3>
+                            {(selectedOrder.paypal_snapshots ?? []).map(
+                              (snapshot) => (
+                                <p key={snapshot.id}>
+                                  {snapshot.paypal_invoice_id ?? "No invoice"} /{" "}
+                                  {snapshot.paypal_request_id ??
+                                    "No request ID"}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.paypal_snapshots ?? []).length ===
+                            0 ? (
+                              <p>No PayPal snapshots linked.</p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3>Promo lines</h3>
+                            {(selectedOrder.promo_evaluation_lines ?? []).map(
+                              (line) => (
+                                <p key={line.id}>
+                                  {line.code_snapshot} /{" "}
+                                  {formatAdminStatusLabel(
+                                    line.evaluation_status,
+                                  )}{" "}
+                                  /{" "}
+                                  {line.rejection_reason ??
+                                    line.explanation ??
+                                    "No reason"}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.promo_evaluation_lines ?? [])
+                              .length === 0 ? (
+                              <p>No promo evaluation lines linked.</p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3>Inventory effect</h3>
+                            {(selectedOrder.inventory_effects ?? []).map(
+                              (effect) => (
+                                <p key={effect.order_item_id}>
+                                  {effect.product_sku} / requested{" "}
+                                  {effect.requested_quantity} / fulfillable{" "}
+                                  {effect.fulfillable_quantity}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.inventory_effects ?? []).length ===
+                            0 ? (
+                              <p>No inventory effect rows linked.</p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <h3>Linked webhooks</h3>
+                            {(selectedOrder.linked_webhooks ?? []).map(
+                              (webhook) => (
+                                <p key={webhook.id}>
+                                  {webhook.event_type} /{" "}
+                                  {webhook.verification_status} /{" "}
+                                  {webhook.processing_status}
+                                </p>
+                              ),
+                            )}
+                            {(selectedOrder.linked_webhooks ?? []).length ===
+                            0 ? (
+                              <p>No linked webhooks.</p>
+                            ) : null}
+                          </div>
                         </div>
-                        <div>
-                          <h3>Total snapshots</h3>
-                          {(selectedOrder.total_snapshots ?? []).map(
-                            (snapshot) => (
-                              <p key={snapshot.id}>
-                                {snapshot.calculation_stage} /{" "}
-                                {formatMinorMoney(
-                                  snapshot.total_minor,
-                                  snapshot.currency_code,
-                                  activeConfig.market.locale,
-                                )}
+                      ) : null}
+                      {route.section === "lifecycle" ? (
+                        <>
+                          <div className="admin-shell__lifecycle-actions">
+                            {selectedOrder.next_statuses.length > 0 ? (
+                              selectedOrder.next_statuses.map((nextStatus) => (
+                                <Button
+                                  key={nextStatus}
+                                  type="button"
+                                  onClick={() => {
+                                    void handleAdvanceLifecycle(nextStatus);
+                                  }}
+                                  disabled={lifecycleState.status === "saving"}
+                                >
+                                  Mark {formatAdminStatusLabel(nextStatus)}
+                                </Button>
+                              ))
+                            ) : (
+                              <p className="admin-shell__empty-state">
+                                No manual lifecycle action available.
                               </p>
-                            ),
-                          )}
-                          {(selectedOrder.total_snapshots ?? []).length ===
-                          0 ? (
-                            <p>No total snapshots linked.</p>
-                          ) : null}
-                        </div>
-                        <div>
-                          <h3>PayPal snapshots</h3>
-                          {(selectedOrder.paypal_snapshots ?? []).map(
-                            (snapshot) => (
-                              <p key={snapshot.id}>
-                                {snapshot.paypal_invoice_id ?? "No invoice"} /{" "}
-                                {snapshot.paypal_request_id ?? "No request ID"}
-                              </p>
-                            ),
-                          )}
-                          {(selectedOrder.paypal_snapshots ?? []).length ===
-                          0 ? (
-                            <p>No PayPal snapshots linked.</p>
-                          ) : null}
-                        </div>
-                        <div>
-                          <h3>Promo lines</h3>
-                          {(selectedOrder.promo_evaluation_lines ?? []).map(
-                            (line) => (
-                              <p key={line.id}>
-                                {line.code_snapshot} /{" "}
-                                {formatAdminStatusLabel(line.evaluation_status)}{" "}
-                                /{" "}
-                                {line.rejection_reason ??
-                                  line.explanation ??
-                                  "No reason"}
-                              </p>
-                            ),
-                          )}
-                          {(selectedOrder.promo_evaluation_lines ?? [])
-                            .length === 0 ? (
-                            <p>No promo evaluation lines linked.</p>
-                          ) : null}
-                        </div>
-                        <div>
-                          <h3>Inventory effect</h3>
-                          {(selectedOrder.inventory_effects ?? []).map(
-                            (effect) => (
-                              <p key={effect.order_item_id}>
-                                {effect.product_sku} / requested{" "}
-                                {effect.requested_quantity} / fulfillable{" "}
-                                {effect.fulfillable_quantity}
-                              </p>
-                            ),
-                          )}
-                          {(selectedOrder.inventory_effects ?? []).length ===
-                          0 ? (
-                            <p>No inventory effect rows linked.</p>
-                          ) : null}
-                        </div>
-                        <div>
-                          <h3>Linked webhooks</h3>
-                          {(selectedOrder.linked_webhooks ?? []).map(
-                            (webhook) => (
-                              <p key={webhook.id}>
-                                {webhook.event_type} /{" "}
-                                {webhook.verification_status} /{" "}
-                                {webhook.processing_status}
-                              </p>
-                            ),
-                          )}
-                          {(selectedOrder.linked_webhooks ?? []).length ===
-                          0 ? (
-                            <p>No linked webhooks.</p>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="admin-shell__lifecycle-actions">
-                        {selectedOrder.next_statuses.length > 0 ? (
-                          selectedOrder.next_statuses.map((nextStatus) => (
-                            <Button
-                              key={nextStatus}
-                              type="button"
-                              onClick={() => {
-                                void handleAdvanceLifecycle(nextStatus);
-                              }}
-                              disabled={lifecycleState.status === "saving"}
-                            >
-                              Mark {formatAdminStatusLabel(nextStatus)}
-                            </Button>
-                          ))
-                        ) : (
-                          <p className="admin-shell__empty-state">
-                            No manual lifecycle action available.
+                            )}
+                          </div>
+                          <p
+                            className="admin-shell__feedback"
+                            data-status={lifecycleState.status}
+                            {...(lifecycleState.status === "error"
+                              ? { role: "alert" }
+                              : {})}
+                          >
+                            {lifecycleState.message}
                           </p>
-                        )}
-                      </div>
-                      <p
-                        className="admin-shell__feedback"
-                        data-status={lifecycleState.status}
-                        {...(lifecycleState.status === "error"
-                          ? { role: "alert" }
-                          : {})}
-                      >
-                        {lifecycleState.message}
-                      </p>
+                        </>
+                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -7042,6 +7108,7 @@ function AdminShell({
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
+            hidden={route.section !== "inventory"}
           >
             <CardHeader>
               <CardTitle>Inventory and pickup dates</CardTitle>
@@ -7232,6 +7299,7 @@ function AdminShell({
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
+            hidden={route.section !== "webhooks"}
           >
             <CardHeader>
               <CardTitle>Webhook events</CardTitle>
@@ -7323,6 +7391,7 @@ function AdminShell({
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
+            hidden={route.section !== "diagnostics"}
           >
             <CardHeader>
               <CardTitle>Payment and order debug</CardTitle>
@@ -7512,6 +7581,7 @@ function AdminShell({
           <Card
             className="admin-shell__card admin-shell__orders-card"
             size="sm"
+            hidden={route.section !== "diagnostics"}
           >
             <CardHeader>
               <CardTitle>Runtime debug logs</CardTitle>

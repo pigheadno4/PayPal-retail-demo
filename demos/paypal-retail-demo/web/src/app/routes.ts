@@ -41,7 +41,15 @@ export type AppRoute =
   | {
       readonly scope: "admin";
       readonly page: "admin";
+      readonly section: AdminSection;
     };
+
+export type AdminSection =
+  | "orders"
+  | "lifecycle"
+  | "inventory"
+  | "webhooks"
+  | "diagnostics";
 
 export function resolveAppRoute(pathname: string): AppRoute {
   const path = normalizePath(pathname);
@@ -50,6 +58,7 @@ export function resolveAppRoute(pathname: string): AppRoute {
     return {
       scope: "admin",
       page: "admin",
+      section: resolveAdminSection(path),
     };
   }
 
@@ -134,6 +143,23 @@ export function resolveAppRoute(pathname: string): AppRoute {
     scope: "buyer",
     page: "not_found",
   };
+}
+
+function resolveAdminSection(path: string): AdminSection {
+  const candidate = path.startsWith("/admin/")
+    ? path.slice("/admin/".length)
+    : "";
+
+  if (
+    candidate === "lifecycle" ||
+    candidate === "inventory" ||
+    candidate === "webhooks" ||
+    candidate === "diagnostics"
+  ) {
+    return candidate;
+  }
+
+  return "orders";
 }
 
 function normalizePath(pathname: string): string {

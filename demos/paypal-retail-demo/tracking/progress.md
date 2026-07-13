@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-07-13
+
+- Started Post-Purchase Operations and Account Experience in isolated branch `codex/post-purchase-operations` after the approved Superpowers visual companion mockup and independent mockup review. Added the seven-task execution plan at `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`. Before feature edits, fixed fresh-worktree reproducibility by tracking the shadcn `components.json` manifest; the clean baseline then passed `72` test files and `624` tests.
+- Completed the Task 1 route-isolation implementation through TDD: `/admin` and unknown Admin paths resolve to Orders; Lifecycle, Inventory, Webhooks, and Diagnostics resolve explicitly; each workbench loads only its owned list APIs; and active navigation exposes `aria-current="page"`. Fresh verification passed `72` test files and `626` tests plus typecheck, lint, Prettier, `git diff --check`, and `scripts/check-agent-system.sh`. Independent code review is the remaining Task 1 checkpoint.
+
 ## 2026-07-12
 
 - Closed the Round 4 hosted Render correction gate. Commit `87f7ec96` deployed as `/assets/index-C1Q5eUuT.js` and `/assets/index-Cw49jF97.css`; `npm run evidence:round4:auth-minicart-checkout` passed against `https://paypal-retail-demo.onrender.com` with `31/31` required rows, `40/40` JPEGs, `missingRows: []`, `failedRows: []`, `4.60:1` minimum contrast, 44px minimum measured target, and `0.0027` maximum near-black ratio. The checksum-locked workspace copy is `.playwright-cli/round4-hosted-auth-minicart-checkout-evidence/` with metrics SHA1 `436b1c6b9b53ad47e3b444966deb740959ed7d6f`. A fresh independent read-only `ui-ux-pro-max` reviewer inspected all `40` hosted captures and returned PASS with no P0/P1/P2 findings. Round 4 is deploy-quality closed; live Card Fields submit/capture and wallet-eligible device checks remain separate action-time QA.

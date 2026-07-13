@@ -3910,10 +3910,90 @@ describe("App buyer interactions", () => {
 });
 
 describe("App admin interactions", () => {
+  it("loads only the active Admin workbench data", async () => {
+    const cases = [
+      {
+        pathname: "/admin/orders",
+        expectedHeading: "Orders",
+        expectedPaths: ["/api/admin/orders"],
+      },
+      {
+        pathname: "/admin/lifecycle",
+        expectedHeading: "Lifecycle",
+        expectedPaths: ["/api/admin/orders"],
+      },
+      {
+        pathname: "/admin/inventory",
+        expectedHeading: "Inventory",
+        expectedPaths: ["/api/admin/inventory", "/api/admin/pickup-dates"],
+      },
+      {
+        pathname: "/admin/webhooks",
+        expectedHeading: "Webhooks",
+        expectedPaths: ["/api/admin/webhooks"],
+      },
+      {
+        pathname: "/admin/diagnostics",
+        expectedHeading: "Diagnostics",
+        expectedPaths: ["/api/admin/debug-logs", "/api/admin/payment-debug"],
+      },
+    ] as const;
+
+    for (const { pathname, expectedHeading, expectedPaths } of cases) {
+      window.localStorage.setItem(
+        "paypal-retail-demo:admin-session",
+        "route-token",
+      );
+      const apiClient = createRecordingApiClient({
+        getResponseByPath: {
+          "/api/admin/state": {
+            authenticated: true,
+            session: {
+              session_id: "session-route-isolation",
+              expires_at: "2026-12-31T23:59:59.000Z",
+            },
+          },
+          "/api/admin/orders": adminOrderListApiResponse(),
+          "/api/admin/inventory": adminInventoryListApiResponse(),
+          "/api/admin/pickup-dates": adminPickupDateListApiResponse(),
+          "/api/admin/webhooks": adminWebhookListApiResponse(),
+          "/api/admin/payment-debug": adminPaymentDebugApiResponse(),
+          "/api/admin/debug-logs": adminRuntimeDebugLogApiResponse(),
+        },
+      });
+      const view = render(
+        <App apiClient={apiClient} initialPathname={pathname} />,
+      );
+
+      await screen.findByText(expectedHeading, {
+        selector: "#admin-workbench-title",
+      });
+      await waitFor(() => {
+        expect(
+          apiClient.calls
+            .filter(
+              (call) =>
+                call.method === "get" && call.path !== "/api/admin/state",
+            )
+            .map((call) => call.path)
+            .sort(),
+        ).toEqual([...expectedPaths].sort());
+      });
+
+      expect(
+        screen
+          .getByRole("link", { name: expectedHeading })
+          .getAttribute("aria-current"),
+      ).toBe("page");
+      view.unmount();
+      window.localStorage.clear();
+    }
+  });
+
   it("shows the admin passcode screen for protected admin routes when no session exists", () => {
     const apiClient = createRecordingApiClient();
 
-    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+    render(<App apiClient={apiClient} initialPathname="/admin/lifecycle" />);
 
     expect(
       screen.getByRole("heading", { name: "Protected Portal" }),
@@ -4129,19 +4209,19 @@ describe("App admin interactions", () => {
       "orders-token",
     );
 
-    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+    render(<App apiClient={apiClient} initialPathname="/admin/lifecycle" />);
 
     await screen.findByText("Orders are ready for inspection.");
+    expect(
+      screen.getByText("Lifecycle", { selector: "#admin-workbench-title" }),
+    ).toBeTruthy();
     await user.click(
       screen.getByRole("button", {
         name: /DO-20260624-000001/,
       }),
     );
     await screen.findByText("Molly Imaginary Travel Blind Box");
-    expect(screen.getByText("Payment sessions")).toBeTruthy();
-    expect(screen.getByText(/PAYPAL_ORDER_1/)).toBeTruthy();
-    expect(screen.getByText("Total snapshots")).toBeTruthy();
-    expect(screen.getByText(/POP15/)).toBeTruthy();
+    expect(screen.queryByText("Payment sessions")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Mark Processing" }));
 
     await screen.findByText("DO-20260624-000001 is now Processing.");
@@ -4363,7 +4443,7 @@ describe("App admin interactions", () => {
       "debug-token",
     );
 
-    render(<App apiClient={apiClient} initialPathname="/admin/debug" />);
+    render(<App apiClient={apiClient} initialPathname="/admin/diagnostics" />);
 
     await screen.findByText("Payment debug sessions are ready.");
     const paymentDebugRegion = screen.getByLabelText(
@@ -4416,7 +4496,7 @@ describe("App admin interactions", () => {
       "debug-token",
     );
 
-    render(<App apiClient={apiClient} initialPathname="/admin/debug" />);
+    render(<App apiClient={apiClient} initialPathname="/admin/diagnostics" />);
 
     await screen.findByText("Runtime debug logs are ready.");
     const runtimeLogRegion = screen.getByLabelText("Admin runtime debug logs");

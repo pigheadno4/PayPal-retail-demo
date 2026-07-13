@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. The approved next implementation-planning target is Post-Purchase Operations and Account Experience; its open Admin/Account rows below remain design acceptance gates until the written spec and detailed plan are approved. Other open rows remain explicit older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is approved for implementation from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Task 1 route isolation is active and the remaining open Admin/Account rows stay explicit until their corresponding plan tasks are verified. Other open rows remain older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
 
 ## Deployment QA
 

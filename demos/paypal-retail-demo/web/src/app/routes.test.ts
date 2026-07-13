@@ -40,6 +40,7 @@ describe("app route resolver", () => {
     expect(resolveAppRoute("/admin")).toEqual({
       scope: "admin",
       page: "admin",
+      section: "orders",
     });
   });
 
@@ -47,10 +48,39 @@ describe("app route resolver", () => {
     expect(resolveAppRoute("/admin/orders")).toEqual({
       scope: "admin",
       page: "admin",
+      section: "orders",
     });
     expect(resolveAppRoute("/missing")).toEqual({
       scope: "buyer",
       page: "not_found",
+    });
+  });
+
+  it("maps each post-purchase Admin workbench to a distinct section", () => {
+    expect(resolveAppRoute("/admin/lifecycle")).toEqual({
+      scope: "admin",
+      page: "admin",
+      section: "lifecycle",
+    });
+    expect(resolveAppRoute("/admin/inventory")).toEqual({
+      scope: "admin",
+      page: "admin",
+      section: "inventory",
+    });
+    expect(resolveAppRoute("/admin/webhooks")).toEqual({
+      scope: "admin",
+      page: "admin",
+      section: "webhooks",
+    });
+    expect(resolveAppRoute("/admin/diagnostics?tab=runtime")).toEqual({
+      scope: "admin",
+      page: "admin",
+      section: "diagnostics",
+    });
+    expect(resolveAppRoute("/admin/unknown")).toEqual({
+      scope: "admin",
+      page: "admin",
+      section: "orders",
     });
   });
 });
