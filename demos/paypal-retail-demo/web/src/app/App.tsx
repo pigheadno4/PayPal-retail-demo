@@ -6894,7 +6894,7 @@ function AdminShell({
                     <>
                       <div className="admin-shell__order-detail-header">
                         <div>
-                          <h2>{selectedOrder.order_number}</h2>
+                          <h3>{selectedOrder.order_number}</h3>
                           <p>
                             {formatAdminStatusLabel(
                               selectedOrder.fulfillment_mode,
@@ -6960,7 +6960,7 @@ function AdminShell({
                           aria-label="Admin order debug sections"
                         >
                           <div>
-                            <h3>Payment sessions</h3>
+                            <h4>Payment sessions</h4>
                             {(selectedOrder.payment_sessions ?? []).map(
                               (session) => (
                                 <p key={session.id}>
@@ -6977,7 +6977,7 @@ function AdminShell({
                             ) : null}
                           </div>
                           <div>
-                            <h3>Total snapshots</h3>
+                            <h4>Total snapshots</h4>
                             {(selectedOrder.total_snapshots ?? []).map(
                               (snapshot) => (
                                 <p key={snapshot.id}>
@@ -6996,7 +6996,7 @@ function AdminShell({
                             ) : null}
                           </div>
                           <div>
-                            <h3>PayPal snapshots</h3>
+                            <h4>PayPal snapshots</h4>
                             {(selectedOrder.paypal_snapshots ?? []).map(
                               (snapshot) => (
                                 <p key={snapshot.id}>
@@ -7012,7 +7012,7 @@ function AdminShell({
                             ) : null}
                           </div>
                           <div>
-                            <h3>Promo lines</h3>
+                            <h4>Promo lines</h4>
                             {(selectedOrder.promo_evaluation_lines ?? []).map(
                               (line) => (
                                 <p key={line.id}>
@@ -7033,7 +7033,7 @@ function AdminShell({
                             ) : null}
                           </div>
                           <div>
-                            <h3>Inventory effect</h3>
+                            <h4>Inventory effect</h4>
                             {(selectedOrder.inventory_effects ?? []).map(
                               (effect) => (
                                 <p key={effect.order_item_id}>
@@ -7049,7 +7049,7 @@ function AdminShell({
                             ) : null}
                           </div>
                           <div>
-                            <h3>Linked webhooks</h3>
+                            <h4>Linked webhooks</h4>
                             {(selectedOrder.linked_webhooks ?? []).map(
                               (webhook) => (
                                 <p key={webhook.id}>
@@ -7120,7 +7120,7 @@ function AdminShell({
             <CardContent>
               <div className="admin-shell__inventory-grid">
                 <section aria-labelledby="admin-inventory-title">
-                  <h2 id="admin-inventory-title">Inventory</h2>
+                  <h3 id="admin-inventory-title">Inventory</h3>
                   <p
                     className="admin-shell__feedback"
                     data-status={
@@ -7198,7 +7198,7 @@ function AdminShell({
                   </div>
                 </section>
                 <section aria-labelledby="admin-pickup-title">
-                  <h2 id="admin-pickup-title">Pickup dates</h2>
+                  <h3 id="admin-pickup-title">Pickup dates</h3>
                   <p
                     className="admin-shell__feedback"
                     data-status={
@@ -7327,7 +7327,7 @@ function AdminShell({
                       className="admin-shell__webhook-row"
                     >
                       <div>
-                        <h2>{webhook.event_id}</h2>
+                        <h3>{webhook.event_id}</h3>
                         <p>{webhook.event_type}</p>
                       </div>
                       <dl className="admin-shell__runtime-list">
@@ -7428,11 +7428,11 @@ function AdminShell({
                       >
                         <div className="admin-shell__payment-debug-summary">
                           <div>
-                            <h2>
+                            <h3>
                               {session.order?.order_number ??
                                 session.order_id ??
                                 session.id}
-                            </h2>
+                            </h3>
                             <p>
                               {formatAdminStatusLabel(session.method)} /{" "}
                               {formatAdminStatusLabel(session.status)} / Attempt{" "}
@@ -7498,7 +7498,7 @@ function AdminShell({
                         </dl>
                         <div className="admin-shell__payment-debug-details">
                           <section>
-                            <h3>Total snapshots</h3>
+                            <h4>Total snapshots</h4>
                             {session.total_snapshots.length > 0 ? (
                               session.total_snapshots.map((snapshot) => (
                                 <p
@@ -7524,7 +7524,7 @@ function AdminShell({
                             )}
                           </section>
                           <section>
-                            <h3>PayPal snapshots</h3>
+                            <h4>PayPal snapshots</h4>
                             {session.paypal_snapshots.length > 0 ? (
                               session.paypal_snapshots.map((snapshot) => (
                                 <p
@@ -7545,7 +7545,7 @@ function AdminShell({
                             )}
                           </section>
                           <section>
-                            <h3>Linked webhooks</h3>
+                            <h4>Linked webhooks</h4>
                             {session.linked_webhooks.length > 0 ? (
                               session.linked_webhooks.map((webhook) => (
                                 <p
@@ -7624,7 +7624,7 @@ function AdminShell({
                       >
                         <div className="admin-shell__runtime-debug-summary">
                           <div>
-                            <h2>{entry.message}</h2>
+                            <h3>{entry.message}</h3>
                             <p>
                               {entry.debug_id ?? "No debug ID"} /{" "}
                               {entry.request_path ?? "No request path"}

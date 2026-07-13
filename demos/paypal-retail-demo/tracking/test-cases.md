@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is approved for implementation from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Task 1 route isolation is active and the remaining open Admin/Account rows stay explicit until their corresponding plan tasks are verified. Other open rows remain older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Task 1 route isolation is closed and Task 2 server filtering/cursor pagination is next. Remaining open Admin/Account rows stay explicit until their corresponding plan tasks are verified. Other open rows remain older/evidence backlog such as local Supabase migration verification and wallet/card sandbox capture coverage.
 
 ## Deployment QA
 
@@ -396,7 +396,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Admin payment-debug route requires the signed admin session and lists recent payment sessions with linked order summary, amount comparison, total snapshots, PayPal snapshots, and webhook evidence.
 - [x] Admin payment-debug UI loads with `x-admin-session` and renders order number, PayPal order/capture IDs, amount comparison, latest total stage, and linked webhook evidence.
 - [x] Runtime debug logs are visible without exposing secrets.
-- [ ] Admin route isolation: Orders, Lifecycle, Inventory, Webhooks, and Diagnostics render as separate route-backed workbenches and call only their own APIs.
+- [x] Admin route isolation: Orders, Lifecycle, Inventory, Webhooks, and Diagnostics render as separate route-backed workbenches and call only their own APIs; Orders detail excludes lifecycle actions, Lifecycle excludes technical debug sections, active navigation exposes `aria-current="page"`, and each route has one level-2 workbench heading.
 - [ ] Admin filters: URL query state, server-side filtering, explicit timezone date presets/custom range, active chips, clear action, result counts, and cursor pagination survive refresh/back navigation.
 - [ ] Lifecycle-to-Account proof: valid one-step Delivery/Pickup transitions write one atomic admin audit event, return `409` when stale/invalid, appear after Account refresh, and never increase webhook-event count.
 - [ ] Webhook explorer filters genuine received PayPal events by event ID/type, verification, processing, linkage, and received range and exposes only sanitized read-only detail.

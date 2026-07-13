@@ -3965,8 +3965,9 @@ describe("App admin interactions", () => {
         <App apiClient={apiClient} initialPathname={pathname} />,
       );
 
-      await screen.findByText(expectedHeading, {
-        selector: "#admin-workbench-title",
+      await screen.findByRole("heading", {
+        name: expectedHeading,
+        level: 2,
       });
       await waitFor(() => {
         expect(
@@ -3985,6 +3986,7 @@ describe("App admin interactions", () => {
           .getByRole("link", { name: expectedHeading })
           .getAttribute("aria-current"),
       ).toBe("page");
+      expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(1);
       view.unmount();
       window.localStorage.clear();
     }
@@ -4162,6 +4164,47 @@ describe("App admin interactions", () => {
         },
       }),
     );
+  });
+
+  it("keeps lifecycle actions out of the Orders technical detail", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/admin/state": {
+          authenticated: true,
+          session: {
+            session_id: "session-restored",
+            expires_at: "2026-12-31T23:59:59.000Z",
+          },
+        },
+        "/api/admin/orders": adminOrderListApiResponse(),
+        "/api/admin/orders/order_1": adminOrderDetailApiResponse(),
+      },
+    });
+
+    window.localStorage.setItem(
+      "paypal-retail-demo:admin-session",
+      "orders-detail-token",
+    );
+
+    render(<App apiClient={apiClient} initialPathname="/admin/orders" />);
+
+    await screen.findByText("Orders are ready for inspection.");
+    await user.click(
+      screen.getByRole("button", {
+        name: /DO-20260624-000001/,
+      }),
+    );
+
+    await screen.findByText("Molly Imaginary Travel Blind Box");
+    expect(
+      screen.getByRole("heading", { name: "Payment sessions", level: 4 }),
+    ).toBeTruthy();
+    expect(screen.getByText(/PAYPAL_ORDER_1/)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Mark Processing" }),
+    ).toBeNull();
+    expect(apiClient.calls.some((call) => call.method === "post")).toBe(false);
   });
 
   it("loads admin orders and advances a lifecycle step with the signed session", async () => {

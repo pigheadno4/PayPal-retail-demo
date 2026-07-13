@@ -7052,7 +7052,7 @@ p {
   margin-bottom: 14px;
 }
 
-.admin-shell__order-detail-header h2 {
+.admin-shell__order-detail-header h3 {
   font-size: clamp(1.05rem, 1vw + 0.9rem, 1.35rem);
   margin: 0;
 }
@@ -7128,7 +7128,7 @@ p {
   padding: 10px;
 }
 
-.admin-shell__debug-sections h3 {
+.admin-shell__debug-sections h4 {
   color: #20242a;
   font-size: 0.78rem;
   font-weight: 900;
@@ -7164,7 +7164,7 @@ p {
   padding: 12px;
 }
 
-.admin-shell__webhook-row h2 {
+.admin-shell__webhook-row h3 {
   color: #20242a;
   font-size: 0.98rem;
   margin: 0;
@@ -7200,7 +7200,7 @@ p {
   justify-content: space-between;
 }
 
-.admin-shell__payment-debug-summary h2 {
+.admin-shell__payment-debug-summary h3 {
   color: #20242a;
   font-size: 1rem;
   margin: 0;
@@ -7237,7 +7237,7 @@ p {
   padding: 10px;
 }
 
-.admin-shell__payment-debug-details h3 {
+.admin-shell__payment-debug-details h4 {
   color: #20242a;
   font-size: 0.78rem;
   font-weight: 900;
@@ -7288,7 +7288,7 @@ p {
   justify-content: space-between;
 }
 
-.admin-shell__runtime-debug-summary h2 {
+.admin-shell__runtime-debug-summary h3 {
   color: #20242a;
   font-size: 1rem;
   margin: 0;
@@ -7369,7 +7369,7 @@ p {
   padding: 12px;
 }
 
-.admin-shell__inventory-grid h2 {
+.admin-shell__inventory-grid h3 {
   color: #20242a;
   font-size: 1rem;
   margin: 0 0 8px;
