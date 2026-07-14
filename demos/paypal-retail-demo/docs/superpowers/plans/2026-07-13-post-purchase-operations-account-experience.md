@@ -367,6 +367,13 @@ export function matchesAccountOrderFilter(
 - [x] **Step 5:** Apply the approved buyer mockup hierarchy while preserving review submission/edit/delete behavior.
 - [x] **Step 6:** Run Account/App/style tests plus typecheck and commit with `git commit -m "feat: polish account post-purchase orders"`.
 
+**Independent-review correction:**
+
+- [x] Map the canonical buyer-safe fulfillment address subset into the Account order view and render Delivery recipient/locality plus Pickup store name/locality without street, provider, payment, or technical identifiers.
+- [x] Add visible Completed, Current stage, and Upcoming text to timeline rows so state is not color-only.
+- [x] Cover both behaviors failing-first in Account component and App canonical-response tests; correction-focused GREEN passes `88` tests and full `npm run verify` passes `715` tests across `77` files plus typecheck, lint, and format check.
+- Deferred boundary: shipping-option and pickup-window/date detail are unavailable until the canonical Account list/detail API adds explicit allowlisted fields. That API expansion, with contract and buyer-safety tests, is the trigger for follow-up work and is not a Task 6 blocker.
+
 ---
 
 ### Task 7: End-To-End Evidence, Review, And Tracking Closure

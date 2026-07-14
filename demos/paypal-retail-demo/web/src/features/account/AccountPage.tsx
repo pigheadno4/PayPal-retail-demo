@@ -98,6 +98,15 @@ export interface AccountOrderTimelineStepView {
   readonly status: "complete" | "current" | "pending";
 }
 
+export interface AccountOrderFulfillmentAddressView {
+  readonly addressType: "billing" | "pickup_store" | "shipping";
+  readonly city: string;
+  readonly countryCode: string;
+  readonly postalCode: string;
+  readonly recipientName: string;
+  readonly state: string | null;
+}
+
 export interface AccountOrderTotalLineView {
   readonly label: string;
   readonly value: string;
@@ -112,6 +121,7 @@ export interface AccountOrderView {
   readonly paymentStatusLabel: string;
   readonly totalLabel: string;
   readonly note: string;
+  readonly fulfillmentAddresses: readonly AccountOrderFulfillmentAddressView[];
   readonly items: readonly AccountOrderItemView[];
   readonly timeline: readonly AccountOrderTimelineStepView[];
   readonly totals: readonly AccountOrderTotalLineView[];
@@ -1099,6 +1109,11 @@ function OrderDetailView({
   const fulfillmentDetailLabel = `${formatFulfillmentModeLabel(
     order.fulfillmentMode,
   )} detail`;
+  const fulfillmentAddress = order.fulfillmentAddresses.find(
+    (address) =>
+      address.addressType ===
+      (order.fulfillmentMode === "pickup" ? "pickup_store" : "shipping"),
+  );
 
   return (
     <section
@@ -1162,6 +1177,22 @@ function OrderDetailView({
           </CardHeader>
           <CardContent>
             <dl className="account-page__definition-list">
+              {fulfillmentAddress ? (
+                <div>
+                  <dt>
+                    {order.fulfillmentMode === "pickup"
+                      ? "Pickup store"
+                      : "Shipping to"}
+                  </dt>
+                  <dd>
+                    <strong>{fulfillmentAddress.recipientName}</strong>
+                    <br />
+                    <span>
+                      {formatOrderFulfillmentLocality(fulfillmentAddress)}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Placed</dt>
                 <dd>{formatOrderDetailDate(order.placedDateLabel)}</dd>
@@ -1191,6 +1222,7 @@ function OrderDetailView({
                   className={`account-page__timeline-step account-page__timeline-step--${step.status}`}
                 >
                   <strong>{step.label}</strong>
+                  <span>{formatTimelineStateLabel(step.status)}</span>
                   <span>{step.description}</span>
                   {step.occurredAtLabel ? (
                     <time>{step.occurredAtLabel}</time>
@@ -1899,6 +1931,29 @@ function formatGuestAddress(address: GuestOrderAddressView): string {
   return [address.city, address.state, address.postalCode, address.countryCode]
     .filter(Boolean)
     .join(", ");
+}
+
+function formatOrderFulfillmentLocality(
+  address: AccountOrderFulfillmentAddressView,
+): string {
+  const region = [address.state, address.postalCode].filter(Boolean).join(" ");
+  const domesticLocality = [address.city, region].filter(Boolean).join(", ");
+
+  return address.countryCode.toUpperCase() === "US"
+    ? domesticLocality
+    : [domesticLocality, address.countryCode].filter(Boolean).join(", ");
+}
+
+function formatTimelineStateLabel(
+  status: AccountOrderTimelineStepView["status"],
+): string {
+  if (status === "complete") {
+    return "Completed";
+  }
+  if (status === "current") {
+    return "Current stage";
+  }
+  return "Upcoming";
 }
 
 function formatSavedPaymentLabel(

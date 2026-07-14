@@ -499,6 +499,8 @@ Verification:
   - [x] Task 4: make lifecycle transition plus Admin audit event atomic, stale-safe, and webhook-neutral.
   - [x] Task 5: persist allowlisted/redacted runtime diagnostics with non-blocking 7-day retention.
   - [x] Task 6: polish Account order filters, refresh state, current-stage hierarchy, and buyer-safe timeline.
+    - [x] Independent-review correction: map the canonical buyer-safe fulfillment address subset into Account order views, show Delivery shipping recipient/locality and Pickup store name/locality, and label every timeline row as Completed, Current stage, or Upcoming without relying on color alone.
+    - Deferred boundary (not a Task 6 blocker): shipping-option and pickup-window/date detail remain absent because the canonical Account list/detail API does not expose them. Revisit only when those endpoints add explicit allowlisted fields with API contract and buyer-safety coverage.
   - [ ] Task 7: close API-backed browser evidence, independent review, and tracking reconciliation.
 
 Verification:

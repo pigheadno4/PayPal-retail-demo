@@ -2510,6 +2510,9 @@ describe("App buyer interactions", () => {
     ).toBeTruthy();
     expect(screen.getByText("Timeline")).toBeTruthy();
     expect(screen.getByText("Items in this order")).toBeTruthy();
+    const pickupDetail = screen.getByRole("region", { name: "Pickup detail" });
+    expect(within(pickupDetail).getByText("S2S POP MART Soho")).toBeTruthy();
+    expect(within(pickupDetail).getByText("New York, NY 10012")).toBeTruthy();
     expect(screen.queryByText("PAYPAL_ORDER_BUYER_UNSAFE")).toBeNull();
     expect(screen.queryByText("PAYMENT_SESSION_BUYER_UNSAFE")).toBeNull();
     expect(screen.queryByText("CAPTURE_BUYER_UNSAFE")).toBeNull();
@@ -2517,6 +2520,8 @@ describe("App buyer interactions", () => {
     expect(screen.queryByText("DEBUG_BUYER_UNSAFE")).toBeNull();
     expect(screen.queryByText("ADMIN_SESSION_BUYER_UNSAFE")).toBeNull();
     expect(screen.queryByText("DATABASE_BUYER_UNSAFE")).toBeNull();
+    expect(screen.queryByText("456 Store Secret Street")).toBeNull();
+    expect(screen.queryByText("PROVIDER_ADDRESS_BUYER_UNSAFE")).toBeNull();
     expect(apiClient.calls).toContainEqual(
       expect.objectContaining({
         method: "get",
@@ -4937,11 +4942,13 @@ function accountOrderApiResponse() {
     addresses: [
       {
         address_type: "pickup_store",
+        address_line1: "456 Store Secret Street",
         recipient_name: "S2S POP MART Soho",
         city: "New York",
         state: "NY",
         postal_code: "10012",
         country_code: "US",
+        provider_address_id: "PROVIDER_ADDRESS_BUYER_UNSAFE",
       },
     ],
   };

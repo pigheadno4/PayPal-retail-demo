@@ -835,6 +835,14 @@ interface AccountOrderApiItem {
   readonly currency_code: string;
   readonly review_eligible: boolean;
   readonly fulfillment_label: string;
+  readonly addresses: readonly {
+    readonly address_type: "billing" | "pickup_store" | "shipping";
+    readonly recipient_name: string;
+    readonly city: string;
+    readonly state: string | null;
+    readonly postal_code: string;
+    readonly country_code: string;
+  }[];
   readonly totals: AccountOrderApiTotals;
   readonly items: readonly {
     readonly id: string;
@@ -4850,6 +4858,14 @@ function mapAccountOrder(
       locale,
     ),
     note: buildAccountOrderNote(order),
+    fulfillmentAddresses: order.addresses.map((address) => ({
+      addressType: address.address_type,
+      city: address.city,
+      countryCode: address.country_code,
+      postalCode: address.postal_code,
+      recipientName: address.recipient_name,
+      state: address.state,
+    })),
     items: order.items.map((item) => ({
       id: item.id,
       imageAlt: `${item.product_name} collectible`,

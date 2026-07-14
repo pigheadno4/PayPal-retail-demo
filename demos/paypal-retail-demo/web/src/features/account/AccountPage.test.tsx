@@ -360,6 +360,87 @@ describe("AccountPage", () => {
     ).toBeTruthy();
   });
 
+  it("shows canonical Delivery and Pickup recipient locality", () => {
+    const orders = accountOrders();
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={orders}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="DO-20260607-000123"
+      />,
+    );
+
+    const deliveryDetail = screen.getByRole("region", {
+      name: "Delivery detail",
+    });
+    expect(within(deliveryDetail).getByText("Shipping to")).toBeTruthy();
+    expect(within(deliveryDetail).getByText("Alice Lee")).toBeTruthy();
+    expect(
+      within(deliveryDetail).getByText("Los Angeles, CA 90046"),
+    ).toBeTruthy();
+    cleanup();
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={orders}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="PO-20260602-000118"
+      />,
+    );
+
+    const pickupDetail = screen.getByRole("region", { name: "Pickup detail" });
+    expect(within(pickupDetail).getByText("Pickup store")).toBeTruthy();
+    expect(within(pickupDetail).getByText("S2S POP MART Soho")).toBeTruthy();
+    expect(within(pickupDetail).getByText("New York, NY 10012")).toBeTruthy();
+  });
+
+  it("labels complete, current, and pending timeline states with text", () => {
+    const [, pickupOrder] = accountOrders();
+    if (!pickupOrder) {
+      throw new Error("Expected the seeded pickup Account order fixture.");
+    }
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={[
+          {
+            ...pickupOrder,
+            timeline: [
+              ...pickupOrder.timeline,
+              {
+                description: "A future buyer action remains available.",
+                label: "Review eligible",
+                status: "pending",
+              },
+            ],
+          },
+        ]}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        selectedOrderNumber="PO-20260602-000118"
+      />,
+    );
+
+    const timeline = screen.getByRole("region", { name: "Order timeline" });
+    expect(within(timeline).getAllByText("Completed")).toHaveLength(2);
+    expect(within(timeline).getByText("Current stage")).toBeTruthy();
+    expect(within(timeline).getByText("Upcoming")).toBeTruthy();
+  });
+
   it("submits a completed-order item review from order detail", async () => {
     const user = userEvent.setup();
     const onSubmitReview = vi.fn();
@@ -535,6 +616,16 @@ function accountOrders(): readonly AccountOrderView[] {
       paymentStatusLabel: "Payment pending",
       totalLabel: "$41.07",
       note: "Totals and offers refresh before payment.",
+      fulfillmentAddresses: [
+        {
+          addressType: "shipping",
+          city: "Los Angeles",
+          countryCode: "US",
+          postalCode: "90046",
+          recipientName: "Alice Lee",
+          state: "CA",
+        },
+      ],
       items: [
         {
           id: "line_1",
@@ -577,6 +668,16 @@ function accountOrders(): readonly AccountOrderView[] {
       paymentStatusLabel: "Paid with PayPal",
       totalLabel: "$28.16",
       note: "Picked up Jun 4 in the afternoon window.",
+      fulfillmentAddresses: [
+        {
+          addressType: "pickup_store",
+          city: "New York",
+          countryCode: "US",
+          postalCode: "10012",
+          recipientName: "S2S POP MART Soho",
+          state: "NY",
+        },
+      ],
       items: [
         {
           id: "line_1",
