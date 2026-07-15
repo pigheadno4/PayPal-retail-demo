@@ -125,7 +125,105 @@ describe("evidence scripts", () => {
     expect(helperSource).not.toContain('runtimeDataset ?? "runtime"');
     expect(helperSource).not.toContain("failedRows: []");
     expect(helperSource).not.toContain("page.context().route");
-    expect(helperSource).not.toContain("page.route");
+  });
+
+  it("synchronizes hosted lifecycle refresh and loading evidence with committed UI state", () => {
+    const helperSource = readProjectFile(
+      join("tools", "post-purchase-operations-evidence.playwright.js"),
+    );
+    const accountCommitHelper = helperSource.slice(
+      helperSource.indexOf("async function waitForExpectedAccountRefresh"),
+      helperSource.indexOf("async function observeRealOrdersLoadingState"),
+    );
+    const loadingStateHelper = helperSource.slice(
+      helperSource.indexOf("async function observeRealOrdersLoadingState"),
+      helperSource.indexOf("async function activeAdminSection"),
+    );
+
+    expect(helperSource).toContain(
+      "async function waitForExpectedAccountRefresh",
+    );
+    expect(helperSource).toContain("await waitForExpectedAccountRefresh(");
+    expect(accountCommitHelper).toMatch(
+      /getByRole\("heading", \{\s*name: expectedOrderNumber,\s*exact: true/,
+    );
+    expect(accountCommitHelper).toContain(
+      '.getByRole("region", {\n      name: "Current stage",',
+    );
+    expect(accountCommitHelper).toContain(
+      '.locator(".account-page__timeline-step--current strong")',
+    );
+    expect(accountCommitHelper).toContain(
+      ".getByText(merchantNote, { exact: true })",
+    );
+    expect(helperSource).toContain(
+      "mutationResponseBody?.data?.order?.order_number === orderNumber",
+    );
+    expect(helperSource).toContain(
+      "accountRefreshApiOrderNumber === orderNumber",
+    );
+    expect(helperSource).toContain("accountDetailOrderNumber === orderNumber");
+    expect(helperSource).toContain(
+      "async function observeRealOrdersLoadingState",
+    );
+    expect(helperSource).toContain(
+      "const realOrdersResponse = await route.fetch();",
+    );
+    expect(helperSource).toContain(
+      "await route.fulfill({ response: realOrdersResponse });",
+    );
+    expect(helperSource).toContain(
+      "await targetPage.unroute(ordersRoutePattern, holdRealOrdersResponse);",
+    );
+    expect(helperSource).toContain(".waitForRequest(");
+    expect(helperSource).toContain(".waitForResponse(");
+    expect(helperSource).toContain("screenshotAlreadyCaptured");
+    expect(helperSource).not.toContain("clearTimeout");
+    expect(helperSource).not.toContain("setTimeout");
+    expect(loadingStateHelper).toContain("realOrdersResponseStatus !== 200");
+    expect(loadingStateHelper).toContain(
+      "function isAdminOrdersListRequest(request)",
+    );
+    expect(loadingStateHelper).toContain(
+      "/\\/api\\/admin\\/orders(?:\\?.*)?$/.test(request.url())",
+    );
+    expect(loadingStateHelper).not.toContain('.includes("/api/admin/orders")');
+    expect(loadingStateHelper).toMatch(
+      /finally\s*\{[\s\S]*releaseHeldOrdersResponse\(\);[\s\S]*await targetPage\.unroute\(ordersRoutePattern, holdRealOrdersResponse\);[\s\S]*\}/,
+    );
+
+    const responseHeldAt = helperSource.indexOf(
+      "const realOrdersResponse = await route.fetch();",
+    );
+    const loadingWaitAt = helperSource.indexOf("await loadingState.waitFor({");
+    const responseReleasedAt = helperSource.indexOf(
+      "releaseHeldOrdersResponse();",
+    );
+    const loadingScreenshotAt = helperSource.indexOf(
+      "const loadingScreenshotPath = `${outputPrefix}-admin-loading-state-768.png`;",
+    );
+    const realResponseFulfilledAt = helperSource.indexOf(
+      "await route.fulfill({ response: realOrdersResponse });",
+    );
+    const routeHeldAwaitAt = helperSource.indexOf(
+      "await realOrdersResponseHeld;",
+    );
+    const bypassCheckAt = helperSource.indexOf(
+      "if (!ordersResponseIntercepted)",
+    );
+
+    expect(responseHeldAt).toBeGreaterThan(-1);
+    expect(realResponseFulfilledAt).toBeGreaterThan(responseHeldAt);
+    expect(routeHeldAwaitAt).toBeGreaterThan(-1);
+    expect(bypassCheckAt).toBeGreaterThan(routeHeldAwaitAt);
+    expect(loadingWaitAt).toBeGreaterThan(-1);
+    expect(loadingScreenshotAt).toBeGreaterThan(loadingWaitAt);
+    expect(responseReleasedAt).toBeGreaterThan(loadingWaitAt);
+    expect(responseReleasedAt).toBeGreaterThan(loadingScreenshotAt);
+    expect(helperSource).toMatch(
+      /const realOrdersResponse = await route\.fetch\(\);[\s\S]*await heldOrdersResponseRelease;[\s\S]*await route\.fulfill\(\{ response: realOrdersResponse \}\);/,
+    );
+    expect(helperSource).not.toContain("page.context().route");
   });
 
   it("treats renamed Render services as hosted evidence targets", () => {

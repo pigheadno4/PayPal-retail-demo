@@ -510,6 +510,7 @@ Verification:
     - [x] Apply the existing atomic lifecycle migration to the linked Supabase project, run the real paid-to-processing mutation, prove the exact status/stage/merchant note in Account, and prove the genuine received-webhook count remains `1 -> 1`.
     - [x] Complete final evidence and tracking reconciliation with `17/17` rows, `missingRows: []`, and `failedRows: []`.
     - [x] Resolve the final review's stale test-case, exact fixture/action, and Diagnostics request-method P2s; the last exact-name locator correction was independently re-reviewed with no remaining P0/P1/P2 findings in scope.
+    - [x] Correct the post-deploy timing false negatives by waiting for the canonical Account React commit and deterministically holding only the exact real Orders-list GET through loading capture; require canonical order identity at mutation/API/render boundaries, exact HTTP `200`, settled ready state, preserved loading screenshot, and route cleanup. Final hosted evidence passes `17/17`, and reject-by-default re-review returns ACCEPT with no P0/P1/P2 findings.
 
 Verification:
 

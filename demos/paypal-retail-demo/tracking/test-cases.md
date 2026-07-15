@@ -407,6 +407,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Account Delivery detail renders the canonical shipping recipient/locality, Pickup detail renders the canonical pickup-store name/locality, and timeline rows explicitly name Completed, Current stage, or Upcoming state without relying on color.
 - Deferred contract boundary: shipping-option and pickup-window/date detail remain absent until canonical Account list/detail responses add explicit allowlisted fields with API contract and buyer-safety coverage.
 - [x] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths. All `17/17` route, filter, drill-down, read-only Diagnostics, keyboard, loading, filtered-empty, error, target-size, console/response, overflow, occlusion, exact Alice-owned paid-to-processing Account refresh, merchant-note, and zero-webhook-growth rows pass.
+- [x] Post-deploy timing regression proof binds the lifecycle mutation response, refreshed Account API order, and rendered Account detail heading to `DO-20260714-900001`, then waits for exact Processing status/current-stage/timeline/note UI commit. Loading proof intercepts only the exact Orders-list GET, captures the visible loading frame before releasing the untouched real response, requires exact `200` plus final `ready`, preserves the loading screenshot, and removes the route in `finally`.
 
 ## Visual QA
 

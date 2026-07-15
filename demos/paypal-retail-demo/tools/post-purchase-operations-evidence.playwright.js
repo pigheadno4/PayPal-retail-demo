@@ -288,6 +288,184 @@ async function postPurchaseOperationsEvidence(page) {
       .catch(() => undefined);
   }
 
+  async function waitForExpectedAccountRefresh(
+    targetPage,
+    expectedOrderNumber,
+    expectedStatusLabel,
+    merchantNote,
+  ) {
+    const currentStage = targetPage.getByRole("region", {
+      name: "Current stage",
+    });
+    await Promise.all([
+      targetPage
+        .getByRole("heading", {
+          name: expectedOrderNumber,
+          exact: true,
+        })
+        .waitFor({ state: "visible", timeout: interactionTimeout }),
+      targetPage
+        .locator(
+          ".account-page__order-detail > .account-page__section-heading .account-page__status-chip",
+        )
+        .filter({ hasText: expectedStatusLabel })
+        .waitFor({ state: "visible", timeout: interactionTimeout }),
+      currentStage
+        .getByRole("heading", { name: expectedStatusLabel, exact: true })
+        .waitFor({ state: "visible", timeout: interactionTimeout }),
+      targetPage
+        .locator(".account-page__timeline-step--current strong")
+        .filter({ hasText: expectedStatusLabel })
+        .waitFor({ state: "visible", timeout: interactionTimeout }),
+      currentStage
+        .getByText(merchantNote, { exact: true })
+        .waitFor({ state: "visible", timeout: interactionTimeout }),
+    ]);
+  }
+
+  async function observeRealOrdersLoadingState(targetPage, refreshButton) {
+    const ordersRoutePattern = /\/api\/admin\/orders(?:\?.*)?$/;
+    let ordersResponseIntercepted = false;
+    let ordersRouteFailure = null;
+    let realOrdersResponseStatus = null;
+    let markRealOrdersResponseHeld = () => undefined;
+    let markRealOrdersResponseHandled = () => undefined;
+    let releaseHeldOrdersResponse = () => undefined;
+    const realOrdersResponseHeld = new Promise((resolve) => {
+      markRealOrdersResponseHeld = resolve;
+    });
+    const realOrdersResponseHandled = new Promise((resolve) => {
+      markRealOrdersResponseHandled = resolve;
+    });
+    const heldOrdersResponseRelease = new Promise((resolve) => {
+      releaseHeldOrdersResponse = resolve;
+    });
+
+    function isAdminOrdersListRequest(request) {
+      return (
+        request.method() === "GET" &&
+        /\/api\/admin\/orders(?:\?.*)?$/.test(request.url())
+      );
+    }
+
+    const holdRealOrdersResponse = async (route) => {
+      if (
+        ordersResponseIntercepted ||
+        !isAdminOrdersListRequest(route.request())
+      ) {
+        await route.continue();
+        return;
+      }
+
+      ordersResponseIntercepted = true;
+      try {
+        const realOrdersResponse = await route.fetch();
+        realOrdersResponseStatus = realOrdersResponse.status();
+        markRealOrdersResponseHeld();
+        await heldOrdersResponseRelease;
+        await route.fulfill({ response: realOrdersResponse });
+      } catch (error) {
+        ordersRouteFailure =
+          error instanceof Error ? error.message : String(error);
+        markRealOrdersResponseHeld();
+        await route.abort("failed").catch(() => undefined);
+      } finally {
+        markRealOrdersResponseHandled();
+      }
+    };
+
+    const loadingState = targetPage.getByText("Loading orders.", {
+      exact: true,
+    });
+    let loadingObserved = false;
+    let loadingScreenshotCaptured = false;
+    let loadingObservationFailure = null;
+
+    await targetPage.route(ordersRoutePattern, holdRealOrdersResponse);
+    const ordersRequestObservation = targetPage
+      .waitForRequest((request) => isAdminOrdersListRequest(request), {
+        timeout: interactionTimeout,
+      })
+      .then(
+        (request) => ({ request, failure: null }),
+        (error) => ({
+          request: null,
+          failure: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    const ordersResponseObservation = targetPage
+      .waitForResponse(
+        (response) => isAdminOrdersListRequest(response.request()),
+        { timeout: interactionTimeout },
+      )
+      .then(
+        (response) => ({ status: response.status(), failure: null }),
+        (error) => ({
+          status: null,
+          failure: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    try {
+      await refreshButton.click({ noWaitAfter: true });
+      const requestObservation = await ordersRequestObservation;
+      if (requestObservation.failure) {
+        throw new Error(requestObservation.failure);
+      }
+      await realOrdersResponseHeld;
+      if (!ordersResponseIntercepted) {
+        throw new Error("The real Orders request bypassed the evidence route.");
+      }
+      if (ordersRouteFailure) {
+        throw new Error(ordersRouteFailure);
+      }
+      await loadingState.waitFor({
+        state: "visible",
+        timeout: interactionTimeout,
+      });
+      loadingObserved = await loadingState.isVisible();
+      const loadingScreenshotPath = `${outputPrefix}-admin-loading-state-768.png`;
+      await targetPage.screenshot({
+        path: loadingScreenshotPath,
+        fullPage: true,
+      });
+      loadingScreenshotCaptured = true;
+    } catch (error) {
+      loadingObservationFailure =
+        error instanceof Error ? error.message : String(error);
+    } finally {
+      releaseHeldOrdersResponse();
+      if (ordersResponseIntercepted) {
+        await realOrdersResponseHandled;
+        if (!ordersRouteFailure) {
+          const responseObservation = await ordersResponseObservation;
+          if (responseObservation.failure) {
+            loadingObservationFailure ??= responseObservation.failure;
+          } else if (responseObservation.status !== realOrdersResponseStatus) {
+            loadingObservationFailure ??= `The released Orders response status ${String(responseObservation.status)} did not match the fetched status ${String(realOrdersResponseStatus)}.`;
+          }
+        }
+      }
+      await targetPage.unroute(ordersRoutePattern, holdRealOrdersResponse);
+    }
+
+    await waitForWorkbenchSettled(targetPage);
+    const settledPageState = await readWorkbenchState(targetPage);
+    if (!loadingObservationFailure && realOrdersResponseStatus !== 200) {
+      loadingObservationFailure = `The released real Orders response returned ${String(realOrdersResponseStatus)} instead of 200.`;
+    }
+    if (!loadingObservationFailure && settledPageState !== "ready") {
+      loadingObservationFailure = `The Orders workbench settled in ${settledPageState} state after the real response was released.`;
+    }
+
+    return {
+      loadingObserved,
+      loadingScreenshotCaptured,
+      loadingObservationFailure,
+      realOrdersResponseStatus,
+      settledPageState,
+    };
+  }
+
   async function activeAdminSection(targetPage) {
     return (
       (
@@ -514,6 +692,7 @@ async function postPurchaseOperationsEvidence(page) {
       expectedOrderNumber: evidenceLifecycleOrderNumber,
       expectedPreMutationStatus: "paid",
       preMutationStatus: actionableOrder?.status ?? null,
+      mutationOrderNumber: null,
       beforeStage: null,
       afterStage: null,
       expectedAccountStatus: null,
@@ -522,6 +701,11 @@ async function postPurchaseOperationsEvidence(page) {
       accountCurrentStageLabel: null,
       accountTimelineCurrentLabel: null,
       accountStatusMatchesExpected: false,
+      accountRefreshApiOrderNumber: null,
+      accountRefreshApiStatus: null,
+      accountRefreshUiCommitted: false,
+      accountRefreshCommitFailure: null,
+      accountDetailOrderNumber: null,
       merchantNoteVisible: false,
       refreshed: false,
     };
@@ -592,8 +776,11 @@ async function postPurchaseOperationsEvidence(page) {
       await dialog.getByRole("button", { name: "Confirm update" }).click();
       const mutationResponse = await mutationResponsePromise;
       const mutationResponseBody = await mutationResponse.json();
+      const mutationOrderNumber =
+        mutationResponseBody?.data?.order?.order_number ?? null;
       const expectedAccountStatus =
         mutationResponse.status() === 200 &&
+        mutationResponseBody?.data?.order?.order_number === orderNumber &&
         mutationResponseBody?.data?.order?.status === "processing"
           ? mutationResponseBody.data.order.status
           : null;
@@ -615,11 +802,44 @@ async function postPurchaseOperationsEvidence(page) {
         { timeout: interactionTimeout },
       );
       await accountPage.getByRole("button", { name: "Refresh orders" }).click();
-      await refreshResponse;
+      const accountRefreshResponse = await refreshResponse;
+      const accountRefreshResponseBody = await accountRefreshResponse
+        .json()
+        .catch(() => null);
+      const accountRefreshApiOrderNumber =
+        accountRefreshResponseBody?.data?.order?.order_number ?? null;
+      const accountRefreshApiStatus =
+        accountRefreshResponseBody?.data?.order?.status ?? null;
+      let accountRefreshUiCommitted = false;
+      let accountRefreshCommitFailure = null;
+      if (
+        expectedAccountStatusLabel &&
+        accountRefreshApiOrderNumber === orderNumber &&
+        accountRefreshApiStatus === expectedAccountStatus
+      ) {
+        try {
+          await waitForExpectedAccountRefresh(
+            accountPage,
+            orderNumber,
+            expectedAccountStatusLabel,
+            "Evidence: merchant lifecycle update is visible in Account.",
+          );
+          accountRefreshUiCommitted = true;
+        } catch (error) {
+          accountRefreshCommitFailure =
+            error instanceof Error ? error.message : String(error);
+        }
+      }
       const currentStage = accountPage.getByRole("region", {
         name: "Current stage",
       });
       const afterStage = await currentStage.textContent();
+      const accountDetailOrderNumber = (
+        await accountPage
+          .getByRole("heading", { name: orderNumber, exact: true })
+          .textContent()
+          .catch(() => null)
+      )?.trim();
       const accountStatusLabel = (
         await accountPage
           .locator(
@@ -654,6 +874,11 @@ async function postPurchaseOperationsEvidence(page) {
         .catch(() => false);
       const refreshed =
         beforeStage !== afterStage &&
+        mutationOrderNumber === orderNumber &&
+        accountRefreshApiOrderNumber === orderNumber &&
+        accountRefreshApiStatus === expectedAccountStatus &&
+        accountRefreshUiCommitted &&
+        accountDetailOrderNumber === orderNumber &&
         accountStatusMatchesExpected &&
         merchantNoteVisible;
       lifecycleAccountRefresh = {
@@ -668,6 +893,7 @@ async function postPurchaseOperationsEvidence(page) {
         expectedOrderNumber: evidenceLifecycleOrderNumber,
         expectedPreMutationStatus: "paid",
         preMutationStatus: actionableOrder.status,
+        mutationOrderNumber,
         accountBeforeStageLabel,
         beforeStage,
         afterStage,
@@ -677,9 +903,39 @@ async function postPurchaseOperationsEvidence(page) {
         accountCurrentStageLabel,
         accountTimelineCurrentLabel,
         accountStatusMatchesExpected,
+        accountRefreshApiOrderNumber,
+        accountRefreshApiStatus,
+        accountRefreshUiCommitted,
+        accountRefreshCommitFailure,
+        accountDetailOrderNumber,
         merchantNoteVisible,
         refreshed,
       };
+      if (mutationOrderNumber !== orderNumber) {
+        lifecycleFailures.push(
+          `The lifecycle mutation response returned ${String(mutationOrderNumber)} instead of ${orderNumber}.`,
+        );
+      }
+      if (accountRefreshApiOrderNumber !== orderNumber) {
+        lifecycleFailures.push(
+          `The refreshed Account API returned ${String(accountRefreshApiOrderNumber)} instead of ${orderNumber}.`,
+        );
+      }
+      if (accountRefreshApiStatus !== expectedAccountStatus) {
+        lifecycleFailures.push(
+          `The refreshed Account API returned ${String(accountRefreshApiStatus)} instead of ${String(expectedAccountStatus)}.`,
+        );
+      }
+      if (accountRefreshCommitFailure) {
+        lifecycleFailures.push(
+          `The Account UI did not commit the refreshed lifecycle state: ${accountRefreshCommitFailure}`,
+        );
+      }
+      if (accountDetailOrderNumber !== orderNumber) {
+        lifecycleFailures.push(
+          `The refreshed Account detail rendered ${String(accountDetailOrderNumber)} instead of ${orderNumber}.`,
+        );
+      }
       if (!refreshed) {
         lifecycleFailures.push(
           "The canonical Account detail did not show the exact mutated status, current timeline stage, and merchant note after refresh.",
@@ -1214,9 +1470,11 @@ async function postPurchaseOperationsEvidence(page) {
       name: "Refresh",
       exact: true,
     });
-    await refreshButton.click({ noWaitAfter: true });
-    const loadingState = page.getByText("Loading orders.", { exact: true });
-    const loadingObserved = await loadingState.isVisible().catch(() => false);
+    const loadingEvidence = await observeRealOrdersLoadingState(
+      page,
+      refreshButton,
+    );
+    const { loadingObserved } = loadingEvidence;
     rows.push(
       await collectRow({
         rowId: "admin-loading-state-768",
@@ -1226,16 +1484,16 @@ async function postPurchaseOperationsEvidence(page) {
           pageState: loadingObserved
             ? "loading"
             : await readWorkbenchState(page),
-          loadingObserved,
+          ...loadingEvidence,
         },
-        scenarioFailures: loadingObserved
-          ? []
-          : [
-              "The real Refresh transition completed before the loading state could be observed.",
-            ],
+        screenshotAlreadyCaptured: loadingEvidence.loadingScreenshotCaptured,
+        scenarioFailures: loadingEvidence.loadingObservationFailure
+          ? [loadingEvidence.loadingObservationFailure]
+          : loadingObserved
+            ? []
+            : ["The real Refresh transition did not render its loading state."],
       }),
     );
-    await waitForWorkbenchSettled(page);
 
     const emptyCheckpoint = markCheckpoint();
     await setViewport(page, 1024);
@@ -1319,15 +1577,18 @@ async function postPurchaseOperationsEvidence(page) {
     targetPage,
     checkpoint,
     assertions,
+    screenshotAlreadyCaptured = false,
     scenarioFailures = [],
     expectedResponse = () => false,
     expectedConsole = () => false,
   }) {
     const screenshotPath = `${outputPrefix}-${rowId}.png`;
-    if (targetPage === page) {
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-    } else {
-      await targetPage.screenshot({ path: screenshotPath, fullPage: true });
+    if (!screenshotAlreadyCaptured) {
+      if (targetPage === page) {
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+      } else {
+        await targetPage.screenshot({ path: screenshotPath, fullPage: true });
+      }
     }
     const metrics = await measurePage(targetPage);
     const observedConsoleIssues = consoleEntries.slice(checkpoint.consoleIndex);
