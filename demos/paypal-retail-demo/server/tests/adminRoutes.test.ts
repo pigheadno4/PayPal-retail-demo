@@ -1166,7 +1166,7 @@ describe("admin payment/order debug routes", () => {
     });
   });
 
-  it("lists payment sessions with order, amount, snapshot, and webhook context", async () => {
+  it("lists payment sessions with sanitized snapshot and webhook context", async () => {
     const app = createApp({
       catalogRepository: createCatalogRepository(),
       admin: {
@@ -1217,9 +1217,6 @@ describe("admin payment/order debug routes", () => {
               expect.objectContaining({
                 paypal_invoice_id: "DO-20260624-000001-01",
                 paypal_request_id: "request_1",
-                response_json: {
-                  status: "COMPLETED",
-                },
               }),
             ],
             linked_webhooks: [
@@ -1238,6 +1235,15 @@ describe("admin payment/order debug routes", () => {
       },
       debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
     });
+    expect(response.json).not.toHaveProperty(
+      "data.payment_sessions.0.paypal_snapshots.0.request_json",
+    );
+    expect(response.json).not.toHaveProperty(
+      "data.payment_sessions.0.paypal_snapshots.0.response_json",
+    );
+    expect(response.json).not.toHaveProperty(
+      "data.payment_sessions.0.paypal_snapshots.0.merchant_snapshot_json",
+    );
   });
 });
 

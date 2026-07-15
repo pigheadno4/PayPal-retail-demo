@@ -9,6 +9,125 @@ function readProjectFile(path: string): string {
 }
 
 describe("evidence scripts", () => {
+  it("registers the API-backed post-purchase operations evidence helper", () => {
+    const packageJson = JSON.parse(readProjectFile("package.json")) as {
+      scripts?: Record<string, string>;
+    };
+    const helperPath = join(
+      "tools",
+      "post-purchase-operations-evidence.playwright.js",
+    );
+    const helperSource = readProjectFile(helperPath);
+    const runnerPath = join(
+      "tools",
+      "run-post-purchase-operations-evidence.mjs",
+    );
+    const runnerSource = readProjectFile(runnerPath);
+
+    expect(packageJson.scripts).toMatchObject({
+      "evidence:post-purchase-operations": `node ${runnerPath}`,
+    });
+    expect(runnerSource).toContain("process.env.ADMIN_PASSCODE");
+    expect(runnerSource).toContain(helperPath);
+    expect(runnerSource).toContain('spawnSync("playwright-cli"');
+    expect(runnerSource).toContain("report.summary.failedRows.length > 0");
+    expect(runnerSource).not.toContain("adminPasscode,");
+    expect(runnerSource).toContain("randomUUID");
+    expect(runnerSource).toContain("mkdtempSync");
+    expect(runnerSource).toContain("writeFileSync(authHelperPath");
+    expect(runnerSource).toContain("0o600");
+    expect(runnerSource).toContain("finally");
+    expect(runnerSource).not.toContain(
+      '[sessionOption, "fill", "#admin-passcode", passcode]',
+    );
+
+    for (const rowId of [
+      "admin-orders-route-375",
+      "admin-orders-route-768",
+      "admin-orders-route-1024",
+      "admin-orders-route-1440",
+      "admin-lifecycle-route-1024",
+      "admin-inventory-route-1024",
+      "admin-webhooks-route-1024",
+      "admin-filter-persistence-1440",
+      "admin-order-drill-down-1440",
+      "admin-lifecycle-account-refresh-1440",
+      "admin-lifecycle-zero-webhook-growth-1440",
+      "admin-diagnostics-payment-tab-1024",
+      "admin-diagnostics-runtime-tab-1024",
+      "admin-keyboard-navigation-375",
+      "admin-loading-state-768",
+      "admin-filtered-empty-state-1024",
+      "admin-error-state-1440",
+    ]) {
+      expect(helperSource).toContain(rowId);
+    }
+
+    for (const requiredMetric of [
+      "screenshotPath",
+      "consoleIssues",
+      "responseIssues",
+      "horizontalOverflow",
+      "minimumInteractiveTarget",
+      "stickyFixedOcclusionCount",
+      "filterPersistence",
+      "drillDown",
+      "lifecycleAccountRefresh",
+      "webhookCountBefore",
+      "webhookCountAfter",
+      "diagnosticsDataset",
+      "diagnosticsSanitization",
+      "keyboardOperation",
+      "pageState",
+    ]) {
+      expect(helperSource).toContain(requiredMetric);
+    }
+
+    expect(helperSource).toContain("PAYPAL_RETAIL_EVIDENCE_BASE_URL");
+    expect(helperSource).toContain("process.env.ADMIN_PASSCODE");
+    expect(helperSource).toContain("page.screenshot");
+    expect(helperSource).toContain("failedRows");
+    expect(helperSource).toContain("failedRows.length > 0");
+    expect(helperSource).toContain("webhookCountAfter !== webhookCountBefore");
+    expect(helperSource).toContain('["error", "warning"]');
+    expect(helperSource).toContain(
+      "entry.text === knownGooglePayManifestIssue",
+    );
+    expect(helperSource).toContain(
+      "entry.text === knownGooglePayManifestWarning",
+    );
+    expect(helperSource).toContain(
+      "entry.text === knownGooglePayManifestUnavailableIssue",
+    );
+    expect(helperSource).toMatch(
+      /const merchantNoteVisible = await currentStage\s+\.getByText\(\s*"Evidence: merchant lifecycle update is visible in Account\."/,
+    );
+    expect(helperSource).toContain("Number.isSafeInteger(totalCount)");
+    expect(helperSource).toContain("expectedAccountStatus");
+    expect(helperSource).toContain("accountStatusMatchesExpected");
+    expect(helperSource).toContain(
+      'const evidenceLifecycleOrderNumber = "DO-20260714-900001"',
+    );
+    expect(helperSource).toContain(
+      "candidate.order_number === evidenceLifecycleOrderNumber",
+    );
+    expect(helperSource).toContain('actionableOrder.status === "paid"');
+    expect(helperSource).toMatch(
+      /getByRole\("button", \{\s*name: "Mark Processing",\s*exact: true,?\s*\}\)/,
+    );
+    expect(helperSource).toContain('expectedAccountStatus === "processing"');
+    expect(helperSource).toContain("method: response.request().method()");
+    expect(helperSource).toContain("nonReadRequests");
+    expect(helperSource).toContain('["GET", "HEAD"].includes(entry.method)');
+    expect(helperSource).toContain("representativeScrollPositions");
+    expect(helperSource).toContain("occlusionSamplePoints");
+    expect(helperSource).not.toContain('paymentDataset ?? "payment"');
+    expect(helperSource).not.toContain('runtimeDataset ?? "runtime"');
+    expect(helperSource).not.toContain("failedRows: []");
+    expect(helperSource).not.toContain("page.context().route");
+    expect(helperSource).not.toContain("page.route");
+  });
+
   it("treats renamed Render services as hosted evidence targets", () => {
     for (const helperPath of [
       "tools/round2-hosted-checkout-smoke.playwright.js",

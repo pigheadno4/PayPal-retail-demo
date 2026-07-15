@@ -93,6 +93,24 @@ describe("global storefront visual tokens", () => {
     expect(indexHtml).not.toMatch(/rel="icon"[^>]+href="https:\/\//);
   });
 
+  it("keeps desktop utility and search controls inside 44px interaction targets", () => {
+    const utilityLinkBlock = cssBlock(".site-utility__links a");
+    const brandBlock = cssBlock(".site-header__brand");
+    const brandMarkBlock = cssBlock(".site-header__brand-mark");
+    const discoveryInputBlock = cssBlock(".site-header__discovery-input");
+    const discoverySubmitBlock = cssBlock(".site-header__discovery-submit");
+
+    expect(utilityLinkBlock).toContain("align-items: center");
+    expect(utilityLinkBlock).toContain("display: inline-flex");
+    expect(utilityLinkBlock).toContain("min-height: 44px");
+    expect(utilityLinkBlock).toContain("padding: 0 8px");
+    expect(brandBlock).toContain("min-height: 44px");
+    expect(brandMarkBlock).toContain("min-height: 44px");
+    expect(brandMarkBlock).toContain("width: 44px");
+    expect(discoveryInputBlock).toContain("min-height: 44px");
+    expect(discoverySubmitBlock).toContain("min-height: 44px");
+  });
+
   it("keeps pickup inventory rows compact and scannable across checkout widths", () => {
     const inventoryLineBlock = cssBlock(
       ".checkout-store-card__inventory-lines li",
@@ -1150,6 +1168,7 @@ describe("global storefront visual tokens", () => {
     const tableBlock = cssBlock(".admin-workbench__table");
     const webhookListBlock = cssBlock(".admin-shell__webhook-list");
     const mobileFilterTriggerBlock = cssBlock(".admin-filters__mobile-trigger");
+    const tableActionBlock = cssBlock(".admin-workbench__table-action");
 
     expect(shellBlock).toContain("overflow-x: clip");
     expect(headerBlock).toContain("display: flex");
@@ -1162,6 +1181,8 @@ describe("global storefront visual tokens", () => {
     expect(tableBlock).toContain("min-width: 760px");
     expect(webhookListBlock).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(mobileFilterTriggerBlock).toContain("display: none");
+    expect(mobileFilterTriggerBlock).toContain("min-height: 44px");
+    expect(tableActionBlock).toContain("min-height: 44px");
     expect(globalCss).toContain(
       '.admin-workbench__inventory-content[data-inventory-dataset="stock"]',
     );
@@ -1176,6 +1197,12 @@ describe("global storefront visual tokens", () => {
     );
     expect(globalCss).toContain(
       ".admin-filters__fields input,\n  .admin-filters__fields select,\n  .admin-filters__checkbox,\n  .admin-shell__select,\n  .admin-shell__input,\n  .admin-shell__checkbox-label {\n    min-height: 44px;",
+    );
+    expect(globalCss).toContain(
+      '.admin-shell [data-slot="button"],\n.admin-shell [data-slot="tabs-trigger"],\n.admin-shell__nav a,\n.admin-workbench__table-action,\n.admin-filters__fields input,\n.admin-filters__fields select,\n.admin-filters__checkbox,\n.admin-shell__select,\n.admin-shell__input,\n.admin-shell__checkbox-label,\n.admin-shell textarea {\n  min-height: 44px;',
+    );
+    expect(globalCss).toContain(
+      ".admin-shell__lifecycle-action {\n  height: auto;\n  min-height: 44px;",
     );
   });
 });

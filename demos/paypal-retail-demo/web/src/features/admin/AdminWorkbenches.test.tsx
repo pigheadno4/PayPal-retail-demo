@@ -502,6 +502,25 @@ describe("Admin post-purchase workbenches", () => {
     expect(screen.getByText("Runtime row")).toBeTruthy();
   });
 
+  it("exposes the selected Diagnostics dataset when its API result is empty", () => {
+    const view = render(
+      <AdminDiagnosticsWorkbench
+        paymentRequest={{ ...readyRequest, status: "empty", totalCount: 0 }}
+        runtimeRequest={readyRequest}
+        activeTab="payment"
+      >
+        Diagnostics row
+      </AdminDiagnosticsWorkbench>,
+    );
+
+    expect(
+      view.container.querySelector('[data-diagnostics-dataset="payment"]'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("No payment sessions are available yet."),
+    ).toBeTruthy();
+  });
+
   it("uses dataset-specific active filter counts for Inventory empty states", async () => {
     const user = userEvent.setup();
     render(
@@ -696,9 +715,13 @@ describe("Admin post-purchase workbenches", () => {
     await user.click(
       await screen.findByRole("button", { name: "Open DO-20260713-000001" }),
     );
-    await user.click(
-      await screen.findByRole("button", { name: "Mark Processing" }),
+    const lifecycleAction = await screen.findByRole("button", {
+      name: "Mark Processing",
+    });
+    expect(lifecycleAction.classList).toContain(
+      "admin-shell__lifecycle-action",
     );
+    await user.click(lifecycleAction);
 
     const dialog = await screen.findByRole("dialog");
     expect(

@@ -21,12 +21,13 @@
     "typecheck": "tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p supabase/seed/tsconfig.json && tsc --noEmit -p tsconfig.tools.json",
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
-    "format": "prettier --write \"*.{js,json,ts}\" \"tools/**/*.js\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
-    "format:check": "prettier --check \"*.{js,json,ts}\" \"tools/**/*.js\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
+    "format": "prettier --write \"*.{js,json,ts}\" \"tools/**/*.{js,mjs}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
+    "format:check": "prettier --check \"*.{js,json,ts}\" \"tools/**/*.{js,mjs}\" \"shared/src/**/*.ts\" \"server/src/**/*.ts\" \"supabase/seed/**/*.ts\" \"web/index.html\" \"web/src/**/*.{ts,tsx,css}\" \"README.md\" \"supabase/README.md\"",
     "evidence:round2:checkout-readiness": "playwright-cli --raw run-code --filename=tools/round2-checkout-readiness-evidence.playwright.js",
     "evidence:round2:hosted-smoke": "playwright-cli --raw run-code --filename=tools/round2-hosted-checkout-smoke.playwright.js",
     "evidence:round3:checkout-pickup-drawer": "playwright-cli --raw run-code --filename=tools/round3-checkout-pickup-drawer-evidence.playwright.js",
     "evidence:round4:auth-minicart-checkout": "node tools/run-round4-auth-minicart-checkout-evidence.mjs",
+    "evidence:post-purchase-operations": "node tools/run-post-purchase-operations-evidence.mjs",
     "verify": "npm run typecheck && npm test && npm run lint && npm run format:check"
   },
   "dependencies": {

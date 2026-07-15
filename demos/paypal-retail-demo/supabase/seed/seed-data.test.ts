@@ -30,15 +30,15 @@ describe("retail demo seed data", () => {
     expect(dataset.summary.addresses).toBe(5);
     expect(dataset.summary.savedPaymentMethods).toBe(4);
     expect(dataset.summary.carts).toBe(5);
-    expect(dataset.summary.orders).toBe(5);
-    expect(dataset.summary.orderItems).toBe(7);
-    expect(dataset.summary.orderAddresses).toBe(10);
+    expect(dataset.summary.orders).toBe(6);
+    expect(dataset.summary.orderItems).toBe(8);
+    expect(dataset.summary.orderAddresses).toBe(12);
     expect(dataset.summary.guestOrderAccess).toBe(1);
-    expect(dataset.summary.paymentSessions).toBe(5);
-    expect(dataset.summary.promoEvaluations).toBe(5);
-    expect(dataset.summary.totalSnapshots).toBe(5);
+    expect(dataset.summary.paymentSessions).toBe(6);
+    expect(dataset.summary.promoEvaluations).toBe(6);
+    expect(dataset.summary.totalSnapshots).toBe(6);
     expect(dataset.summary.reviews).toBe(2);
-    expect(dataset.summary.webhookEvents).toBe(2);
+    expect(dataset.summary.webhookEvents).toBe(3);
   });
 
   it("includes pending resume and completed review scenarios", () => {
@@ -73,6 +73,36 @@ describe("retail demo seed data", () => {
       ]),
     );
     expect(reviews?.rows.every((row) => row.status === "active")).toBe(true);
+  });
+
+  it("seeds an Account-owned actionable delivery order for lifecycle evidence", () => {
+    const dataset = buildSeedDataset();
+    const orders = dataset.tables.find((table) => table.name === "app.orders");
+    const lifecycleEvents = dataset.tables.find(
+      (table) => table.name === "app.order_lifecycle_events",
+    );
+    const aliceAuthUserId = stableUuid("auth-user:alice-la");
+    const evidenceOrder = orders?.rows.find(
+      (row) => row.order_number === "DO-20260714-900001",
+    );
+
+    expect(evidenceOrder).toEqual(
+      expect.objectContaining({
+        auth_user_id: aliceAuthUserId,
+        fulfillment_mode: "delivery",
+        status: "paid",
+        payment_status: "captured",
+      }),
+    );
+    expect(
+      lifecycleEvents?.rows.some(
+        (row) =>
+          row.order_id === evidenceOrder?.id &&
+          row.from_status === null &&
+          row.to_status === "paid" &&
+          row.actor_type === "webhook",
+      ),
+    ).toBe(true);
   });
 
   it("seeds a real active review for the primary Molly PDP", () => {
@@ -318,6 +348,21 @@ describe("retail demo seed data", () => {
     expect(reconciliationIndex).toBeGreaterThan(0);
     expect(reconciliationIndex).toBeLessThan(cartItemUpsertIndex);
     expect(sql).toContain("where cart_id in");
+  });
+
+  it("reconciles mutable seeded lifecycle rows before lifecycle event upserts", () => {
+    const sql = buildSeedSql(buildSeedDataset());
+    const reconciliationIndex = sql.indexOf(
+      "delete from app.order_lifecycle_events",
+    );
+    const lifecycleEventUpsertIndex = sql.indexOf(
+      "insert into app.order_lifecycle_events",
+    );
+
+    expect(reconciliationIndex).toBeGreaterThan(0);
+    expect(reconciliationIndex).toBeLessThan(lifecycleEventUpsertIndex);
+    expect(sql).toContain("where order_id in");
+    expect(sql).toContain(stableUuid("order:alice-paid-delivery-evidence"));
   });
 
   it("does not insert Supabase generated auth columns", () => {

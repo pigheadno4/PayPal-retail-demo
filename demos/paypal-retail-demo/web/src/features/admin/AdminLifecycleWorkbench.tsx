@@ -84,7 +84,11 @@ export function AdminLifecycleAction({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" disabled={disabled}>
+        <Button
+          type="button"
+          className="admin-shell__lifecycle-action"
+          disabled={disabled}
+        >
           Mark {nextStatusLabel}
         </Button>
       </DialogTrigger>

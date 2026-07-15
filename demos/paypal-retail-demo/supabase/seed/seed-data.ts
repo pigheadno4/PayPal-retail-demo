@@ -116,7 +116,7 @@ interface OrderScenario {
   readonly userSlug: string | null;
   readonly guestEmail: string | null;
   readonly fulfillmentMode: "delivery" | "pickup";
-  readonly status: "pending" | "delivered" | "picked_up";
+  readonly status: "pending" | "paid" | "delivered" | "picked_up";
   readonly paymentStatus: "started" | "failed" | "captured";
   readonly paymentMethod: "paypal" | "paylater" | "card";
   readonly orderNumber: string;
@@ -2227,6 +2227,29 @@ function orderScenarios(): readonly OrderScenario[] {
       ],
     },
     {
+      key: "alice-paid-delivery-evidence",
+      profileSlug: "popmart",
+      marketCode: "US",
+      userSlug: "alice-la",
+      guestEmail: null,
+      fulfillmentMode: "delivery",
+      status: "paid",
+      paymentStatus: "captured",
+      paymentMethod: "paypal",
+      orderNumber: "DO-20260714-900001",
+      orderNumberPrefix: "DO",
+      orderNumberSequence: 900001,
+      shippingMinor: 595,
+      lines: [
+        {
+          productOrdinal: 4,
+          quantity: 1,
+          lineDiscountMinor: 233,
+          lineTaxMinor: 202,
+        },
+      ],
+    },
+    {
       key: "ben-pending-pickup",
       profileSlug: "generic",
       marketCode: "US",
@@ -2520,7 +2543,7 @@ function lifecycleEventsForScenario(
                 : "Payment session started; order remains pending.",
           },
         ]
-      : scenario.status === "delivered"
+      : scenario.status === "paid"
         ? [
             {
               from: null,
@@ -2528,51 +2551,60 @@ function lifecycleEventsForScenario(
               actor: "webhook",
               note: "Demo capture webhook marked the order paid.",
             },
-            {
-              from: "paid",
-              to: "processing",
-              actor: "admin",
-              note: "Admin moved delivery order to processing.",
-            },
-            {
-              from: "processing",
-              to: "shipped",
-              actor: "admin",
-              note: "Admin marked delivery order shipped.",
-            },
-            {
-              from: "shipped",
-              to: "delivered",
-              actor: "admin",
-              note: "Admin marked delivery order delivered.",
-            },
           ]
-        : [
-            {
-              from: null,
-              to: "paid",
-              actor: "webhook",
-              note: "Demo capture webhook marked pickup order paid.",
-            },
-            {
-              from: "paid",
-              to: "preparing_pickup",
-              actor: "admin",
-              note: "Store started preparing pickup.",
-            },
-            {
-              from: "preparing_pickup",
-              to: "ready_for_pickup",
-              actor: "admin",
-              note: "Store marked pickup ready.",
-            },
-            {
-              from: "ready_for_pickup",
-              to: "picked_up",
-              actor: "admin",
-              note: "Admin marked pickup collected.",
-            },
-          ];
+        : scenario.status === "delivered"
+          ? [
+              {
+                from: null,
+                to: "paid",
+                actor: "webhook",
+                note: "Demo capture webhook marked the order paid.",
+              },
+              {
+                from: "paid",
+                to: "processing",
+                actor: "admin",
+                note: "Admin moved delivery order to processing.",
+              },
+              {
+                from: "processing",
+                to: "shipped",
+                actor: "admin",
+                note: "Admin marked delivery order shipped.",
+              },
+              {
+                from: "shipped",
+                to: "delivered",
+                actor: "admin",
+                note: "Admin marked delivery order delivered.",
+              },
+            ]
+          : [
+              {
+                from: null,
+                to: "paid",
+                actor: "webhook",
+                note: "Demo capture webhook marked pickup order paid.",
+              },
+              {
+                from: "paid",
+                to: "preparing_pickup",
+                actor: "admin",
+                note: "Store started preparing pickup.",
+              },
+              {
+                from: "preparing_pickup",
+                to: "ready_for_pickup",
+                actor: "admin",
+                note: "Store marked pickup ready.",
+              },
+              {
+                from: "ready_for_pickup",
+                to: "picked_up",
+                actor: "admin",
+                note: "Admin marked pickup collected.",
+              },
+            ];
 
   return transitions.map((transition, index) => ({
     id: stableUuid(`order-lifecycle:${orderKey}:${index}`),

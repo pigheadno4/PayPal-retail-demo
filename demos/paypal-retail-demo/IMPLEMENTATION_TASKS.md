@@ -492,7 +492,7 @@ Verification:
 - [x] Build webhook viewer.
 - [x] Build payment/order debug viewer.
 - [x] Build runtime debug logs.
-- [ ] Implement the approved Post-Purchase Operations and Account Experience extension from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`: route-separated Orders/Lifecycle/Inventory/Webhooks/Diagnostics workbenches, server-side URL filters, persisted sanitized runtime logs, canonical lifecycle-to-Account refresh, and zero synthetic webhook creation.
+- [x] Implement the approved Post-Purchase Operations and Account Experience extension from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`: route-separated Orders/Lifecycle/Inventory/Webhooks/Diagnostics workbenches, server-side URL filters, persisted sanitized runtime logs, canonical lifecycle-to-Account refresh, and zero synthetic webhook creation.
   - [x] Task 1: isolate Admin routes so each workbench loads only its own APIs.
   - [x] Task 2: add typed server filters, explicit time ranges, and cursor pagination.
   - [x] Task 3: implement the approved filter/result/drill-down workbench UI and states.
@@ -501,7 +501,15 @@ Verification:
   - [x] Task 6: polish Account order filters, refresh state, current-stage hierarchy, and buyer-safe timeline.
     - [x] Independent-review correction: map the canonical buyer-safe fulfillment address subset into Account order views, show Delivery shipping recipient/locality and Pickup store name/locality, and label every timeline row as Completed, Current stage, or Upcoming without relying on color alone.
     - Deferred boundary (not a Task 6 blocker): shipping-option and pickup-window/date detail remain absent because the canonical Account list/detail API does not expose them. Revisit only when those endpoints add explicit allowlisted fields with API contract and buyer-safety coverage.
-  - [ ] Task 7: close API-backed browser evidence, independent review, and tracking reconciliation.
+  - [x] Task 7: close API-backed browser evidence, independent review, and tracking reconciliation.
+    - [x] Add a fail-closed Playwright matrix plus secure npm runner for all five route-backed Admin states, Orders at 375/768/1024/1440, URL filter persistence, drill-down, Diagnostics tabs, keyboard operation, loading/filtered-empty/error states, Account refresh, and webhook-count comparison.
+    - [x] Correct the evidence-discovered Admin and Account-shell target-size regressions so mobile filters, table actions, tabs, inputs, shared Admin controls, utility links, brand, search controls, and Radix-composed lifecycle triggers measure at least 44px; all 17 API-backed rows pass with no actionable console/response issues, page overflow, or sticky/fixed occlusion.
+    - [x] Resolve the first independent review's P1 evidence gaps: keep the Admin passcode out of child-process arguments, randomize and close the Playwright session, capture warnings with exact route-qualified external triage, remove raw payment-debug snapshots, require visible/read-only/sanitized Diagnostics evidence, validate webhook totals, assert the exact mutated Account status/timeline, capture Account detail, and sample occlusion through representative scrolling plus target edges.
+    - [x] Complete follow-up independent review: PASS with no P0/P1 findings. The only P2 is forced-kill residue risk for the mode-0600 temporary authentication helper; normal and failing runs remove it in `finally`, the passcode never enters child argv, and live probes confirmed Playwright `run-code` cannot inherit the runner environment or consume the helper from `/dev/stdin`.
+    - [x] Resolve the data precondition with the explicitly approved deterministic Alice-owned paid Delivery order `DO-20260714-900001`; repeated seeds remove mutable lifecycle rows only for deterministic seeded order IDs before restoring their canonical events.
+    - [x] Apply the existing atomic lifecycle migration to the linked Supabase project, run the real paid-to-processing mutation, prove the exact status/stage/merchant note in Account, and prove the genuine received-webhook count remains `1 -> 1`.
+    - [x] Complete final evidence and tracking reconciliation with `17/17` rows, `missingRows: []`, and `failedRows: []`.
+    - [x] Resolve the final review's stale test-case, exact fixture/action, and Diagnostics request-method P2s; the last exact-name locator correction was independently re-reviewed with no remaining P0/P1/P2 findings in scope.
 
 Verification:
 

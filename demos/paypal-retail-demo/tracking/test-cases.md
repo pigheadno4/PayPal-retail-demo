@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is executing from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`; Tasks 1 through 6 are closed, and Task 7 end-to-end evidence and final reconciliation is next. URL restoration/back navigation, filters, canonical lifecycle mutation/reload, buyer-safe Account visibility and refresh recovery, persistent allowlisted runtime diagnostics, non-blocking retention/fallback behavior, and cursor controls have focused coverage. Other Admin/Account and browser-evidence backlog rows remain explicit.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is closed through Task 7 from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`. All `17/17` API-backed rows pass across all five Admin routes and 375/768/1024/1440 coverage with visible/read-only/sanitized Diagnostics, exact lifecycle-to-Account refresh, genuine webhook count `1 -> 1`, 44px minimum targets, clean actionable console/response arrays, no page overflow, and no sticky/fixed occlusion. The deterministic Alice-owned evidence order is repeatable because seed reconciliation deletes mutable lifecycle events only for deterministic seeded order IDs before restoring canonical events.
 
 ## Deployment QA
 
@@ -406,7 +406,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Account post-purchase polish provides All/In progress/Completed order filters, explicit refresh/last-updated state, current-stage-first timeline hierarchy, buyer-safe retry/empty states, and no technical IDs.
 - [x] Account Delivery detail renders the canonical shipping recipient/locality, Pickup detail renders the canonical pickup-store name/locality, and timeline rows explicitly name Completed, Current stage, or Upcoming state without relying on color.
 - Deferred contract boundary: shipping-option and pickup-window/date detail remain absent until canonical Account list/detail responses add explicit allowlisted fields with API contract and buyer-safety coverage.
-- [ ] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths.
+- [x] Admin/Account browser evidence covers keyboard operation and overflow-safe loading/success/filtered-empty/error/drill-down states at 375, 768, 1024, and 1440 widths. All `17/17` route, filter, drill-down, read-only Diagnostics, keyboard, loading, filtered-empty, error, target-size, console/response, overflow, occlusion, exact Alice-owned paid-to-processing Account refresh, merchant-note, and zero-webhook-growth rows pass.
 
 ## Visual QA
 

@@ -527,9 +527,6 @@ interface AdminPaymentDebugPayPalSnapshotResponse {
   readonly payment_session_id: string;
   readonly paypal_invoice_id: string | null;
   readonly paypal_request_id: string | null;
-  readonly request_json: unknown;
-  readonly response_json: unknown;
-  readonly merchant_snapshot_json: unknown;
   readonly created_at: string;
 }
 

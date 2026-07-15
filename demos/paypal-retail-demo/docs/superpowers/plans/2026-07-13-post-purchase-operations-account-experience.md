@@ -394,13 +394,15 @@ export function matchesAccountOrderFilter(
 - Consumes: Tasks 1-6 and a running API-backed demo.
 - Produces: local evidence metrics/screenshots, independent review disposition, and synchronized canonical status.
 
-- [ ] **Step 1:** Add a failing static evidence-script test requiring route rows for 375, 768, 1024, and 1440; filter persistence; drill-down; lifecycle-to-Account refresh; zero webhook growth; Diagnostics tabs; keyboard operation; and loading/error/empty states.
-- [ ] **Step 2:** Implement the Playwright evidence script and `npm run evidence:post-purchase-operations` command.
-- [ ] **Step 3:** Run `npm run verify`, `npm run build`, `git diff --check`, and `scripts/check-agent-system.sh` from the repository root.
-- [ ] **Step 4:** Run the API-backed evidence script, record `failedRows: []`, no console errors, no page-level overflow, and no sticky/fixed occlusion.
-- [ ] **Step 5:** Spawn an independent read-only reviewer with the plan path, base/head SHAs, diff, test output, and design contract; resolve every Critical/Important finding and rerun affected verification.
-- [ ] **Step 6:** Reconcile every open Post-Purchase checklist row with complete/deferred/blocked disposition; do not close the milestone for shell-only behavior.
-- [ ] **Step 7:** Commit with `git commit -m "test: close post-purchase operations evidence"`.
+- [x] **Step 1:** Add a failing static evidence-script test requiring route rows for 375, 768, 1024, and 1440; filter persistence; drill-down; lifecycle-to-Account refresh; zero webhook growth; Diagnostics tabs; keyboard operation; and loading/error/empty states.
+- [x] **Step 2:** Implement the Playwright evidence script and `npm run evidence:post-purchase-operations` command.
+- [x] **Step 3:** Run `npm run verify`, `npm run build`, `git diff --check`, and `scripts/check-agent-system.sh` from the repository root.
+- [x] **Step 4:** Run the API-backed evidence script, record `failedRows: []`, no console errors, no page-level overflow, and no sticky/fixed occlusion.
+- [x] **Step 5:** Spawn an independent read-only reviewer with the plan path, base/head SHAs, diff, test output, and design contract; resolve every Critical/Important finding and rerun affected verification.
+- [x] **Step 6:** Reconcile every open Post-Purchase checklist row with complete/deferred/blocked disposition; do not close the milestone for shell-only behavior.
+- [x] **Step 7:** Commit with `git commit -m "test: close post-purchase operations evidence"`.
+
+**2026-07-15 closure note:** The explicitly approved deterministic fixture adds Alice-owned paid Delivery order `DO-20260714-900001`; seed SQL deletes mutable lifecycle rows only for deterministic seeded order IDs before restoring canonical lifecycle events, so evidence reruns start from the same paid state without touching unrelated orders. The existing atomic lifecycle migration is applied to the linked Supabase project. Final evidence passes `17/17` rows with `missingRows: []`, `failedRows: []`, no actionable console/response issues, no page overflow, no sticky/fixed occlusion, and 44px minimum targets. The real paid-to-processing mutation is visible in Account with exact status, current timeline stage, and merchant note; the genuine received-webhook count remains `1 -> 1`, while method-aware Diagnostics proof reports no non-read Admin requests. Final review corrections enforce the exact fixture, paid pre-state, exact `Mark Processing` action, processing result, and accurate test-case closure. Independent re-review found no remaining P0/P1/P2 findings in scope. The earlier forced-kill residue risk for the mode-0600 temporary authentication helper remains an accepted documented residual because normal and failing runs clean it in `finally` and the passcode stays out of child argv. Fresh pre-commit `npm run verify` passes `720` tests across `77` files; build, deterministic seed summary, agent-system, and diff checks pass. The user explicitly approved staging and committing, closing Step 7 with this Task 7 commit.
 
 ## Self-Review
 

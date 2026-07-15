@@ -22,6 +22,7 @@ export function buildSeedSql(dataset: SeedDataset): string {
 }
 
 function buildReconciliationStatements(dataset: SeedDataset): string[] {
+  const statements: string[] = [];
   const cartItemsTable = dataset.tables.find(
     (table) => table.name === "app.cart_items",
   );
@@ -29,16 +30,30 @@ function buildReconciliationStatements(dataset: SeedDataset): string[] {
     cartItemsTable?.rows.map((row) => row.cart_id) ?? [],
   );
 
-  if (cartIds.length === 0) {
-    return [];
+  if (cartIds.length > 0) {
+    statements.push(
+      [
+        "-- Reconcile mutable demo cart state before idempotent upserts.",
+        `delete from app.cart_items where cart_id in (${cartIds.map(quoteLiteral).join(", ")});`,
+      ].join("\n"),
+    );
   }
 
-  return [
-    [
-      "-- Reconcile mutable demo cart state before idempotent upserts.",
-      `delete from app.cart_items where cart_id in (${cartIds.map(quoteLiteral).join(", ")});`,
-    ].join("\n"),
-  ];
+  const ordersTable = dataset.tables.find(
+    (table) => table.name === "app.orders",
+  );
+  const orderIds = uniqueStrings(ordersTable?.rows.map((row) => row.id) ?? []);
+
+  if (orderIds.length > 0) {
+    statements.push(
+      [
+        "-- Reconcile mutable demo lifecycle state before idempotent upserts.",
+        `delete from app.order_lifecycle_events where order_id in (${orderIds.map(quoteLiteral).join(", ")});`,
+      ].join("\n"),
+    );
+  }
+
+  return statements;
 }
 
 function buildTableStatements(table: SeedTable): string[] {

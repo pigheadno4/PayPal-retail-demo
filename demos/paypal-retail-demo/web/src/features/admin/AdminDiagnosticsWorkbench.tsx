@@ -79,14 +79,12 @@ export function AdminDiagnosticsWorkbench({
         </TabsList>
         {children ? (
           <TabsContent value={tab}>
-            {canRenderContent ? (
-              <div
-                className="admin-workbench__diagnostics-content"
-                data-diagnostics-dataset={tab}
-              >
-                {children}
-              </div>
-            ) : null}
+            <div
+              className="admin-workbench__diagnostics-content"
+              data-diagnostics-dataset={tab}
+            >
+              {canRenderContent ? children : null}
+            </div>
           </TabsContent>
         ) : (
           <>

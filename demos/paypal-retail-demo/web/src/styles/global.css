@@ -220,6 +220,13 @@ a {
   gap: 16px;
 }
 
+.site-utility__links a {
+  align-items: center;
+  display: inline-flex;
+  min-height: 44px;
+  padding: 0 8px;
+}
+
 .site-header__inner {
   display: grid;
   gap: 24px;
@@ -255,6 +262,7 @@ a {
   font-family: var(--shell-heading-font);
   gap: 10px;
   letter-spacing: 0;
+  min-height: 44px;
   min-width: max-content;
   white-space: nowrap;
 }
@@ -295,8 +303,8 @@ a {
   font-size: 0.7rem;
   font-weight: 800;
   justify-content: center;
-  min-height: 42px;
-  width: 42px;
+  min-height: 44px;
+  width: 44px;
 }
 
 .site-header__discovery {
@@ -315,7 +323,7 @@ a {
   justify-content: space-between;
   min-height: 44px;
   min-width: 0;
-  padding: 5px 5px 5px 20px;
+  padding: 0 5px 0 20px;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease;
@@ -336,7 +344,7 @@ a {
   flex: 1 1 auto;
   font-size: 0.78rem;
   font-weight: 600;
-  min-height: 32px;
+  min-height: 44px;
   min-width: 0;
   padding: 0;
 }
@@ -356,7 +364,7 @@ a {
   border-radius: 999px;
   color: #ffffff;
   flex: 0 0 auto;
-  min-height: 32px;
+  min-height: 44px;
   min-width: 46px;
 }
 
@@ -7553,6 +7561,11 @@ p {
   gap: 10px;
 }
 
+.admin-shell__lifecycle-action {
+  height: auto;
+  min-height: 44px;
+}
+
 .admin-shell__inventory-grid {
   display: grid;
   gap: 18px;
@@ -7801,6 +7814,32 @@ p {
 
 .admin-filters__mobile-trigger {
   display: none;
+  height: 44px;
+  min-height: 44px;
+}
+
+.admin-shell [data-slot="button"],
+.admin-shell [data-slot="tabs-trigger"],
+.admin-shell__nav a,
+.admin-workbench__table-action,
+.admin-filters__fields input,
+.admin-filters__fields select,
+.admin-filters__checkbox,
+.admin-shell__select,
+.admin-shell__input,
+.admin-shell__checkbox-label,
+.admin-shell textarea {
+  min-height: 44px;
+}
+
+.admin-shell [data-slot="button"],
+.admin-shell [data-slot="tabs-trigger"] {
+  height: auto;
+}
+
+.admin-workbench__tabs [data-slot="tabs-list"] {
+  height: auto;
+  min-height: 50px;
 }
 
 .admin-filters__sheet {
@@ -7940,7 +7979,7 @@ p {
   cursor: pointer;
   font: inherit;
   font-weight: 800;
-  min-height: 36px;
+  min-height: 44px;
   padding: 6px 8px;
   white-space: nowrap;
 }
@@ -8758,7 +8797,7 @@ p {
     font-size: 0.82rem;
     grid-area: discovery;
     min-height: 44px;
-    padding: 4px 4px 4px 14px;
+    padding: 0 4px 0 14px;
     width: 100%;
   }
 
@@ -8767,8 +8806,8 @@ p {
   }
 
   .site-header__discovery-submit {
-    min-height: 32px;
-    min-width: 38px;
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .site-header__nav {
