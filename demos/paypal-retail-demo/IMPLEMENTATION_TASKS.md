@@ -511,6 +511,7 @@ Verification:
     - [x] Complete final evidence and tracking reconciliation with `17/17` rows, `missingRows: []`, and `failedRows: []`.
     - [x] Resolve the final review's stale test-case, exact fixture/action, and Diagnostics request-method P2s; the last exact-name locator correction was independently re-reviewed with no remaining P0/P1/P2 findings in scope.
     - [x] Correct the post-deploy timing false negatives by waiting for the canonical Account React commit and deterministically holding only the exact real Orders-list GET through loading capture; require canonical order identity at mutation/API/render boundaries, exact HTTP `200`, settled ready state, preserved loading screenshot, and route cleanup. Final hosted evidence passes `17/17`, and reject-by-default re-review returns ACCEPT with no P0/P1/P2 findings.
+    - [x] Harden hosted navigation against external wallet-script and Render API timing: use commit-based page GET/reload with one transient-only retry and a measured hosted 60-second attempt budget, wait for route-owned Admin/UI/API readiness, run Account sign-in in a fresh browser context, join post-sign-in UI/API waiters, register and exactly match the Account-detail GET before navigation, and never retry lifecycle mutation clicks/POST. Named run IDs write collision-safe retained metrics. Two fresh final-code reseed-and-run cycles pass `17/17`.
 
 Verification:
 

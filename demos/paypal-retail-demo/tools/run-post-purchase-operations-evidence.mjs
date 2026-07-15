@@ -11,6 +11,7 @@ const baseUrl = (
   process.env.PAYPAL_RETAIL_EVIDENCE_BASE_URL ?? "http://127.0.0.1:5173"
 ).replace(/\/$/, "");
 const passcode = process.env.ADMIN_PASSCODE?.trim();
+const requestedEvidenceRunId = process.env.PAYPAL_RETAIL_EVIDENCE_RUN_ID;
 
 if (!passcode) {
   throw new Error(
@@ -94,9 +95,16 @@ async function runEvidence() {
     );
   }
 
+  const artifact = resolveEvidenceMetricsArtifact(
+    report.outputPrefix,
+    requestedEvidenceRunId,
+  );
+  report.evidenceRunId = artifact.runId;
+  report.metricsPath = artifact.metricsPath;
   writeFileSync(
-    `${report.outputPrefix}-metrics.json`,
+    artifact.metricsPath,
     `${JSON.stringify(report, null, 2)}\n`,
+    artifact.runId ? { flag: "wx" } : undefined,
   );
   process.stdout.write(`${JSON.stringify(report)}\n`);
 
@@ -109,6 +117,25 @@ async function runEvidence() {
     );
     process.exitCode = 1;
   }
+}
+
+function resolveEvidenceMetricsArtifact(outputPrefix, requestedRunId) {
+  const runId = requestedRunId?.trim();
+  if (!runId) {
+    return {
+      runId: null,
+      metricsPath: `${outputPrefix}-metrics.json`,
+    };
+  }
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(runId)) {
+    throw new Error(
+      "PAYPAL_RETAIL_EVIDENCE_RUN_ID must be 1-64 letters, numbers, dots, underscores, or hyphens and start with a letter or number.",
+    );
+  }
+  return {
+    runId,
+    metricsPath: `${outputPrefix}-${runId}-metrics.json`,
+  };
 }
 
 async function unlockAdminSession() {

@@ -8,6 +8,18 @@ function readProjectFile(path: string): string {
   return readFileSync(new URL(path, repoRoot), "utf8");
 }
 
+function sliceBetween(
+  source: string,
+  startMarker: string,
+  endMarker: string,
+): string {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker);
+  expect(start, `Missing ${startMarker}`).toBeGreaterThan(-1);
+  expect(end, `Missing ${endMarker}`).toBeGreaterThan(start);
+  return source.slice(start, end);
+}
+
 describe("evidence scripts", () => {
   it("registers the API-backed post-purchase operations evidence helper", () => {
     const packageJson = JSON.parse(readProjectFile("package.json")) as {
@@ -131,13 +143,15 @@ describe("evidence scripts", () => {
     const helperSource = readProjectFile(
       join("tools", "post-purchase-operations-evidence.playwright.js"),
     );
-    const accountCommitHelper = helperSource.slice(
-      helperSource.indexOf("async function waitForExpectedAccountRefresh"),
-      helperSource.indexOf("async function observeRealOrdersLoadingState"),
+    const accountCommitHelper = sliceBetween(
+      helperSource,
+      "async function waitForExpectedAccountRefresh",
+      "async function observeRealOrdersLoadingState",
     );
-    const loadingStateHelper = helperSource.slice(
-      helperSource.indexOf("async function observeRealOrdersLoadingState"),
-      helperSource.indexOf("async function activeAdminSection"),
+    const loadingStateHelper = sliceBetween(
+      helperSource,
+      "async function observeRealOrdersLoadingState",
+      "async function activeAdminSection",
     );
 
     expect(helperSource).toContain(
@@ -224,6 +238,443 @@ describe("evidence scripts", () => {
       /const realOrdersResponse = await route\.fetch\(\);[\s\S]*await heldOrdersResponseRelease;[\s\S]*await route\.fulfill\(\{ response: realOrdersResponse \}\);/,
     );
     expect(helperSource).not.toContain("page.context().route");
+  });
+
+  it("uses retryable commit navigation without replaying lifecycle mutations", () => {
+    const helperSource = readProjectFile(
+      join("tools", "post-purchase-operations-evidence.playwright.js"),
+    );
+    const safeNavigationHelper = sliceBetween(
+      helperSource,
+      "async function retrySafeNavigation",
+      "async function gotoRoute",
+    );
+    const gotoRouteHelper = sliceBetween(
+      helperSource,
+      "async function gotoRoute",
+      "async function reloadRoute",
+    );
+    const reloadRouteHelper = sliceBetween(
+      helperSource,
+      "async function reloadRoute",
+      "async function openAdminRoute",
+    );
+    const openAdminRouteHelper = sliceBetween(
+      helperSource,
+      "async function openAdminRoute",
+      "async function waitForWorkbenchSettled",
+    );
+    const accountOrdersHelper = sliceBetween(
+      helperSource,
+      "async function signInAndOpenAccountOrders",
+      "function waitForAccountOrdersResponse",
+    );
+    const accountDetailHelper = sliceBetween(
+      helperSource,
+      "async function openAccountOrderDetail",
+      "async function signInAndOpenAccountOrders",
+    );
+    const lifecycleCollectionHelper = sliceBetween(
+      helperSource,
+      "async function collectLifecycleAndAccountRows",
+      "async function fetchAdminJson",
+    );
+    const isolatedAccountHelper = sliceBetween(
+      helperSource,
+      "async function createIsolatedAccountPage",
+      "async function signInAndOpenAccountOrders",
+    );
+
+    expect(helperSource).toContain("async function retrySafeNavigation");
+    expect(helperSource).toContain("async function reloadRoute");
+    expect(safeNavigationHelper).toContain('waitUntil: "commit"');
+    expect(helperSource).toContain(
+      "const navigationTimeout = isRenderHostedBaseUrl ? 60000 : 30000",
+    );
+    expect(helperSource).toContain("const navigationAttemptLimit = 2");
+    expect(helperSource).toContain(
+      "const navigationRetryBudget = navigationTimeout * navigationAttemptLimit",
+    );
+    expect(safeNavigationHelper).toContain(
+      "navigationAttempt < navigationAttemptLimit",
+    );
+    expect(safeNavigationHelper).toContain('error.name === "TimeoutError"');
+    expect(safeNavigationHelper).toContain('"net::ERR_ABORTED"');
+    expect(safeNavigationHelper).toContain("targetPage.goto");
+    expect(safeNavigationHelper).toContain("targetPage.reload");
+    expect(safeNavigationHelper).toContain("switch (navigationKind)");
+    expect(safeNavigationHelper).toContain("Unsupported safe navigation kind");
+    expect(safeNavigationHelper).not.toContain(".click(");
+    expect(safeNavigationHelper).not.toContain('method: "POST"');
+    expect(gotoRouteHelper).toContain('"goto"');
+    expect(reloadRouteHelper).toContain('"reload"');
+    expect(helperSource).not.toContain('waitUntil: "domcontentloaded"');
+    expect(helperSource).toContain("const routeReadinessTimeout =");
+    expect(helperSource).toContain("async function openAccountOrderDetail");
+
+    expect(openAdminRouteHelper).toContain(
+      "locator(\"nav[aria-label='Admin sections']\")",
+    );
+    expect(openAdminRouteHelper).toContain("await waitForAdminAuthSurface");
+    expect(openAdminRouteHelper).toContain('locator("#admin-workbench-title")');
+    expect(openAdminRouteHelper).toContain("await waitForWorkbenchSettled");
+    expect(lifecycleCollectionHelper).toContain(
+      "await createIsolatedAccountPage(page)",
+    );
+    expect(lifecycleCollectionHelper).toContain("await accountContext.close()");
+    expect(isolatedAccountHelper).toContain("sourcePage.context().browser()");
+    expect(isolatedAccountHelper).toContain("await browser.newContext()");
+    expect(isolatedAccountHelper).toContain("await accountContext.newPage()");
+    expect(accountOrdersHelper).not.toContain("waitForAccountAuthSurface");
+    expect(accountOrdersHelper).not.toContain("existingAccountSession");
+    expect(accountOrdersHelper).not.toContain("reloadRoute(targetPage)");
+    expect(accountOrdersHelper).toContain(
+      "const [ordersResponse] = await Promise.all([",
+    );
+    expect(accountOrdersHelper).toContain(
+      '.waitFor({ state: "visible", timeout: routeReadinessTimeout })',
+    );
+    expect(accountOrdersHelper).toContain(
+      '.waitFor({ state: "hidden", timeout: routeReadinessTimeout })',
+    );
+    expect(accountOrdersHelper).not.toContain(
+      "await readAccountOrdersResponse(\n      await accountOrdersResponse",
+    );
+    expect(accountOrdersHelper).toContain(
+      'getByRole("heading", { name: "Order history" })',
+    );
+    expect(accountDetailHelper).toContain(
+      "const accountDetailResponsePromise = waitForAccountOrderDetailResponse",
+    );
+    expect(accountDetailHelper).toContain("gotoRoute(");
+    expect(accountDetailHelper).toContain("accountDetailResponsePromise,");
+    expect(accountDetailHelper).toContain("await Promise.all([");
+    expect(accountDetailHelper).toContain("routeReadinessTimeout");
+    expect(accountDetailHelper).toContain("navigationRetryBudget");
+    expect(accountDetailHelper).toContain("response.status() !== 200");
+    expect(accountDetailHelper).not.toContain(".click(");
+    expect(accountDetailHelper).not.toContain("new URL(");
+    expect(
+      accountDetailHelper.indexOf("accountDetailResponsePromise"),
+    ).toBeLessThan(accountDetailHelper.indexOf("gotoRoute("));
+    expect(helperSource).toContain(
+      "await openAccountOrderDetail(accountPage, orderNumber)",
+    );
+    expect(helperSource.match(/retrySafeNavigation\(/g)?.length).toBe(3);
+
+    const lifecycleMutationSource = sliceBetween(
+      helperSource,
+      "const mutationResponsePromise",
+      "const mutationResponse = await mutationResponsePromise",
+    );
+    expect(lifecycleMutationSource).toContain(
+      'getByRole("button", { name: "Confirm update" }).click()',
+    );
+    expect(lifecycleMutationSource).not.toContain("retrySafeNavigation");
+  });
+
+  it("behaviorally retries only supported transient page navigation", async () => {
+    const helperSource = readProjectFile(
+      join("tools", "post-purchase-operations-evidence.playwright.js"),
+    );
+    const helper = sliceBetween(
+      helperSource,
+      "async function retrySafeNavigation",
+      "async function gotoRoute",
+    );
+    const retrySafeNavigation = Function(
+      "navigationTimeout",
+      "navigationAttemptLimit",
+      `${helper}; return retrySafeNavigation;`,
+    )(30000, 2) as (
+      targetPage: {
+        goto: (url: string, options: unknown) => Promise<unknown>;
+        reload: (options: unknown) => Promise<unknown>;
+      },
+      navigationKind: string,
+      url?: string | null,
+    ) => Promise<unknown>;
+
+    const transientCases = [
+      {
+        label: "TimeoutError",
+        createError() {
+          const error = new Error("navigation timed out");
+          error.name = "TimeoutError";
+          return error;
+        },
+      },
+      {
+        label: "ERR_ABORTED",
+        createError: () =>
+          new Error("page.goto: net::ERR_ABORTED at https://example.test"),
+      },
+      {
+        label: "ERR_CONNECTION_CLOSED",
+        createError: () =>
+          new Error(
+            "page.goto: net::ERR_CONNECTION_CLOSED at https://example.test",
+          ),
+      },
+      {
+        label: "ERR_CONNECTION_RESET",
+        createError: () =>
+          new Error(
+            "page.goto: net::ERR_CONNECTION_RESET at https://example.test",
+          ),
+      },
+    ] as const;
+
+    for (const navigationKind of ["goto", "reload"] as const) {
+      for (const transientCase of transientCases) {
+        let gotoCalls = 0;
+        let reloadCalls = 0;
+        const transientPage = {
+          async goto() {
+            gotoCalls += 1;
+            if (gotoCalls === 1) {
+              throw transientCase.createError();
+            }
+            return "goto-complete";
+          },
+          async reload() {
+            reloadCalls += 1;
+            if (reloadCalls === 1) {
+              throw transientCase.createError();
+            }
+            return "reload-complete";
+          },
+        };
+
+        await expect(
+          retrySafeNavigation(
+            transientPage,
+            navigationKind,
+            navigationKind === "goto" ? "https://example.test" : undefined,
+          ),
+          `${navigationKind} should retry ${transientCase.label}`,
+        ).resolves.toBe(`${navigationKind}-complete`);
+        expect(gotoCalls).toBe(navigationKind === "goto" ? 2 : 0);
+        expect(reloadCalls).toBe(navigationKind === "reload" ? 2 : 0);
+      }
+
+      let persistentCalls = 0;
+      const persistentPage = {
+        async goto() {
+          persistentCalls += 1;
+          throw new Error(
+            "page.goto: net::ERR_CONNECTION_RESET at https://example.test",
+          );
+        },
+        async reload() {
+          persistentCalls += 1;
+          throw new Error(
+            "page.reload: net::ERR_CONNECTION_RESET at https://example.test",
+          );
+        },
+      };
+      await expect(
+        retrySafeNavigation(
+          persistentPage,
+          navigationKind,
+          navigationKind === "goto" ? "https://example.test" : undefined,
+        ),
+      ).rejects.toThrow("net::ERR_CONNECTION_RESET");
+      expect(persistentCalls).toBe(2);
+    }
+
+    for (const nearMissError of [
+      Object.assign(new Error("navigation timed out"), {
+        name: "TimeoutErrorSuffix",
+      }),
+      new Error("page.goto: net::ERR_ABORTEDISH at https://example.test"),
+      new Error(
+        "page.goto: net::ERR_CONNECTION_CLOSED_LATE at https://example.test",
+      ),
+      new Error("certificate rejected"),
+    ]) {
+      let nearMissCalls = 0;
+      const nearMissPage = {
+        async goto() {
+          nearMissCalls += 1;
+          throw nearMissError;
+        },
+        async reload() {
+          nearMissCalls += 1;
+          throw nearMissError;
+        },
+      };
+      await expect(
+        retrySafeNavigation(nearMissPage, "goto", "https://example.test"),
+      ).rejects.toThrow();
+      expect(nearMissCalls).toBe(1);
+    }
+
+    let unknownCalls = 0;
+    const unknownPage = {
+      async goto() {
+        unknownCalls += 1;
+        return "unexpected";
+      },
+      async reload() {
+        unknownCalls += 1;
+        return "unexpected";
+      },
+    };
+    await expect(
+      retrySafeNavigation(unknownPage, "post", "https://example.test"),
+    ).rejects.toThrow("Unsupported safe navigation kind");
+    expect(unknownCalls).toBe(0);
+
+    let missingUrlCalls = 0;
+    const missingUrlPage = {
+      async goto() {
+        missingUrlCalls += 1;
+        return "unexpected";
+      },
+      async reload() {
+        missingUrlCalls += 1;
+        return "unexpected";
+      },
+    };
+    await expect(retrySafeNavigation(missingUrlPage, "goto")).rejects.toThrow(
+      "requires a URL",
+    );
+    expect(missingUrlCalls).toBe(0);
+  });
+
+  it("builds retained metrics paths only from safe evidence run ids", () => {
+    const runnerSource = readProjectFile(
+      join("tools", "run-post-purchase-operations-evidence.mjs"),
+    );
+    const helper = sliceBetween(
+      runnerSource,
+      "function resolveEvidenceMetricsArtifact",
+      "async function unlockAdminSession",
+    );
+    expect(runnerSource).toContain(
+      'artifact.runId ? { flag: "wx" } : undefined',
+    );
+    const resolveEvidenceMetricsArtifact = Function(
+      `${helper}; return resolveEvidenceMetricsArtifact;`,
+    )() as (
+      outputPrefix: string,
+      requestedRunId?: string,
+    ) => { runId: string | null; metricsPath: string };
+
+    expect(
+      resolveEvidenceMetricsArtifact("/tmp/post-purchase", " final-a "),
+    ).toEqual({
+      runId: "final-a",
+      metricsPath: "/tmp/post-purchase-final-a-metrics.json",
+    });
+    expect(resolveEvidenceMetricsArtifact("/tmp/post-purchase")).toEqual({
+      runId: null,
+      metricsPath: "/tmp/post-purchase-metrics.json",
+    });
+    expect(() =>
+      resolveEvidenceMetricsArtifact("/tmp/post-purchase", "../overwrite"),
+    ).toThrow("PAYPAL_RETAIL_EVIDENCE_RUN_ID");
+    expect(() =>
+      resolveEvidenceMetricsArtifact("/tmp/post-purchase", "unsafe/id"),
+    ).toThrow("PAYPAL_RETAIL_EVIDENCE_RUN_ID");
+  });
+
+  it("matches only the exact Account order-detail GET", async () => {
+    const helperSource = readProjectFile(
+      join("tools", "post-purchase-operations-evidence.playwright.js"),
+    );
+    const helper = sliceBetween(
+      helperSource,
+      "function waitForAccountOrderDetailResponse",
+      "async function signInAndOpenAccountOrders",
+    );
+    const navigationTimeoutMatch = helperSource.match(
+      /const navigationTimeout = isRenderHostedBaseUrl \? (\d+) : \d+;/,
+    );
+    const navigationAttemptLimitMatch = helperSource.match(
+      /const navigationAttemptLimit = (\d+);/,
+    );
+    const routeReadinessTimeoutMatch = helperSource.match(
+      /const routeReadinessTimeout = isRenderHostedBaseUrl\s*\? (\d+)/,
+    );
+    expect(navigationTimeoutMatch).not.toBeNull();
+    expect(navigationAttemptLimitMatch).not.toBeNull();
+    expect(routeReadinessTimeoutMatch).not.toBeNull();
+    const hostedNavigationTimeout = Number(navigationTimeoutMatch?.[1]);
+    const navigationAttemptLimit = Number(navigationAttemptLimitMatch?.[1]);
+    const hostedRouteReadinessTimeout = Number(routeReadinessTimeoutMatch?.[1]);
+    const navigationRetryBudget =
+      hostedNavigationTimeout * navigationAttemptLimit;
+    const waitForAccountOrderDetailResponse = Function(
+      "routeReadinessTimeout",
+      "navigationRetryBudget",
+      `${helper}; return waitForAccountOrderDetailResponse;`,
+    )(hostedRouteReadinessTimeout, navigationRetryBudget) as (
+      targetPage: {
+        waitForResponse: (
+          matcher: (response: {
+            request: () => { method: () => string };
+            url: () => string;
+          }) => boolean,
+          options: { timeout: number },
+        ) => Promise<unknown>;
+      },
+      orderNumber: string,
+    ) => Promise<unknown>;
+    let responseMatcher:
+      | ((response: {
+          request: () => { method: () => string };
+          url: () => string;
+        }) => boolean)
+      | undefined;
+    let responseTimeout = 0;
+    const targetPage = {
+      async waitForResponse(
+        matcher: NonNullable<typeof responseMatcher>,
+        options: { timeout: number },
+      ) {
+        responseMatcher = matcher;
+        responseTimeout = options.timeout;
+        return null;
+      },
+    };
+    await waitForAccountOrderDetailResponse(targetPage, "DO-20260714-900001");
+    const response = (url: string, method = "GET") => ({
+      request: () => ({ method: () => method }),
+      url: () => url,
+    });
+
+    expect(
+      responseMatcher?.(
+        response(
+          "https://paypal-retail-demo.onrender.com/api/account/orders/DO-20260714-900001",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      responseMatcher?.(
+        response(
+          "https://paypal-retail-demo.onrender.com/api/account/orders/DO-20260714-900001?refresh=1",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      responseMatcher?.(
+        response(
+          "https://paypal-retail-demo.onrender.com/api/account/orders/DO-20260714-900001/items/line-1/review",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      responseMatcher?.(
+        response(
+          "https://paypal-retail-demo.onrender.com/api/account/orders/DO-20260714-900001",
+          "POST",
+        ),
+      ),
+    ).toBe(false);
+    expect(responseTimeout).toBe(180000);
   });
 
   it("treats renamed Render services as hosted evidence targets", () => {

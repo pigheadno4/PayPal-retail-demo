@@ -26,6 +26,15 @@ async function postPurchaseOperationsEvidence(page) {
   const outputPrefix =
     "/private/tmp/paypal-retail-post-purchase-operations-evidence";
   const interactionTimeout = 20000;
+  const isRenderHostedBaseUrl = /^https:\/\/[^/]+\.onrender\.com$/i.test(
+    baseUrl,
+  );
+  const navigationTimeout = isRenderHostedBaseUrl ? 60000 : 30000;
+  const navigationAttemptLimit = 2;
+  const navigationRetryBudget = navigationTimeout * navigationAttemptLimit;
+  const routeReadinessTimeout = isRenderHostedBaseUrl
+    ? 60000
+    : interactionTimeout;
   const evidenceLifecycleOrderNumber = "DO-20260714-900001";
   const knownGooglePayManifestIssue =
     'Failed to download or decode a non-empty icon for payment app with "https://pay.google.com/gp/p/web_manifest.json" manifest.';
@@ -249,15 +258,67 @@ async function postPurchaseOperationsEvidence(page) {
     });
   }
 
+  async function retrySafeNavigation(targetPage, navigationKind, url = null) {
+    if (!["goto", "reload"].includes(navigationKind)) {
+      throw new Error(`Unsupported safe navigation kind: ${navigationKind}.`);
+    }
+    if (navigationKind === "goto" && typeof url !== "string") {
+      throw new Error("Safe goto navigation requires a URL.");
+    }
+    let navigationAttempt = 0;
+
+    while (navigationAttempt < navigationAttemptLimit) {
+      navigationAttempt += 1;
+      try {
+        const navigationOptions = {
+          waitUntil: "commit",
+          timeout: navigationTimeout,
+        };
+        switch (navigationKind) {
+          case "goto":
+            return await targetPage.goto(url, navigationOptions);
+          case "reload":
+            return await targetPage.reload(navigationOptions);
+          default:
+            throw new Error(
+              `Unsupported safe navigation kind: ${navigationKind}.`,
+            );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const transientNavigationCode =
+          message.match(/\bnet::ERR_[A-Z_]+\b/)?.[0] ?? null;
+        const isTransientNavigationFailure =
+          (error instanceof Error && error.name === "TimeoutError") ||
+          [
+            "net::ERR_ABORTED",
+            "net::ERR_CONNECTION_CLOSED",
+            "net::ERR_CONNECTION_RESET",
+          ].includes(transientNavigationCode);
+
+        if (
+          navigationAttempt >= navigationAttemptLimit ||
+          !isTransientNavigationFailure
+        ) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error("Safe evidence navigation exhausted its retry budget.");
+  }
+
   async function gotoRoute(targetPage, path) {
-    await targetPage.goto(`${baseUrl}${path}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    return await retrySafeNavigation(targetPage, "goto", `${baseUrl}${path}`);
+  }
+
+  async function reloadRoute(targetPage) {
+    return await retrySafeNavigation(targetPage, "reload");
   }
 
   async function openAdminRoute(targetPage, path) {
     await gotoRoute(targetPage, path);
+    await waitForAdminAuthSurface(targetPage);
     const lockedPasscode = targetPage.getByLabel("Admin passcode");
 
     if (await lockedPasscode.isVisible().catch(() => false)) {
@@ -279,6 +340,17 @@ async function postPurchaseOperationsEvidence(page) {
       .locator("#admin-workbench-title")
       .waitFor({ state: "visible", timeout: interactionTimeout });
     await waitForWorkbenchSettled(targetPage);
+  }
+
+  async function waitForAdminAuthSurface(targetPage) {
+    const lockedPasscode = targetPage.getByLabel("Admin passcode");
+    const adminNavigation = targetPage.locator(
+      "nav[aria-label='Admin sections']",
+    );
+    await lockedPasscode
+      .or(adminNavigation)
+      .first()
+      .waitFor({ state: "visible", timeout: interactionTimeout });
   }
 
   async function waitForWorkbenchSettled(targetPage) {
@@ -529,7 +601,7 @@ async function postPurchaseOperationsEvidence(page) {
         },
       );
       await waitForWorkbenchSettled(page);
-      await page.reload({ waitUntil: "domcontentloaded" });
+      await reloadRoute(page);
       await page
         .locator("#admin-workbench-title")
         .waitFor({ state: "visible", timeout: interactionTimeout });
@@ -650,7 +722,8 @@ async function postPurchaseOperationsEvidence(page) {
       webhookCountBeforeFailure =
         error instanceof Error ? error.message : String(error);
     }
-    const accountPage = await page.context().newPage();
+    const { accountContext, accountPage } =
+      await createIsolatedAccountPage(page);
     attachIssueListeners(accountPage, "account");
     await accountPage.emulateMedia({ reducedMotion: "reduce" });
     await setViewport(accountPage, 1440);
@@ -722,13 +795,7 @@ async function postPurchaseOperationsEvidence(page) {
       );
     } else {
       const orderNumber = actionableOrder.order_number;
-      await gotoRoute(
-        accountPage,
-        `/account/orders/${encodeURIComponent(orderNumber)}`,
-      );
-      await accountPage
-        .getByRole("region", { name: "Current stage" })
-        .waitFor({ state: "visible", timeout: interactionTimeout });
+      await openAccountOrderDetail(accountPage, orderNumber);
       const beforeStage = await accountPage
         .getByRole("region", { name: "Current stage" })
         .textContent();
@@ -1007,7 +1074,7 @@ async function postPurchaseOperationsEvidence(page) {
       }),
     );
 
-    await accountPage.close();
+    await accountContext.close();
   }
 
   async function fetchAdminJson(targetPage, path) {
@@ -1071,24 +1138,74 @@ async function postPurchaseOperationsEvidence(page) {
       .join(" ");
   }
 
+  async function openAccountOrderDetail(targetPage, orderNumber) {
+    const accountDetailResponsePromise = waitForAccountOrderDetailResponse(
+      targetPage,
+      orderNumber,
+    );
+    const [response] = await Promise.all([
+      accountDetailResponsePromise,
+      gotoRoute(
+        targetPage,
+        `/account/orders/${encodeURIComponent(orderNumber)}`,
+      ),
+    ]);
+    const responseBody = await response.json().catch(() => null);
+    if (
+      response.status() !== 200 ||
+      responseBody?.data?.order?.order_number !== orderNumber
+    ) {
+      throw new Error(
+        `Account order detail readiness failed for ${orderNumber} with status ${response.status()}.`,
+      );
+    }
+    await targetPage
+      .getByRole("region", { name: "Current stage" })
+      .waitFor({ state: "visible", timeout: routeReadinessTimeout });
+  }
+
+  function waitForAccountOrderDetailResponse(targetPage, orderNumber) {
+    const encodedOrderNumber = encodeURIComponent(orderNumber);
+    return targetPage.waitForResponse(
+      (response) => {
+        const responseUrl = response.url();
+        const schemeEnd = responseUrl.indexOf("://");
+        const pathStart = responseUrl.indexOf("/", schemeEnd + 3);
+        const queryStart = responseUrl.indexOf("?", pathStart);
+        const pathname = responseUrl.slice(
+          pathStart,
+          queryStart === -1 ? undefined : queryStart,
+        );
+        return (
+          pathStart >= 0 &&
+          response.request().method() === "GET" &&
+          pathname === `/api/account/orders/${encodedOrderNumber}`
+        );
+      },
+      { timeout: navigationRetryBudget + routeReadinessTimeout },
+    );
+  }
+
+  async function createIsolatedAccountPage(sourcePage) {
+    const browser = sourcePage.context().browser();
+    if (!browser) {
+      throw new Error(
+        "Account evidence requires a browser-backed isolated context.",
+      );
+    }
+    const accountContext = await browser.newContext();
+    const accountPage = await accountContext.newPage();
+    return { accountContext, accountPage };
+  }
+
   async function signInAndOpenAccountOrders(targetPage) {
     await gotoRoute(targetPage, "/account/orders");
-    const existingAccountSession = await targetPage
-      .getByRole("button", { name: "Account", exact: true })
-      .isVisible()
-      .catch(() => false);
-    if (existingAccountSession) {
-      const existingOrdersResponse = waitForAccountOrdersResponse(targetPage);
-      await targetPage.reload({ waitUntil: "domcontentloaded" });
-      return await readAccountOrdersResponse(await existingOrdersResponse);
-    }
-
     const signInButton = targetPage
       .getByRole("button", { name: "Sign in", exact: true })
       .first();
     await signInButton.waitFor({
       state: "visible",
-      timeout: interactionTimeout,
+      timeout: routeReadinessTimeout,
     });
     await signInButton.click();
     await targetPage.getByLabel("Email").fill(accountEmail);
@@ -1101,31 +1218,35 @@ async function postPurchaseOperationsEvidence(page) {
       .fill(accountPassword);
     const accountOrdersResponse = waitForAccountOrdersResponse(targetPage);
     await targetPage.getByRole("button", { name: "Sign in" }).last().click();
-    await targetPage
-      .getByRole("button", { name: "Account" })
-      .waitFor({ state: "visible", timeout: interactionTimeout });
-    await targetPage
-      .getByRole("dialog")
-      .waitFor({ state: "hidden", timeout: interactionTimeout });
-    const apiAccountOrders = await readAccountOrdersResponse(
-      await accountOrdersResponse,
-    );
+    const [ordersResponse] = await Promise.all([
+      accountOrdersResponse,
+      targetPage
+        .getByRole("button", { name: "Account" })
+        .waitFor({ state: "visible", timeout: routeReadinessTimeout }),
+      targetPage
+        .getByRole("dialog")
+        .waitFor({ state: "hidden", timeout: routeReadinessTimeout }),
+    ]);
+    const apiAccountOrders = await readAccountOrdersResponse(ordersResponse);
     await targetPage
       .getByRole("heading", { name: "Order history" })
-      .waitFor({ state: "visible", timeout: interactionTimeout });
+      .waitFor({ state: "visible", timeout: routeReadinessTimeout });
     await targetPage
       .getByText(/Loading your orders/i)
-      .waitFor({ state: "hidden", timeout: interactionTimeout })
+      .waitFor({ state: "hidden", timeout: routeReadinessTimeout })
       .catch(() => undefined);
     return apiAccountOrders;
   }
 
-  function waitForAccountOrdersResponse(targetPage) {
+  function waitForAccountOrdersResponse(
+    targetPage,
+    timeout = routeReadinessTimeout,
+  ) {
     return targetPage.waitForResponse(
       (response) =>
         /\/api\/account\/orders(?:\?|$)/.test(response.url()) &&
         response.status() === 200,
-      { timeout: interactionTimeout },
+      { timeout },
     );
   }
 
