@@ -30,6 +30,7 @@ import {
 
 export interface CartPageProps {
   readonly data?: CartData;
+  readonly quantityChangesDisabled?: boolean;
   readonly onCheckoutNavigate?: () => void | Promise<void>;
   readonly onDeliveryExpressStart?: (
     method: DeliveryExpressPaymentMethod,
@@ -51,6 +52,7 @@ export interface CartPageProps {
 
 export function CartPage({
   data = defaultCartData,
+  quantityChangesDisabled = false,
   onCheckoutNavigate,
   onDeliveryExpressStart,
   onQuantityChange,
@@ -145,7 +147,7 @@ export function CartPage({
                   <button
                     type="button"
                     aria-label={`Decrease ${item.name} quantity`}
-                    disabled={quantity <= 0}
+                    disabled={quantityChangesDisabled || quantity <= 0}
                     onClick={() => updateQuantity(item, quantity - 1)}
                   >
                     -
@@ -162,7 +164,9 @@ export function CartPage({
                   <button
                     type="button"
                     aria-label={`Increase ${item.name} quantity`}
-                    disabled={quantity >= item.maxQuantity}
+                    disabled={
+                      quantityChangesDisabled || quantity >= item.maxQuantity
+                    }
                     onClick={() => updateQuantity(item, quantity + 1)}
                   >
                     +

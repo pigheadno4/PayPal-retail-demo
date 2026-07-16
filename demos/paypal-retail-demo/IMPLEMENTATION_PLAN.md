@@ -1147,3 +1147,23 @@ Run: `git diff --check`
 - [x] Add an expiring conditional database lease shared by resume and capture so draft/promo writes cannot race an order transition to paid; capture reaches the PayPal gateway and marks paid only while it owns the capture token.
 - [x] Prove the corrections with focused red-green tests, then pass `npm run verify` with 749 tests across 77 files plus typecheck/lint/format, `npm run build`, `git diff --check`, and `scripts/check-agent-system.sh`.
 - [x] Close the bounded decline re-review with `Ready: Yes` and no Critical, Important, or Minor findings.
+
+### Task 7: Correct Render Stateful Verification Regressions
+
+**Goal:** Keep the deployed shipping callback, pending-order resume, minicart, and Payment Diagnostics behavior aligned with their persisted server state.
+
+**Boundaries:**
+
+- A PayPal callback address does not provide a trusted county field. Only the callback opts into the demo's missing-county fallback. Matching rates use verified country/state and longest postal prefix, never gain specificity from an absent county, and fall back past equally specific conflicting county rows. Ordinary Checkout and pending resume retain strict county matching.
+- An explicit empty `shipping_options` array from a resumed draft is authoritative and clears starter checkout choices instead of reviving fixture shipping fees.
+- Decreasing a minicart line from one to zero deletes the server item; it never sends the cart quantity endpoint an invalid zero quantity. Initial cart restore gates mutation controls and payment creation. Quantity updates/deletes, PDP additions, login merges, payment-entry refreshes, and post-capture reloads share one ordered cart-operation coordinator. Stale responses cannot repaint newer optimistic state, payment refresh waits for earlier writes, and a failed latest quantity write reloads the canonical cart.
+- Payment Diagnostics applies case-insensitive lookup only to text columns. A valid payment-session UUID is matched exactly against `payment_sessions.id`.
+
+- [x] Add failing regression coverage for all four production findings.
+- [x] Implement the smallest state-reconciliation and query fixes.
+- [x] Add PayPal repository coverage for a postal-scoped county rate with provider-omitted county.
+- [x] Resolve the first decline review's two Important findings with callback-only tax selection plus deterministic verified-scope ranking and ordered/recoverable cart mutations; close its Minor evidence finding with a negative postal test.
+- [x] Resolve the second decline review's cross-operation race by coordinating quantity, PDP add, login merge, payment refresh, and post-capture reload; add deferred-response proof that checkout refresh waits and stale PDP add responses cannot repaint newer quantity intent.
+- [x] Resolve the third decline review's bootstrap and payment-entry races: disable cart mutations until initial restore settles, make payment refresh await that restore, and suspend standard payment actions while coordinated cart work is pending; prove both boundaries with deferred-response regressions.
+- [x] Pass corrected full verification with typecheck, 764 tests across 77 files, lint, formatting, production build, diff check, and agent-system validation.
+- [x] Pass a decline-first independent review before staging or committing; final re-review returned APPROVE with no Critical, Important, or Minor findings.

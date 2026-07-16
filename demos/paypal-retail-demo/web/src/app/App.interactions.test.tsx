@@ -1711,6 +1711,80 @@ describe("App buyer interactions", () => {
     expectOfficialPayLaterMessage(minicart, "minicart-summary", "27.98");
   });
 
+  it("keeps cart quantity controls disabled until initial cart restore settles", async () => {
+    const user = userEvent.setup();
+    const restoreResponse =
+      createDeferred<ReturnType<typeof cartApiResponse>>();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": restoreResponse.promise,
+      },
+      patchResponse: cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 3,
+        unitPriceMinor: 1399,
+      }),
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "get",
+          path: "/api/cart",
+        }),
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    const increase = () =>
+      within(minicart).getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }) as HTMLButtonElement;
+
+    expect(increase().disabled).toBe(true);
+    await user.click(increase());
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/cart/items/cart_item_labubu",
+      }),
+    );
+
+    restoreResponse.resolve(
+      cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 2,
+        unitPriceMinor: 1399,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(increase().disabled).toBe(false);
+      expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
+    });
+    await user.click(increase());
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: { quantity: 3 },
+          method: "patch",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+  });
+
   it("consolidates delivery express pending copy while cart access is restoring", () => {
     const pendingApiResponse = new Promise<unknown>(() => {});
 
@@ -1858,6 +1932,363 @@ describe("App buyer interactions", () => {
     });
     expect(within(minicart).getByText("Qty 4 · $13.99")).toBeTruthy();
     expectOfficialPayLaterMessage(minicart, "minicart-summary", "55.96");
+  });
+
+  it("deletes the server cart item when minicart quantity reaches zero", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      deleteResponseByPath: {
+        "/api/cart/items/cart_item_labubu": emptyCartApiResponse({
+          cartClientSecret: "cart_secret_existing",
+          cartPublicId: "cart_public_existing",
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Decrease Labubu Have a Seat quantity",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "delete",
+        path: "/api/cart/items/cart_item_labubu",
+        query: { market: "US" },
+        options: {
+          headers: {
+            "x-cart-id": "cart_public_existing",
+            "x-cart-secret": "cart_secret_existing",
+          },
+        },
+      });
+      expect(within(minicart).getByText("0 items")).toBeTruthy();
+    });
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/cart/items/cart_item_labubu",
+        body: { quantity: 0 },
+      }),
+    );
+    expect(within(minicart).queryByText("Qty 0 · $13.99")).toBeNull();
+  });
+
+  it("does not let an older quantity response overwrite a queued delete", async () => {
+    const user = userEvent.setup();
+    const patchResponse = createDeferred<ReturnType<typeof cartApiResponse>>();
+    const deleteResponse =
+      createDeferred<ReturnType<typeof emptyCartApiResponse>>();
+    const apiClient = createRecordingApiClient({
+      deleteResponseByPath: {
+        "/api/cart/items/cart_item_labubu": deleteResponse.promise,
+      },
+      patchResponseByPath: {
+        "/api/cart/items/cart_item_labubu": patchResponse.promise,
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 2,
+        })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    const decrease = () =>
+      within(minicart).getByRole("button", {
+        name: "Decrease Labubu Have a Seat quantity",
+      });
+
+    await user.click(decrease());
+    await waitFor(() => {
+      expect(within(minicart).getByText("Qty 1 · $13.99")).toBeTruthy();
+    });
+    await user.click(decrease());
+    expect(within(minicart).getByText("0 items")).toBeTruthy();
+
+    patchResponse.resolve(
+      cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 1,
+        unitPriceMinor: 1399,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "delete",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+    expect(within(minicart).getByText("0 items")).toBeTruthy();
+    expect(within(minicart).queryByText("Qty 1 · $13.99")).toBeNull();
+
+    deleteResponse.resolve(
+      emptyCartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        cartPublicId: "cart_public_existing",
+      }),
+    );
+    await waitFor(() => {
+      expect(within(minicart).getByText("0 items")).toBeTruthy();
+    });
+  });
+
+  it("waits for a pending quantity mutation before refreshing cart for checkout", async () => {
+    const user = userEvent.setup();
+    const patchResponse = createDeferred<ReturnType<typeof cartApiResponse>>();
+    const apiClient = createRecordingApiClient({
+      patchResponseByPath: {
+        "/api/cart/items/cart_item_labubu": patchResponse.promise,
+      },
+      postResponseByPath: {
+        "/api/cart/refresh": cartApiResponse({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 2,
+          unitPriceMinor: 1399,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/cart"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "patch",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole("link", { name: "Go to checkout" }));
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "post",
+        path: "/api/cart/refresh",
+      }),
+    );
+
+    patchResponse.resolve(
+      cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 2,
+        unitPriceMinor: 1399,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: { trigger: "checkout_start" },
+          method: "post",
+          path: "/api/cart/refresh",
+        }),
+      );
+    });
+    const quantityCallIndex = apiClient.calls.findIndex(
+      (call) =>
+        call.method === "patch" &&
+        call.path === "/api/cart/items/cart_item_labubu",
+    );
+    const refreshCallIndex = apiClient.calls.findIndex(
+      (call) => call.method === "post" && call.path === "/api/cart/refresh",
+    );
+    expect(refreshCallIndex).toBeGreaterThan(quantityCallIndex);
+  });
+
+  it("does not let a pending PDP add repaint a newer quantity change", async () => {
+    const user = userEvent.setup();
+    const addResponse = createDeferred<ReturnType<typeof cartApiResponse>>();
+    const patchResponse = createDeferred<ReturnType<typeof cartApiResponse>>();
+    const apiClient = createRecordingApiClient({
+      patchResponseByPath: {
+        "/api/cart/items/cart_item_labubu": patchResponse.promise,
+      },
+      postResponseByPath: {
+        "/api/cart/items": addResponse.promise,
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/products/labubu-have-a-seat"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+        initialProductPages={{
+          "labubu-have-a-seat": {
+            ...releasedProduct(),
+            productId: "product_labubu",
+          },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add to cart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await waitFor(() => {
+      expect(within(minicart).getByText("Qty 2 · $13.99")).toBeTruthy();
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "post",
+          path: "/api/cart/items",
+        }),
+      );
+    });
+
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Decrease Labubu Have a Seat quantity",
+      }),
+    );
+    expect(within(minicart).getByText("Qty 1 · $13.99")).toBeTruthy();
+    expect(apiClient.calls).not.toContainEqual(
+      expect.objectContaining({
+        method: "patch",
+        path: "/api/cart/items/cart_item_labubu",
+      }),
+    );
+
+    addResponse.resolve(
+      cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 2,
+        unitPriceMinor: 1399,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: { quantity: 1 },
+          method: "patch",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+    expect(within(minicart).getByText("Qty 1 · $13.99")).toBeTruthy();
+    expect(within(minicart).queryByText("Qty 2 · $13.99")).toBeNull();
+
+    patchResponse.resolve(
+      cartApiResponse({
+        cartClientSecret: "cart_secret_existing",
+        quantity: 1,
+        unitPriceMinor: 1399,
+      }),
+    );
+    await waitFor(() => {
+      expect(within(minicart).getByText("Qty 1 · $13.99")).toBeTruthy();
+    });
+  });
+
+  it("restores the canonical server cart when deleting the last item fails", async () => {
+    const user = userEvent.setup();
+    const deleteResponse = createDeferred<never>();
+    const canonicalCart = cartApiResponse({
+      cartClientSecret: "cart_secret_existing",
+      quantity: 1,
+      unitPriceMinor: 1399,
+    });
+    const apiClient = createRecordingApiClient({
+      deleteResponseByPath: {
+        "/api/cart/items/cart_item_labubu": deleteResponse.promise,
+      },
+      getResponsesByPath: {
+        "/api/cart": [canonicalCart, canonicalCart],
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        initialPathname="/"
+        initialCart={singleItemCart({
+          cartClientSecret: "cart_secret_existing",
+          quantity: 1,
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        apiClient.calls.some(
+          (call) => call.method === "get" && call.path === "/api/cart",
+        ),
+      ).toBe(true);
+    });
+    const cartGetCountBeforeDelete = apiClient.calls.filter(
+      (call) => call.method === "get" && call.path === "/api/cart",
+    ).length;
+
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Decrease Labubu Have a Seat quantity",
+      }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          method: "delete",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+
+    deleteResponse.reject(new Error("delete failed"));
+
+    await waitFor(() => {
+      expect(
+        apiClient.calls.filter(
+          (call) => call.method === "get" && call.path === "/api/cart",
+        ).length,
+      ).toBeGreaterThan(cartGetCountBeforeDelete);
+      expect(within(minicart).getByText("Qty 1 · $13.99")).toBeTruthy();
+    });
+    expect(
+      screen.getByText("Cart update failed. Restored saved cart."),
+    ).toBeTruthy();
   });
 
   it("keeps active cart count and minicart contents when navigating to checkout", async () => {
@@ -5448,6 +5879,20 @@ interface RecordingAuthClientInput {
   readonly existingSession?: RecordingAuthSession | null;
   readonly signInSession?: RecordingAuthSession;
   readonly signUpSession?: RecordingAuthSession;
+}
+
+function createDeferred<T>(): {
+  readonly promise: Promise<T>;
+  readonly reject: (reason?: unknown) => void;
+  readonly resolve: (value: T) => void;
+} {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }
 
 function createRecordingAuthClient(input: RecordingAuthClientInput = {}): {

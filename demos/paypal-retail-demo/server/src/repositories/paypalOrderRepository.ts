@@ -1510,6 +1510,7 @@ async function handleExpressShippingCallback(
       cartItems,
       discountMinor: promoEvaluation.merchandise_discount_minor,
       taxDestination: destination,
+      allowPostalCountyFallback: true,
       shippingMinor: selectedShippingOption.amount_minor,
       pickupStoreInventory: null,
     },
@@ -2531,6 +2532,7 @@ async function buildMerchantLines(
     readonly cartItems: readonly PayPalOrderCartItemRow[];
     readonly discountMinor: number;
     readonly taxDestination: Destination | null;
+    readonly allowPostalCountyFallback?: boolean;
     readonly shippingMinor: number;
     readonly pickupStoreInventory:
       | readonly PayPalOrderStoreInventoryRow[]
@@ -2582,6 +2584,11 @@ async function buildMerchantLines(
   const taxMinor = await calculateTaxMinor(input, {
     marketId: storefrontRows.market.id,
     destination: options.taxDestination,
+    ...(options.allowPostalCountyFallback === undefined
+      ? {}
+      : {
+          allowPostalCountyFallback: options.allowPostalCountyFallback,
+        }),
     subtotalMinor,
     discountMinor,
     shippingMinor: options.shippingMinor,
@@ -2640,6 +2647,7 @@ async function calculateTaxMinor(
   options: {
     readonly marketId: string;
     readonly destination: Destination | null;
+    readonly allowPostalCountyFallback?: boolean;
     readonly subtotalMinor: number;
     readonly discountMinor: number;
     readonly shippingMinor: number;
@@ -2653,6 +2661,11 @@ async function calculateTaxMinor(
   const selectedRate = selectTaxRate(
     taxRates.map(mapTaxRateForShared),
     options.destination,
+    options.allowPostalCountyFallback === undefined
+      ? {}
+      : {
+          allowPostalCountyFallback: options.allowPostalCountyFallback,
+        },
   );
   if (!selectedRate) {
     return 0;

@@ -1387,7 +1387,22 @@ function BuyerShell({
     "error" | "idle" | "loading" | "ready"
   >("idle");
   const [guestOrderError, setGuestOrderError] = useState<string | null>(null);
+  const [isCartBootstrapPending, setIsCartBootstrapPending] = useState(
+    () => typeof window !== "undefined",
+  );
+  const [pendingCartOperationCount, setPendingCartOperationCount] = useState(0);
+  const [cartBootstrapGate] = useState(() => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((resolvePromise) => {
+      resolve = resolvePromise;
+    });
+    return { promise, resolve };
+  });
   const didRunInitialCartRestore = useRef(false);
+  const currentCartRef = useRef(cartData);
+  const confirmedCartRef = useRef(cartData);
+  const cartOperationIdRef = useRef(0);
+  const cartOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const accountActionRef = useRef<HTMLButtonElement | null>(null);
   const authModalTriggerRef = useRef<HTMLElement | null>(null);
   const minicartTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -1498,11 +1513,7 @@ function BuyerShell({
             freshResponse,
             starterCart,
           );
-          syncStoredCartBinding(config, freshCart);
-          setCurrentCart(freshCart);
-          setCurrentCheckoutData((data) =>
-            reconcileCheckoutDataFromCart(data, freshCart),
-          );
+          commitServerCart(freshCart);
           setShellStatus("Prepared guest cart.");
           return;
         }
@@ -1525,19 +1536,12 @@ function BuyerShell({
             return;
           }
 
-          setCurrentCart(seededCart);
-          setCurrentCheckoutData((data) =>
-            reconcileCheckoutDataFromCart(data, seededCart),
-          );
-          syncStoredCartBinding(config, seededCart);
+          commitServerCart(seededCart);
           setShellStatus("Prepared guest cart.");
           return;
         }
 
-        setCurrentCart(reconciledCart);
-        setCurrentCheckoutData((data) =>
-          reconcileCheckoutDataFromCart(data, reconciledCart),
-        );
+        commitServerCart(reconciledCart);
         setShellStatus(
           currentAuthSession
             ? "Restored signed-in cart."
@@ -1576,23 +1580,31 @@ function BuyerShell({
             freshResponse,
             starterCart,
           );
-          setCurrentCart(freshCart);
-          setCurrentCheckoutData((data) =>
-            reconcileCheckoutDataFromCart(data, freshCart),
-          );
-          syncStoredCartBinding(config, freshCart);
+          commitServerCart(freshCart);
           setShellStatus("Prepared guest cart.");
         } catch (recoveryError: unknown) {
           console.error("[paypal-retail-demo] Cart restore recovery failed", {
             error: recoveryError,
           });
         }
+      })
+      .finally(() => {
+        cartBootstrapGate.resolve();
+        if (active) {
+          setIsCartBootstrapPending(false);
+        }
       });
 
     return () => {
       active = false;
     };
-  }, [apiClient, config, currentAuthSession, starterCartData]);
+  }, [
+    apiClient,
+    cartBootstrapGate,
+    config,
+    currentAuthSession,
+    starterCartData,
+  ]);
 
   useEffect(() => {
     if (currentRoute.page !== "express_review") {
@@ -2121,13 +2133,15 @@ function BuyerShell({
     setCurrentAuthSession(session);
     setAuthModalStatus("Saving your cart...");
 
-    const response = await apiClient.post<CartApiResponse>(
-      "/api/cart/merge",
-      {},
-      cartQuery(),
-      buildCartRequestOptions(currentCart, session),
-    );
-    reconcileServerCart(response);
+    await enqueueCartOperation(async (operationId) => {
+      const response = await apiClient.post<CartApiResponse>(
+        "/api/cart/merge",
+        {},
+        cartQuery(),
+        buildCartRequestOptions(currentCartRef.current, session),
+      );
+      acceptCartOperationResponse(operationId, response);
+    });
     clearStoredCartBinding(config);
     setCurrentAuthModalState("closed");
     setAuthModalStatus(undefined);
@@ -2178,40 +2192,54 @@ function BuyerShell({
   async function refreshCartBefore(
     trigger: CartRefreshTrigger,
   ): Promise<DeliveryExpressCreateOrderCartContext | undefined> {
-    console.info("[paypal-retail-demo] Cart refresh before payment starting", {
-      cartPublicId: currentCart.cartPublicId ?? null,
-      hasAuthSession: Boolean(currentAuthSession?.accessToken),
-      hasCartClientSecret: Boolean(currentCart.cartClientSecret?.trim()),
-      trigger,
-    });
+    await cartBootstrapGate.promise;
     try {
-      const response = await apiClient.post<CartApiResponse>(
-        "/api/cart/refresh",
-        {
-          trigger,
+      const { isLatest, refreshedCart } = await enqueueCartOperation(
+        async (operationId) => {
+          const requestCart = currentCartRef.current;
+          console.info(
+            "[paypal-retail-demo] Cart refresh before payment starting",
+            {
+              cartPublicId: requestCart.cartPublicId ?? null,
+              hasAuthSession: Boolean(currentAuthSession?.accessToken),
+              hasCartClientSecret: Boolean(
+                requestCart.cartClientSecret?.trim(),
+              ),
+              trigger,
+            },
+          );
+          const response = await apiClient.post<CartApiResponse>(
+            "/api/cart/refresh",
+            {
+              trigger,
+            },
+            cartQuery(),
+            buildCartRequestOptions(requestCart, currentAuthSession),
+          );
+          const refreshedCart = acceptCartOperationResponse(
+            operationId,
+            response,
+          );
+          const isLatest = isLatestCartOperation(operationId);
+          console.info(
+            "[paypal-retail-demo] Cart refresh before payment succeeded",
+            {
+              cartPublicId: refreshedCart.cartPublicId ?? null,
+              hasAuthSession: Boolean(currentAuthSession?.accessToken),
+              hasCartClientSecret: Boolean(
+                refreshedCart.cartClientSecret?.trim(),
+              ),
+              itemCount: calculateCartItemCount(refreshedCart),
+              trigger,
+            },
+          );
+          return { isLatest, refreshedCart };
         },
-        cartQuery(),
-        buildCartRequestOptions(currentCart, currentAuthSession),
       );
-      const refreshedCart = reconcileCartDataForStorefront(
-        currentCart,
-        response,
-      );
-      setCurrentCart(refreshedCart);
-      setCurrentCheckoutData((data) =>
-        reconcileCheckoutDataFromCart(data, refreshedCart),
-      );
-      syncStoredCartBinding(config, refreshedCart);
-      console.info(
-        "[paypal-retail-demo] Cart refresh before payment succeeded",
-        {
-          cartPublicId: refreshedCart.cartPublicId ?? null,
-          hasAuthSession: Boolean(currentAuthSession?.accessToken),
-          hasCartClientSecret: Boolean(refreshedCart.cartClientSecret?.trim()),
-          itemCount: calculateCartItemCount(refreshedCart),
-          trigger,
-        },
-      );
+
+      if (!isLatest) {
+        return refreshCartBefore(trigger);
+      }
       if (!refreshedCart.cartPublicId?.trim()) {
         return undefined;
       }
@@ -2235,36 +2263,130 @@ function BuyerShell({
   }
 
   function syncCartQuantity(cartItemId: string, nextQuantity: number) {
-    void apiClient
-      .patch<CartApiResponse>(
-        `/api/cart/items/${encodeURIComponent(cartItemId)}`,
-        {
-          quantity: nextQuantity,
-        },
-        cartQuery(),
-        buildCartRequestOptions(currentCart, currentAuthSession),
-      )
-      .then((response) => {
-        reconcileServerCart(response);
-      })
-      .catch((error: unknown) => {
+    const path = `/api/cart/items/${encodeURIComponent(cartItemId)}`;
+    const query = cartQuery();
+    const queuedOperation = enqueueCartOperation(async (operationId) => {
+      const options = buildCartRequestOptions(
+        currentCartRef.current,
+        currentAuthSession,
+      );
+      try {
+        const response =
+          nextQuantity <= 0
+            ? await apiClient.delete<CartApiResponse>(path, query, options)
+            : await apiClient.patch<CartApiResponse>(
+                path,
+                { quantity: nextQuantity },
+                query,
+                options,
+              );
+        acceptCartOperationResponse(operationId, response);
+      } catch (error: unknown) {
         console.error("[paypal-retail-demo] Cart quantity sync failed", {
           cartItemId,
           nextQuantity,
           error,
         });
-      });
+        if (!isLatestCartOperation(operationId)) {
+          return;
+        }
+
+        try {
+          const recoveryResponse = await apiClient.get<CartApiResponse>(
+            "/api/cart",
+            query,
+            options,
+          );
+          if (!isLatestCartOperation(operationId)) {
+            return;
+          }
+          const recoveredCart = rememberServerCart(recoveryResponse);
+          presentServerCart(recoveredCart);
+          setShellStatus("Cart update failed. Restored saved cart.");
+        } catch (recoveryError: unknown) {
+          console.error("[paypal-retail-demo] Cart quantity recovery failed", {
+            cartItemId,
+            nextQuantity,
+            error: recoveryError,
+          });
+          if (isLatestCartOperation(operationId)) {
+            presentServerCart(confirmedCartRef.current);
+            setShellStatus("Cart update failed. Please try again.");
+          }
+        }
+      }
+    });
+    void queuedOperation;
   }
 
-  function reconcileServerCart(response: CartApiResponse) {
-    setCurrentCart((cart) => {
-      const nextCart = reconcileCartDataForStorefront(cart, response);
-      setCurrentCheckoutData((data) =>
-        reconcileCheckoutDataFromCart(data, nextCart),
-      );
-      syncStoredCartBinding(config, nextCart);
-      return nextCart;
-    });
+  function enqueueCartOperation<TResult>(
+    runOperation: (operationId: number) => Promise<TResult>,
+  ): Promise<TResult> {
+    const operationId = cartOperationIdRef.current + 1;
+    cartOperationIdRef.current = operationId;
+    setPendingCartOperationCount((count) => count + 1);
+    const queuedOperation = cartOperationQueueRef.current.then(
+      () => runOperation(operationId),
+      () => runOperation(operationId),
+    );
+    const trackedOperation = queuedOperation.then(
+      (result) => {
+        setPendingCartOperationCount((count) => Math.max(0, count - 1));
+        return result;
+      },
+      (error: unknown) => {
+        setPendingCartOperationCount((count) => Math.max(0, count - 1));
+        throw error;
+      },
+    );
+    cartOperationQueueRef.current = trackedOperation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return trackedOperation;
+  }
+
+  function isLatestCartOperation(operationId: number): boolean {
+    return operationId === cartOperationIdRef.current;
+  }
+
+  function acceptCartOperationResponse(
+    operationId: number,
+    response: CartApiResponse,
+  ): CartData {
+    const isLatest = isLatestCartOperation(operationId);
+    const confirmedCart = rememberServerCart(
+      response,
+      isLatest ? currentCartRef.current : confirmedCartRef.current,
+    );
+    if (isLatest) {
+      presentServerCart(confirmedCart);
+    }
+    return confirmedCart;
+  }
+
+  function rememberServerCart(
+    response: CartApiResponse,
+    fallbackCart: CartData = currentCartRef.current,
+  ): CartData {
+    const nextCart = reconcileCartDataForStorefront(fallbackCart, response);
+    confirmedCartRef.current = nextCart;
+    syncStoredCartBinding(config, nextCart);
+    return nextCart;
+  }
+
+  function presentServerCart(nextCart: CartData) {
+    currentCartRef.current = nextCart;
+    setCurrentCart(nextCart);
+    setCurrentCheckoutData((data) =>
+      reconcileCheckoutDataFromCart(data, nextCart),
+    );
+  }
+
+  function commitServerCart(nextCart: CartData) {
+    confirmedCartRef.current = nextCart;
+    syncStoredCartBinding(config, nextCart);
+    presentServerCart(nextCart);
   }
 
   async function updateCheckoutDraft(
@@ -2626,10 +2748,14 @@ function BuyerShell({
     product: ProductDetailPageData,
     selection: ProductPurchaseSelection,
   ) {
+    if (isCartBootstrapPending) {
+      setShellStatus("Cart is still syncing. Please try Add to cart again.");
+      return;
+    }
     const primaryImage = product.gallery[0];
 
-    setCurrentCart((cart) =>
-      addProductToCartQuantity(
+    setCurrentCart((cart) => {
+      const nextCart = addProductToCartQuantity(
         cart,
         {
           ...(product.productId ? { productId: product.productId } : {}),
@@ -2650,8 +2776,10 @@ function BuyerShell({
           href: `/products/${product.slug}`,
         },
         selection.quantity,
-      ),
-    );
+      );
+      currentCartRef.current = nextCart;
+      return nextCart;
+    });
     setCurrentMinicartState("open");
     setShellStatus(
       selection.quantity > 1
@@ -2688,28 +2816,32 @@ function BuyerShell({
       return;
     }
 
-    void apiClient
-      .post<CartApiResponse>(
-        "/api/cart/items",
-        {
-          product_id: productId,
-          quantity: selection.quantity,
-        },
-        cartQuery(),
-        buildCartRequestOptions(currentCart, currentAuthSession),
-      )
-      .then((response) => {
-        reconcileServerCart(response);
-      })
-      .catch((error: unknown) => {
+    const queuedOperation = enqueueCartOperation(async (operationId) => {
+      try {
+        const response = await apiClient.post<CartApiResponse>(
+          "/api/cart/items",
+          {
+            product_id: productId,
+            quantity: selection.quantity,
+          },
+          cartQuery(),
+          buildCartRequestOptions(currentCartRef.current, currentAuthSession),
+        );
+        acceptCartOperationResponse(operationId, response);
+      } catch (error: unknown) {
         console.error("[paypal-retail-demo] PDP Add to cart sync failed", {
           error,
           productId,
           productSlug: product.slug,
           quantity: selection.quantity,
         });
-        setShellStatus("Cart update failed. Please try Add to cart again.");
-      });
+        if (isLatestCartOperation(operationId)) {
+          presentServerCart(confirmedCartRef.current);
+          setShellStatus("Cart update failed. Please try Add to cart again.");
+        }
+      }
+    });
+    void queuedOperation;
   }
 
   function handleCartQuantityChange(
@@ -2717,7 +2849,15 @@ function BuyerShell({
     nextQuantity: number,
     cartItemId: string,
   ) {
-    setCurrentCart((cart) => setCartItemQuantity(cart, slug, nextQuantity));
+    if (isCartBootstrapPending) {
+      setShellStatus("Cart is still syncing. Please try again.");
+      return;
+    }
+    setCurrentCart((cart) => {
+      const nextCart = setCartItemQuantity(cart, slug, nextQuantity);
+      currentCartRef.current = nextCart;
+      return nextCart;
+    });
     syncCartQuantity(cartItemId, nextQuantity);
   }
 
@@ -2848,12 +2988,14 @@ function BuyerShell({
 
   async function reloadCartAfterPaymentCapture() {
     try {
-      const response = await apiClient.get<CartApiResponse>(
-        "/api/cart",
-        cartQuery(),
-        buildCartRequestOptions(currentCart, currentAuthSession),
-      );
-      reconcileServerCart(response);
+      await enqueueCartOperation(async (operationId) => {
+        const response = await apiClient.get<CartApiResponse>(
+          "/api/cart",
+          cartQuery(),
+          buildCartRequestOptions(currentCartRef.current, currentAuthSession),
+        );
+        acceptCartOperationResponse(operationId, response);
+      });
     } catch (error) {
       console.error("[paypal-retail-demo] Cart reload after capture failed", {
         error,
@@ -3176,6 +3318,7 @@ function BuyerShell({
           missingProductSlugs={missingProductSlugs}
           productPages={currentProductPages}
           cartData={currentCart}
+          cartMutationsDisabled={isCartBootstrapPending}
           checkoutData={currentCheckoutData}
           checkoutWalletProbeConfig={{
             currencyCode:
@@ -3201,6 +3344,8 @@ function BuyerShell({
           savedPayments={savedPayments}
           savedPaymentsStatus={savedPaymentsStatus}
           suppressCheckoutPaymentActions={
+            isCartBootstrapPending ||
+            pendingCartOperationCount > 0 ||
             isMobileMenuOpen ||
             currentMinicartState !== "closed" ||
             currentAuthModalState !== "closed"
@@ -3328,6 +3473,7 @@ function BuyerShell({
       <MinicartShell
         state={currentMinicartState}
         cart={currentCart}
+        quantityChangesDisabled={isCartBootstrapPending}
         onCartNavigate={() =>
           navigateBuyer({
             pathname: currentCart.cartHref,
@@ -3376,6 +3522,7 @@ function RouteStage({
   missingProductSlugs,
   productPages,
   cartData,
+  cartMutationsDisabled,
   checkoutData,
   checkoutWalletProbeConfig,
   expressAccountLinkPrompt,
@@ -3420,6 +3567,7 @@ function RouteStage({
   readonly missingProductSlugs: ReadonlySet<string>;
   readonly productPages: Readonly<Record<string, ProductDetailPageData>>;
   readonly cartData: CartData;
+  readonly cartMutationsDisabled: boolean;
   readonly checkoutData: CheckoutPageData;
   readonly checkoutWalletProbeConfig: {
     readonly currencyCode: string;
@@ -3531,6 +3679,7 @@ function RouteStage({
     return (
       <CartPage
         data={cartData}
+        quantityChangesDisabled={cartMutationsDisabled}
         onCheckoutNavigate={() =>
           onNavigate({
             pathname: cartData.checkoutHref,
@@ -3598,6 +3747,7 @@ function RouteStage({
 
     return productPage ? (
       <ProductDetailPage
+        addToCartDisabled={cartMutationsDisabled}
         data={productPage}
         onAddToCart={onAddProductToCart}
         renderDeliveryExpressAction={(method, product, amountLabel) =>

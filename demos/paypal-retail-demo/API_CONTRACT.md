@@ -318,6 +318,14 @@ Rules:
 
 Refreshes server cart from canonical database state before checkout, express payment, minicart open, or cart open.
 
+The buyer client orders whole-cart operations through one coordinator. Quantity
+updates/deletes, PDP additions, login merges, payment-entry refreshes, and the
+post-capture reload cannot overtake each other; a payment refresh waits for
+earlier writes, and an older response cannot repaint newer optimistic intent.
+Initial cart restoration is also a write barrier: cart mutation controls remain
+disabled until restoration settles, and standard or express payment order
+creation waits for both restoration and all earlier coordinated cart work.
+
 ## Checkout APIs
 
 ### `POST /api/checkout/drafts`
@@ -691,6 +699,8 @@ Decline response:
 Response must keep PayPal amount breakdown consistent. The callback path must be a valid internal UUID and the callback body must contain a provider-shaped PayPal order ID that resolves to the exact payment session for that order. Missing, malformed, PII-like, or mismatched identifiers return `422` before recalculation/persistence. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
 
 The route emits sanitized allowlisted runtime diagnostics named `paypal_shipping_callback_received`, `paypal_shipping_callback_completed`, and `paypal_shipping_callback_declined` with source `payment_shipping_update`. Approved context is limited to callback/order correlation, selected shipping-option ID, outcome/status, decline issue, and duration. Raw callback bodies, shipping addresses, buyer PII, and provider payloads are never logged. Diagnostics do not change the raw PayPal `200`/`422` response contract.
+
+PayPal callback address fields are normalized as country, state, city/locality, and postal code; `admin_area_2` is not treated as a trusted county. Only the PayPal shipping-callback calculation opts into the missing-county fallback; ordinary Checkout and pending resume do not. When county is unavailable, the callback may use an active county-scoped rate only when its country, state, and postal prefix all match. Selection ranks verified postal scope by longest matching prefix and never awards specificity for the unverified county. Equally specific county rows with conflicting rates are ignored in favor of the next unambiguous verified fallback. County-only rows without a matching postal scope do not match an omitted county.
 
 ### `GET /api/paypal/orders/express-review`
 

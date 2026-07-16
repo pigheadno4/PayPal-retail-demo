@@ -362,7 +362,7 @@ function reconcileDeliverySteps(
       };
     }
 
-    if (step.id === "shipping-options" && delivery.shipping_options?.length) {
+    if (step.id === "shipping-options" && delivery.shipping_options) {
       return {
         ...step,
         choices: delivery.shipping_options.map((option) =>

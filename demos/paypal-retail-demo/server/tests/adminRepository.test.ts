@@ -558,7 +558,7 @@ describe("Supabase Admin repository filtering and pagination", () => {
       expect.arrayContaining([
         operation(
           "or",
-          "id.ilike.%PAYPAL_ORDER_1%,paypal_order_id.ilike.%PAYPAL_ORDER_1%,paypal_capture_id.ilike.%PAYPAL_ORDER_1%,paypal_invoice_id.ilike.%PAYPAL_ORDER_1%,paypal_request_id.ilike.%PAYPAL_ORDER_1%",
+          "paypal_order_id.ilike.%PAYPAL_ORDER_1%,paypal_capture_id.ilike.%PAYPAL_ORDER_1%,paypal_invoice_id.ilike.%PAYPAL_ORDER_1%,paypal_request_id.ilike.%PAYPAL_ORDER_1%",
         ),
         operation("eq", "method", "paypal"),
         operation("eq", "status", "captured"),
@@ -567,6 +567,27 @@ describe("Supabase Admin repository filtering and pagination", () => {
         operation("lte", "updated_at", "2026-07-13T00:00:00.000Z"),
         operation("limit", 11),
       ]),
+    );
+  });
+
+  it("matches Payment Diagnostics session UUIDs exactly instead of using ILIKE", async () => {
+    const paymentSessionId = "c3090bc9-8612-421e-99c3-34df82f81745";
+    const client = new RecordingSupabaseAdminClient({
+      payment_sessions: { count: 0, rows: [] },
+    });
+    const repository = createSupabaseAdminPaymentDebugRepository(client);
+
+    await repository.listPaymentDebug({
+      lookup: paymentSessionId,
+      limit: 25,
+      timezone: "UTC",
+    });
+
+    expect(client.dataQuery("payment_sessions").operations).toContainEqual(
+      operation(
+        "or",
+        `id.eq.${paymentSessionId},paypal_order_id.ilike.%${paymentSessionId}%,paypal_capture_id.ilike.%${paymentSessionId}%,paypal_invoice_id.ilike.%${paymentSessionId}%,paypal_request_id.ilike.%${paymentSessionId}%`,
+      ),
     );
   });
 

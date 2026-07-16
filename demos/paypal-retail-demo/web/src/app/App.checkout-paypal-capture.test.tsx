@@ -1013,6 +1013,105 @@ describe("App checkout PayPal capture", () => {
     expect(paypalButtonMockState.createOrderCallbacks).not.toHaveBeenCalled();
   });
 
+  it("keeps standard payment suspended after minicart closes until quantity sync settles", async () => {
+    setCheckoutMobileViewport(true);
+    const user = userEvent.setup();
+    const patchResponse = createDeferred<ReturnType<typeof cartApiResponse>>();
+    const paypalOrderId = "PAYPAL_ORDER_CART_SYNC_BARRIER";
+    const paymentSessionId = "payment_session_cart_sync_barrier";
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/cart": cartApiResponse({ quantity: 1 }),
+        "/api/paypal/orders/express-review": expressReviewApiResponse({
+          paymentMethodLabel: "PayPal",
+          paymentSessionId,
+          paypalOrderId,
+        }),
+      },
+      patchResponse: patchResponse.promise,
+      postResponseByPath: {
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260716-000001",
+          payment_session_id: paymentSessionId,
+          paypal_order_id: paypalOrderId,
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-cart-sync-barrier",
+        },
+        [`/api/paypal/orders/${paypalOrderId}/capture`]: captureApiResponse({
+          paymentSessionId,
+          paypalOrderId,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialCheckout={checkoutWithSelectedDeliveryPayment({
+          checkoutDraftId: "11111111-1111-4111-8111-111111111111",
+          paymentMethod: "paypal",
+        })}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual(
+        expect.objectContaining({
+          body: { quantity: 2 },
+          method: "patch",
+          path: "/api/cart/items/cart_item_labubu",
+        }),
+      );
+    });
+    await user.click(
+      within(minicart).getByRole("button", { name: "Close minicart" }),
+    );
+
+    expect(queryCheckoutStickyPaymentAction()).toBeNull();
+    expect(
+      countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+    ).toBe(0);
+
+    patchResponse.resolve(cartApiResponse({ quantity: 2 }));
+    await waitFor(() => {
+      expect(queryCheckoutStickyPaymentAction()).toBeTruthy();
+    });
+    await user.click(
+      within(getCheckoutStickySummary()).getByRole("button", {
+        name: "Mock PayPal",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        countCreateOrderRequests(apiClient, "/api/paypal/orders/delivery"),
+      ).toBe(1);
+    });
+    const quantityCallIndex = apiClient.calls.findIndex(
+      (call) =>
+        call.method === "patch" &&
+        call.path === "/api/cart/items/cart_item_labubu",
+    );
+    const createOrderCallIndex = apiClient.calls.findIndex(
+      (call) =>
+        call.method === "post" && call.path === "/api/paypal/orders/delivery",
+    );
+    expect(createOrderCallIndex).toBeGreaterThan(quantityCallIndex);
+  });
+
   it("suspends the mobile sticky provider action while the sign-in dialog is open", async () => {
     setCheckoutMobileViewport(true);
     const user = userEvent.setup();
@@ -1674,6 +1773,20 @@ function countCreateOrderRequests(
   return apiClient.calls.filter(
     (call) => call.method === "post" && call.path === path,
   ).length;
+}
+
+function createDeferred<T>(): {
+  readonly promise: Promise<T>;
+  readonly reject: (reason?: unknown) => void;
+  readonly resolve: (value: T) => void;
+} {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }
 
 function createRecordingApiClient(

@@ -830,6 +830,16 @@ describe("Supabase-backed PayPal order repository", () => {
 
   it("recalculates and persists express shipping callback totals", async () => {
     const dataSource = createPayPalOrderDataSource();
+    dataSource.taxRates.splice(0, dataSource.taxRates.length, {
+      id: "tax_sf_postal",
+      market_id: "market_us",
+      country_code: "US",
+      state: "CA",
+      county: "San Francisco",
+      postal_code_prefix: "941",
+      rate_bps: 875,
+      is_active: true,
+    });
     const repository = createRepository(dataSource);
 
     const result = await repository.handleExpressShippingCallback({
@@ -2070,6 +2080,7 @@ interface FakePayPalOrderDataSource extends PayPalOrderDataSource {
   readonly promoCompatibility: PayPalOrderPromoCompatibilityRow[];
   readonly promoEvaluations: PayPalOrderPromoEvaluationWriteRow[];
   readonly promoEvaluationLines: PayPalOrderPromoEvaluationLineRow[];
+  readonly taxRates: PayPalOrderTaxRateRow[];
   readonly paymentSessions: PayPalOrderPaymentSessionRow[];
   readonly savedPaymentMethods: PayPalOrderSavedPaymentMethodRow[];
   readonly paypalSnapshots: unknown[];
@@ -2507,6 +2518,7 @@ function createPayPalOrderDataSource(): FakePayPalOrderDataSource {
     promoCompatibility,
     promoEvaluations,
     promoEvaluationLines,
+    taxRates,
     paymentSessions,
     savedPaymentMethods,
     paypalSnapshots,

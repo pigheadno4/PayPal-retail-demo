@@ -149,6 +149,7 @@ export interface ProductDetailPageData {
 
 export interface ProductDetailPageProps {
   readonly data: ProductDetailPageData;
+  readonly addToCartDisabled?: boolean;
   readonly onAddToCart?: (
     product: ProductDetailPageData,
     selection: ProductPurchaseSelection,
@@ -191,6 +192,7 @@ interface ProductReviewSummary {
 
 export function ProductDetailPage({
   data,
+  addToCartDisabled = false,
   onAddToCart,
   onDeliveryExpressStart,
   renderDeliveryExpressAction,
@@ -726,6 +728,7 @@ export function ProductDetailPage({
               >
                 <Button
                   className="button button--primary product-actions__button"
+                  disabled={addToCartDisabled}
                   type="button"
                   onClick={() => {
                     onAddToCart?.(data, selectedPurchaseSelection);
@@ -925,6 +928,7 @@ export function ProductDetailPage({
             </div>
             <Button
               className="button button--primary product-sticky-purchase__button"
+              disabled={addToCartDisabled}
               type="button"
               aria-label={`Add ${selectedPurchaseOption.label} quantity ${selectedPurchaseOption.quantity} to cart`}
               onClick={() => {

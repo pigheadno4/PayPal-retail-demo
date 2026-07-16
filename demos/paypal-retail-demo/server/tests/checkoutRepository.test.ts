@@ -194,6 +194,39 @@ describe("Supabase-backed checkout repository", () => {
     });
   });
 
+  it("does not apply the PayPal missing-county fallback to ordinary checkout", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push(existingDraft({ fulfillmentMode: "delivery" }));
+    dataSource.taxRates.push({
+      id: "tax_sf_callback_only",
+      market_id: "market_us",
+      country_code: "US",
+      state: "CA",
+      county: "San Francisco",
+      postal_code_prefix: "941",
+      rate_bps: 950,
+      is_active: true,
+    });
+    const repository = createRepository(dataSource);
+
+    const response = await repository.updateShippingAddress(
+      authenticatedContext(),
+      {
+        draftId: "draft_delivery",
+        address: {
+          ...addressInput(),
+          county: null,
+        },
+        saveToAddressBook: false,
+      },
+    );
+
+    expect(response.draft.summary).toMatchObject({
+      tax_minor: 358,
+      total_minor: 4955,
+    });
+  });
+
   it("reuses shipping-address recalculation inputs instead of repeating slow draft reads", async () => {
     const dataSource = createCheckoutDataSource();
     dataSource.drafts.push(existingDraft({ fulfillmentMode: "delivery" }));

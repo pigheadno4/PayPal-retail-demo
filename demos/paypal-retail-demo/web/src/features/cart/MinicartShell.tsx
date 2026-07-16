@@ -34,6 +34,7 @@ import { DeliveryExpressActions } from "./CartPage.js";
 export interface MinicartShellProps {
   readonly state: StorefrontShellPanels["minicart"];
   readonly cart?: CartData;
+  readonly quantityChangesDisabled?: boolean;
   readonly onCartNavigate?: () => void | Promise<void>;
   readonly onCheckoutNavigate?: () => void | Promise<void>;
   readonly onClose?: () => void;
@@ -58,6 +59,7 @@ export interface MinicartShellProps {
 export function MinicartShell({
   state,
   cart = defaultCartData,
+  quantityChangesDisabled = false,
   onCartNavigate,
   onCheckoutNavigate,
   onClose,
@@ -166,7 +168,11 @@ export function MinicartShell({
                           <button
                             type="button"
                             aria-label={`Decrease ${item.name} quantity`}
-                            disabled={!onQuantityChange || quantity <= 0}
+                            disabled={
+                              quantityChangesDisabled ||
+                              !onQuantityChange ||
+                              quantity <= 0
+                            }
                             onClick={() => updateQuantity(item, quantity - 1)}
                           >
                             -
@@ -184,7 +190,9 @@ export function MinicartShell({
                             type="button"
                             aria-label={`Increase ${item.name} quantity`}
                             disabled={
-                              !onQuantityChange || quantity >= item.maxQuantity
+                              quantityChangesDisabled ||
+                              !onQuantityChange ||
+                              quantity >= item.maxQuantity
                             }
                             onClick={() => updateQuantity(item, quantity + 1)}
                           >

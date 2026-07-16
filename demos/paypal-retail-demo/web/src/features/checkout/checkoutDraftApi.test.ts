@@ -152,6 +152,46 @@ describe("checkoutDraftApi", () => {
     });
   });
 
+  it("clears starter shipping choices when a resumed draft has no eligible options", () => {
+    const nextData = reconcileCheckoutDataFromDraftResponse(
+      defaultCheckoutPageData,
+      {
+        draft: {
+          id: "draft_delivery_resume_address_required",
+          fulfillment_mode: "delivery",
+          resume_context: {
+            order_number: "DO-20260526-000001",
+            market_code: "US",
+            currency_code: "USD",
+            locale: "en-US",
+            buyer_country: "US",
+            paylater_buyer_country: "US",
+            sandbox_test_buyer_country: "US",
+          },
+          delivery: {
+            shipping_address: null,
+            shipping_options: [],
+            selected_shipping_option_id: null,
+          },
+          summary: {
+            currency_code: "USD",
+            discount_minor: 685,
+            merchandise_subtotal_minor: 6847,
+            shipping_minor: 0,
+            total_minor: 6162,
+          },
+        },
+      },
+    );
+    const shippingStep = nextData.delivery.steps.find(
+      (step) => step.id === "shipping-options",
+    );
+
+    expect(shippingStep?.choices).toEqual([]);
+    expect(nextData.delivery.summary.shippingLabel).toBe("$0.00");
+    expect(nextData.delivery.summary.totalLabel).toBe("$61.62");
+  });
+
   it("maps pickup stores to text-labelled full partial and sold-out states", () => {
     const store = (
       id: string,

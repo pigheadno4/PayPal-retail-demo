@@ -51,6 +51,131 @@ describe("tax helpers", () => {
     ).toMatchObject({ id: "la", rateBps: 950 });
   });
 
+  it("uses a matching postal-scoped rate when the provider omits county", () => {
+    expect(
+      selectTaxRate(
+        rates,
+        {
+          marketId: "market-us",
+          countryCode: "US",
+          state: "CA",
+          county: null,
+          postalCode: "90046",
+        },
+        {
+          allowPostalCountyFallback: true,
+        },
+      ),
+    ).toMatchObject({ id: "la", rateBps: 950 });
+  });
+
+  it("does not use the provider missing-county fallback for ordinary checkout", () => {
+    expect(
+      selectTaxRate(rates, {
+        marketId: "market-us",
+        countryCode: "US",
+        state: "CA",
+        county: null,
+        postalCode: "90046",
+      }),
+    ).toMatchObject({ id: "ca", rateBps: 850 });
+  });
+
+  it("rejects a county-scoped fallback whose postal prefix does not match", () => {
+    expect(
+      selectTaxRate(
+        rates,
+        {
+          marketId: "market-us",
+          countryCode: "US",
+          state: "CA",
+          county: null,
+          postalCode: "94105",
+        },
+        { allowPostalCountyFallback: true },
+      ),
+    ).toMatchObject({ id: "ca", rateBps: 850 });
+  });
+
+  it("prefers a longer verified postal prefix over an unverified county", () => {
+    expect(
+      selectTaxRate(
+        [
+          ...rates,
+          {
+            id: "sf-postal",
+            marketId: "market-us",
+            countryCode: "US",
+            state: "CA",
+            county: null,
+            postalCodePrefix: "941",
+            rateBps: 863,
+            isActive: true,
+          },
+          {
+            id: "unknown-county-short-postal",
+            marketId: "market-us",
+            countryCode: "US",
+            state: "CA",
+            county: "Unknown County",
+            postalCodePrefix: "9",
+            rateBps: 999,
+            isActive: true,
+          },
+        ],
+        {
+          marketId: "market-us",
+          countryCode: "US",
+          state: "CA",
+          county: null,
+          postalCode: "94105",
+        },
+        { allowPostalCountyFallback: true },
+      ),
+    ).toMatchObject({ id: "sf-postal", rateBps: 863 });
+  });
+
+  it("falls back to the verified state rate for conflicting county rows", () => {
+    const conflictingRates: readonly TaxRateRow[] = [
+      rates[0]!,
+      rates[1]!,
+      {
+        id: "county-a",
+        marketId: "market-us",
+        countryCode: "US",
+        state: "CA",
+        county: "County A",
+        postalCodePrefix: "941",
+        rateBps: 863,
+        isActive: true,
+      },
+      {
+        id: "county-b",
+        marketId: "market-us",
+        countryCode: "US",
+        state: "CA",
+        county: "County B",
+        postalCodePrefix: "941",
+        rateBps: 925,
+        isActive: true,
+      },
+    ];
+
+    expect(
+      selectTaxRate(
+        conflictingRates,
+        {
+          marketId: "market-us",
+          countryCode: "US",
+          state: "CA",
+          county: null,
+          postalCode: "94105",
+        },
+        { allowPostalCountyFallback: true },
+      ),
+    ).toMatchObject({ id: "ca", rateBps: 850 });
+  });
+
   it("calculates tax after promo and excludes shipping", () => {
     const result = calculateEstimatedTax({
       merchandiseSubtotalMinor: 10_000,
