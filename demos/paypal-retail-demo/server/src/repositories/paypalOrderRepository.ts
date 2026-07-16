@@ -63,6 +63,7 @@ import type {
 import type { CatalogJson } from "../routes/catalog.js";
 
 type RepositoryNow = Date | string | (() => Date | string);
+const ORDER_OPERATION_LOCK_TTL_MS = 5 * 60 * 1000;
 
 export interface PayPalOrderProfileRow {
   readonly id: string;
@@ -113,12 +114,14 @@ export interface PayPalOrderDeliveryStateJson {
   readonly billing_address?: PayPalOrderAddressJson | null;
   readonly same_as_shipping?: boolean;
   readonly selected_shipping_option_id?: string | null;
+  readonly pending_order_resume_id?: string | null;
 }
 
 export interface PayPalOrderPickupStateJson {
   readonly billing_address?: PayPalOrderAddressJson | null;
   readonly selected_store_id?: string | null;
   readonly selected_pickup_date?: string | null;
+  readonly pending_order_resume_id?: string | null;
 }
 
 export interface PayPalOrderCheckoutDraftRow {
@@ -457,6 +460,7 @@ export interface PayPalOrderDataSource {
   readonly getCheckoutDraftById: (
     id: string,
   ) => Promise<PayPalOrderCheckoutDraftRow | null>;
+  readonly getCartById: (id: string) => Promise<PayPalOrderCartRow | null>;
   readonly findActiveGuestCart: (
     cartPublicId: string,
   ) => Promise<PayPalOrderCartRow | null>;
@@ -528,6 +532,21 @@ export interface PayPalOrderDataSource {
     orderId: string,
     patch: Partial<PayPalOrderRow>,
   ) => Promise<PayPalOrderRow>;
+  readonly claimPendingOrderCapture: (input: {
+    readonly orderId: string;
+    readonly lockToken: string;
+    readonly lockAcquiredAt: string;
+    readonly lockExpiresAt: string;
+  }) => Promise<PayPalOrderRow | null>;
+  readonly releasePendingOrderCapture: (input: {
+    readonly orderId: string;
+    readonly lockToken: string;
+  }) => Promise<void>;
+  readonly completePendingOrderCapture: (input: {
+    readonly orderId: string;
+    readonly lockToken: string;
+    readonly patch: Partial<PayPalOrderRow>;
+  }) => Promise<PayPalOrderRow | null>;
   readonly replaceOrderItems: (
     orderId: string,
     items: readonly PayPalOrderItemWriteInput[],
@@ -701,7 +720,11 @@ export function createSupabasePayPalOrderRepository(
 
   return {
     async prepareCreateOrder(context, createOrderInput) {
-      const storefrontRows = await resolveStorefrontRows(dependencies, context);
+      const storefrontRows = await resolveCreateOrderStorefrontRows(
+        dependencies,
+        context,
+        createOrderInput,
+      );
       const draft = await buildPreparedOrderDraft(
         dependencies,
         storefrontRows,
@@ -883,17 +906,43 @@ async function preparePayPalCapture(
     };
   }
 
-  await input.dataSource.updatePaymentSession(paymentSession.id, {
-    provider_total_minor: providerSnapshot.totalMinor,
-    amount_consistency_status: "matched",
+  const paypalRequestId = input.createPayPalRequestId();
+  const lockAcquiredAt = resolveNow(input.now);
+  const claimedOrder = await input.dataSource.claimPendingOrderCapture({
+    orderId: order.id,
+    lockToken: paypalRequestId,
+    lockAcquiredAt,
+    lockExpiresAt: addMillisecondsToIso(
+      lockAcquiredAt,
+      ORDER_OPERATION_LOCK_TTL_MS,
+    ),
   });
+  if (!claimedOrder) {
+    throw Object.assign(
+      new Error(`Order ${order.order_number} is busy with another operation`),
+      { code: "PAYPAL_ORDER_OPERATION_IN_PROGRESS" as const },
+    );
+  }
+
+  try {
+    await input.dataSource.updatePaymentSession(paymentSession.id, {
+      provider_total_minor: providerSnapshot.totalMinor,
+      amount_consistency_status: "matched",
+    });
+  } catch (error) {
+    await input.dataSource.releasePendingOrderCapture({
+      orderId: order.id,
+      lockToken: paypalRequestId,
+    });
+    throw error;
+  }
 
   return {
     action: "capture",
     orderNumber: order.order_number,
     paymentSessionId: paymentSession.id,
     paypalOrderId,
-    paypalRequestId: input.createPayPalRequestId(),
+    paypalRequestId,
     merchantSnapshot,
     amountGuard,
   };
@@ -1050,10 +1099,19 @@ async function recordPayPalCaptureResult(
   const amountConsistencyStatus =
     captureInput.amountGuard.status === "matched" ? "matched" : "mismatch";
 
-  await input.dataSource.updateOrder(order.id, {
-    status: "paid",
-    payment_status: "captured",
+  const capturedOrder = await input.dataSource.completePendingOrderCapture({
+    orderId: order.id,
+    lockToken: captureInput.paypalRequestId,
+    patch: {
+      status: "paid",
+      payment_status: "captured",
+    },
   });
+  if (!capturedOrder) {
+    throw new Error(
+      `Order ${order.order_number} no longer owns its capture claim`,
+    );
+  }
   await input.dataSource.updatePaymentSession(paymentSession.id, {
     status: "captured",
     paypal_order_id: captureInput.paypalOrderId,
@@ -1122,7 +1180,11 @@ async function recordPayPalCaptureResult(
   );
 
   await decrementCapturedOrderInventory(input, order, orderItems);
-  if (order.cart_id) {
+  const orderSource = readStringContextValue(
+    paymentSession.paypal_config_snapshot_json,
+    "order_source",
+  );
+  if (order.cart_id && orderSource !== "pending_resume") {
     await input.dataSource.deleteCartItemsByProductIds({
       cartId: order.cart_id,
       productIds: uniqueStrings(orderItems.map((item) => item.product_id)),
@@ -1386,6 +1448,11 @@ async function handleExpressShippingCallback(
   if (!paymentSession) {
     return declineShippingCallback("METHOD_UNAVAILABLE");
   }
+  const paypalOrderId =
+    callbackInput.paypalOrderId ?? paymentSession.paypal_order_id;
+  if (!paypalOrderId) {
+    return declineShippingCallback("METHOD_UNAVAILABLE");
+  }
 
   const destination = shippingCallbackDestination(
     order.market_id,
@@ -1424,10 +1491,6 @@ async function handleExpressShippingCallback(
   }
 
   const cartItems = await input.dataSource.listCartItems(order.cart_id);
-  const paypalOrderId =
-    callbackInput.paypalOrderId ??
-    paymentSession.paypal_order_id ??
-    callbackInput.callbackContextId;
   const promoEvaluation = await createPayPalOrderPromoEvaluationSnapshot(
     input,
     { profile, market },
@@ -1790,12 +1853,10 @@ async function resolveShippingCallbackPaymentSession(
   ].sort((left, right) => right.attempt_number - left.attempt_number);
 
   if (paypalOrderId) {
-    const matchingPayPalSession = sessions.find(
-      (session) => session.paypal_order_id === paypalOrderId,
+    return (
+      sessions.find((session) => session.paypal_order_id === paypalOrderId) ??
+      null
     );
-    if (matchingPayPalSession) {
-      return matchingPayPalSession;
-    }
   }
 
   return sessions.find((session) => session.status === "created") ?? null;
@@ -1848,6 +1909,54 @@ async function resolveStorefrontRows(
   return { profile, market };
 }
 
+async function resolveCreateOrderStorefrontRows(
+  input: PayPalOrderRepositoryDependencies,
+  context: PayPalCreateOrderOperationContext,
+  createOrderInput: PreparePayPalCreateOrderInput,
+): Promise<StorefrontRows> {
+  if (
+    createOrderInput.kind === "express_delivery" ||
+    !createOrderInput.checkoutDraftId ||
+    context.buyer.kind !== "authenticated"
+  ) {
+    return resolveStorefrontRows(input, context);
+  }
+
+  const checkoutDraft = await input.dataSource.getCheckoutDraftById(
+    createOrderInput.checkoutDraftId,
+  );
+  const pendingResumeOrderId = checkoutDraft
+    ? checkoutDraft.fulfillment_mode === "delivery"
+      ? checkoutDraft.delivery_state_json.pending_order_resume_id
+      : checkoutDraft.pickup_state_json.pending_order_resume_id
+    : null;
+  if (
+    !checkoutDraft ||
+    !pendingResumeOrderId ||
+    checkoutDraft.auth_user_id !== context.buyer.userId
+  ) {
+    return resolveStorefrontRows(input, context);
+  }
+
+  const [profile, market] = await Promise.all([
+    input.dataSource.getProfileById(checkoutDraft.profile_id),
+    input.dataSource.getMarketById(checkoutDraft.market_id),
+  ]);
+  if (!profile || !market) {
+    throw new Error("Resumed checkout storefront context was not found");
+  }
+  if (
+    checkoutDraft.currency_code !== market.currency_code ||
+    checkoutDraft.locale !== market.locale ||
+    checkoutDraft.buyer_country !== market.buyer_country ||
+    checkoutDraft.sandbox_test_buyer_country !==
+      market.sandbox_test_buyer_country
+  ) {
+    throw new Error("Resumed checkout storefront context is inconsistent");
+  }
+  return { profile, market };
+}
+
 async function buildPreparedOrderDraft(
   input: PayPalOrderRepositoryDependencies,
   storefrontRows: StorefrontRows,
@@ -1896,8 +2005,25 @@ async function buildDeliveryOrderDraft(
     createOrderInput.checkoutDraftId,
     "delivery",
   );
-  const cart = await resolveDraftCart(input, context, checkoutDraft);
-  const cartItems = await input.dataSource.listCartItems(cart.id);
+  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
+    checkoutDraft.id,
+    "delivery",
+  );
+  const pendingResumeOrder = resolveExplicitPendingResumeOrder(
+    checkoutDraft,
+    pendingOrder,
+  );
+  const cart = await resolveDraftCart(
+    input,
+    context,
+    checkoutDraft,
+    pendingResumeOrder,
+  );
+  const cartItems = await resolveCheckoutPaymentItems(
+    input,
+    cart,
+    pendingResumeOrder,
+  );
   const shippingAddress = checkoutDraft.delivery_state_json.shipping_address;
 
   if (!shippingAddress) {
@@ -1909,15 +2035,11 @@ async function buildDeliveryOrderDraft(
     checkoutDraft,
     shippingAddress,
   );
-  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
-    checkoutDraft.id,
-    "delivery",
-  );
-  const pendingResumePromo = pendingOrder
+  const pendingResumePromo = pendingResumeOrder
     ? await createPayPalOrderPromoEvaluationSnapshot(
         input,
         storefrontRows,
-        pendingOrder,
+        pendingResumeOrder,
         {
           cartItems,
           shippingAmountMinor: selectedShippingOption.amount_minor,
@@ -1969,6 +2091,7 @@ async function buildDeliveryOrderDraft(
       totals,
     }),
     storefrontRows,
+    orderSource: pendingResumeOrder ? "pending_resume" : "checkout",
   });
 
   return {
@@ -1989,6 +2112,41 @@ async function buildDeliveryOrderDraft(
   };
 }
 
+async function resolveCheckoutPaymentItems(
+  input: PayPalOrderRepositoryDependencies,
+  cart: PayPalOrderCartRow,
+  pendingOrder: PayPalOrderRow | null,
+): Promise<readonly PayPalOrderCartItemRow[]> {
+  if (!pendingOrder) {
+    return input.dataSource.listCartItems(cart.id);
+  }
+
+  const savedOrderItems = await input.dataSource.listOrderItems(
+    pendingOrder.id,
+  );
+  return savedOrderItems.map((item) => ({
+    id: item.id,
+    cart_id: cart.id,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    unit_price_minor_snapshot: item.unit_price_minor,
+  }));
+}
+
+function resolveExplicitPendingResumeOrder(
+  checkoutDraft: PayPalOrderCheckoutDraftRow,
+  pendingOrder: PayPalOrderRow | null,
+): PayPalOrderRow | null {
+  if (!pendingOrder) {
+    return null;
+  }
+  const pendingResumeOrderId =
+    checkoutDraft.fulfillment_mode === "delivery"
+      ? checkoutDraft.delivery_state_json.pending_order_resume_id
+      : checkoutDraft.pickup_state_json.pending_order_resume_id;
+  return pendingResumeOrderId === pendingOrder.id ? pendingOrder : null;
+}
+
 async function buildBopisOrderDraft(
   input: PayPalOrderRepositoryDependencies,
   storefrontRows: StorefrontRows,
@@ -2005,8 +2163,25 @@ async function buildBopisOrderDraft(
     createOrderInput.checkoutDraftId,
     "pickup",
   );
-  const cart = await resolveDraftCart(input, context, checkoutDraft);
-  const cartItems = await input.dataSource.listCartItems(cart.id);
+  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
+    checkoutDraft.id,
+    "pickup",
+  );
+  const pendingResumeOrder = resolveExplicitPendingResumeOrder(
+    checkoutDraft,
+    pendingOrder,
+  );
+  const cart = await resolveDraftCart(
+    input,
+    context,
+    checkoutDraft,
+    pendingResumeOrder,
+  );
+  const cartItems = await resolveCheckoutPaymentItems(
+    input,
+    cart,
+    pendingResumeOrder,
+  );
   const selectedStoreId = checkoutDraft.pickup_state_json.selected_store_id;
 
   if (!selectedStoreId) {
@@ -2026,15 +2201,11 @@ async function buildBopisOrderDraft(
     throw new Error(`Pickup store ${selectedStoreId} was not found`);
   }
 
-  const pendingOrder = await input.dataSource.findPendingOrderByCheckoutDraftId(
-    checkoutDraft.id,
-    "pickup",
-  );
-  const pendingResumePromo = pendingOrder
+  const pendingResumePromo = pendingResumeOrder
     ? await createPayPalOrderPromoEvaluationSnapshot(
         input,
         storefrontRows,
-        pendingOrder,
+        pendingResumeOrder,
         {
           cartItems,
           shippingAmountMinor: 0,
@@ -2080,6 +2251,7 @@ async function buildBopisOrderDraft(
       totals,
     }),
     storefrontRows,
+    orderSource: pendingResumeOrder ? "pending_resume" : "checkout",
   });
 
   return {
@@ -2148,6 +2320,7 @@ async function buildExpressDeliveryOrderDraft(
       totals,
     }),
     storefrontRows,
+    orderSource: "checkout",
   });
 
   return {
@@ -2226,8 +2399,27 @@ async function resolveDraftCart(
   input: PayPalOrderRepositoryDependencies,
   context: PayPalCreateOrderOperationContext,
   checkoutDraft: PayPalOrderCheckoutDraftRow,
+  pendingResumeOrder: PayPalOrderRow | null,
 ): Promise<PayPalOrderCartRow> {
   if (context.buyer.kind === "authenticated") {
+    if (pendingResumeOrder) {
+      const historicalCart = await input.dataSource.getCartById(
+        checkoutDraft.cart_id,
+      );
+      if (
+        !historicalCart ||
+        historicalCart.id !== pendingResumeOrder.cart_id ||
+        historicalCart.profile_id !== checkoutDraft.profile_id ||
+        historicalCart.market_id !== checkoutDraft.market_id ||
+        historicalCart.auth_user_id !== context.buyer.userId ||
+        pendingResumeOrder.auth_user_id !== context.buyer.userId
+      ) {
+        throw new Error(
+          "Resumed order cart does not belong to the signed-in buyer",
+        );
+      }
+      return historicalCart;
+    }
     const cart = await input.dataSource.findActiveSignedInCart({
       profileId: checkoutDraft.profile_id,
       marketId: checkoutDraft.market_id,
@@ -2697,6 +2889,7 @@ async function resolvePaymentSession(
     readonly totals: MerchantTotals;
     readonly sourceFingerprint: string;
     readonly storefrontRows: StorefrontRows;
+    readonly orderSource: "checkout" | "pending_resume";
   },
 ): Promise<PayPalOrderPaymentSessionRow> {
   const sessions = [
@@ -2705,7 +2898,9 @@ async function resolvePaymentSession(
   const reusableSession = sessions.find(
     (session) =>
       session.paypal_order_id === null &&
+      (session.status === "created" || session.status === "approved") &&
       session.method === options.method &&
+      orderSourceFromSession(session) === options.orderSource &&
       sourceFingerprintFromSession(session) === options.sourceFingerprint,
   );
 
@@ -2751,6 +2946,7 @@ async function resolvePaymentSession(
       source_fingerprint: options.sourceFingerprint,
       profile_slug: options.storefrontRows.profile.slug,
       market_code: options.storefrontRows.market.code,
+      order_source: options.orderSource,
     },
   });
 }
@@ -3128,6 +3324,17 @@ function sourceFingerprintFromSession(
   return null;
 }
 
+function orderSourceFromSession(
+  session: PayPalOrderPaymentSessionRow,
+): "checkout" | "pending_resume" {
+  return readStringContextValue(
+    session.paypal_config_snapshot_json,
+    "order_source",
+  ) === "pending_resume"
+    ? "pending_resume"
+    : "checkout";
+}
+
 function latestPreviousRequest(
   sessions: readonly PayPalOrderPaymentSessionRow[],
 ): PreviousPayPalRequestMetadata | null {
@@ -3219,6 +3426,10 @@ function resolveNow(now: RepositoryNow | undefined): string {
   const date =
     typeof value === "string" || value instanceof Date ? value : new Date();
   return date instanceof Date ? date.toISOString() : date;
+}
+
+function addMillisecondsToIso(value: string, milliseconds: number): string {
+  return new Date(new Date(value).getTime() + milliseconds).toISOString();
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -3313,6 +3524,7 @@ interface SupabasePayPalOrderQuery extends PromiseLike<
   readonly update: (
     values: Record<string, unknown>,
   ) => SupabasePayPalOrderQuery;
+  readonly or: (filters: string) => SupabasePayPalOrderQuery;
   readonly delete: () => SupabasePayPalOrderQuery;
   readonly maybeSingle: () => PromiseLike<SupabasePayPalOrderResult<unknown>>;
   readonly single: () => PromiseLike<SupabasePayPalOrderResult<unknown>>;
@@ -3523,6 +3735,12 @@ export function createSupabasePayPalOrderDataSource(
           .eq("id", id)
           .maybeSingle(),
         `Load checkout draft ${id}`,
+      );
+    },
+    async getCartById(id) {
+      return queryOne<PayPalOrderCartRow>(
+        supabase.from("carts").select(cartColumns).eq("id", id).maybeSingle(),
+        `Load cart ${id}`,
       );
     },
     async findActiveGuestCart(cartPublicId) {
@@ -3862,6 +4080,60 @@ export function createSupabasePayPalOrderDataSource(
           .select(orderColumns)
           .single(),
         `Update PayPal pending order ${orderId}`,
+      );
+    },
+    async claimPendingOrderCapture(input) {
+      return queryOne<PayPalOrderRow>(
+        supabase
+          .from("orders")
+          .update({
+            operation_lock_kind: "capture",
+            operation_lock_token: input.lockToken,
+            operation_lock_expires_at: input.lockExpiresAt,
+          })
+          .eq("id", input.orderId)
+          .eq("status", "pending")
+          .or(
+            `operation_lock_token.is.null,operation_lock_expires_at.lt.${input.lockAcquiredAt}`,
+          )
+          .select(orderColumns)
+          .maybeSingle(),
+        `Claim pending order ${input.orderId} for capture`,
+      );
+    },
+    async releasePendingOrderCapture(input) {
+      await queryMany<{ readonly id: string }>(
+        supabase
+          .from("orders")
+          .update({
+            operation_lock_kind: null,
+            operation_lock_token: null,
+            operation_lock_expires_at: null,
+          })
+          .eq("id", input.orderId)
+          .eq("operation_lock_kind", "capture")
+          .eq("operation_lock_token", input.lockToken)
+          .select("id"),
+        `Release pending order ${input.orderId} capture claim`,
+      );
+    },
+    async completePendingOrderCapture(input) {
+      return queryOne<PayPalOrderRow>(
+        supabase
+          .from("orders")
+          .update({
+            ...(input.patch as Record<string, unknown>),
+            operation_lock_kind: null,
+            operation_lock_token: null,
+            operation_lock_expires_at: null,
+          })
+          .eq("id", input.orderId)
+          .eq("status", "pending")
+          .eq("operation_lock_kind", "capture")
+          .eq("operation_lock_token", input.lockToken)
+          .select(orderColumns)
+          .maybeSingle(),
+        `Complete pending order ${input.orderId} capture claim`,
       );
     },
     async replaceOrderItems(orderId, items) {

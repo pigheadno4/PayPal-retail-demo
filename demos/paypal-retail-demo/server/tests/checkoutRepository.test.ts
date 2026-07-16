@@ -15,6 +15,10 @@ import {
   type CheckoutPromoRuleRegionRow,
   type CheckoutPromoRuleRow,
   type CheckoutProfileRow,
+  type CheckoutResumeOrderItemRow,
+  type CheckoutResumeOrderRow,
+  type CheckoutResumePaymentSessionRow,
+  type CheckoutCentralInventoryRow,
   type CheckoutShippingOptionRow,
   type CheckoutStoreInventoryRow,
   type CheckoutStoreRow,
@@ -64,6 +68,24 @@ describe("Supabase-backed checkout repository", () => {
             unavailable_subtotal_minor: 0,
           },
         },
+        items: [
+          {
+            id: "cart_item_labubu",
+            product_name: "Labubu Have a Seat",
+            image_path: null,
+            quantity: 2,
+            unit_price_minor: 1399,
+            line_subtotal_minor: 2798,
+          },
+          {
+            id: "cart_item_dimoo",
+            product_name: "Dimoo Animal Kingdom",
+            image_path: null,
+            quantity: 1,
+            unit_price_minor: 1299,
+            line_subtotal_minor: 1299,
+          },
+        ],
         summary: {
           item_count: 3,
           merchandise_subtotal_minor: 4097,
@@ -538,7 +560,353 @@ describe("Supabase-backed checkout repository", () => {
     ).rejects.toThrow("Selected promo set is not eligible");
     expect(dataSource.promoEvaluations).toHaveLength(0);
   });
+
+  it("resumes from saved order item prices and locked context without reading the active cart", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      status: "payment_started",
+      delivery_state_json: {
+        billing_address: addressDto(),
+        same_as_shipping: true,
+        selected_shipping_option_id: "shipping_option_removed",
+        shipping_address: addressDto(),
+      },
+    });
+    dataSource.resumeOrders.push(pendingResumeOrder());
+    dataSource.resumeOrderItems.push({
+      id: "order_item_labubu",
+      order_id: "order_pending",
+      product_id: "product_labubu",
+      product_name_snapshot: "Labubu Snapshot",
+      category_id: "category_blind_box",
+      quantity: 2,
+      unit_price_minor: 1599,
+    });
+    dataSource.centralInventory.push({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 5,
+    });
+    dataSource.cartItems[0] = {
+      ...dataSource.cartItems[0]!,
+      unit_price_minor_snapshot: 9999,
+    };
+    const listCartItems = vi.spyOn(dataSource, "listCartItems");
+    const repository = createRepository(dataSource, "2026-07-15T10:00:00.000Z");
+
+    const result = await repository.resumePendingOrder({
+      authUserId: "user_buyer_123",
+      orderNumber: "DO-20260715-000001",
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      checkout: {
+        draft: {
+          id: "draft_delivery",
+          fulfillment_mode: "delivery",
+          resume_context: {
+            order_number: "DO-20260715-000001",
+            market_code: "US",
+            currency_code: "USD",
+            locale: "en-US",
+            buyer_country: "US",
+            paylater_buyer_country: "US",
+            sandbox_test_buyer_country: "US",
+          },
+          delivery: {
+            selected_shipping_option_id: "ship_ground_ca",
+          },
+          summary: {
+            merchandise_subtotal_minor: 3198,
+            discount_minor: 500,
+            tax_minor: 236,
+            shipping_minor: 500,
+            total_minor: 3434,
+            currency_code: "USD",
+          },
+          items: [
+            {
+              id: "order_item_labubu",
+              product_name: "Labubu Snapshot",
+              quantity: 2,
+              unit_price_minor: 1599,
+              line_subtotal_minor: 3198,
+            },
+          ],
+          promo: {
+            selected_codes: ["AUTO5"],
+          },
+        },
+      },
+    });
+    expect(listCartItems).not.toHaveBeenCalled();
+    expect(
+      dataSource.drafts.find((draft) => draft.id === "draft_delivery")
+        ?.delivery_state_json,
+    ).toMatchObject({
+      pending_order_resume_id: "order_pending",
+      selected_shipping_option_id: "ship_ground_ca",
+    });
+  });
+
+  it("blocks delivery resume before payment when saved quantities exceed central inventory", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      status: "payment_started",
+      delivery_state_json: {
+        shipping_address: addressDto(),
+      },
+    });
+    dataSource.resumeOrders.push(pendingResumeOrder());
+    dataSource.resumeOrderItems.push({
+      id: "order_item_labubu",
+      order_id: "order_pending",
+      product_id: "product_labubu",
+      product_name_snapshot: "Labubu Snapshot",
+      category_id: "category_blind_box",
+      quantity: 2,
+      unit_price_minor: 1599,
+    });
+    dataSource.centralInventory.push({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 1,
+    });
+    const repository = createRepository(dataSource, "2026-07-15T10:00:00.000Z");
+
+    await expect(
+      repository.resumePendingOrder({
+        authUserId: "user_buyer_123",
+        orderNumber: "DO-20260715-000001",
+      }),
+    ).resolves.toEqual({
+      status: "blocked",
+      code: "DELIVERY_INVENTORY_UNAVAILABLE",
+      message:
+        "One or more items are no longer available for delivery. Review your cart before trying again.",
+    });
+  });
+
+  it("resumes a delivery order without an address into an explicit address-required state", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      status: "payment_started",
+      delivery_state_json: {
+        selected_shipping_option_id: "shipping_option_stale",
+      },
+    });
+    dataSource.resumeOrders.push(pendingResumeOrder());
+    dataSource.resumeOrderItems.push({
+      id: "order_item_labubu",
+      order_id: "order_pending",
+      product_id: "product_labubu",
+      product_name_snapshot: "Labubu Snapshot",
+      category_id: "category_blind_box",
+      quantity: 2,
+      unit_price_minor: 1599,
+    });
+    dataSource.centralInventory.push({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 5,
+    });
+    const repository = createRepository(dataSource, "2026-07-15T10:00:00.000Z");
+
+    const result = await repository.resumePendingOrder({
+      authUserId: "user_buyer_123",
+      orderNumber: "DO-20260715-000001",
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      checkout: {
+        draft: {
+          active_step: "shipping_address",
+          fulfillment_mode: "delivery",
+          payment_readiness: {
+            state: "blocked",
+            title: "Add a shipping address",
+            body: "Add your delivery address before choosing a payment method.",
+          },
+          delivery: {
+            shipping_address: null,
+            selected_shipping_option_id: null,
+          },
+        },
+      },
+    });
+
+    const repaired = await repository.updateShippingAddress(
+      authenticatedContext(),
+      {
+        draftId: "draft_delivery",
+        address: addressInput(),
+        saveToAddressBook: true,
+      },
+    );
+
+    expect(repaired).toMatchObject({
+      draft: {
+        active_step: "shipping_option",
+        payment_readiness: null,
+      },
+    });
+  });
+
+  it("clears an expired pickup date and returns an explicit rebooking state", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "pickup" }),
+      auth_user_id: "user_buyer_123",
+      status: "payment_started",
+      pickup_state_json: {
+        location: {
+          country_code: "US",
+          state: "CA",
+          county: null,
+          postal_code: "94105",
+        },
+        selected_store_id: "store_sf",
+        selected_pickup_date: "2026-06-05",
+      },
+    });
+    dataSource.resumeOrders.push({
+      ...pendingResumeOrder(),
+      fulfillment_mode: "pickup",
+    });
+    dataSource.resumeOrderItems.push({
+      id: "order_item_labubu",
+      order_id: "order_pending",
+      product_id: "product_labubu",
+      product_name_snapshot: "Labubu Snapshot",
+      category_id: "category_blind_box",
+      quantity: 2,
+      unit_price_minor: 1599,
+    });
+    const repository = createRepository(dataSource, "2026-07-15T10:00:00.000Z");
+
+    const result = await repository.resumePendingOrder({
+      authUserId: "user_buyer_123",
+      orderNumber: "DO-20260715-000001",
+    });
+
+    expect(result).toMatchObject({
+      status: "ready",
+      checkout: {
+        draft: {
+          active_step: "pickup_date",
+          fulfillment_mode: "pickup",
+          payment_readiness: {
+            state: "blocked",
+            title: "Choose a new pickup date",
+            body: "Your previous pickup date is no longer available.",
+          },
+          pickup: {
+            selected_store_id: "store_sf",
+            selected_pickup_date: null,
+          },
+        },
+      },
+    });
+  });
+
+  it("rejects a server-side fulfillment change for a marked resumed draft", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      auth_user_id: "user_buyer_123",
+      delivery_state_json: {
+        shipping_address: addressDto(),
+        pending_order_resume_id: "order_pending",
+      },
+    });
+    dataSource.resumeOrders.push(pendingResumeOrder());
+    const repository = createRepository(dataSource);
+
+    await expect(
+      repository.selectFulfillment(authenticatedContext(), {
+        draftId: "draft_delivery",
+        fulfillmentMode: "pickup",
+      }),
+    ).rejects.toMatchObject({
+      code: "CHECKOUT_RESUME_FULFILLMENT_LOCKED",
+    });
+    expect(
+      dataSource.drafts.find((draft) => draft.id === "draft_delivery"),
+    ).toMatchObject({
+      fulfillment_mode: "delivery",
+      delivery_state_json: {
+        pending_order_resume_id: "order_pending",
+      },
+    });
+  });
+
+  it("holds a conditional resume claim while draft and promo state are written", async () => {
+    const dataSource = createCheckoutDataSource();
+    dataSource.drafts.push({
+      ...existingDraft({ fulfillmentMode: "delivery" }),
+      auth_user_id: "user_buyer_123",
+      status: "payment_started",
+      delivery_state_json: {},
+    });
+    dataSource.resumeOrders.push(pendingResumeOrder());
+    dataSource.resumeOrderItems.push({
+      id: "order_item_labubu",
+      order_id: "order_pending",
+      product_id: "product_labubu",
+      product_name_snapshot: "Labubu Snapshot",
+      category_id: "category_blind_box",
+      quantity: 2,
+      unit_price_minor: 1599,
+    });
+    dataSource.centralInventory.push({
+      profile_id: "profile_popmart",
+      market_id: "market_us",
+      product_id: "product_labubu",
+      available_quantity: 5,
+    });
+    let captureSucceeded: boolean | null = null;
+    dataSource.beforeNextDraftUpdate = () => {
+      captureSucceeded = dataSource.tryCapturePendingOrder("order_pending");
+    };
+    const repository = createRepository(dataSource);
+
+    const result = await repository.resumePendingOrder({
+      authUserId: "user_buyer_123",
+      orderNumber: "DO-20260715-000001",
+    });
+
+    expect(result).toMatchObject({ status: "ready" });
+    expect(captureSucceeded).toBe(false);
+    expect(dataSource.resumeOrders[0]?.status).toBe("pending");
+    expect(dataSource.resumeOperationLocks.size).toBe(0);
+    expect(dataSource.tryCapturePendingOrder("order_pending")).toBe(true);
+  });
 });
+
+function pendingResumeOrder(): CheckoutResumeOrderRow {
+  return {
+    id: "order_pending",
+    profile_id: "profile_popmart",
+    market_id: "market_us",
+    order_number: "DO-20260715-000001",
+    auth_user_id: "user_buyer_123",
+    checkout_draft_id: "draft_delivery",
+    fulfillment_mode: "delivery",
+    status: "pending",
+    currency_code: "USD",
+    locale: "en-US",
+    buyer_country: "US",
+    sandbox_test_buyer_country: "US",
+  };
+}
 
 function createRepository(
   dataSource: FakeCheckoutDataSource,
@@ -684,6 +1052,7 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
       id: "cart_item_labubu",
       cart_id: "cart_guest",
       product_id: "product_labubu",
+      product_name: "Labubu Have a Seat",
       category_id: "category_blind_box",
       quantity: 2,
       unit_price_minor_snapshot: 1399,
@@ -692,6 +1061,7 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
       id: "cart_item_dimoo",
       cart_id: "cart_guest",
       product_id: "product_dimoo",
+      product_name: "Dimoo Animal Kingdom",
       category_id: "category_blind_box",
       quantity: 1,
       unit_price_minor_snapshot: 1299,
@@ -900,12 +1270,28 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
 
   readonly promoEvaluationLines: CheckoutPromoEvaluationLineRow[] = [];
 
+  readonly resumeOrders: CheckoutResumeOrderRow[] = [];
+
+  readonly resumeOrderItems: CheckoutResumeOrderItemRow[] = [];
+
+  readonly resumePaymentSessions: CheckoutResumePaymentSessionRow[] = [];
+
+  readonly centralInventory: CheckoutCentralInventoryRow[] = [];
+
+  readonly resumeOperationLocks = new Map<string, string>();
+
+  beforeNextDraftUpdate: (() => void) | null = null;
+
   async getProfileBySlug(slug: string): Promise<CheckoutProfileRow | null> {
     return this.profiles.find((profile) => profile.slug === slug) ?? null;
   }
 
   async getMarketByCode(code: string): Promise<CheckoutMarketRow | null> {
     return this.markets.find((market) => market.code === code) ?? null;
+  }
+
+  async getMarketById(id: string): Promise<CheckoutMarketRow | null> {
+    return this.markets.find((market) => market.id === id) ?? null;
   }
 
   async findActiveGuestCart(
@@ -956,6 +1342,9 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
     draftId: string,
     patch: Partial<CheckoutDraftRow>,
   ): Promise<CheckoutDraftRow> {
+    const beforeUpdate = this.beforeNextDraftUpdate;
+    this.beforeNextDraftUpdate = null;
+    beforeUpdate?.();
     const index = this.drafts.findIndex((draft) => draft.id === draftId);
     if (index < 0) {
       throw new Error(`Missing draft ${draftId}`);
@@ -970,6 +1359,98 @@ class FakeCheckoutDataSource implements CheckoutDataSource {
 
   async listCartItems(cartId: string): Promise<readonly CheckoutCartItemRow[]> {
     return this.cartItems.filter((item) => item.cart_id === cartId);
+  }
+
+  async getResumeOrderForUser(input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }): Promise<CheckoutResumeOrderRow | null> {
+    return (
+      this.resumeOrders.find(
+        (order) =>
+          order.auth_user_id === input.authUserId &&
+          order.order_number === input.orderNumber,
+      ) ?? null
+    );
+  }
+
+  async claimPendingOrderResume(input: {
+    readonly orderId: string;
+    readonly authUserId: string;
+    readonly lockToken: string;
+    readonly lockExpiresAt: string;
+  }): Promise<CheckoutResumeOrderRow | null> {
+    const order = this.resumeOrders.find(
+      (candidate) =>
+        candidate.id === input.orderId &&
+        candidate.auth_user_id === input.authUserId &&
+        candidate.status === "pending",
+    );
+    if (!order || this.resumeOperationLocks.has(order.id)) {
+      return null;
+    }
+    this.resumeOperationLocks.set(order.id, input.lockToken);
+    return order;
+  }
+
+  async releasePendingOrderResume(input: {
+    readonly orderId: string;
+    readonly lockToken: string;
+  }): Promise<void> {
+    if (this.resumeOperationLocks.get(input.orderId) === input.lockToken) {
+      this.resumeOperationLocks.delete(input.orderId);
+    }
+  }
+
+  tryCapturePendingOrder(orderId: string): boolean {
+    const order = this.resumeOrders.find(
+      (candidate) => candidate.id === orderId && candidate.status === "pending",
+    );
+    if (!order || this.resumeOperationLocks.has(orderId)) {
+      return false;
+    }
+    const index = this.resumeOrders.indexOf(order);
+    this.resumeOrders[index] = { ...order, status: "paid" };
+    return true;
+  }
+
+  async getPendingResumeOrderByCheckoutDraftId(
+    checkoutDraftId: string,
+  ): Promise<CheckoutResumeOrderRow | null> {
+    return (
+      this.resumeOrders.find(
+        (order) =>
+          order.checkout_draft_id === checkoutDraftId &&
+          order.status === "pending",
+      ) ?? null
+    );
+  }
+
+  async listResumeOrderItems(
+    orderId: string,
+  ): Promise<readonly CheckoutResumeOrderItemRow[]> {
+    return this.resumeOrderItems.filter((item) => item.order_id === orderId);
+  }
+
+  async listResumePaymentSessions(
+    orderId: string,
+  ): Promise<readonly CheckoutResumePaymentSessionRow[]> {
+    return this.resumePaymentSessions.filter(
+      (session) => session.order_id === orderId,
+    );
+  }
+
+  async listCentralInventory(input: {
+    readonly profileId: string;
+    readonly marketId: string;
+    readonly productIds: readonly string[];
+  }): Promise<readonly CheckoutCentralInventoryRow[]> {
+    return this.centralInventory.filter(
+      (row) =>
+        row.profile_id === input.profileId &&
+        row.market_id === input.marketId &&
+        input.productIds.includes(row.product_id),
+    );
   }
 
   async listShippingOptions(

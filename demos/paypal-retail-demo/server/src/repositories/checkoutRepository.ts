@@ -4,7 +4,16 @@ import {
   calculatePickupInventorySplit,
   type PickupInventorySplit,
 } from "../../../shared/src/inventory.js";
+import {
+  getMarketConfig,
+  type MarketCode,
+} from "../../../shared/src/market.js";
 import { multiplyMinor } from "../../../shared/src/money.js";
+import {
+  planPendingOrderResume,
+  type OrderStatus,
+  type ResumePaymentSessionStatus,
+} from "../../../shared/src/orders.js";
 import {
   evaluatePromos,
   type PromoCandidateSet,
@@ -28,17 +37,19 @@ import {
   selectTaxRate,
   type TaxRateRow,
 } from "../../../shared/src/tax.js";
-import type {
-  CheckoutAddressInput,
-  CheckoutApiResponse,
-  CheckoutFulfillmentMode,
-  CheckoutOperationContext,
-  CheckoutPickupLocationInput,
-  CheckoutRepository,
+import {
+  CheckoutResumeFulfillmentLockedError,
+  type CheckoutAddressInput,
+  type CheckoutApiResponse,
+  type CheckoutFulfillmentMode,
+  type CheckoutOperationContext,
+  type CheckoutPickupLocationInput,
+  type CheckoutRepository,
 } from "../routes/checkout.js";
 import type { CatalogJson } from "../routes/catalog.js";
 
 type RepositoryNow = Date | string | (() => Date | string);
+const ORDER_OPERATION_LOCK_TTL_MS = 5 * 60 * 1000;
 
 export interface CheckoutProfileRow {
   readonly id: string;
@@ -69,6 +80,7 @@ export interface CheckoutCartItemRow {
   readonly cart_id: string;
   readonly product_id: string;
   readonly product_name: string;
+  readonly product_image_path?: string | null;
   readonly category_id: string;
   readonly quantity: number;
   readonly unit_price_minor_snapshot: number;
@@ -100,6 +112,7 @@ export interface CheckoutDeliveryStateJson {
   readonly billing_address?: CheckoutAddressJson | null;
   readonly same_as_shipping?: boolean;
   readonly selected_shipping_option_id?: string | null;
+  readonly pending_order_resume_id?: string | null;
 }
 
 export interface CheckoutPickupStateJson {
@@ -107,6 +120,7 @@ export interface CheckoutPickupStateJson {
   readonly billing_address?: CheckoutAddressJson | null;
   readonly selected_store_id?: string | null;
   readonly selected_pickup_date?: string | null;
+  readonly pending_order_resume_id?: string | null;
 }
 
 export interface CheckoutDraftRow {
@@ -180,6 +194,47 @@ export interface CheckoutStoreInventoryRow {
   readonly store_id: string;
   readonly product_id: string;
   readonly available_quantity: number;
+}
+
+export interface CheckoutCentralInventoryRow {
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly product_id: string;
+  readonly available_quantity: number;
+}
+
+export interface CheckoutResumeOrderRow {
+  readonly id: string;
+  readonly profile_id: string;
+  readonly market_id: string;
+  readonly order_number: string;
+  readonly auth_user_id: string | null;
+  readonly checkout_draft_id: string | null;
+  readonly fulfillment_mode: CheckoutFulfillmentMode;
+  readonly status: OrderStatus;
+  readonly currency_code: string;
+  readonly locale: string;
+  readonly buyer_country: string;
+  readonly sandbox_test_buyer_country: string | null;
+}
+
+export interface CheckoutResumeOrderItemRow {
+  readonly id: string;
+  readonly order_id: string;
+  readonly product_id: string;
+  readonly product_name_snapshot: string;
+  readonly product_image_url_snapshot?: string | null;
+  readonly category_id: string;
+  readonly quantity: number;
+  readonly unit_price_minor: number;
+}
+
+export interface CheckoutResumePaymentSessionRow {
+  readonly id: string;
+  readonly order_id: string;
+  readonly status: ResumePaymentSessionStatus;
+  readonly attempt_number: number;
+  readonly paypal_invoice_id: string | null;
 }
 
 export interface CheckoutPromoRuleRow {
@@ -263,6 +318,7 @@ export interface CheckoutDataSource {
     slug: string,
   ) => Promise<CheckoutProfileRow | null>;
   readonly getMarketByCode: (code: string) => Promise<CheckoutMarketRow | null>;
+  readonly getMarketById: (id: string) => Promise<CheckoutMarketRow | null>;
   readonly findActiveGuestCart: (
     cartPublicId: string,
   ) => Promise<CheckoutCartRow | null>;
@@ -283,6 +339,35 @@ export interface CheckoutDataSource {
   readonly listCartItems: (
     cartId: string,
   ) => Promise<readonly CheckoutCartItemRow[]>;
+  readonly getResumeOrderForUser: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }) => Promise<CheckoutResumeOrderRow | null>;
+  readonly claimPendingOrderResume: (input: {
+    readonly orderId: string;
+    readonly authUserId: string;
+    readonly lockToken: string;
+    readonly lockAcquiredAt: string;
+    readonly lockExpiresAt: string;
+  }) => Promise<CheckoutResumeOrderRow | null>;
+  readonly releasePendingOrderResume: (input: {
+    readonly orderId: string;
+    readonly lockToken: string;
+  }) => Promise<void>;
+  readonly getPendingResumeOrderByCheckoutDraftId: (
+    checkoutDraftId: string,
+  ) => Promise<CheckoutResumeOrderRow | null>;
+  readonly listResumeOrderItems: (
+    orderId: string,
+  ) => Promise<readonly CheckoutResumeOrderItemRow[]>;
+  readonly listResumePaymentSessions: (
+    orderId: string,
+  ) => Promise<readonly CheckoutResumePaymentSessionRow[]>;
+  readonly listCentralInventory: (input: {
+    readonly profileId: string;
+    readonly marketId: string;
+    readonly productIds: readonly string[];
+  }) => Promise<readonly CheckoutCentralInventoryRow[]>;
   readonly listShippingOptions: (
     marketId: string,
   ) => Promise<readonly CheckoutShippingOptionRow[]>;
@@ -331,6 +416,7 @@ export interface CreateSupabaseCheckoutRepositoryInput {
   readonly createPromoEvaluationId?: () => string;
   readonly createPromoEvaluationLineId?: () => string;
   readonly hashCartClientSecret?: (secret: string) => string;
+  readonly createResumeLockToken?: () => string;
 }
 
 interface CheckoutRepositoryDependencies {
@@ -340,6 +426,7 @@ interface CheckoutRepositoryDependencies {
   readonly createPromoEvaluationId: () => string;
   readonly createPromoEvaluationLineId: () => string;
   readonly hashCartClientSecret: (secret: string) => string;
+  readonly createResumeLockToken: () => string;
 }
 
 interface StorefrontRows {
@@ -359,9 +446,327 @@ export function createSupabaseCheckoutRepository(
       input.createPromoEvaluationLineId ?? defaultPromoEvaluationLineId,
     hashCartClientSecret:
       input.hashCartClientSecret ?? defaultCartClientSecretHash,
+    createResumeLockToken: input.createResumeLockToken ?? randomUUID,
   };
 
   return {
+    async resumePendingOrder(resumeInput) {
+      let order =
+        await dependencies.dataSource.getResumeOrderForUser(resumeInput);
+      if (!order) {
+        return { status: "not_found" };
+      }
+      if (order.status !== "pending") {
+        return { status: "not_pending" };
+      }
+      if (!order.checkout_draft_id) {
+        return {
+          status: "blocked",
+          code: "ORDER_RESUME_STATE_INVALID",
+          message:
+            "This pending order no longer has a checkout draft to resume.",
+        };
+      }
+      const checkoutDraftId = order.checkout_draft_id;
+
+      const resumeLockToken = dependencies.createResumeLockToken();
+      const lockAcquiredAt = resolveNow(dependencies.now);
+      const claimedOrder =
+        await dependencies.dataSource.claimPendingOrderResume({
+          orderId: order.id,
+          authUserId: resumeInput.authUserId,
+          lockToken: resumeLockToken,
+          lockAcquiredAt,
+          lockExpiresAt: addMillisecondsToIso(
+            lockAcquiredAt,
+            ORDER_OPERATION_LOCK_TTL_MS,
+          ),
+        });
+      if (!claimedOrder) {
+        const currentOrder =
+          await dependencies.dataSource.getResumeOrderForUser(resumeInput);
+        if (!currentOrder || currentOrder.status !== "pending") {
+          return { status: "not_pending" };
+        }
+        return {
+          status: "blocked",
+          code: "ORDER_RESUME_IN_PROGRESS",
+          message: "This order is already being resumed. Please try again.",
+        };
+      }
+      order = claimedOrder;
+
+      try {
+        const [draft, market, orderItems, paymentSessions] = await Promise.all([
+          dependencies.dataSource.getDraftById(checkoutDraftId),
+          dependencies.dataSource.getMarketById(order.market_id),
+          dependencies.dataSource.listResumeOrderItems(order.id),
+          dependencies.dataSource.listResumePaymentSessions(order.id),
+        ]);
+        if (
+          !draft ||
+          !market ||
+          draft.auth_user_id !== resumeInput.authUserId ||
+          draft.profile_id !== order.profile_id ||
+          draft.market_id !== order.market_id ||
+          draft.fulfillment_mode !== order.fulfillment_mode ||
+          orderItems.length === 0 ||
+          (market.code !== "US" && market.code !== "GB")
+        ) {
+          return {
+            status: "blocked",
+            code: "ORDER_RESUME_STATE_INVALID",
+            message:
+              "This pending order cannot be resumed from its saved state.",
+          };
+        }
+
+        const marketConfig = getMarketConfig(market.code as MarketCode);
+        if (
+          order.currency_code !== marketConfig.currencyCode ||
+          order.locale !== marketConfig.locale ||
+          order.buyer_country !== marketConfig.buyerCountry ||
+          order.sandbox_test_buyer_country !==
+            marketConfig.sandboxTestBuyerCountry
+        ) {
+          return {
+            status: "blocked",
+            code: "ORDER_RESUME_STATE_INVALID",
+            message:
+              "This pending order's locked market state is inconsistent.",
+          };
+        }
+
+        const plan = planPendingOrderResume({
+          order: {
+            id: order.id,
+            orderNumber: order.order_number,
+            status: order.status,
+            fulfillmentMode: order.fulfillment_mode,
+            profileId: order.profile_id,
+            market: marketConfig,
+            currencyCode: marketConfig.currencyCode,
+            locale: order.locale,
+            buyerCountry: marketConfig.buyerCountry,
+            payLaterBuyerCountry: marketConfig.payLaterBuyerCountry,
+            sandboxTestBuyerCountry: marketConfig.sandboxTestBuyerCountry,
+            itemSnapshots: orderItems.map((item) => ({
+              productId: item.product_id,
+              productNameSnapshot: item.product_name_snapshot,
+              quantity: item.quantity,
+              unitPriceMinorSnapshot: item.unit_price_minor,
+              currencyCode: marketConfig.currencyCode,
+            })),
+            pickupDate: draft.pickup_state_json.selected_pickup_date ?? null,
+          },
+          paymentSessions: paymentSessions.map((session) => ({
+            id: session.id,
+            attemptNumber: session.attempt_number,
+            status: session.status,
+            paypalInvoiceId: session.paypal_invoice_id ?? order.order_number,
+          })),
+          activeContext: null,
+          now: resolveNow(dependencies.now),
+        });
+        const draftItems = mapResumeOrderItemsToDraftItems(draft, orderItems);
+
+        let revalidatedDraft = draft;
+        let deliveryShippingOptions:
+          | readonly CheckoutShippingOptionRow[]
+          | undefined;
+        let resumePaymentReadiness: CatalogJson | null | undefined;
+        if (order.fulfillment_mode === "delivery") {
+          const centralInventory =
+            await dependencies.dataSource.listCentralInventory({
+              profileId: order.profile_id,
+              marketId: order.market_id,
+              productIds: orderItems.map((item) => item.product_id),
+            });
+          const availableByProductId = new Map(
+            centralInventory.map((row) => [
+              row.product_id,
+              row.available_quantity,
+            ]),
+          );
+          const inventoryUnavailable = orderItems.some(
+            (item) =>
+              (availableByProductId.get(item.product_id) ?? 0) < item.quantity,
+          );
+          if (inventoryUnavailable) {
+            return {
+              status: "blocked",
+              code: "DELIVERY_INVENTORY_UNAVAILABLE",
+              message:
+                "One or more items are no longer available for delivery. Review your cart before trying again.",
+            };
+          }
+
+          const shippingAddress = draft.delivery_state_json.shipping_address;
+          if (!shippingAddress) {
+            deliveryShippingOptions = [];
+            resumePaymentReadiness = {
+              state: "blocked",
+              title: "Add a shipping address",
+              body: "Add your delivery address before choosing a payment method.",
+            };
+            revalidatedDraft = await dependencies.dataSource.updateDraft(
+              draft.id,
+              {
+                delivery_state_json: {
+                  ...draft.delivery_state_json,
+                  pending_order_resume_id: order.id,
+                  selected_shipping_option_id: null,
+                },
+                status: "draft",
+                updated_at: resolveNow(dependencies.now),
+              },
+            );
+          } else {
+            deliveryShippingOptions = await listEligibleShippingOptions(
+              dependencies,
+              draft,
+              addressJsonToInput(shippingAddress),
+            );
+            const selectedShippingOption =
+              deliveryShippingOptions.find(
+                (option) =>
+                  option.id ===
+                  draft.delivery_state_json.selected_shipping_option_id,
+              ) ??
+              selectDefaultShippingOption(
+                deliveryShippingOptions.map(mapShippingOptionForShared),
+                destinationFromAddress(
+                  draft.market_id,
+                  addressJsonToInput(shippingAddress),
+                ),
+              );
+            if (!selectedShippingOption) {
+              return {
+                status: "blocked",
+                code: "SHIPPING_UNAVAILABLE",
+                message:
+                  "No delivery option is currently available for this order.",
+              };
+            }
+            revalidatedDraft = await dependencies.dataSource.updateDraft(
+              draft.id,
+              {
+                delivery_state_json: {
+                  ...draft.delivery_state_json,
+                  pending_order_resume_id: order.id,
+                  selected_shipping_option_id: selectedShippingOption.id,
+                },
+                status: "draft",
+                updated_at: resolveNow(dependencies.now),
+              },
+            );
+          }
+        } else {
+          const selectedStoreId = draft.pickup_state_json.selected_store_id;
+          const selectedStore = selectedStoreId
+            ? await dependencies.dataSource.getStoreById(selectedStoreId)
+            : null;
+          const storeIsValid = Boolean(
+            selectedStore &&
+            selectedStore.is_active &&
+            selectedStore.market_id === order.market_id,
+          );
+          const selectedPickupDate =
+            draft.pickup_state_json.selected_pickup_date ?? null;
+          const pickupDates = storeIsValid
+            ? await dependencies.dataSource.listPickupDates(selectedStoreId!)
+            : [];
+          const dateIsValid = Boolean(
+            plan.pickupDateAction === "keep" &&
+            selectedPickupDate &&
+            pickupDates.some(
+              (row) =>
+                row.pickup_date === selectedPickupDate && row.is_available,
+            ),
+          );
+          resumePaymentReadiness = !storeIsValid
+            ? {
+                state: "blocked",
+                title: "Choose a new pickup store",
+                body: "Your previous pickup store is no longer available.",
+              }
+            : !dateIsValid
+              ? {
+                  state: "blocked",
+                  title: "Choose a new pickup date",
+                  body: "Your previous pickup date is no longer available.",
+                }
+              : undefined;
+          revalidatedDraft = await dependencies.dataSource.updateDraft(
+            draft.id,
+            {
+              pickup_state_json: {
+                ...draft.pickup_state_json,
+                pending_order_resume_id: order.id,
+                selected_store_id: storeIsValid
+                  ? (selectedStoreId ?? null)
+                  : null,
+                selected_pickup_date: dateIsValid ? selectedPickupDate : null,
+              },
+              status: "draft",
+              updated_at: resolveNow(dependencies.now),
+            },
+          );
+        }
+
+        const previousPromoEvaluation = await resolveSelectedPromoEvaluation(
+          dependencies,
+          revalidatedDraft,
+        );
+        const promoEvaluation = await createPromoEvaluationSnapshot(
+          dependencies,
+          revalidatedDraft,
+          {
+            manualCodes: previousPromoEvaluation?.selected_set_json ?? [],
+            cartItems: draftItems,
+            orderId: order.id,
+          },
+        );
+        revalidatedDraft = await dependencies.dataSource.updateDraft(
+          revalidatedDraft.id,
+          {
+            selected_promo_evaluation_id: promoEvaluation.id,
+            updated_at: resolveNow(dependencies.now),
+          },
+        );
+
+        return {
+          status: "ready",
+          checkout: await buildDraftResponse(
+            dependencies,
+            revalidatedDraft,
+            undefined,
+            {
+              cartItems: draftItems,
+              ...(deliveryShippingOptions ? { deliveryShippingOptions } : {}),
+              ...(resumePaymentReadiness !== undefined
+                ? { paymentReadiness: resumePaymentReadiness }
+                : {}),
+              resumeContext: {
+                order_number: order.order_number,
+                market_code: marketConfig.code,
+                currency_code: marketConfig.currencyCode,
+                locale: marketConfig.locale,
+                buyer_country: marketConfig.buyerCountry,
+                paylater_buyer_country: marketConfig.payLaterBuyerCountry,
+                sandbox_test_buyer_country:
+                  marketConfig.sandboxTestBuyerCountry,
+              },
+            },
+          ),
+        };
+      } finally {
+        await dependencies.dataSource.releasePendingOrderResume({
+          orderId: order.id,
+          lockToken: resumeLockToken,
+        });
+      }
+    },
     async createDraft(context, draftInput) {
       const storefrontRows = await resolveStorefrontRows(dependencies, context);
       const cart = await resolveActiveCart(
@@ -394,6 +799,16 @@ export function createSupabaseCheckoutRepository(
         context,
         fulfillmentInput.draftId,
       );
+      const pendingResumeOrder = await resolveMarkedPendingResumeOrder(
+        dependencies,
+        draft,
+      );
+      if (
+        pendingResumeOrder &&
+        fulfillmentInput.fulfillmentMode !== pendingResumeOrder.fulfillment_mode
+      ) {
+        throw new CheckoutResumeFulfillmentLockedError();
+      }
       const updatedDraft = await dependencies.dataSource.updateDraft(draft.id, {
         fulfillment_mode: fulfillmentInput.fulfillmentMode,
         updated_at: resolveNow(dependencies.now),
@@ -786,10 +1201,12 @@ async function buildDraftResponse(
   options: {
     readonly cartItems?: readonly CheckoutCartItemRow[];
     readonly deliveryShippingOptions?: readonly CheckoutShippingOptionRow[];
+    readonly paymentReadiness?: CatalogJson | null;
+    readonly resumeContext?: CatalogJson;
   } = {},
 ): Promise<CheckoutApiResponse> {
   const [cartItems, selectedPromoEvaluation] = await Promise.all([
-    options.cartItems ?? input.dataSource.listCartItems(draft.cart_id),
+    options.cartItems ?? resolveDraftItems(input, draft),
     resolveSelectedPromoEvaluation(input, draft),
   ]);
   const promoDiscountMinor =
@@ -821,10 +1238,37 @@ async function buildDraftResponse(
       active_step: activeStep ?? inferActiveStep(draft),
       delivery: delivery.dto,
       pickup: pickup.dto,
+      items: cartItems.map((item) => ({
+        id: item.id,
+        product_name: item.product_name,
+        image_path: item.product_image_path ?? null,
+        quantity: item.quantity,
+        unit_price_minor: item.unit_price_minor_snapshot,
+        line_subtotal_minor: multiplyMinor(
+          item.unit_price_minor_snapshot,
+          item.quantity,
+        ),
+      })),
       summary,
       promo: mapDraftPromoDto(selectedPromoEvaluation),
+      ...(options.resumeContext
+        ? { resume_context: options.resumeContext }
+        : {}),
+      ...(options.paymentReadiness !== undefined ||
+      hasPendingOrderResumeMarker(draft)
+        ? { payment_readiness: options.paymentReadiness ?? null }
+        : {}),
     },
   } as CheckoutApiResponse;
+}
+
+function hasPendingOrderResumeMarker(draft: CheckoutDraftRow): boolean {
+  const orderId =
+    draft.fulfillment_mode === "delivery"
+      ? draft.delivery_state_json.pending_order_resume_id
+      : draft.pickup_state_json.pending_order_resume_id;
+
+  return typeof orderId === "string" && orderId.length > 0;
 }
 
 async function buildDeliveryDto(
@@ -1094,6 +1538,8 @@ async function createPromoEvaluationSnapshot(
   options: {
     readonly manualCodes: readonly string[];
     readonly selectedCodes?: readonly string[];
+    readonly cartItems?: readonly CheckoutCartItemRow[];
+    readonly orderId?: string | null;
   },
 ): Promise<CheckoutPromoEvaluationRow> {
   const [
@@ -1104,7 +1550,7 @@ async function createPromoEvaluationSnapshot(
     compatibility,
     shippingAmountMinor,
   ] = await Promise.all([
-    input.dataSource.listCartItems(draft.cart_id),
+    options.cartItems ?? resolveDraftItems(input, draft),
     input.dataSource.listPromoRules({
       profileId: draft.profile_id,
       marketId: draft.market_id,
@@ -1160,7 +1606,7 @@ async function createPromoEvaluationSnapshot(
     profile_id: draft.profile_id,
     market_id: draft.market_id,
     checkout_draft_id: draft.id,
-    order_id: null,
+    order_id: options.orderId ?? null,
     evaluation_context_json: {
       fulfillment_mode: draft.fulfillment_mode,
       manual_codes: options.manualCodes,
@@ -1188,6 +1634,52 @@ async function createPromoEvaluationSnapshot(
   });
 
   return input.dataSource.createPromoEvaluation(evaluation, lines);
+}
+
+async function resolveDraftItems(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+): Promise<readonly CheckoutCartItemRow[]> {
+  const pendingOrder = await resolveMarkedPendingResumeOrder(input, draft);
+  if (!pendingOrder) {
+    return input.dataSource.listCartItems(draft.cart_id);
+  }
+  return mapResumeOrderItemsToDraftItems(
+    draft,
+    await input.dataSource.listResumeOrderItems(pendingOrder.id),
+  );
+}
+
+async function resolveMarkedPendingResumeOrder(
+  input: CheckoutRepositoryDependencies,
+  draft: CheckoutDraftRow,
+): Promise<CheckoutResumeOrderRow | null> {
+  const pendingOrder =
+    await input.dataSource.getPendingResumeOrderByCheckoutDraftId(draft.id);
+  if (!pendingOrder) {
+    return null;
+  }
+  const resumeMarkers = [
+    draft.delivery_state_json.pending_order_resume_id,
+    draft.pickup_state_json.pending_order_resume_id,
+  ];
+  return resumeMarkers.includes(pendingOrder.id) ? pendingOrder : null;
+}
+
+function mapResumeOrderItemsToDraftItems(
+  draft: CheckoutDraftRow,
+  items: readonly CheckoutResumeOrderItemRow[],
+): readonly CheckoutCartItemRow[] {
+  return items.map((item) => ({
+    id: item.id,
+    cart_id: draft.cart_id,
+    product_id: item.product_id,
+    product_name: item.product_name_snapshot,
+    product_image_path: item.product_image_url_snapshot ?? null,
+    category_id: item.category_id,
+    quantity: item.quantity,
+    unit_price_minor_snapshot: item.unit_price_minor,
+  }));
 }
 
 async function resolveSelectedShippingAmountMinor(
@@ -1755,6 +2247,10 @@ function resolveNow(now: RepositoryNow | undefined): string {
   return date instanceof Date ? date.toISOString() : date;
 }
 
+function addMillisecondsToIso(value: string, milliseconds: number): string {
+  return new Date(new Date(value).getTime() + milliseconds).toISOString();
+}
+
 function defaultCheckoutDraftId(): string {
   return randomUUID();
 }
@@ -1798,6 +2294,7 @@ interface SupabaseCheckoutQuery extends PromiseLike<
     column: string,
     values: readonly SupabasePrimitive[],
   ) => SupabaseCheckoutQuery;
+  readonly or: (filters: string) => SupabaseCheckoutQuery;
   readonly order: (
     column: string,
     options?: SupabaseOrderOptions,
@@ -1843,6 +2340,29 @@ const draftColumns = [
   "updated_at",
 ].join(", ");
 
+const resumeOrderColumns = [
+  "id",
+  "profile_id",
+  "market_id",
+  "order_number",
+  "auth_user_id",
+  "checkout_draft_id",
+  "fulfillment_mode",
+  "status",
+  "currency_code",
+  "locale",
+  "buyer_country",
+  "sandbox_test_buyer_country",
+].join(", ");
+
+const resumePaymentSessionColumns = [
+  "id",
+  "order_id",
+  "status",
+  "attempt_number",
+  "paypal_invoice_id",
+].join(", ");
+
 const promoEvaluationColumns = [
   "id",
   "profile_id",
@@ -1885,6 +2405,18 @@ export function createSupabaseCheckoutDataSource(
           .eq("code", code)
           .maybeSingle(),
         `Load market ${code}`,
+      );
+    },
+    async getMarketById(id) {
+      return queryOne<CheckoutMarketRow>(
+        supabase
+          .from("markets")
+          .select(
+            "id, code, currency_code, locale, buyer_country, sandbox_test_buyer_country",
+          )
+          .eq("id", id)
+          .maybeSingle(),
+        `Load market ${id}`,
       );
     },
     async findActiveGuestCart(cartPublicId) {
@@ -1989,10 +2521,11 @@ export function createSupabaseCheckoutDataSource(
         readonly id: string;
         readonly category_id: string;
         readonly name: string;
+        readonly image_path: string | null;
       }>(
         supabase
           .from("products")
-          .select("id, category_id, name")
+          .select("id, category_id, name, image_path")
           .in(
             "id",
             cartItems.map((item) => item.product_id),
@@ -2007,7 +2540,126 @@ export function createSupabaseCheckoutDataSource(
         ...item,
         category_id: productById.get(item.product_id)?.category_id ?? "",
         product_name: productById.get(item.product_id)?.name ?? "Cart item",
+        product_image_path:
+          productById.get(item.product_id)?.image_path ?? null,
       }));
+    },
+    async getResumeOrderForUser(input) {
+      return queryOne<CheckoutResumeOrderRow>(
+        supabase
+          .from("orders")
+          .select(resumeOrderColumns)
+          .eq("auth_user_id", input.authUserId)
+          .eq("order_number", input.orderNumber)
+          .maybeSingle(),
+        `Load pending order ${input.orderNumber} for resume`,
+      );
+    },
+    async claimPendingOrderResume(input) {
+      return queryOne<CheckoutResumeOrderRow>(
+        supabase
+          .from("orders")
+          .update({
+            operation_lock_kind: "resume",
+            operation_lock_token: input.lockToken,
+            operation_lock_expires_at: input.lockExpiresAt,
+          })
+          .eq("id", input.orderId)
+          .eq("auth_user_id", input.authUserId)
+          .eq("status", "pending")
+          .or(
+            `operation_lock_token.is.null,operation_lock_expires_at.lt.${input.lockAcquiredAt}`,
+          )
+          .select(resumeOrderColumns)
+          .maybeSingle(),
+        `Claim pending order ${input.orderId} for resume`,
+      );
+    },
+    async releasePendingOrderResume(input) {
+      await queryMany<{ readonly id: string }>(
+        supabase
+          .from("orders")
+          .update({
+            operation_lock_kind: null,
+            operation_lock_token: null,
+            operation_lock_expires_at: null,
+          })
+          .eq("id", input.orderId)
+          .eq("operation_lock_kind", "resume")
+          .eq("operation_lock_token", input.lockToken)
+          .select("id"),
+        `Release pending order ${input.orderId} resume claim`,
+      );
+    },
+    async getPendingResumeOrderByCheckoutDraftId(checkoutDraftId) {
+      return queryOne<CheckoutResumeOrderRow>(
+        supabase
+          .from("orders")
+          .select(resumeOrderColumns)
+          .eq("checkout_draft_id", checkoutDraftId)
+          .eq("status", "pending")
+          .maybeSingle(),
+        `Load pending order for checkout draft ${checkoutDraftId}`,
+      );
+    },
+    async listResumeOrderItems(orderId) {
+      const orderItems = await queryMany<
+        Omit<CheckoutResumeOrderItemRow, "category_id">
+      >(
+        supabase
+          .from("order_items")
+          .select(
+            "id, order_id, product_id, product_name_snapshot, product_image_url_snapshot, quantity, unit_price_minor",
+          )
+          .eq("order_id", orderId),
+        `List resume order items ${orderId}`,
+      );
+      if (orderItems.length === 0) {
+        return [];
+      }
+      const productRows = await queryMany<{
+        readonly id: string;
+        readonly category_id: string;
+      }>(
+        supabase
+          .from("products")
+          .select("id, category_id")
+          .in(
+            "id",
+            orderItems.map((item) => item.product_id),
+          ),
+        `List resume order product categories ${orderId}`,
+      );
+      const categoryByProductId = new Map(
+        productRows.map((product) => [product.id, product.category_id]),
+      );
+      return orderItems.map((item) => ({
+        ...item,
+        category_id: categoryByProductId.get(item.product_id) ?? "",
+      }));
+    },
+    async listResumePaymentSessions(orderId) {
+      return queryMany<CheckoutResumePaymentSessionRow>(
+        supabase
+          .from("payment_sessions")
+          .select(resumePaymentSessionColumns)
+          .eq("order_id", orderId),
+        `List resume payment sessions ${orderId}`,
+      );
+    },
+    async listCentralInventory(input) {
+      if (input.productIds.length === 0) {
+        return [];
+      }
+      return queryMany<CheckoutCentralInventoryRow>(
+        supabase
+          .from("central_inventory")
+          .select("profile_id, market_id, product_id, available_quantity")
+          .eq("profile_id", input.profileId)
+          .eq("market_id", input.marketId)
+          .in("product_id", input.productIds),
+        "List central inventory for pending resume",
+      );
     },
     async listShippingOptions(marketId) {
       return queryMany<CheckoutShippingOptionRow>(

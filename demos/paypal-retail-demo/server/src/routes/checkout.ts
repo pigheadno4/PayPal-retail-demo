@@ -12,6 +12,15 @@ import type { CatalogJson, StorefrontContext } from "./catalog.js";
 export type CheckoutApiResponse = CatalogJson;
 export type CheckoutFulfillmentMode = "delivery" | "pickup";
 
+export class CheckoutResumeFulfillmentLockedError extends Error {
+  readonly code = "CHECKOUT_RESUME_FULFILLMENT_LOCKED" as const;
+
+  constructor() {
+    super("Resumed checkout fulfillment mode is locked.");
+    this.name = "CheckoutResumeFulfillmentLockedError";
+  }
+}
+
 export interface CheckoutOperationContext {
   readonly storefrontContext: StorefrontContext;
   readonly buyer: BuyerContext;
@@ -95,7 +104,32 @@ export interface CheckoutPromoRemoveInput {
   readonly code: string;
 }
 
+export type CheckoutPendingOrderResumeResult =
+  | {
+      readonly status: "ready";
+      readonly checkout: CheckoutApiResponse;
+    }
+  | {
+      readonly status: "not_found";
+    }
+  | {
+      readonly status: "not_pending";
+    }
+  | {
+      readonly status: "blocked";
+      readonly code:
+        | "DELIVERY_INVENTORY_UNAVAILABLE"
+        | "ORDER_RESUME_STATE_INVALID"
+        | "ORDER_RESUME_IN_PROGRESS"
+        | "SHIPPING_UNAVAILABLE";
+      readonly message: string;
+    };
+
 export interface CheckoutRepository {
+  readonly resumePendingOrder: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }) => Promise<CheckoutPendingOrderResumeResult>;
   readonly createDraft: (
     context: CheckoutOperationContext,
     input: CreateCheckoutDraftInput,
@@ -195,16 +229,28 @@ export function createCheckoutRouter(input: CreateCheckoutRouterInput): Router {
         return;
       }
 
-      sendApiSuccess(
-        response,
-        await input.checkoutRepository.selectFulfillment(
-          resolveCheckoutOperationContext(
-            request,
-            input.activeStorefrontContextStore,
+      try {
+        sendApiSuccess(
+          response,
+          await input.checkoutRepository.selectFulfillment(
+            resolveCheckoutOperationContext(
+              request,
+              input.activeStorefrontContextStore,
+            ),
+            { draftId, fulfillmentMode },
           ),
-          { draftId, fulfillmentMode },
-        ),
-      );
+        );
+      } catch (error) {
+        if (isCheckoutResumeFulfillmentLockedError(error)) {
+          sendApiError(response, 409, {
+            code: "CHECKOUT_RESUME_FULFILLMENT_LOCKED",
+            message:
+              "This resumed order must keep its original fulfillment method.",
+          });
+          return;
+        }
+        throw error;
+      }
     }),
   );
 
@@ -487,6 +533,18 @@ export function createCheckoutRouter(input: CreateCheckoutRouterInput): Router {
   );
 
   return router;
+}
+
+function isCheckoutResumeFulfillmentLockedError(
+  error: unknown,
+): error is CheckoutResumeFulfillmentLockedError {
+  return (
+    error instanceof CheckoutResumeFulfillmentLockedError ||
+    (error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "CHECKOUT_RESUME_FULFILLMENT_LOCKED")
+  );
 }
 
 function resolveCheckoutOperationContext(

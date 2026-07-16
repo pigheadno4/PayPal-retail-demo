@@ -1802,6 +1802,31 @@ function BuyerShell({
     }
   }
 
+  async function handleResumeOrder(orderNumber: string) {
+    if (!currentAuthSession) {
+      openAuthModal();
+      throw new Error("A signed-in account is required to resume an order.");
+    }
+
+    const response = await apiClient.post<CheckoutDraftApiResponse>(
+      `/api/account/orders/${encodeURIComponent(orderNumber)}/resume`,
+      {},
+      { market: config.market.code },
+      buildAuthRequestOptions(currentAuthSession),
+    );
+    if (!response.draft?.id) {
+      throw new Error(`Order ${orderNumber} did not return a checkout draft.`);
+    }
+
+    setCurrentCheckoutData((data) =>
+      reconcileCheckoutDataFromDraftResponse(data, response),
+    );
+    await navigateBuyer({
+      pathname: "/checkout",
+      statusMessage: `Refreshed ${orderNumber} for payment.`,
+    });
+  }
+
   useEffect(() => {
     if (currentRoute.page !== "home") {
       return;
@@ -2276,6 +2301,7 @@ function BuyerShell({
           ...request,
           draftId,
         },
+        nextData,
         currentCart,
         currentAuthSession,
       );
@@ -2793,6 +2819,7 @@ function BuyerShell({
       });
       setCurrentLocation("/checkout/express-review");
       pushBuyerHistory("/checkout/express-review");
+      setCurrentCheckoutData(defaultCheckoutPageData);
       await reloadCartAfterPaymentCapture();
       setShellStatus(
         `Payment captured for order ${captureResponse.order_number}.`,
@@ -3151,8 +3178,12 @@ function BuyerShell({
           cartData={currentCart}
           checkoutData={currentCheckoutData}
           checkoutWalletProbeConfig={{
-            currencyCode: config.market.currencyCode,
-            market: config.market.code,
+            currencyCode:
+              currentCheckoutData.resumePaymentContext?.currencyCode ??
+              config.market.currencyCode,
+            market:
+              currentCheckoutData.resumePaymentContext?.marketCode ??
+              config.market.code,
             providerKey: config.paypal.providerKey,
           }}
           expressAccountLinkPrompt={expressAccountLinkPrompt}
@@ -3181,6 +3212,7 @@ function BuyerShell({
           onGuestOrderLookup={handleGuestOrderLookup}
           onMakeDefaultAddress={handleMakeDefaultAddress}
           onRefreshOrders={handleRefreshOrders}
+          onResumeOrder={handleResumeOrder}
           onSubmitReview={handleSubmitReview}
           onUpdateAddress={handleUpdateAddress}
           onUpdateReview={handleUpdateReview}
@@ -3368,6 +3400,7 @@ function RouteStage({
   onGuestOrderLookup,
   onMakeDefaultAddress,
   onRefreshOrders,
+  onResumeOrder,
   onSubmitReview,
   onUpdateAddress,
   onUpdateReview,
@@ -3422,6 +3455,7 @@ function RouteStage({
   readonly onGuestOrderLookup: (input: GuestOrderLookupInput) => Promise<void>;
   readonly onMakeDefaultAddress: (addressId: string) => Promise<void>;
   readonly onRefreshOrders: () => Promise<void>;
+  readonly onResumeOrder: (orderNumber: string) => Promise<void>;
   readonly onSubmitReview: (
     orderNumber: string,
     itemId: string,
@@ -3540,6 +3574,7 @@ function RouteStage({
         onDeleteSavedPayment={onDeleteSavedPayment}
         onMakeDefaultAddress={onMakeDefaultAddress}
         onRefreshOrders={onRefreshOrders}
+        onResumeOrder={onResumeOrder}
         onSubmitReview={onSubmitReview}
         onUpdateAddress={onUpdateAddress}
         onUpdateReview={onUpdateReview}
@@ -3962,6 +3997,10 @@ function reconcileCheckoutDataFromCart(
   data: CheckoutPageData,
   cart: CartData,
 ): CheckoutPageData {
+  if (data.resumePaymentContext) {
+    return data;
+  }
+
   const merchandiseSubtotalMinor = cart.items.reduce(
     (sum, item) => sum + item.unitPriceCents * item.quantity,
     0,
@@ -5343,22 +5382,23 @@ async function sendCheckoutDraftUpdate(
   apiClient: ApiClient,
   config: StorefrontRuntimeConfig,
   request: CheckoutDraftUpdateRequest,
+  data: CheckoutPageData,
   cart: CartData,
   authSession: BuyerAuthSession | null | undefined,
 ): Promise<CheckoutDraftApiResponse> {
   const draftPath = `/api/checkout/drafts/${encodeURIComponent(
     request.draftId ?? "",
   )}`;
-  const query = {
-    market: config.market.code,
-  };
+  const checkoutMarketCode =
+    data.resumePaymentContext?.marketCode ?? config.market.code;
+  const query = { market: checkoutMarketCode };
   const requestOptions = buildCartRequestOptions(cart, authSession);
 
   switch (request.type) {
     case "delivery_shipping_address":
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/shipping-address`,
-        buildAddressBody(request.fields, config, {
+        buildAddressBody(request.fields, checkoutMarketCode, {
           addressLine2Label: "Apt, suite, or building",
           cityLabel: "City",
           firstNameLabel: "First name",
@@ -5376,7 +5416,7 @@ async function sendCheckoutDraftUpdate(
     case "delivery_billing_address":
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/billing-address`,
-        buildBillingAddressBody(request.fields, config),
+        buildBillingAddressBody(request.fields, checkoutMarketCode),
         query,
         requestOptions,
       );
@@ -5395,7 +5435,7 @@ async function sendCheckoutDraftUpdate(
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/pickup-location`,
         {
-          country_code: config.market.code,
+          country_code: checkoutMarketCode,
           county: null,
           postal_code: getSubmittedFieldValue(
             request.fields,
@@ -5421,7 +5461,7 @@ async function sendCheckoutDraftUpdate(
       return apiClient.patch<CheckoutDraftApiResponse>(
         `${draftPath}/billing-address`,
         {
-          address: buildAddressBody(request.fields, config, {
+          address: buildAddressBody(request.fields, checkoutMarketCode, {
             cityLabel: "City",
             nameLabel: "Full name",
             postalCodeLabel: "ZIP code",
@@ -5527,7 +5567,7 @@ async function activateCheckoutDraftPromosIfEligible({
     apiClient,
     draftId,
     query: {
-      market: config.market.code,
+      market: data.resumePaymentContext?.marketCode ?? config.market.code,
     },
     ...(requestOptions ? { requestOptions } : {}),
   });
@@ -5573,7 +5613,7 @@ function isServerCheckoutDraftId(
 
 function buildBillingAddressBody(
   fields: readonly CheckoutSubmittedField[],
-  config: StorefrontRuntimeConfig,
+  countryCode: string,
 ) {
   const sameAsShipping = getSubmittedBooleanFieldValue(
     fields,
@@ -5589,7 +5629,7 @@ function buildBillingAddressBody(
   }
 
   return {
-    address: buildAddressBody(fields, config, {
+    address: buildAddressBody(fields, countryCode, {
       cityLabel: "Billing city",
       fallbackNameLabel: "Full name",
       nameLabel: "Full name",
@@ -5604,7 +5644,7 @@ function buildBillingAddressBody(
 
 function buildAddressBody(
   fields: readonly CheckoutSubmittedField[],
-  config: StorefrontRuntimeConfig,
+  countryCode: string,
   labels: {
     readonly nameLabel: string;
     readonly firstNameLabel?: string;
@@ -5625,7 +5665,7 @@ function buildAddressBody(
       labels.addressLine2Label,
     ),
     city: getSubmittedFieldValue(fields, labels.cityLabel),
-    country_code: config.market.code,
+    country_code: countryCode,
     county: null,
     phone: getOptionalSubmittedFieldValue(fields, labels.phoneLabel),
     postal_code: getSubmittedFieldValue(fields, labels.postalCodeLabel),
@@ -5831,13 +5871,14 @@ function renderCheckoutPaymentAction({
   const isPayLater = context.selectedPaymentMethod === "paylater";
   const isWallet = isWalletPaymentMethod(context.selectedPaymentMethod);
   const requestOptions = buildCartRequestOptions(cart, authSession);
+  const paymentRuntime = resolveCheckoutPaymentRuntime(config, context);
 
   return (
     <PayPalSdkProviderScope
-      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:${context.selectedPaymentMethod}`}
+      key={`${config.paypal.providerKey}:${paymentRuntime.marketCode}:${paymentRuntime.currencyCode}:${context.fulfillmentMode}:${context.selectedPaymentMethod}`}
       providerKey={config.paypal.providerKey}
       configRequest={{
-        market: config.market.code,
+        market: paymentRuntime.marketCode,
         pageType: "checkout",
         flow: "standard",
         method: context.selectedPaymentMethod,
@@ -5856,9 +5897,9 @@ function renderCheckoutPaymentAction({
       {isWallet ? (
         <WalletCheckoutAction
           checkoutDraftId={context.checkoutDraftId}
-          currencyCode={config.market.currencyCode}
+          currencyCode={paymentRuntime.currencyCode}
           fulfillmentMode={context.fulfillmentMode}
-          market={config.market.code}
+          market={paymentRuntime.marketCode}
           method={context.selectedPaymentMethod}
           onApproved={onApproved}
           requestOptions={requestOptions}
@@ -5867,11 +5908,11 @@ function renderCheckoutPaymentAction({
         />
       ) : isPayLater ? (
         <PayLaterStandaloneAction
-          buyerCountry={resolvePayLaterBuyerCountry(config)}
+          buyerCountry={paymentRuntime.payLaterBuyerCountry}
           checkoutDraftId={context.checkoutDraftId}
-          currencyCode={config.market.currencyCode}
+          currencyCode={paymentRuntime.currencyCode}
           fulfillmentMode={context.fulfillmentMode}
-          market={config.market.code}
+          market={paymentRuntime.marketCode}
           onApproved={onApproved}
           requestOptions={requestOptions}
           totalLabel={context.totalLabel}
@@ -5881,7 +5922,7 @@ function renderCheckoutPaymentAction({
           canSavePaymentMethod={context.saveForFutureEligible}
           checkoutDraftId={context.checkoutDraftId}
           fulfillmentMode={context.fulfillmentMode}
-          market={config.market.code}
+          market={paymentRuntime.marketCode}
           onApproved={onApproved}
           requestOptions={requestOptions}
         />
@@ -5938,13 +5979,14 @@ function renderCardPaymentBox({
   if (context.selectedPaymentMethod !== "card" || !context.checkoutDraftId) {
     return null;
   }
+  const paymentRuntime = resolveCheckoutPaymentRuntime(config, context);
 
   return (
     <PayPalSdkProviderScope
-      key={`${config.paypal.providerKey}:${context.fulfillmentMode}:card`}
+      key={`${config.paypal.providerKey}:${paymentRuntime.marketCode}:${paymentRuntime.currencyCode}:${context.fulfillmentMode}:card`}
       providerKey={config.paypal.providerKey}
       configRequest={{
-        market: config.market.code,
+        market: paymentRuntime.marketCode,
         pageType: "checkout",
         flow: "standard",
         method: "card",
@@ -5954,12 +5996,32 @@ function renderCardPaymentBox({
         canSavePaymentMethod={context.saveForFutureEligible}
         checkoutDraftId={context.checkoutDraftId}
         fulfillmentMode={context.fulfillmentMode}
-        market={config.market.code}
+        market={paymentRuntime.marketCode}
         onApproved={onApproved}
         requestOptions={buildCartRequestOptions(cart, authSession)}
       />
     </PayPalSdkProviderScope>
   );
+}
+
+function resolveCheckoutPaymentRuntime(
+  config: StorefrontRuntimeConfig,
+  context: CheckoutPaymentActionContext,
+): {
+  readonly currencyCode: string;
+  readonly marketCode: string;
+  readonly payLaterBuyerCountry: "GB" | "US";
+} {
+  const resumeContext = context.resumePaymentContext;
+
+  return {
+    currencyCode: resumeContext?.currencyCode ?? config.market.currencyCode,
+    marketCode: resumeContext?.marketCode ?? config.market.code,
+    payLaterBuyerCountry:
+      (resumeContext?.payLaterBuyerCountry ?? config.market.code) === "GB"
+        ? "GB"
+        : "US",
+  };
 }
 
 function renderStorefrontPayLaterMessage({

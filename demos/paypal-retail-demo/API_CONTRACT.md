@@ -235,6 +235,7 @@ Delete default address must fail unless another default exists.
 
 - `GET /api/account/orders`
 - `GET /api/account/orders/:orderNumber`
+- `POST /api/account/orders/:orderNumber/resume`
 
 Account order APIs require authenticated buyer context.
 
@@ -243,6 +244,14 @@ Account order APIs require authenticated buyer context.
 `GET /api/account/orders/:orderNumber` returns `{ order }` only when the order belongs to the signed-in buyer.
 
 Order DTOs include buyer-facing order number, placed date, fulfillment mode, status, payment status, currency, totals, item rows, lifecycle timeline, fulfillment addresses, and per-item review eligibility/submitted state. Technical PayPal order IDs, payment-session IDs, internal database IDs, and Admin/debug snapshots stay hidden from buyer UI.
+
+`POST /api/account/orders/:orderNumber/resume` is authenticated and owner-scoped. It returns the existing checkout draft envelope after revalidating the pending order against current inventory, shipping or pickup availability, promo, tax, and total rules. Saved `order_items` prices and quantities plus the order's stored market/currency/locale/buyer-country context are authoritative; the buyer's active cart is neither merged into nor consumed by the resumed order. Resume takes a short-lived server-only `orders.operation_lock_*` lease before changing draft or promo state. Capture uses the same lease, so resume and capture cannot mutate one pending order concurrently; leases expire after five minutes to recover from an interrupted server process.
+
+- `401` when no buyer session exists.
+- `404` when the order does not belong to the buyer or cannot be found.
+- `409` when the order is no longer pending, another resume/capture operation owns the lease, or delivery inventory/shipping/state validation cannot be recovered safely.
+- `200` with `{ draft }` when Checkout can continue. The draft includes saved item summary rows. A missing delivery address or invalid pickup store/date state is returned with blocked payment readiness so the buyer can complete the required address or rebooking step before payment.
+- Payment sessions are not created by this endpoint. A fresh method-specific attempt is created only when the buyer activates an existing Checkout payment surface.
 
 ### Saved Payment APIs
 
@@ -321,6 +330,8 @@ Response includes:
 - pickup tab state
 - order summary draft
 - promo calculation status
+
+`PATCH /api/checkout/drafts/:id/fulfillment` changes Delivery/Pickup only for an ordinary checkout draft. A draft explicitly marked for pending-order resume is locked to the saved order's fulfillment mode at the server boundary; a conflicting request returns `409 CHECKOUT_RESUME_FULFILLMENT_LOCKED` and does not update the draft.
 
 ### Delivery Step APIs
 
@@ -677,7 +688,9 @@ Decline response:
 - `{ "name": "UNPROCESSABLE_ENTITY", "details": [{ "issue": "..." }] }`
 - supported issues include address/country/state/zip errors and unavailable shipping methods
 
-Response must keep PayPal amount breakdown consistent. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
+Response must keep PayPal amount breakdown consistent. The callback path must be a valid internal UUID and the callback body must contain a provider-shaped PayPal order ID that resolves to the exact payment session for that order. Missing, malformed, PII-like, or mismatched identifiers return `422` before recalculation/persistence. Callback recalculation writes an order-scoped promo evaluation snapshot, recalculates tax after promo discount, excludes shipping from promo and tax bases, updates order/payment-session snapshots, and includes `amount.breakdown.discount` when an auto promo applies.
+
+The route emits sanitized allowlisted runtime diagnostics named `paypal_shipping_callback_received`, `paypal_shipping_callback_completed`, and `paypal_shipping_callback_declined` with source `payment_shipping_update`. Approved context is limited to callback/order correlation, selected shipping-option ID, outcome/status, decline issue, and duration. Raw callback bodies, shipping addresses, buyer PII, and provider payloads are never logged. Diagnostics do not change the raw PayPal `200`/`422` response contract.
 
 ### `GET /api/paypal/orders/express-review`
 
@@ -717,10 +730,11 @@ Before capture:
 4. Normalize the provider amount into item total, shipping, tax, discount, final total, and currency fields when PayPal supplies that breakdown.
 5. Block capture on currency, item total, shipping, tax, discount, or final-total mismatch beyond configured rounding tolerance.
 6. Allow only known rounding tolerance.
-7. Capture if consistent.
-8. Mark order paid.
-9. Decrement inventory.
-10. Clear paid cart items.
+7. Atomically claim the pending order's short-lived capture lease; fail before the PayPal gateway call when resume or another capture owns it.
+8. Capture if consistent.
+9. Atomically mark the order paid only while the capture request still owns the lease.
+10. Decrement inventory.
+11. Clear paid cart items.
 
 V1 implementation note:
 
@@ -766,6 +780,7 @@ Blocked response:
 - HTTP `409`
 - standard app error envelope with `code: "PAYPAL_CAPTURE_AMOUNT_MISMATCH"`
 - `details.amount_guard` contains the same explainable guard decision shape
+- when resume or another capture owns the pending-order lease, the route returns `409 PAYPAL_ORDER_OPERATION_IN_PROGRESS` before calling the PayPal gateway
 
 Snapshot storage:
 
@@ -976,7 +991,7 @@ Admin clients must echo the returned ID in the patch URL instead of reconstructi
 
 `GET /api/admin/debug-logs` requires a signed admin session and returns persisted sanitized runtime diagnostics from `app.runtime_debug_logs`. It uses the Admin server-query contract: the database constrains both count and data queries to canonical approved message/source/event shapes, then applies `lookup`, `level`, `category`, `event`, `logged_from`, `logged_to`, `timezone`, `cursor`, and `limit` before returning an exact-count cursor page. Persistent and fallback lookup use the same explicit message/correlation field set and treat `lookup` as a literal case-insensitive substring; `%`, `_`, and backslash are ordinary characters rather than pattern syntax. `lookup` values containing `*` are rejected before repository access with `INVALID_ADMIN_FILTERS` and `invalid_fields: ["lookup"]` because PostgREST reserves `*` as a wildcard alias. If a persistent read fails, or any runtime insert has failed in the current process, the route conservatively applies the same query/page contract to the bounded current-process allowlisted buffer; the persistent table is the restart-safe source while persistence remains healthy.
 
-Each response row includes timestamp, level, message, derived `debug_id`, derived source/category, derived request path, and event-allowlisted context. Runtime context is recursively redacted and then reduced to bounded scalar fields approved for lifecycle, inventory/pickup-capacity, PayPal webhook-outcome, Account order-load-failure, and payment amount-guard events before persistence and again before Admin output; arrays, objects, invalid numbers, and overlong scalar values are dropped from approved fields. Secret-key matching covers snake/kebab/space and camel/Pascal variants, and query values are removed from console and persisted path fields. Admin credentials/sessions, OAuth or client tokens, PayPal/Supabase secrets, cart secrets, full card data, buyer contact/address PII, provider payloads, and webhook payloads are not persisted.
+Each response row includes timestamp, level, message, derived `debug_id`, derived source/category, derived request path, and event-allowlisted context. Runtime context is recursively redacted and then reduced to bounded scalar fields approved for lifecycle, inventory/pickup-capacity, PayPal webhook-outcome, PayPal shipping-callback outcome, Account order-load-failure, and payment amount-guard events before persistence and again before Admin output; arrays, objects, invalid numbers, and overlong scalar values are dropped from approved fields. Secret-key matching covers snake/kebab/space and camel/Pascal variants, and query values are removed from console and persisted path fields. Admin credentials/sessions, OAuth or client tokens, PayPal/Supabase secrets, cart secrets, full card data, buyer contact/address PII, provider payloads, webhook payloads, and shipping addresses are not persisted.
 
 Persistence and retention cleanup are asynchronous best effort: insert or cleanup failure does not fail or delay checkout, capture, webhook processing, inventory mutation, lifecycle mutation, or Account reads and is never logged through the same persistent sink. JSON console logging and the bounded in-memory buffer remain available. Runtime rows are retained for 7 days; cleanup is scheduled when the persistent store starts, including quiet startup, and starts no more than once per 24 hours. The route is read-only and must not mutate orders, saved payment methods, payment sessions, inventory, or webhook processing state.
 

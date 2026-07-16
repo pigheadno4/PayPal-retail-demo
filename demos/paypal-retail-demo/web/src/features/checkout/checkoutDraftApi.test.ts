@@ -82,6 +82,76 @@ describe("checkoutDraftApi", () => {
     });
   });
 
+  it("replaces active-cart summary items with the saved resumed-order snapshot", () => {
+    const nextData = reconcileCheckoutDataFromDraftResponse(
+      defaultCheckoutPageData,
+      {
+        draft: {
+          id: "draft_delivery_resume",
+          fulfillment_mode: "delivery",
+          resume_context: {
+            order_number: "DO-20260607-000123",
+            market_code: "GB",
+            currency_code: "GBP",
+            locale: "en-GB",
+            buyer_country: "GB",
+            paylater_buyer_country: "GB",
+            sandbox_test_buyer_country: "GB",
+          },
+          items: [
+            {
+              id: "order_item_snapshot",
+              product_name: "Labubu Snapshot",
+              image_path: "/assets/popmart/products/labubu-snapshot.svg",
+              quantity: 2,
+              unit_price_minor: 1599,
+              line_subtotal_minor: 3198,
+            },
+          ],
+          payment_readiness: {
+            state: "blocked",
+            title: "Review the resumed order",
+            body: "Complete the required checkout step before payment.",
+          },
+          summary: {
+            currency_code: "USD",
+            discount_minor: 0,
+            merchandise_subtotal_minor: 3198,
+            shipping_minor: 500,
+            total_minor: 3978,
+          },
+        },
+      },
+    );
+
+    expect(nextData.delivery.summary.items).toEqual([
+      {
+        id: "order_item_snapshot",
+        name: "Labubu Snapshot",
+        detailLabel: "Qty 2",
+        imagePath: "/assets/popmart/products/labubu-snapshot.svg",
+        imageAlt: "Labubu Snapshot collectible",
+        quantity: 2,
+        amountLabel: "$31.98",
+      },
+    ]);
+    expect(nextData.delivery.paymentReadiness?.state).toBe("blocked");
+    expect(nextData).toMatchObject({
+      activeMode: "delivery",
+      modeLocked: true,
+      lockedReason: "This resumed order keeps its original Delivery method.",
+      resumePaymentContext: {
+        orderNumber: "DO-20260607-000123",
+        marketCode: "GB",
+        currencyCode: "GBP",
+        locale: "en-GB",
+        buyerCountry: "GB",
+        payLaterBuyerCountry: "GB",
+        sandboxTestBuyerCountry: "GB",
+      },
+    });
+  });
+
   it("maps pickup stores to text-labelled full partial and sold-out states", () => {
     const store = (
       id: string,

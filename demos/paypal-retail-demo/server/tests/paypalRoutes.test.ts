@@ -525,14 +525,21 @@ describe("PayPal routes", () => {
   });
 
   it("handles express shipping callbacks with a raw PayPal success response", async () => {
+    const callbackContextId = "11111111-1111-4111-8111-111111111111";
+    const entries: DebugLogEntry[] = [];
     const gateway = createPayPalGateway();
     const orderRepository = createOrderRepository();
-    const app = createPayPalApp(gateway, orderRepository);
+    const app = createPayPalApp(
+      gateway,
+      orderRepository,
+      undefined,
+      createDebugLogger({ sink: (entry) => entries.push(entry) }),
+    );
 
     const response = await requestApp(
       app,
       "POST",
-      "/api/paypal/orders/order_express/shipping-callback",
+      `/api/paypal/orders/${callbackContextId}/shipping-callback`,
       {
         json: {
           id: "PAYPAL_ORDER_EXPRESS",
@@ -551,7 +558,7 @@ describe("PayPal routes", () => {
     expect(response.json).not.toHaveProperty("ok");
     expect(orderRepository.shippingCallbackCalls).toEqual([
       {
-        callbackContextId: "order_express",
+        callbackContextId,
         paypalOrderId: "PAYPAL_ORDER_EXPRESS",
         shippingAddress: {
           fullName: null,
@@ -574,17 +581,129 @@ describe("PayPal routes", () => {
         },
       },
     ]);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "paypal_shipping_callback_received",
+          context: expect.objectContaining({
+            callback_context_id: callbackContextId,
+            paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+            selected_shipping_option_id: null,
+          }),
+        }),
+        expect.objectContaining({
+          message: "paypal_shipping_callback_completed",
+          context: expect.objectContaining({
+            callback_context_id: callbackContextId,
+            duration_ms: expect.any(Number),
+            paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+            status_code: 200,
+          }),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(entries)).not.toContain("94105");
+    expect(JSON.stringify(entries)).not.toContain("San Francisco");
   });
 
-  it("declines malformed PayPal shipping callbacks with raw PayPal error JSON", async () => {
-    const gateway = createPayPalGateway();
+  it("rejects PII-like callback identifiers before repository persistence", async () => {
+    const callbackContextId = "11111111-1111-4111-8111-111111111111";
+    const entries: DebugLogEntry[] = [];
     const orderRepository = createOrderRepository();
-    const app = createPayPalApp(gateway, orderRepository);
+    const app = createPayPalApp(
+      createPayPalGateway(),
+      orderRepository,
+      undefined,
+      createDebugLogger({ sink: (entry) => entries.push(entry) }),
+    );
 
     const response = await requestApp(
       app,
       "POST",
-      "/api/paypal/orders/order_express/shipping-callback",
+      `/api/paypal/orders/${callbackContextId}/shipping-callback`,
+      {
+        json: {
+          id: "payer@example.test",
+          shipping_address: {
+            country_code: "US",
+            admin_area_1: "CA",
+            postal_code: "94105",
+          },
+          shipping_option: {
+            id: "1 Market Street",
+          },
+        },
+      },
+    );
+
+    expect(response.status).toBe(422);
+    expect(orderRepository.shippingCallbackCalls).toEqual([]);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "paypal_shipping_callback_declined",
+          context: expect.objectContaining({
+            callback_context_id: callbackContextId,
+            paypal_order_id: null,
+            status_code: 422,
+          }),
+        }),
+      ]),
+    );
+    const serializedEntries = JSON.stringify(entries);
+    expect(serializedEntries).not.toContain("payer@example.test");
+    expect(serializedEntries).not.toContain("1 Market Street");
+  });
+
+  it("declines a PII-like callback context before repository persistence", async () => {
+    const entries: DebugLogEntry[] = [];
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(
+      createPayPalGateway(),
+      orderRepository,
+      undefined,
+      createDebugLogger({ sink: (entry) => entries.push(entry) }),
+    );
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/buyer%40example.test/shipping-callback",
+      {
+        json: {
+          id: "PAYPAL_ORDER_EXPRESS",
+          shipping_address: {
+            country_code: "US",
+            admin_area_1: "CA",
+            postal_code: "94105",
+          },
+        },
+      },
+    );
+
+    expect(response.status).toBe(422);
+    expect(orderRepository.shippingCallbackCalls).toEqual([]);
+    const serializedEntries = JSON.stringify(entries);
+    expect(serializedEntries).not.toContain("buyer@example.test");
+    expect(serializedEntries).not.toContain("buyer%40example.test");
+  });
+
+  it("declines malformed PayPal shipping callbacks with raw PayPal error JSON", async () => {
+    const callbackContextId = "11111111-1111-4111-8111-111111111111";
+    const entries: DebugLogEntry[] = [];
+    const gateway = createPayPalGateway();
+    const orderRepository = createOrderRepository();
+    const app = createPayPalApp(
+      gateway,
+      orderRepository,
+      undefined,
+      createDebugLogger({ sink: (entry) => entries.push(entry) }),
+    );
+
+    const response = await requestApp(
+      app,
+      "POST",
+      `/api/paypal/orders/${callbackContextId}/shipping-callback`,
       {
         json: {},
       },
@@ -596,6 +715,19 @@ describe("PayPal routes", () => {
       details: [{ issue: "ADDRESS_ERROR" }],
     });
     expect(orderRepository.shippingCallbackCalls).toEqual([]);
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "warn",
+          message: "paypal_shipping_callback_declined",
+          context: expect.objectContaining({
+            callback_context_id: callbackContextId,
+            decline_issue: "ADDRESS_ERROR",
+            status_code: 422,
+          }),
+        }),
+      ]),
+    );
   });
 
   it("returns an express Review and Confirm snapshot from synchronized order totals", async () => {
@@ -733,6 +865,40 @@ describe("PayPal routes", () => {
     });
     expect(gateway.captureOrderCalls).toEqual([]);
     expect(orderRepository.recordCaptureCalls).toEqual([]);
+  });
+
+  it("returns a conflict before PayPal capture when resume owns the order lease", async () => {
+    const gateway = createPayPalGateway();
+    const baseRepository = createOrderRepository();
+    const orderRepository: FakeOrderRepository = {
+      ...baseRepository,
+      async prepareCapture() {
+        throw Object.assign(new Error("Order is busy with another operation"), {
+          code: "PAYPAL_ORDER_OPERATION_IN_PROGRESS",
+        });
+      },
+    };
+    const app = createPayPalApp(gateway, orderRepository);
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/paypal/orders/PAYPAL_ORDER_DELIVERY/capture",
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "PAYPAL_ORDER_OPERATION_IN_PROGRESS",
+        message:
+          "This order is already being updated. Wait a moment and try again.",
+        details: {},
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+    expect(gateway.captureOrderCalls).toEqual([]);
+    expect(baseRepository.recordCaptureCalls).toEqual([]);
   });
 
   it("validates create-order requests before repository and PayPal calls", async () => {

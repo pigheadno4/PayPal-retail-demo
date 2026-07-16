@@ -3,6 +3,19 @@ import { Router, type Request, type RequestHandler } from "express";
 import { sendApiError, sendApiSuccess } from "../http/responses.js";
 import type { BuyerContext, BuyerRequest } from "../middleware/auth.js";
 import type { PayPalPaymentTokenDeleteGateway } from "../paypal/client.js";
+import type {
+  CheckoutApiResponse,
+  CheckoutPendingOrderResumeResult,
+} from "./checkout.js";
+
+export type AccountPendingOrderResumeResult = CheckoutPendingOrderResumeResult;
+
+export interface AccountPendingOrderResumeRepository {
+  readonly resumePendingOrder: (input: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }) => Promise<AccountPendingOrderResumeResult>;
+}
 
 export interface AccountSavedPaymentMethod {
   readonly id: string;
@@ -218,6 +231,7 @@ export interface AccountRepository {
 
 export interface CreateAccountRouterInput {
   readonly accountRepository: AccountRepository;
+  readonly pendingOrderResumeRepository: AccountPendingOrderResumeRepository;
   readonly paymentTokenGateway: PayPalPaymentTokenDeleteGateway;
 }
 
@@ -399,6 +413,54 @@ export function createAccountRouter(input: CreateAccountRouterInput): Router {
 
       sendApiSuccess(response, {
         order,
+      });
+    }),
+  );
+
+  router.post(
+    "/account/orders/:orderNumber/resume",
+    asyncRoute(async (request, response) => {
+      const authUserId = requireAuthenticatedBuyerId(request, response);
+      if (!authUserId) {
+        return;
+      }
+
+      const orderNumber = firstRouteParamValue(request, "orderNumber");
+      if (!orderNumber) {
+        sendApiError(response, 400, {
+          code: "INVALID_ACCOUNT_ORDER_REQUEST",
+          message: "An order number is required.",
+        });
+        return;
+      }
+
+      const result =
+        await input.pendingOrderResumeRepository.resumePendingOrder({
+          authUserId,
+          orderNumber,
+        });
+      if (result.status === "ready") {
+        sendApiSuccess(response, result.checkout as CheckoutApiResponse);
+        return;
+      }
+      if (result.status === "not_found") {
+        sendApiError(response, 404, {
+          code: "ACCOUNT_ORDER_NOT_FOUND",
+          message: "No order matched the current buyer.",
+        });
+        return;
+      }
+      if (result.status === "not_pending") {
+        sendApiError(response, 409, {
+          code: "ORDER_NOT_RESUMABLE",
+          message: "Only pending orders can resume payment.",
+        });
+        return;
+      }
+
+      sendApiError(response, 409, {
+        code: result.code,
+        message: result.message,
       });
     }),
   );

@@ -633,11 +633,13 @@ During implementation:
 ### Task 1: Lock Browser SDK And Static Association Requirements
 
 **Files:**
+
 - Create: `web/src/features/payments/walletSdkAssets.test.ts`
 - Modify: `web/index.html`
 - Create: `web/public/.well-known/apple-developer-merchantid-domain-association`
 
 **Interfaces:**
+
 - Consumes: Vite's `web/public` static-file contract.
 - Produces: `window.ApplePaySession`, the registered `<apple-pay-button>` custom element, `window.google.payments.api.PaymentsClient`, and the public Apple validation path.
 
@@ -649,11 +651,13 @@ During implementation:
 ### Task 2: Upgrade PayPal Packages Without Regressing Provider Configuration
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `package-lock.json`
 - Verify: `web/src/features/payments/PayPalSdkProviderScope.test.tsx`
 
 **Interfaces:**
+
 - Consumes: server `environment`, `components`, locale, page type, and sandbox test-buyer-country SDK configuration.
 - Produces: v10 `PayPalProvider` props with an explicit environment.
 
@@ -664,12 +668,14 @@ During implementation:
 ### Task 3: Replace The Fake Google Pay Control And Bridge Wallet Approval
 
 **Files:**
+
 - Create: `web/src/features/payments/WalletCheckoutAction.runtime.test.tsx`
 - Modify: `web/src/features/payments/WalletCheckoutAction.tsx`
 - Modify: `web/src/app/App.tsx`
 - Modify: `web/src/app/App.checkout-paypal-capture.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `useGooglePayOneTimePaymentSession`, its official `createGooglePayButton()` output, wallet eligibility config, checkout create-order APIs, and the existing `CheckoutApprovedPaymentContext` callback.
 - Produces: official Google `PaymentsClient.createButton()` rendering and approved Apple/Google/Venmo order context containing method, fulfillment mode, PayPal order ID, and payment-session ID.
 
@@ -682,10 +688,12 @@ During implementation:
 ### Task 4: Normalize Official Wallet Button Dimensions
 
 **Files:**
+
 - Modify: `web/src/styles/global.test.ts`
 - Modify: `web/src/styles/global.css`
 
 **Interfaces:**
+
 - Consumes: existing `.wallet-checkout-action` 52px selected-action slot.
 - Produces: full-width 52px Apple, Google, and Venmo actions in desktop summary, sticky summary, and mobile order sheet.
 
@@ -696,6 +704,7 @@ During implementation:
 ### Task 5: Documentation, Verification, And Review
 
 **Files:**
+
 - Modify: `DEMO.md`
 - Modify: `DESIGN.md`
 - Modify: `IMPLEMENTATION_TASKS.md`
@@ -705,6 +714,7 @@ During implementation:
 - Modify: `tracking/todos.md`
 
 **Interfaces:**
+
 - Consumes: focused test/build/browser evidence.
 - Produces: current source-of-truth prerequisites, completion state, and any remaining PayPal dashboard/deployment actions.
 
@@ -735,10 +745,12 @@ During implementation:
 ### Task 1: Lock Checkout Choice Filtering
 
 **Files:**
+
 - Modify: `web/src/features/checkout/CheckoutPage.tsx`
 - Modify: `web/src/features/checkout/CheckoutPage.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `paymentMethodEligibility?: Partial<Record<"apple_pay" | "google_pay", boolean>>`.
 - Produces: normalized payment choices that include Apple Pay or Google Pay only when the corresponding value is exactly `true` and the draft choice is not explicitly ineligible.
 
@@ -750,6 +762,7 @@ During implementation:
 ### Task 2: Add Official Browser And Provider Probes
 
 **Files:**
+
 - Create: `web/src/features/payments/CheckoutWalletEligibilityProbes.tsx`
 - Create: `web/src/features/payments/CheckoutWalletEligibilityProbes.test.tsx`
 - Modify: `web/src/app/App.tsx`
@@ -758,6 +771,7 @@ During implementation:
 - Modify: `web/src/app/App.checkout-paypal-capture.test.tsx`
 
 **Interfaces:**
+
 - Produces: `CheckoutWalletEligibility = { apple_pay: "pending" | "eligible" | "ineligible"; google_pay: "pending" | "eligible" | "ineligible" }` and `onEligibilityChange(method, state)` callbacks.
 - Consumes: PayPal `useEligibleMethods`, Google `useGooglePayOneTimePaymentSession().paymentsClient/formattedConfig`, `ApplePaySession.canMakePayments()`, active fulfillment total, market, currency, and resolved sandbox/production environment.
 
@@ -771,6 +785,7 @@ During implementation:
 ### Task 3: Tracking, Verification, Browser Evidence, And Review
 
 **Files:**
+
 - Modify: `DEMO.md`
 - Modify: `IMPLEMENTATION_TASKS.md`
 - Modify: `tracking/debug.md`
@@ -779,6 +794,7 @@ During implementation:
 - Modify: `tracking/todos.md`
 
 **Interfaces:**
+
 - Consumes: focused red/green evidence, full verification, build output, and browser inspection.
 - Produces: synchronized canonical status and independent review disposition.
 
@@ -803,13 +819,13 @@ During implementation:
 
 ### Filters And Drill-Down
 
-| Route | Filters | Primary result |
-| --- | --- | --- |
-| Orders | order number, order status, fulfillment, payment status, created range | order table and drill-down detail |
-| Lifecycle | order number, fulfillment, current status, next action, updated range, actionable only | one-step fulfillment queue |
-| Inventory | SKU/product, inventory scope, store, stock condition, availability, changed range | Stock and Pickup capacity subtabs |
-| Webhooks | event ID, event type, verification, processing, linked state, received range | read-only event table and sanitized detail |
-| Diagnostics | order/PayPal/debug ID, payment method/status/amount consistency, log level/category/event, time range | Payment and Runtime Logs subtabs |
+| Route       | Filters                                                                                               | Primary result                             |
+| ----------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Orders      | order number, order status, fulfillment, payment status, created range                                | order table and drill-down detail          |
+| Lifecycle   | order number, fulfillment, current status, next action, updated range, actionable only                | one-step fulfillment queue                 |
+| Inventory   | SKU/product, inventory scope, store, stock condition, availability, changed range                     | Stock and Pickup capacity subtabs          |
+| Webhooks    | event ID, event type, verification, processing, linked state, received range                          | read-only event table and sanitized detail |
+| Diagnostics | order/PayPal/debug ID, payment method/status/amount consistency, log level/category/event, time range | Payment and Runtime Logs subtabs           |
 
 - Persist filters in URL query parameters and make refresh/back navigation deterministic.
 - Default Webhooks and Runtime Logs to the last 24 hours; support Last hour, 24 hours, 7 days, 30 days, and Custom with explicit timezone.
@@ -854,3 +870,280 @@ Account filter mapping is fixed: `In progress` covers pending, paid, processing,
 - Browser evidence covers filter preservation, drill-down, lifecycle-to-Account refresh, genuine webhook search, Diagnostics detail, keyboard use, loading/error/empty states, and overflow-safe 375/768/1024/1440 layouts.
 
 Out of scope: provider-simulated webhooks, real carrier/tracking APIs, bulk/reverse lifecycle actions, background Account polling, realtime subscriptions, saved Admin views, exports, and a new analytics/event-store platform.
+
+## 2026-07-15 Shipping Callback Evidence And Pending Resume Completion Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Close the express shipping-callback observability gap and make Account pending-order resume use the saved order snapshot through the existing Checkout payment wall.
+
+**Architecture:** Add allowlisted PayPal shipping callback diagnostics at the route boundary. Extend the checkout repository with an authenticated pending-resume operation that loads the pending order and its item snapshots, invokes `planPendingOrderResume`, refreshes draft fulfillment and promo state, and returns the existing checkout draft response shape. Make every resumed checkout calculation and PayPal Create Order use saved order items rather than current cart items, while capture skips active-cart cleanup for resumed orders.
+
+**Tech Stack:** TypeScript, Express 5, Supabase, React 19, PayPal JS SDK v6, Vitest, Testing Library, Playwright CLI.
+
+### Global Constraints
+
+- Preserve the PayPal server-side shipping callback contract and raw `200`/`422` response bodies.
+- Never log raw shipping addresses, buyer PII, callback bodies, cart secrets, access tokens, or provider secrets.
+- Resume is authenticated and owner-scoped; guest pending-order resume remains out of scope.
+- Saved `order_items` and the order's locked market context are authoritative. The active cart remains untouched.
+- Delivery inventory shortages block payment. Pickup retains current partial-inventory semantics and requires store/date rebooking when invalid.
+- Payment sessions remain method-specific and are created only when the buyer activates a payment surface.
+- Follow red-green-refactor for each behavior and keep tracking files synchronized with verified evidence.
+
+---
+
+### Task 1: Add Sanitized Shipping Callback Diagnostics
+
+**Files:**
+
+- Modify: `server/src/debug/logger.ts`
+- Modify: `server/src/routes/paypal.ts`
+- Test: `server/tests/debugLogger.test.ts`
+- Test: `server/tests/paypalRoutes.test.ts`
+
+**Interfaces:**
+
+- Produces: allowlisted events `paypal_shipping_callback_received`, `paypal_shipping_callback_completed`, and `paypal_shipping_callback_declined` with `source = payment_shipping_update`.
+- Preserves: the existing raw PayPal success/decline response contract.
+
+- [x] **Step 1: Write failing logger-policy and route tests**
+
+```ts
+expect(entries).toEqual(
+  expect.arrayContaining([
+    expect.objectContaining({
+      message: "paypal_shipping_callback_completed",
+      context: expect.objectContaining({
+        callback_context_id: "order_express",
+        paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+        status_code: 200,
+      }),
+    }),
+  ]),
+);
+expect(JSON.stringify(entries)).not.toContain("94105");
+```
+
+- [x] **Step 2: Run the focused tests and confirm they fail because the events are not emitted/allowlisted**
+
+Run: `npm test -- server/tests/debugLogger.test.ts server/tests/paypalRoutes.test.ts`
+
+- [x] **Step 3: Add the narrow runtime policy and route timing/outcome logs**
+
+```ts
+logPayPalRouteInfo(input, "paypal_shipping_callback_received", context);
+logPayPalRouteInfo(input, "paypal_shipping_callback_completed", {
+  ...context,
+  status_code: 200,
+  duration_ms: Date.now() - startedAt,
+});
+```
+
+- [x] **Step 4: Re-run the focused tests and keep raw PayPal response assertions green**
+
+Run: `npm test -- server/tests/debugLogger.test.ts server/tests/paypalRoutes.test.ts`
+
+### Task 2: Add The Authenticated Snapshot-Based Resume API
+
+**Files:**
+
+- Modify: `server/src/routes/account.ts`
+- Modify: `server/src/routes/checkout.ts`
+- Modify: `server/src/repositories/checkoutRepository.ts`
+- Modify: `server/src/app.ts`
+- Modify: `server/src/server.ts`
+- Test: `server/tests/accountRoutes.test.ts`
+- Test: `server/tests/checkoutRepository.test.ts`
+
+**Interfaces:**
+
+- Produces: `POST /api/account/orders/:orderNumber/resume` returning the existing `CheckoutApiResponse` draft envelope.
+- Produces: `CheckoutRepository.resumePendingOrder({ authUserId, orderNumber })`.
+- Consumes: pending order ownership, saved order items, original draft fulfillment state, payment sessions, current shipping/store/date/inventory/promo/tax rules, and `planPendingOrderResume`.
+
+- [x] **Step 1: Write failing route tests for authentication, ownership/not-found, non-pending conflict, and success**
+
+```ts
+expect(response.status).toBe(200);
+expect(response.json.data.draft).toMatchObject({
+  id: "checkout_draft_pending",
+  fulfillment_mode: "delivery",
+});
+```
+
+- [x] **Step 2: Write failing repository tests proving order-item snapshot prices win over changed cart prices and active storefront context**
+
+```ts
+expect(response.draft?.summary).toMatchObject({
+  merchandise_subtotal_minor: 3198,
+  currency_code: "USD",
+});
+expect(dataSource.listCartItems).not.toHaveBeenCalled();
+```
+
+- [x] **Step 3: Run the focused tests and confirm the endpoint/method are missing**
+
+Run: `npm test -- server/tests/accountRoutes.test.ts server/tests/checkoutRepository.test.ts`
+
+- [x] **Step 4: Implement owner-scoped resume orchestration and a single `resolveDraftItems` helper used by summaries, promos, tax, and pickup inventory**
+
+```ts
+readonly resumePendingOrder: (input: {
+  readonly authUserId: string;
+  readonly orderNumber: string;
+}) => Promise<CheckoutPendingOrderResumeResult>;
+```
+
+- [x] **Step 5: Revalidate fulfillment state**
+
+Delivery rejects insufficient central inventory and selects the cheapest eligible shipping option when the prior choice is invalid. Pickup clears invalid store/date selections and returns the current partial-inventory/store/date choices.
+
+- [x] **Step 6: Re-evaluate promos from snapshot items, update the draft's selected evaluation, and return refreshed tax/summary data**
+
+- [x] **Step 7: Re-run the focused route/repository tests**
+
+Run: `npm test -- server/tests/accountRoutes.test.ts server/tests/checkoutRepository.test.ts shared/src/orders.test.ts`
+
+### Task 3: Keep PayPal Resume And Capture Isolated From The Active Cart
+
+**Files:**
+
+- Modify: `server/src/repositories/paypalOrderRepository.ts`
+- Test: `server/tests/paypalOrderRepository.test.ts`
+
+**Interfaces:**
+
+- Consumes: pending order found by checkout draft and its saved `order_items`.
+- Produces: PayPal merchant lines, promo/tax/total snapshot, and inventory mutation based on saved order quantities.
+- Preserves: unchanged create/capture behavior for new checkout and express orders.
+
+- [x] **Step 1: Write a failing delivery-resume test where current cart contents/prices differ from saved order items**
+
+```ts
+expect(result.items).toEqual([
+  expect.objectContaining({ unitAmountMinor: 1599, quantity: 2 }),
+]);
+expect(result.totalMinor).not.toBe(currentCartTotalMinor);
+```
+
+- [x] **Step 2: Write a failing capture test proving resumed capture does not delete current-cart items**
+
+```ts
+expect(dataSource.deleteCartItemsCalls).toEqual([]);
+expect(dataSource.decrementCentralInventoryCalls).toHaveLength(1);
+```
+
+- [x] **Step 3: Run the focused repository tests and confirm both failures expose current-cart coupling**
+
+Run: `npm test -- server/tests/paypalOrderRepository.test.ts`
+
+- [x] **Step 4: Resolve saved order items before promo/tax/merchant-line calculation whenever the draft already owns a pending order**
+
+- [x] **Step 5: Mark resumed payment sessions in sanitized config context and skip cart cleanup only for that context after capture**
+
+```ts
+paypal_config_snapshot_json: {
+  ...existingConfig,
+  order_source: pendingOrder ? "pending_resume" : "checkout",
+}
+```
+
+- [x] **Step 6: Re-run the focused repository tests**
+
+Run: `npm test -- server/tests/paypalOrderRepository.test.ts`
+
+### Task 4: Enable Account Resume And Route Into Checkout
+
+**Files:**
+
+- Modify: `web/src/features/account/AccountPage.tsx`
+- Modify: `web/src/app/App.tsx`
+- Modify: `web/src/features/checkout/CheckoutPage.tsx`
+- Modify: `web/src/features/checkout/checkoutDraftApi.ts`
+- Test: `web/src/features/account/AccountPage.test.tsx`
+- Test: `web/src/app/App.interactions.test.tsx`
+- Test: `web/src/app/App.checkout-paypal-capture.test.tsx`
+
+**Interfaces:**
+
+- Produces: `onResumeOrder(orderNumber)` Account callback with per-order loading/error state.
+- Consumes: the resume API's `CheckoutDraftApiResponse`, existing checkout reconciliation, and existing buyer navigation.
+
+- [x] **Step 1: Write a failing Account component test proving the pending CTA is enabled, calls the callback once, and exposes loading/error copy**
+
+```ts
+await user.click(screen.getByRole("button", { name: "Resume payment" }));
+expect(onResumeOrder).toHaveBeenCalledWith("DO-20260607-000123");
+```
+
+- [x] **Step 2: Write a failing App interaction test proving the authenticated resume request reconciles the returned draft and navigates to `/checkout` without cart refresh**
+
+- [x] **Step 3: Run the focused web tests and confirm the disabled placeholder blocks the flow**
+
+Run: `npm test -- web/src/features/account/AccountPage.test.tsx web/src/app/App.interactions.test.tsx`
+
+- [x] **Step 4: Implement the Account callback/state and App API orchestration**
+
+```ts
+const response = await apiClient.post<CheckoutDraftApiResponse>(
+  `/api/account/orders/${encodeURIComponent(orderNumber)}/resume`,
+  {},
+  { market: config.market.code },
+  buildAuthRequestOptions(currentAuthSession),
+);
+```
+
+- [x] **Step 5: Re-run Account/App tests, including payment action regression coverage**
+
+Run: `npm test -- web/src/features/account/AccountPage.test.tsx web/src/app/App.interactions.test.tsx web/src/app/App.checkout-paypal-capture.test.tsx`
+
+### Task 5: Tracking, Full Verification, And Live Evidence Handoff
+
+**Files:**
+
+- Modify: `API_CONTRACT.md`
+- Modify: `DEMO.md`
+- Modify: `IMPLEMENTATION_TASKS.md`
+- Modify: `tracking/debug.md`
+- Modify: `tracking/progress.md`
+- Modify: `tracking/test-cases.md`
+- Modify: `tracking/todos.md`
+
+**Interfaces:**
+
+- Consumes: red/green test output, full verification, local browser evidence, and post-deploy Render evidence.
+- Produces: truthful source-of-record status and a deploy verification command/checklist.
+
+- [x] **Step 1: Correct stale completed resume claims and record the now-implemented API/UI/snapshot/capture boundaries**
+
+- [x] **Step 2: Run full verification and structural checks**
+
+Run: `npm run verify`
+
+Run: `npm run build`
+
+Run: `scripts/check-agent-system.sh`
+
+Run: `git diff --check`
+
+- [x] **Step 3: Run local browser evidence for Account pending-order resume into Checkout, including failure/rebooking states where fixtures permit**
+
+- [x] **Step 4: Prepare the Render post-deploy gate: complete one new Sandbox express approval, then assert callback diagnostics plus a new `paypal_shipping_update` snapshot with refreshed shipping, promo, tax, and total**
+
+- [ ] **Step 5: Keep live shipping evidence open until the committed code is pushed and Render is redeployed; do not mark the callback round-trip complete from local tests alone**
+
+### Task 6: Close Decline-Review Resume And Diagnostic Gaps
+
+- [x] Require an explicit pending-order resume marker so ordinary checkout retries keep checkout semantics and captured-cart cleanup.
+- [x] Resolve explicitly resumed PayPal attempts from the draft's locked storefront and historical cart, not the current storefront or active cart.
+- [x] Return locked resume context to Checkout, disable fulfillment-mode switching, preserve the saved snapshot across cart refreshes, and initialize checkout updates plus PayPal SDK actions with the locked market/currency.
+- [x] Emit `payment_readiness: null` after a marked resume blocker is repaired so the client clears stale blocked state.
+- [x] Reject reuse of failed, cancelled, or expired payment sessions even when their source fingerprint matches.
+- [x] Shape-validate callback correlation identifiers and template callback paths before diagnostics logging so PII-like public path/body values are omitted.
+- [x] Validate callback identifiers before persistence and require a supplied PayPal order ID to resolve to the exact payment session instead of falling back to a newer session.
+- [x] Probe Apple Pay and Google Pay eligibility with the locked resume market/currency/total, then clear resumed client state after successful capture so the next checkout uses the active cart and unlocked fulfillment modes.
+- [x] Reject malformed-but-present PayPal order IDs before callback repository access and enforce pending-resume fulfillment locking at the server route/repository boundary.
+- [x] Add an expiring conditional database lease shared by resume and capture so draft/promo writes cannot race an order transition to paid; capture reaches the PayPal gateway and marks paid only while it owns the capture token.
+- [x] Prove the corrections with focused red-green tests, then pass `npm run verify` with 749 tests across 77 files plus typecheck/lint/format, `npm run build`, `git diff --check`, and `scripts/check-agent-system.sh`.
+- [x] Close the bounded decline re-review with `Ready: Yes` and no Critical, Important, or Minor findings.

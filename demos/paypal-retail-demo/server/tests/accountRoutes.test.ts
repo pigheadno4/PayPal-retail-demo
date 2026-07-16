@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { SupabaseAuthVerifier } from "../src/middleware/auth.js";
 import type {
+  AccountPendingOrderResumeRepository,
+  AccountPendingOrderResumeResult,
   AccountAddress,
   AccountAddressInput,
   AccountAddressPatch,
@@ -165,6 +167,85 @@ describe("Account routes", () => {
         orderNumber: "PO-20260602-000118",
       },
     ]);
+  });
+
+  it("prepares an authenticated pending order for resume through Checkout", async () => {
+    const resumeRepository = createPendingOrderResumeRepository({
+      status: "ready",
+      checkout: pendingResumeCheckoutResponse(),
+    });
+    const app = createAccountApp(
+      createAccountRepository(),
+      createPaymentTokenGateway(),
+      resumeRepository,
+    );
+
+    const response = await requestApp(
+      app,
+      "POST",
+      "/api/account/orders/DO-20260715-000001/resume",
+      {
+        headers: {
+          authorization: "Bearer buyer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.json.data).toEqual(pendingResumeCheckoutResponse());
+    expect(resumeRepository.calls).toEqual([
+      {
+        authUserId: "user_123",
+        orderNumber: "DO-20260715-000001",
+      },
+    ]);
+  });
+
+  it("rejects guest, missing, and non-pending resume attempts", async () => {
+    const guestRepository = createPendingOrderResumeRepository({
+      status: "ready",
+      checkout: pendingResumeCheckoutResponse(),
+    });
+    const guestApp = createAccountApp(
+      createAccountRepository(),
+      createPaymentTokenGateway(),
+      guestRepository,
+    );
+    const guestResponse = await requestApp(
+      guestApp,
+      "POST",
+      "/api/account/orders/DO-20260715-000001/resume",
+    );
+    expect(guestResponse.status).toBe(401);
+    expect(guestRepository.calls).toEqual([]);
+
+    const notFoundApp = createAccountApp(
+      createAccountRepository(),
+      createPaymentTokenGateway(),
+      createPendingOrderResumeRepository({ status: "not_found" }),
+    );
+    const notFoundResponse = await requestApp(
+      notFoundApp,
+      "POST",
+      "/api/account/orders/DO-20260715-000404/resume",
+      { headers: { authorization: "Bearer buyer-token" } },
+    );
+    expect(notFoundResponse.status).toBe(404);
+    expect(notFoundResponse.json.error.code).toBe("ACCOUNT_ORDER_NOT_FOUND");
+
+    const notPendingApp = createAccountApp(
+      createAccountRepository(),
+      createPaymentTokenGateway(),
+      createPendingOrderResumeRepository({ status: "not_pending" }),
+    );
+    const notPendingResponse = await requestApp(
+      notPendingApp,
+      "POST",
+      "/api/account/orders/DO-20260715-000002/resume",
+      { headers: { authorization: "Bearer buyer-token" } },
+    );
+    expect(notPendingResponse.status).toBe(409);
+    expect(notPendingResponse.json.error.code).toBe("ORDER_NOT_RESUMABLE");
   });
 
   it("returns the canonical advanced lifecycle timeline without Diagnostics data", async () => {
@@ -776,14 +857,59 @@ function createPaymentTokenGateway(): FakePaymentTokenGateway {
 function createAccountApp(
   accountRepository: FakeAccountRepository,
   paymentTokenGateway: FakePaymentTokenGateway = createPaymentTokenGateway(),
+  pendingOrderResumeRepository: FakePendingOrderResumeRepository = createPendingOrderResumeRepository(
+    { status: "not_found" },
+  ),
 ) {
   return createApp({
     account: {
       accountRepository,
       paymentTokenGateway,
+      pendingOrderResumeRepository,
       authVerifier: createAuthVerifier(),
     },
   });
+}
+
+interface FakePendingOrderResumeRepository extends AccountPendingOrderResumeRepository {
+  readonly calls: {
+    readonly authUserId: string;
+    readonly orderNumber: string;
+  }[];
+}
+
+function createPendingOrderResumeRepository(
+  result: AccountPendingOrderResumeResult,
+): FakePendingOrderResumeRepository {
+  const calls: FakePendingOrderResumeRepository["calls"] = [];
+  return {
+    calls,
+    async resumePendingOrder(input) {
+      calls.push(input);
+      return result;
+    },
+  };
+}
+
+function pendingResumeCheckoutResponse() {
+  return {
+    draft: {
+      id: "checkout_draft_pending",
+      cart_id: "cart_original",
+      fulfillment_mode: "delivery",
+      status: "payment_started",
+      active_step: "payment_method",
+      summary: {
+        item_count: 2,
+        merchandise_subtotal_minor: 3198,
+        discount_minor: 500,
+        tax_minor: 236,
+        shipping_minor: 500,
+        total_minor: 3434,
+        currency_code: "USD",
+      },
+    },
+  };
 }
 
 function activeSavedPayment(): AccountSavedPaymentMethod {

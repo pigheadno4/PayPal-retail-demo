@@ -222,6 +222,7 @@ Verification:
   - [x] Optimize shipping/billing draft recalculation so address submits reuse already-loaded cart rows and eligible shipping options instead of repeating slow backend reads.
 - [x] Implement promo evaluate/apply/remove APIs.
 - [x] Implement guest order lookup API.
+- [x] Implement authenticated pending-order resume API with owner scope, saved-order item snapshots, locked market context, server-enforced fulfillment mode, fulfillment revalidation, refreshed promo/tax totals, existing Checkout draft response shape, and an expiring database lease that serializes resume against capture.
 
 Verification:
 
@@ -250,10 +251,12 @@ Verification:
   - [x] Return raw PayPal success/decline response shapes instead of the standard app response envelope.
   - [x] Recalculate selected/default shipping option, tax, pending order totals, payment-session totals, order item tax, and total snapshots.
   - [x] Add promo auto-apply/re-evaluation to the callback with shared promo rules/scopes/compatibility and order-scoped promo snapshots.
+  - [x] Emit sanitized received/completed/declined runtime diagnostics without changing PayPal's raw callback response shapes.
 - [x] Implement capture API with amount consistency guard.
   - [x] Guard capture against the locked merchant/provider total snapshot before calling PayPal.
   - [x] Call PayPal Orders capture with `PayPal-Request-Id` and store the sanitized capture response.
   - [x] Mark successful orders paid/captured, write capture total/lifecycle snapshots, decrement inventory, and clear paid cart items.
+  - [x] Build resumed PayPal attempts from saved order items and preserve a newer active cart after resumed capture.
 - [x] Implement webhook verification and processing.
 - [x] Implement saved payment active/pending/delete flows.
 

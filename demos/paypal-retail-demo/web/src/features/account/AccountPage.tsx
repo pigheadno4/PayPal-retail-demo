@@ -192,6 +192,7 @@ export interface AccountPageProps {
   ) => Promise<void> | void;
   readonly onMakeDefaultAddress?: (addressId: string) => Promise<void> | void;
   readonly onRefreshOrders?: () => Promise<void> | void;
+  readonly onResumeOrder?: (orderNumber: string) => Promise<void> | void;
   readonly onUpdateAddress?: (
     addressId: string,
     address: AccountAddressMutationInput,
@@ -372,6 +373,7 @@ export function AccountPage({
   onDeleteSavedPayment,
   onMakeDefaultAddress,
   onRefreshOrders,
+  onResumeOrder,
   onSubmitReview,
   onUpdateAddress,
   onUpdateReview,
@@ -391,6 +393,7 @@ export function AccountPage({
         <OrderHistoryView
           onDeleteReview={onDeleteReview}
           onRefreshOrders={onRefreshOrders}
+          onResumeOrder={onResumeOrder}
           onSubmitReview={onSubmitReview}
           onUpdateReview={onUpdateReview}
           orders={orders}
@@ -837,6 +840,7 @@ function GuestOrderResult({ order }: { readonly order: GuestOrderView }) {
 function OrderHistoryView({
   onDeleteReview,
   onRefreshOrders,
+  onResumeOrder,
   onSubmitReview,
   onUpdateReview,
   orders,
@@ -846,6 +850,7 @@ function OrderHistoryView({
 }: {
   readonly onDeleteReview: AccountPageProps["onDeleteReview"];
   readonly onRefreshOrders: AccountPageProps["onRefreshOrders"];
+  readonly onResumeOrder: AccountPageProps["onResumeOrder"];
   readonly onSubmitReview: AccountPageProps["onSubmitReview"];
   readonly onUpdateReview: AccountPageProps["onUpdateReview"];
   readonly orders: readonly AccountOrderView[];
@@ -1075,7 +1080,7 @@ function OrderHistoryView({
         <ul className="account-page__order-list">
           {filteredOrders.map((order) => (
             <li key={order.orderNumber}>
-              <OrderHistoryCard order={order} />
+              <OrderHistoryCard onResumeOrder={onResumeOrder} order={order} />
             </li>
           ))}
         </ul>
@@ -1387,12 +1392,39 @@ function OrderDetailView({
   );
 }
 
-function OrderHistoryCard({ order }: { readonly order: AccountOrderView }) {
+function OrderHistoryCard({
+  onResumeOrder,
+  order,
+}: {
+  readonly onResumeOrder: AccountPageProps["onResumeOrder"];
+  readonly order: AccountOrderView;
+}) {
+  const [resumeStatus, setResumeStatus] = useState<
+    "error" | "idle" | "loading"
+  >("idle");
   const canReview = order.items.some(
     (item) => item.reviewEligible && !item.reviewSubmitted,
   );
   const statusLabel = formatOrderStatusLabel(order.status);
   const detailHref = `/account/orders/${encodeURIComponent(order.orderNumber)}`;
+
+  async function handleResumeOrder() {
+    if (!onResumeOrder || resumeStatus === "loading") {
+      return;
+    }
+
+    setResumeStatus("loading");
+    try {
+      await onResumeOrder(order.orderNumber);
+      setResumeStatus("idle");
+    } catch (error) {
+      console.error("[paypal-retail-demo] Pending order resume failed", {
+        error,
+        orderNumber: order.orderNumber,
+      });
+      setResumeStatus("error");
+    }
+  }
 
   return (
     <Card className="account-page__order-card">
@@ -1440,14 +1472,32 @@ function OrderHistoryCard({ order }: { readonly order: AccountOrderView }) {
               <button
                 type="button"
                 className="button"
-                disabled
+                disabled={!onResumeOrder || resumeStatus === "loading"}
                 aria-describedby={`${order.orderNumber}-resume-note`}
+                onClick={() => {
+                  void handleResumeOrder();
+                }}
               >
-                Resume payment
+                {resumeStatus === "loading"
+                  ? "Preparing checkout..."
+                  : "Resume payment"}
               </button>
-              <span id={`${order.orderNumber}-resume-note`}>
-                Resume revalidation is the next payment-recovery slice.
-              </span>
+              {resumeStatus === "error" ? (
+                <span
+                  id={`${order.orderNumber}-resume-note`}
+                  role="alert"
+                  aria-live="assertive"
+                >
+                  We could not prepare this order. Review its latest details and
+                  try again.
+                </span>
+              ) : (
+                <span id={`${order.orderNumber}-resume-note`}>
+                  {onResumeOrder
+                    ? "Totals, availability, shipping, tax, and offers refresh before payment."
+                    : "Resume payment is unavailable in this view."}
+                </span>
+              )}
             </div>
           ) : (
             <a className="button button--secondary" href={detailHref}>

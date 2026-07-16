@@ -15,6 +15,7 @@ import { createAdminSessionGuard } from "./middleware/admin.js";
 import { guestCartMiddleware } from "./middleware/guestCart.js";
 import {
   createAccountRouter,
+  type AccountPendingOrderResumeRepository,
   type AccountRepository,
 } from "./routes/account.js";
 import type {
@@ -82,6 +83,7 @@ export interface CreateAppInput {
   };
   readonly account?: {
     readonly accountRepository: AccountRepository;
+    readonly pendingOrderResumeRepository: AccountPendingOrderResumeRepository;
     readonly paymentTokenGateway: PayPalPaymentTokenDeleteGateway;
     readonly authVerifier: SupabaseAuthVerifier;
   };
@@ -125,7 +127,7 @@ export function createApp(input: CreateAppInput = {}) {
       input.debugLogger?.info("api_request_completed", {
         debug_id: getResponseDebugId(response),
         method: request.method,
-        path: request.originalUrl,
+        path: sanitizeRequestLogPath(request.originalUrl),
         status_code: response.statusCode,
         duration_ms: Date.now() - startedAt,
       });
@@ -241,6 +243,8 @@ export function createApp(input: CreateAppInput = {}) {
       createBuyerAuthMiddleware({ supabase: input.account.authVerifier }),
       createAccountRouter({
         accountRepository: input.account.accountRepository,
+        pendingOrderResumeRepository:
+          input.account.pendingOrderResumeRepository,
         paymentTokenGateway: input.account.paymentTokenGateway,
       }),
     );
@@ -336,6 +340,16 @@ export function createApp(input: CreateAppInput = {}) {
   return app;
 }
 
+function sanitizeRequestLogPath(originalUrl: string): string {
+  const [path] = originalUrl.split("?", 1);
+
+  if (/^\/api\/paypal\/orders\/[^/]+\/shipping-callback$/.test(path ?? "")) {
+    return "/api/paypal/orders/:callbackContextId/shipping-callback";
+  }
+
+  return originalUrl;
+}
+
 function createApiErrorMiddleware(
   debugLogger?: DebugLogger,
 ): express.ErrorRequestHandler {
@@ -351,14 +365,14 @@ function createApiErrorMiddleware(
       error_message: error instanceof Error ? error.message : String(error),
       error_name: error instanceof Error ? error.name : typeof error,
       method: request.method,
-      path: request.originalUrl,
+      path: sanitizeRequestLogPath(request.originalUrl),
     });
     console.error("[paypal-retail-demo] API request failed", {
       debugId,
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : typeof error,
       method: request.method,
-      path: request.originalUrl,
+      path: sanitizeRequestLogPath(request.originalUrl),
     });
 
     sendApiError(response, 500, {

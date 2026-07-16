@@ -372,6 +372,42 @@ describe("checkout draft routes", () => {
     });
     expect(repository.calls).toEqual([]);
   });
+
+  it("returns a conflict when a resumed draft tries to switch fulfillment mode", async () => {
+    const baseRepository = createCheckoutRepository();
+    const repository: TestCheckoutRepository = {
+      ...baseRepository,
+      async selectFulfillment() {
+        throw Object.assign(
+          new Error("Resumed checkout fulfillment mode is locked."),
+          { code: "CHECKOUT_RESUME_FULFILLMENT_LOCKED" },
+        );
+      },
+    };
+    const app = createCheckoutApp(repository);
+
+    const response = await requestApp(
+      app,
+      "PATCH",
+      "/api/checkout/drafts/draft_123/fulfillment",
+      {
+        headers: { authorization: "Bearer buyer-token" },
+        json: { fulfillment_mode: "pickup" },
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.json).toEqual({
+      ok: false,
+      error: {
+        code: "CHECKOUT_RESUME_FULFILLMENT_LOCKED",
+        message:
+          "This resumed order must keep its original fulfillment method.",
+        details: {},
+      },
+      debug_id: expect.stringMatching(/^dbg_[a-z0-9]+$/),
+    });
+  });
 });
 
 type TestCheckoutRepository = CheckoutRepository & {

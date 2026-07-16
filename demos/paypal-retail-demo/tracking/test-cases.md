@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is closed through Task 7 from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`. Two final-code reseed-and-run cycles pass all `17/17` API-backed rows across all five Admin routes and 375/768/1024/1440 coverage with visible/read-only/sanitized Diagnostics, exact lifecycle-to-Account refresh, genuine webhook count `1 -> 1`, 44px minimum targets, clean actionable console/response arrays, no page overflow, and no sticky/fixed occlusion. The deterministic Alice-owned evidence order is repeatable because seed reconciliation deletes mutable lifecycle events only for deterministic seeded order IDs before restoring canonical events.
+Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operations and Account Experience is closed through Task 7 from `docs/superpowers/plans/2026-07-13-post-purchase-operations-account-experience.md`. The 2026-07-15 pending-resume hardening is locally complete: authenticated Account resume uses saved order items and locked order context, keeps the active cart separate through PayPal capture, probes wallets against the locked resume totals, clears resume state after capture, and returns recoverable address/store/date gaps as blocked Checkout steps. Server-side shipping callback diagnostics validate identifiers before persistence and require exact payment-session correlation, while one new hosted Sandbox express approval remains required to prove the deployed callback round trip and `paypal_shipping_update` snapshot.
 
 ## Deployment QA
 
@@ -12,6 +12,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Hosted Render smoke returns 200 app responses for `/api/health`, `/api/config?market=US&profile=popmart`, `/api/catalog/products?market=US&profile=popmart`, and `/api/cart?market=US` before hosted PayPal checkout QA continues.
 - [x] Hosted Render checkout completes official PayPal sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, and an empty cart.
 - [x] Hosted Render checkout completes official Pay Later Pay in 4 sandbox approval and merchant capture over HTTPS, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, Pay Later payment method, and an empty cart.
+- [ ] Hosted Render delivery express completes one new approval whose server-side shipping callback produces sanitized received/completed diagnostics and a new `paypal_shipping_update` snapshot with refreshed shipping, promo, tax, and total.
 - [ ] Hosted Render checkout completes official Card Fields sandbox approval and merchant capture over HTTPS after explicit approval to submit public PayPal sandbox card data, then renders order confirmation with buyer-safe order number, `Payment captured`, PayPal capture ID, card payment method, and an empty cart.
 
 ## Seed And Database QA
@@ -27,7 +28,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 
 - [x] Cart merge/sync across guest, login, and multiple devices.
 - [x] Guest cart stores only server cart ID/secret locally, not full cart as source of truth.
-- [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, login/register, and pending resume.
+- [x] Logged-in cart refreshes before minicart, cart, checkout, express payment, and login/register; pending-order resume keeps the active cart separate and uses saved order items instead.
 - [x] Admin market switch clears the active browser cart binding and fetches or creates a cart for the new `profile_id + market_id`.
 - [x] Market switch never converts existing cart prices or currency.
 - [x] Pending order resume uses the order's locked market, currency, locale, buyer country, sandbox test buyer country, and price snapshots.
@@ -35,6 +36,11 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] Product purchase state blocks unreleased/future products from checkout and review eligibility.
 - [x] Pending order resume uses order snapshot and revalidates current rules.
 - [x] Pending order resume creates a fresh payment session if the old session is expired or invalid.
+- [x] Authenticated Account `Resume payment` revalidates the pending order and routes the saved item summary into the existing Checkout payment wall.
+- [x] Delivery resume blocks insufficient central inventory, routes a missing address to Checkout's address-required state, and replaces stale shipping after address validation; Pickup resume clears invalid store/date state and blocks payment until rebooking is complete.
+- [x] Resumed PayPal Create Order uses saved quantities/prices, and resumed capture decrements inventory without deleting a newer active cart.
+- [x] A marked resumed draft rejects a conflicting server-side fulfillment change with `409 CHECKOUT_RESUME_FULFILLMENT_LOCKED`; disabling the inactive Checkout tab is not the only enforcement boundary.
+- [x] Resume and capture acquire the same conditional pending-order database lease, so an interleaved capture cannot change the order to paid while resume writes draft/promo state; the lease is released after resume and expires after server interruption.
 - [x] Promo evaluation supports automatic promos, manual codes, compatibility, expiry, and buyer selection.
 - [x] Promo evaluation respects country/state/county/postal promo scopes.
 - [x] Promo evaluation respects product/category promo scopes and exclusions.
@@ -100,6 +106,7 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Post-Purchase Operati
 - [x] PayPal BOPIS create-order API uses `SET_PROVIDED_ADDRESS`, `PICKUP_IN_STORE`, `s2s {storeName}`, selected store address, detailed line items, and no shipping breakdown.
 - [x] PayPal create-order APIs prepare orders/payment sessions from Supabase checkout/cart data and persist sanitized snapshots.
 - [x] PayPal express shipping callback API returns raw PayPal success/decline JSON and recalculates shipping, tax, order totals, payment-session totals, order item tax, and total snapshots.
+- [x] PayPal express shipping callback rejects missing, malformed, PII-like, or session-mismatched PayPal order identifiers with raw `422` before repository persistence.
 - [x] PayPal express shipping callback auto-applies eligible promo rules, persists explainable promo evaluation rows, links the promo evaluation to the total snapshot, and includes a PayPal discount breakdown.
 - [x] Pending order resume re-evaluates eligible auto promos, updates reused order/payment totals, writes order-scoped promo evaluation lines, and links the `pending_resume` total snapshot.
 - [x] PayPal capture API blocks mismatched amount guards before calling PayPal.

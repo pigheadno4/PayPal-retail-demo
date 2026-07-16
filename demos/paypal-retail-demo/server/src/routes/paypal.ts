@@ -529,8 +529,22 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
   router.post(
     "/paypal/orders/:callbackContextId/shipping-callback",
     asyncRoute(async (request, response) => {
+      const startedAt = Date.now();
+      const callbackContextId =
+        normalizeBodyString(request.params.callbackContextId) ?? "unknown";
+      const paypalOrderId = normalizeBodyString(
+        getObjectProperty(request.body, "id"),
+      );
       const orderRepository = input.orderRepository;
       if (!orderRepository) {
+        logPayPalRouteWarn(input, "paypal_shipping_callback_declined", {
+          callback_context_id:
+            normalizeShippingCallbackContextId(callbackContextId),
+          paypal_order_id: normalizePayPalOrderId(paypalOrderId),
+          status_code: 422,
+          duration_ms: Date.now() - startedAt,
+          decline_issue: "METHOD_UNAVAILABLE",
+        });
         response
           .status(422)
           .json(buildPayPalShippingCallbackDecline("METHOD_UNAVAILABLE"));
@@ -539,17 +553,54 @@ export function createPayPalRouter(input: CreatePayPalRouterInput): Router {
 
       const callbackInput = parseShippingCallbackInput(request);
       if (!callbackInput) {
+        logPayPalRouteWarn(input, "paypal_shipping_callback_declined", {
+          callback_context_id:
+            normalizeShippingCallbackContextId(callbackContextId),
+          paypal_order_id: normalizePayPalOrderId(paypalOrderId),
+          status_code: 422,
+          duration_ms: Date.now() - startedAt,
+          decline_issue: "ADDRESS_ERROR",
+        });
         response
           .status(422)
           .json(buildPayPalShippingCallbackDecline("ADDRESS_ERROR"));
         return;
       }
 
+      const callbackLogContext = {
+        callback_context_id: normalizeShippingCallbackContextId(
+          callbackInput.callbackContextId,
+        ),
+        paypal_order_id: normalizePayPalOrderId(callbackInput.paypalOrderId),
+        selected_shipping_option_id: normalizeShippingOptionId(
+          callbackInput.selectedShippingOptionId,
+        ),
+      };
+      logPayPalRouteInfo(
+        input,
+        "paypal_shipping_callback_received",
+        callbackLogContext,
+      );
       const result =
         await orderRepository.handleExpressShippingCallback(callbackInput);
-      response
-        .status(result.action === "decline" ? result.statusCode : 200)
-        .json(result.response);
+      const statusCode = result.action === "decline" ? result.statusCode : 200;
+      const logResult =
+        result.action === "decline" ? logPayPalRouteWarn : logPayPalRouteInfo;
+      logResult(
+        input,
+        result.action === "decline"
+          ? "paypal_shipping_callback_declined"
+          : "paypal_shipping_callback_completed",
+        {
+          ...callbackLogContext,
+          status_code: statusCode,
+          duration_ms: Date.now() - startedAt,
+          ...(result.action === "decline"
+            ? { decline_issue: result.response.details[0]?.issue }
+            : {}),
+        },
+      );
+      response.status(statusCode).json(result.response);
     }),
   );
 
@@ -935,6 +986,19 @@ async function handleCaptureOrderRoute(
       amount_guard: preparedCapture.amountGuard,
     });
   } catch (error) {
+    if (stage === "prepare" && isPayPalOrderOperationBusyError(error)) {
+      logPayPalRouteWarn(input, "paypal_capture_rejected", {
+        debug_id: debugId,
+        paypal_order_id: paypalOrderId,
+        reason: "order_operation_in_progress",
+      });
+      sendApiError(response, 409, {
+        code: "PAYPAL_ORDER_OPERATION_IN_PROGRESS",
+        message:
+          "This order is already being updated. Wait a moment and try again.",
+      });
+      return;
+    }
     logPayPalRouteError(input, "paypal_capture_failed", {
       debug_id: debugId,
       error_message: error instanceof Error ? error.message : String(error),
@@ -944,6 +1008,15 @@ async function handleCaptureOrderRoute(
     });
     throw error;
   }
+}
+
+function isPayPalOrderOperationBusyError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "PAYPAL_ORDER_OPERATION_IN_PROGRESS"
+  );
 }
 
 async function handleExpressReviewSnapshotRoute(
@@ -1065,19 +1138,53 @@ function parseShippingCallbackInput(
     getObjectProperty(body, "shipping_address"),
   );
 
-  if (!callbackContextId || !shippingAddress) {
+  const validatedCallbackContextId =
+    normalizeShippingCallbackContextId(callbackContextId);
+  const validatedPayPalOrderId = normalizePayPalOrderId(
+    normalizeBodyString(getObjectProperty(body, "id")),
+  );
+  if (
+    !validatedCallbackContextId ||
+    !validatedPayPalOrderId ||
+    !shippingAddress
+  ) {
     return null;
   }
 
   return {
-    callbackContextId,
-    paypalOrderId: normalizeBodyString(getObjectProperty(body, "id")),
+    callbackContextId: validatedCallbackContextId,
+    paypalOrderId: validatedPayPalOrderId,
     shippingAddress,
-    selectedShippingOptionId: normalizeBodyString(
-      getObjectProperty(getObjectProperty(body, "shipping_option"), "id"),
+    selectedShippingOptionId: normalizeShippingOptionId(
+      normalizeBodyString(
+        getObjectProperty(getObjectProperty(body, "shipping_option"), "id"),
+      ),
     ),
     rawCallbackRequest: body ?? {},
   };
+}
+
+function normalizeShippingCallbackContextId(
+  value: string | null,
+): string | null {
+  return isUuidDiagnosticIdentifier(value) ? value : null;
+}
+
+function normalizePayPalOrderId(value: string | null): string | null {
+  return value && /^[A-Z0-9][A-Z0-9_-]{7,63}$/.test(value) ? value : null;
+}
+
+function normalizeShippingOptionId(value: string | null): string | null {
+  return isUuidDiagnosticIdentifier(value) ? value : null;
+}
+
+function isUuidDiagnosticIdentifier(value: string | null): boolean {
+  return Boolean(
+    value &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    ),
+  );
 }
 
 function parsePayPalShippingCallbackAddress(

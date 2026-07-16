@@ -140,6 +140,9 @@ const runtimeDebugScalarRules: Readonly<
   linked_payment_session_id: { type: "string", maxLength: 160 },
   processing_status: { type: "string", maxLength: 80 },
   verification_status: { type: "string", maxLength: 80 },
+  callback_context_id: { type: "string", maxLength: 160 },
+  selected_shipping_option_id: { type: "string", maxLength: 160 },
+  decline_issue: { type: "string", maxLength: 80 },
 };
 
 export type RuntimeDebugLogSource =
@@ -147,6 +150,7 @@ export type RuntimeDebugLogSource =
   | "inventory"
   | "lifecycle"
   | "payment_amount_guard"
+  | "payment_shipping_update"
   | "pickup_capacity"
   | "webhook";
 
@@ -188,6 +192,21 @@ export const runtimeDebugLogApprovedShapes: readonly RuntimeDebugLogApprovedShap
       message: "paypal_create_order_amount_guard_outcome",
       source: "payment_amount_guard",
       event: "paypal_create_order_amount_guard_outcome",
+    },
+    {
+      message: "paypal_shipping_callback_received",
+      source: "payment_shipping_update",
+      event: "paypal_shipping_callback_received",
+    },
+    {
+      message: "paypal_shipping_callback_completed",
+      source: "payment_shipping_update",
+      event: "paypal_shipping_callback_completed",
+    },
+    {
+      message: "paypal_shipping_callback_declined",
+      source: "payment_shipping_update",
+      event: "paypal_shipping_callback_declined",
     },
     {
       message: "paypal_webhook_processing_outcome",
@@ -352,6 +371,31 @@ const runtimeEventPolicies: Readonly<
       "amount_currency_code",
       "kind",
       "mismatch_count",
+    ],
+  },
+  paypal_shipping_callback_received: {
+    source: "payment_shipping_update",
+    allowedContextKeys: [
+      ...runtimeCorrelationContextKeys,
+      "callback_context_id",
+      "selected_shipping_option_id",
+    ],
+  },
+  paypal_shipping_callback_completed: {
+    source: "payment_shipping_update",
+    allowedContextKeys: [
+      ...runtimeCorrelationContextKeys,
+      "callback_context_id",
+      "selected_shipping_option_id",
+    ],
+  },
+  paypal_shipping_callback_declined: {
+    source: "payment_shipping_update",
+    allowedContextKeys: [
+      ...runtimeCorrelationContextKeys,
+      "callback_context_id",
+      "decline_issue",
+      "selected_shipping_option_id",
     ],
   },
   paypal_webhook_processing_outcome: {

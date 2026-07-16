@@ -18,12 +18,33 @@ export interface CheckoutDraftApiResponse {
 export interface CheckoutDraftDto {
   readonly id: string;
   readonly fulfillment_mode: "delivery" | "pickup";
+  readonly items?: readonly CheckoutDraftItemDto[];
   readonly active_step?: string;
   readonly delivery?: CheckoutDeliveryDraftDto;
   readonly payment_readiness?: CheckoutPaymentReadinessDto | null;
   readonly pickup?: CheckoutPickupDraftDto;
   readonly summary?: CheckoutSummaryDto;
   readonly promo?: CheckoutPromoDto;
+  readonly resume_context?: CheckoutResumeContextDto;
+}
+
+export interface CheckoutResumeContextDto {
+  readonly order_number: string;
+  readonly market_code: string;
+  readonly currency_code: string;
+  readonly locale: string;
+  readonly buyer_country: string;
+  readonly paylater_buyer_country: string;
+  readonly sandbox_test_buyer_country: string | null;
+}
+
+export interface CheckoutDraftItemDto {
+  readonly id: string;
+  readonly product_name: string;
+  readonly image_path?: string | null;
+  readonly quantity: number;
+  readonly unit_price_minor: number;
+  readonly line_subtotal_minor: number;
 }
 
 export interface CheckoutPaymentReadinessDto {
@@ -137,6 +158,7 @@ export function reconcileCheckoutDataFromDraftResponse(
     return {
       ...currentData,
       activeMode: "pickup",
+      ...reconcileResumeContext(currentData, draft),
       pickup: reconcilePickupDraft(currentData.pickup, draft),
     };
   }
@@ -144,7 +166,41 @@ export function reconcileCheckoutDataFromDraftResponse(
   return {
     ...currentData,
     activeMode: "delivery",
+    ...reconcileResumeContext(currentData, draft),
     delivery: reconcileDeliveryDraft(currentData.delivery, draft),
+  };
+}
+
+function reconcileResumeContext(
+  currentData: CheckoutPageData,
+  draft: CheckoutDraftDto,
+): Pick<
+  CheckoutPageData,
+  "lockedReason" | "modeLocked" | "resumePaymentContext"
+> {
+  if (!draft.resume_context) {
+    const { lockedReason, modeLocked, resumePaymentContext } = currentData;
+    return {
+      lockedReason,
+      modeLocked,
+      ...(resumePaymentContext ? { resumePaymentContext } : {}),
+    };
+  }
+
+  return {
+    modeLocked: true,
+    lockedReason: `This resumed order keeps its original ${
+      draft.fulfillment_mode === "delivery" ? "Delivery" : "Pickup"
+    } method.`,
+    resumePaymentContext: {
+      orderNumber: draft.resume_context.order_number,
+      marketCode: draft.resume_context.market_code,
+      currencyCode: draft.resume_context.currency_code,
+      locale: draft.resume_context.locale,
+      buyerCountry: draft.resume_context.buyer_country,
+      payLaterBuyerCountry: draft.resume_context.paylater_buyer_country,
+      sandboxTestBuyerCountry: draft.resume_context.sandbox_test_buyer_country,
+    },
   };
 }
 
@@ -164,7 +220,12 @@ function reconcileDeliveryDraft(
     checkoutDraftId: draft.id,
     ...(paymentReadiness ? { paymentReadiness } : {}),
     summary: draft.summary
-      ? reconcileSummary(currentDraft.summary, draft.summary, draft.promo)
+      ? reconcileSummary(
+          currentDraft.summary,
+          draft.summary,
+          draft.promo,
+          draft.items,
+        )
       : currentDraft.summary,
     steps: reconcileDeliverySteps(
       currentDraft.steps,
@@ -191,7 +252,12 @@ function reconcilePickupDraft(
     ...(paymentReadiness ? { paymentReadiness } : {}),
     summary: reconcilePickupSummary(
       draft.summary
-        ? reconcileSummary(currentDraft.summary, draft.summary, draft.promo)
+        ? reconcileSummary(
+            currentDraft.summary,
+            draft.summary,
+            draft.promo,
+            draft.items,
+          )
         : currentDraft.summary,
       draft.pickup?.inventory,
     ),
@@ -203,9 +269,24 @@ function reconcileSummary(
   currentSummary: CheckoutOrderSummary,
   summary: CheckoutSummaryDto,
   promo: CheckoutPromoDto | undefined,
+  items: readonly CheckoutDraftItemDto[] | undefined,
 ): CheckoutOrderSummary {
   return {
     ...currentSummary,
+    ...(items
+      ? {
+          items: items.map((item) => ({
+            id: item.id,
+            name: item.product_name,
+            detailLabel: `Qty ${item.quantity}`,
+            imagePath:
+              item.image_path ?? "/assets/generic/products/placeholder.svg",
+            imageAlt: `${item.product_name} collectible`,
+            quantity: item.quantity,
+            amountLabel: formatMinor(item.line_subtotal_minor, summary),
+          })),
+        }
+      : {}),
     subtotalLabel: formatMinor(summary.merchandise_subtotal_minor, summary),
     promoLabel: formatPromoLabel(summary, promo),
     ...(typeof summary.shipping_minor === "number"

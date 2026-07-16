@@ -34,6 +34,11 @@ import { App, CheckoutRouteStage } from "./App.js";
 const walletEligibilityMockState = vi.hoisted(() => ({
   resolve: true,
   totalLabels: [] as string[],
+  probeContexts: [] as Array<{
+    readonly currencyCode: string;
+    readonly market: string;
+    readonly totalLabel: string;
+  }>,
 }));
 
 vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
@@ -42,21 +47,30 @@ vi.mock("../features/payments/CheckoutWalletEligibilityProbes.js", async () => {
   return {
     CheckoutWalletEligibilityProbes: ({
       onEligibilityChange,
+      currencyCode,
+      market,
       totalLabel,
     }: {
       readonly onEligibilityChange: (
         method: "apple_pay" | "google_pay",
         state: "eligible" | "ineligible" | "pending",
       ) => void;
+      readonly currencyCode: string;
+      readonly market: string;
       readonly totalLabel: string;
     }) => {
       React.useEffect(() => {
         walletEligibilityMockState.totalLabels.push(totalLabel);
+        walletEligibilityMockState.probeContexts.push({
+          currencyCode,
+          market,
+          totalLabel,
+        });
         if (walletEligibilityMockState.resolve) {
           onEligibilityChange("apple_pay", "eligible");
           onEligibilityChange("google_pay", "eligible");
         }
-      }, [onEligibilityChange, totalLabel]);
+      }, [currencyCode, market, onEligibilityChange, totalLabel]);
 
       return null;
     },
@@ -93,6 +107,7 @@ beforeAll(() => {
 beforeEach(() => {
   walletEligibilityMockState.resolve = true;
   walletEligibilityMockState.totalLabels.length = 0;
+  walletEligibilityMockState.probeContexts.length = 0;
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: createMemoryStorage(),
@@ -2378,6 +2393,196 @@ describe("App buyer interactions", () => {
         },
       }),
     );
+  });
+
+  it("revalidates a pending account order and opens its saved snapshot in checkout", async () => {
+    const user = userEvent.setup();
+    const authClient = createRecordingAuthClient({
+      existingSession: {
+        accessToken: "access_token_existing",
+        email: "alice.la@example.test",
+        userId: "user_existing",
+      },
+    });
+    const resumeResponse = checkoutDraftApiResponse({
+      discountMinor: 0,
+      fulfillmentMode: "delivery",
+      id: deliveryDraftUuid,
+      promoLabel: "",
+      recommendedPromoCodes: [],
+      selectedPromoCodes: [],
+      totalMinor: 3978,
+    });
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/account/orders": {
+          orders: [pendingAccountOrderApiResponse()],
+        },
+      },
+      postResponseByPath: {
+        "/api/cart/merge": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 1,
+          unitPriceMinor: 1399,
+        }),
+        "/api/account/orders/DO-20260607-000123/resume": {
+          draft: {
+            ...resumeResponse.draft,
+            active_step: "payment_method",
+            delivery: {
+              shipping_address: {
+                recipient_name: "Alice Lee",
+                phone: "+44 20 7946 0000",
+                address_line1: "1 Oxford Street",
+                address_line2: null,
+                city: "London",
+                state: null,
+                postal_code: "W1D 2DH",
+                country_code: "GB",
+              },
+              billing_address: null,
+              same_as_shipping: true,
+              shipping_options: [
+                {
+                  id: "ship_gb_standard",
+                  display_name: "Standard delivery",
+                  amount_minor: 500,
+                  estimated_days_min: 3,
+                  estimated_days_max: 5,
+                },
+              ],
+              selected_shipping_option_id: "ship_gb_standard",
+            },
+            items: [
+              {
+                id: "order_item_snapshot",
+                product_name: "Labubu Snapshot",
+                image_path: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+                quantity: 2,
+                unit_price_minor: 1599,
+                line_subtotal_minor: 3198,
+              },
+            ],
+            payment_readiness: null,
+            resume_context: {
+              order_number: "DO-20260607-000123",
+              market_code: "GB",
+              currency_code: "GBP",
+              locale: "en-GB",
+              buyer_country: "GB",
+              paylater_buyer_country: "GB",
+              sandbox_test_buyer_country: "GB",
+            },
+            summary: {
+              ...resumeResponse.draft?.summary,
+              currency_code: "GBP",
+            },
+          },
+        },
+      },
+      patchResponse: {
+        draft: {
+          ...resumeResponse.draft,
+          payment_readiness: null,
+          resume_context: {
+            order_number: "DO-20260607-000123",
+            market_code: "GB",
+            currency_code: "GBP",
+            locale: "en-GB",
+            buyer_country: "GB",
+            paylater_buyer_country: "GB",
+            sandbox_test_buyer_country: "GB",
+          },
+        },
+      },
+      patchResponseByPath: {
+        "/api/cart/items/cart_item_labubu": cartApiResponse({
+          buyerKind: "authenticated",
+          cartClientSecret: null,
+          cartPublicId: "cart_public_user",
+          quantity: 3,
+          unitPriceMinor: 1099,
+        }),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={authClient}
+        initialPathname="/account/orders"
+        initialCart={singleItemCart({ quantity: 1 })}
+      />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Resume payment" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Secure checkout" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Labubu Snapshot")).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Pickup" }).hasAttribute("disabled"),
+    ).toBe(true);
+    await waitFor(() => {
+      expect(walletEligibilityMockState.probeContexts).toContainEqual({
+        currencyCode: "GBP",
+        market: "GB",
+        totalLabel: "£39.78",
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    const minicart = screen.getByLabelText("Minicart");
+    await user.click(
+      within(minicart).getByRole("button", {
+        name: "Increase Labubu Have a Seat quantity",
+      }),
+    );
+    await user.click(
+      within(minicart).getByRole("button", { name: "Close minicart" }),
+    );
+    expect(screen.getByText("Labubu Snapshot")).toBeTruthy();
+    await advanceDeliveryCheckoutToPayment(user);
+    expect(apiClient.calls).toContainEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({ country_code: "GB" }),
+        method: "patch",
+        path: `/api/checkout/drafts/${deliveryDraftUuid}/shipping-address`,
+        query: { market: "GB" },
+      }),
+    );
+    const paymentStep = getStep("Payment method");
+    await user.click(
+      within(paymentStep).getByRole("radio", { name: "PayPal" }),
+    );
+    await waitFor(() => {
+      expect(apiClient.calls).toContainEqual({
+        method: "get",
+        path: "/api/paypal/sdk-config",
+        query: {
+          market: "GB",
+          page_type: "checkout",
+          flow: "standard",
+          method: "paypal",
+        },
+        options: undefined,
+      });
+    });
+    expect(apiClient.calls).toContainEqual({
+      method: "post",
+      path: "/api/account/orders/DO-20260607-000123/resume",
+      body: {},
+      query: { market: "US" },
+      options: {
+        headers: {
+          authorization: "Bearer access_token_existing",
+        },
+      },
+    });
   });
 
   it("refreshes canonical account orders, keeps the last successful update on failure, and retries", async () => {
@@ -4949,6 +5154,47 @@ function accountOrderApiResponse() {
         postal_code: "10012",
         country_code: "US",
         provider_address_id: "PROVIDER_ADDRESS_BUYER_UNSAFE",
+      },
+    ],
+  };
+}
+
+function pendingAccountOrderApiResponse() {
+  return {
+    ...accountOrderApiResponse(),
+    order_number: "DO-20260607-000123",
+    fulfillment_mode: "delivery",
+    status: "pending",
+    payment_status: "started",
+    review_eligible: false,
+    fulfillment_label: "Delivery order",
+    items: [
+      {
+        ...accountOrderApiResponse().items[0],
+        id: "order_item_snapshot",
+        product_name: "Labubu Snapshot",
+        unit_price_minor: 1599,
+        quantity: 2,
+        line_total_minor: 3198,
+        review_eligible: false,
+      },
+    ],
+    timeline: [
+      {
+        label: "Awaiting payment",
+        description: "Resume checkout to finish payment.",
+        status: "current",
+        occurred_at: null,
+      },
+    ],
+    addresses: [
+      {
+        address_type: "shipping",
+        recipient_name: "Alice Lane",
+        city: "Los Angeles",
+        state: "CA",
+        postal_code: "90046",
+        country_code: "US",
       },
     ],
   };

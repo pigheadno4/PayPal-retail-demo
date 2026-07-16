@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -128,6 +135,94 @@ describe("AccountPage", () => {
     expect(html).toContain("View details");
     expect(html).not.toContain("paypal_order_id");
     expect(html).not.toContain("payment_session");
+  });
+
+  it("resumes a pending order with scoped loading feedback", async () => {
+    const user = userEvent.setup();
+    let resolveResume: (() => void) | undefined;
+    const onResumeOrder = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveResume = resolve;
+        }),
+    );
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        onResumeOrder={onResumeOrder}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Resume payment" }));
+
+    expect(onResumeOrder).toHaveBeenCalledWith("DO-20260607-000123");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Preparing checkout...",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveResume?.();
+    });
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Resume payment",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+  });
+
+  it("keeps a failed pending-order resume retryable", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const onResumeOrder = vi.fn().mockRejectedValue(new Error("resume failed"));
+
+    render(
+      <AccountPage
+        addresses={addresses()}
+        addressesStatus="ready"
+        email="alice@example.test"
+        orders={accountOrders()}
+        savedPayments={savedPayments()}
+        savedPaymentsStatus="ready"
+        section="orders"
+        onResumeOrder={onResumeOrder}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Resume payment" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "We could not prepare this order. Review its latest details and try again.",
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Resume payment",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[paypal-retail-demo] Pending order resume failed",
+      expect.objectContaining({
+        orderNumber: "DO-20260607-000123",
+      }),
+    );
   });
 
   it("maps account order filters to in-progress, completed, and cancelled states", () => {

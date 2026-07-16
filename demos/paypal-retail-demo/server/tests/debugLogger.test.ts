@@ -216,6 +216,52 @@ describe("sanitized debug logger", () => {
     expect(JSON.stringify(persistedEntries)).not.toContain("paypal-secret");
   });
 
+  it("persists only sanitized PayPal shipping callback correlation fields", async () => {
+    const persistedEntries: unknown[] = [];
+    const store = createInMemoryRuntimeDebugLogStore({
+      clock: () => new Date("2026-07-15T12:00:00.000Z"),
+      downstreamSink: () => undefined,
+      persistenceRepository: {
+        async insertRuntimeDebugLog(entry) {
+          persistedEntries.push(entry);
+        },
+        async deleteRuntimeDebugLogsBefore() {},
+      },
+    });
+
+    store.logger.info("paypal_shipping_callback_completed", {
+      callback_context_id: "order_express",
+      duration_ms: 18,
+      paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+      selected_shipping_option_id: "ship_ground_ca",
+      status_code: 200,
+      postal_code: "94105",
+      raw_callback_request: {
+        shipping_address: "100 Market Street",
+      },
+    });
+
+    await vi.waitFor(() => expect(persistedEntries).toHaveLength(1));
+    expect(persistedEntries).toEqual([
+      {
+        timestamp: "2026-07-15T12:00:00.000Z",
+        level: "info",
+        message: "paypal_shipping_callback_completed",
+        context: {
+          source: "payment_shipping_update",
+          event: "paypal_shipping_callback_completed",
+          paypal_order_id: "PAYPAL_ORDER_EXPRESS",
+          status_code: 200,
+          duration_ms: 18,
+          callback_context_id: "order_express",
+          selected_shipping_option_id: "ship_ground_ca",
+        },
+      },
+    ]);
+    expect(JSON.stringify(persistedEntries)).not.toContain("94105");
+    expect(JSON.stringify(persistedEntries)).not.toContain("Market Street");
+  });
+
   it("drops non-scalar and overlong values from allowlisted persistence fields", async () => {
     const persistedEntries: unknown[] = [];
     const store = createInMemoryRuntimeDebugLogStore({

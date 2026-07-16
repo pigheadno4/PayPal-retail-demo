@@ -158,6 +158,7 @@ export function startServer(env: RawServerEnv = process.env) {
     },
     account: {
       accountRepository,
+      pendingOrderResumeRepository: checkoutRepository,
       paymentTokenGateway: paypalClientTokenGateway,
       authVerifier: supabase,
     },

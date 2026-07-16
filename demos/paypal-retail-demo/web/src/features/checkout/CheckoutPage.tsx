@@ -166,6 +166,7 @@ export interface CheckoutValidationState {
 }
 
 export type CheckoutPaymentReadinessState =
+  | "blocked"
   | "ready"
   | "syncing"
   | "recalculating"
@@ -207,12 +208,24 @@ export interface CheckoutPaymentActionContext {
   readonly selectedPaymentEligible: boolean;
   readonly selectedPaymentMethod: CheckoutSelectedPaymentMethod | undefined;
   readonly totalLabel: string;
+  readonly resumePaymentContext?: CheckoutResumePaymentContext;
+}
+
+export interface CheckoutResumePaymentContext {
+  readonly orderNumber: string;
+  readonly marketCode: string;
+  readonly currencyCode: string;
+  readonly locale: string;
+  readonly buyerCountry: string;
+  readonly payLaterBuyerCountry: string;
+  readonly sandboxTestBuyerCountry: string | null;
 }
 
 export interface CheckoutPageData {
   readonly activeMode: CheckoutFulfillmentMode;
   readonly modeLocked: boolean;
   readonly lockedReason: string;
+  readonly resumePaymentContext?: CheckoutResumePaymentContext;
   readonly pickupStoreMode?: "guest" | "preselected";
   readonly delivery: CheckoutFulfillmentDraft;
   readonly pickup: CheckoutFulfillmentDraft;
@@ -496,6 +509,9 @@ export function CheckoutPage({
     selectedPaymentEligible: activeSelectedPaymentEligible,
     selectedPaymentMethod: activeSelectedPaymentMethod,
     totalLabel: activeSummary.totalLabel,
+    ...(pageData.resumePaymentContext
+      ? { resumePaymentContext: pageData.resumePaymentContext }
+      : {}),
   };
   const paymentReadinessMessage = getPaymentReadinessMessage({
     draft: activeDraft,
@@ -1405,6 +1421,10 @@ const paymentReadinessMessageByState: Record<
     readonly body: string;
   }
 > = {
+  blocked: {
+    title: "Payment needs review",
+    body: "Complete the required checkout step before payment.",
+  },
   failed: {
     title: "Payment needs refresh",
     body: "Refresh checkout details before continuing.",

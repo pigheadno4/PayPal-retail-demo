@@ -209,6 +209,7 @@ The approved post-purchase cycle turns the existing Admin and Account foundation
 - Admin lifecycle changes update merchant order state and append an `admin` lifecycle audit event only. They never create synthetic PayPal webhook records.
 - Delivery advances one step at a time from paid to processing, shipped, and delivered. Pickup advances from paid to preparing pickup, ready for pickup, and picked up.
 - Account order history and detail reload canonical order/lifecycle data and show the new buyer-safe stage, timestamp, and eligible review action without technical IDs.
+- Pending Account orders expose `Resume payment`, which revalidates the saved order snapshot and opens the existing Checkout payment wall. It never substitutes or consumes a newer active cart; a missing delivery address or invalid pickup store/date state requires buyer completion/rebooking before payment.
 - Webhooks remain read-only evidence of genuinely received PayPal events and support event-type, verification, processing, linkage, and received-time filters.
 - Diagnostics combines canonical payment/order snapshots with persisted sanitized runtime logs; logs supplement business records and never become a second source of payment truth.
 
@@ -291,6 +292,6 @@ Expected high-level runbook:
 - BOPIS checkout completes with pickup-specific payload.
 - Pay Later messages render on correct surfaces.
 - Promo/tax/shipping totals match calculation rules.
-- Pending order resume revalidates current context.
+- Pending order resume uses saved item/price and locked market context, refreshes inventory/shipping or pickup/promo/tax totals, and preserves the active cart through resumed capture.
 - Webhook signature verification is enforced.
 - Admin Portal can advance delivery and pickup statuses manually.

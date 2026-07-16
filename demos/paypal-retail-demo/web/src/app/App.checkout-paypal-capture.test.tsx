@@ -375,6 +375,67 @@ describe("App checkout PayPal capture", () => {
     ).toContain("0");
   });
 
+  it("clears resumed checkout state after capture before the buyer starts another checkout", async () => {
+    const user = userEvent.setup();
+    const apiClient = createRecordingApiClient({
+      getResponseByPath: {
+        "/api/paypal/orders/express-review": expressReviewApiResponse(),
+      },
+      getResponses: [
+        cartApiResponse({ quantity: 1 }),
+        cartApiResponse({ quantity: 2 }),
+      ],
+      postResponseByPath: {
+        "/api/cart/refresh": cartApiResponse({ quantity: 2 }),
+        "/api/paypal/orders/delivery": {
+          merchant_order_id: "DO-20260624-000009",
+          payment_session_id: "payment_session_checkout",
+          paypal_order_id: "PAYPAL_ORDER_CHECKOUT",
+          paypal_order_status: "CREATED",
+          paypal_request_id: "request-create-checkout",
+        },
+        "/api/paypal/orders/PAYPAL_ORDER_CHECKOUT/capture":
+          captureApiResponse(),
+      },
+    });
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createNullAuthClient()}
+        initialCart={singleItemCart({ quantity: 1 })}
+        initialCheckout={checkoutWithResumedPayment()}
+        initialPathname="/checkout"
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: /PayPal/ }));
+    await user.click(
+      await within(
+        screen.getByRole("complementary", { name: "Order summary" }),
+      ).findByRole("button", { name: "Mock PayPal" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Thank you!" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Open minicart" }));
+    await user.click(
+      within(screen.getByLabelText("Minicart")).getByRole("link", {
+        name: "Checkout",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Secure checkout" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Pickup" }).hasAttribute("disabled"),
+    ).toBe(false);
+    expect(screen.queryByText("Historic Resume Snapshot")).toBeNull();
+    expect(screen.getByText("Labubu Have a Seat")).toBeTruthy();
+  });
+
   it("captures an approved official Google Pay checkout order", async () => {
     const user = userEvent.setup();
     const apiClient = createRecordingApiClient({
@@ -1905,6 +1966,44 @@ function checkoutWithSelectedDeliveryPayment({
           (step) => step.id !== "payment-method",
         ),
       ],
+    },
+  };
+}
+
+function checkoutWithResumedPayment(): CheckoutPageData {
+  const checkout = checkoutWithOpenPaymentReadiness({ state: "ready" });
+
+  return {
+    ...checkout,
+    modeLocked: true,
+    lockedReason: "This resumed order keeps its original Delivery method.",
+    resumePaymentContext: {
+      orderNumber: "DO-20260607-000123",
+      marketCode: "GB",
+      currencyCode: "GBP",
+      locale: "en-GB",
+      buyerCountry: "GB",
+      payLaterBuyerCountry: "GB",
+      sandboxTestBuyerCountry: "GB",
+    },
+    delivery: {
+      ...checkout.delivery,
+      summary: {
+        ...checkout.delivery.summary,
+        items: [
+          {
+            id: "historic_resume_item",
+            name: "Historic Resume Snapshot",
+            detailLabel: "Qty 1",
+            imagePath: "/assets/popmart/products/labubu-have-a-seat-1.svg",
+            imageAlt: "Historic Resume Snapshot collectible",
+            quantity: 1,
+            amountLabel: "£15.99",
+          },
+        ],
+        subtotalLabel: "£15.99",
+        totalLabel: "£15.99",
+      },
     },
   };
 }

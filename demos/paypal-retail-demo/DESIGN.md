@@ -794,6 +794,17 @@ Pending order resume:
 - Promo evaluation runs fresh and explains changed accepted/rejected results.
 - Resume payment creates a fresh payment session when the old one is expired or invalid.
 
+Resume execution contract:
+
+- `Resume payment` calls an authenticated Account resume endpoint and routes the buyer to the existing Checkout payment wall; Account does not duplicate PayPal, Pay Later, card, or wallet payment surfaces.
+- The saved `order_items` rows are the item and price source for every resumed Checkout summary, promo evaluation, tax calculation, inventory check, and PayPal Create Order attempt. The current active cart remains untouched and is never substituted for the pending order snapshot.
+- The order's stored profile, market, currency, locale, buyer country, and sandbox buyer country remain locked even if the active storefront context changed.
+- Delivery resume fails closed before payment when current central inventory cannot satisfy every saved order quantity. A missing address resumes into Checkout's address step with payment blocked; a no-longer-eligible shipping option is replaced with the cheapest currently eligible option after address validation, and the buyer sees refreshed shipping, tax, promo, and total before choosing payment.
+- Pickup resume preserves the existing partial-inventory behavior. An inactive or unavailable selected store requires a new store; a missing, expired, or unavailable pickup date requires rebooking before payment.
+- Resume preparation may determine that a fresh payment-session attempt is required, but the session is created only after the buyer chooses a payment method and activates the existing official payment surface.
+- A successful resumed capture decrements inventory for the saved order quantities but does not delete items from the buyer's current active cart, because that cart may have changed after the pending order was created.
+- Resume loading, revalidation failure, rebooking-required, ready-for-payment, and payment failure states are buyer-visible and announced. Technical IDs remain hidden from Account.
+
 Completed order review:
 
 - Entry: completed order card or order detail item row.
@@ -1423,6 +1434,7 @@ Manual lifecycle:
 Diagnostics collection:
 
 - Canonical payment truth remains in orders, payment sessions, total snapshots, PayPal order snapshots, webhook events, and lifecycle events.
+- Express shipping callbacks emit sanitized structured `received`, `completed`, and `declined` diagnostics with callback context, PayPal order correlation, outcome, status, selected shipping option, and duration. Raw addresses and callback payloads are never logged.
 - Connect the existing structured logger to the existing `runtime_debug_logs` table through a best-effort asynchronous persistence sink while retaining JSON console logging and a bounded in-memory fallback.
 - Runtime log persistence failure must never fail checkout, capture, webhook processing, inventory mutation, or lifecycle mutation and must not recursively log its own failure.
 - Correlate entries with available `debug_id`, order/order number, payment session, PayPal order/capture, webhook event, profile, market, route, status, and duration fields.
