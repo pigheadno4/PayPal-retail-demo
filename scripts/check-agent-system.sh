@@ -139,8 +139,14 @@ require_content "demos/NEW_DEMO_PROTOCOL.md" 'design-system/research/YYYY-MM-DD-
 require_content "demos/NEW_DEMO_PROTOCOL.md" '`mockups/INDEX.md`' "mockup registry destination"
 
 # KNOWLEDGE_SOURCES.md is the sole authority for the machine-specific wiki path.
+payment_wiki_path="$(sed -n 's/^- Path: `\([^`]*\)`.*/\1/p' KNOWLEDGE_SOURCES.md | head -n 1)"
+if [[ -z "$payment_wiki_path" ]]; then
+  echo "Missing payment wiki path in KNOWLEDGE_SOURCES.md" >&2
+  exit 1
+fi
+
 stale_wiki_path_file="$(
-  grep -RIl --include='*.md' -F '/Users/tengtao/Development/wiki-v2' AGENTS.md demos docs scripts 2>/dev/null \
+  grep -RIl --include='*.md' -F "$payment_wiki_path" AGENTS.md demos docs scripts 2>/dev/null \
     | head -n 1 || true
 )"
 if [[ -n "$stale_wiki_path_file" ]]; then

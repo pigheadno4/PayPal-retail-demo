@@ -62,7 +62,8 @@ printf '\n- Feature requirements belong in `DEMO.md`, `DESIGN.md`, and `IMPLEMEN
 expect_failure "$stale_fixture" "Stale requirement authority language"
 
 wiki_fixture="$(make_fixture)"
-printf '\n/Users/tengtao/Development/wiki-v2\n' >> "$wiki_fixture/demos/_templates/standard-demo/DEMO.md"
+wiki_path="$(sed -n 's/^- Path: `\([^`]*\)`.*/\1/p' "$wiki_fixture/KNOWLEDGE_SOURCES.md" | head -n 1)"
+printf '\n%s\n' "$wiki_path" >> "$wiki_fixture/demos/_templates/standard-demo/DEMO.md"
 expect_failure "$wiki_fixture" "Hard-coded payment wiki path outside KNOWLEDGE_SOURCES.md"
 
 echo "Agent system regression tests passed."
