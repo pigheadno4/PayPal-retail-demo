@@ -66,6 +66,7 @@ Each artifact owns one concern. History and execution convenience must not repla
 | `slices/<SLICE-ID>.md`                         | Approved slice charter and its close record                                                                                                         |
 | `PLAN.md`                                      | Small active-slice router; it does not redefine requirements or milestone status                                                                    |
 | `tracking/test-cases.md`                       | `TC-*` acceptance and evidence rows linked to requirements                                                                                          |
+| `tracking/evidence.md`                         | Canonical `EVID-*` obligation, artifact, result, status, capture, and reviewer records                                                              |
 | `tracking/todos.md`                            | Near-term operational queue derived from the active slice                                                                                           |
 | `tracking/progress.md`                         | Append-only execution history                                                                                                                       |
 | `tracking/debug.md`                            | Investigation and diagnostic record                                                                                                                 |
@@ -110,7 +111,7 @@ Every requirement record has two orthogonal fields.
 - `complete`
 - `removed`
 
-The required fields are `id`, `title`, `audience`, `source`, `lifecycle_status`, `planning_disposition`, `target_slice`, `blocker`, `deferral_reason`, `next_trigger`, `approval_reference`, `acceptance`, `negative_cases`, `dependencies`, `design_links`, `task_links`, `test_links`, and `evidence_links`.
+The required fields are `id`, `title`, `audience`, `source`, `lifecycle_status`, `planning_disposition`, `target_slice`, `blocker`, `deferral_reason`, `removal_reason`, `next_trigger`, `approval_reference`, `acceptance`, `negative_cases`, `dependencies`, `design_links`, `task_links`, `test_links`, and `evidence_links`.
 
 The fields are independent concerns but their allowed combinations are deterministic:
 
@@ -133,7 +134,7 @@ The following constraints are normative:
 - `blocked` requires a concrete blocker and reevaluation trigger.
 - `deferral_proposed` requires a reason, next trigger, and pending user approval; it is not an approved deferral.
 - `deferred` requires `lifecycle_status: approved`, a reason, next trigger, and user approval reference.
-- `removed` requires `lifecycle_status: removed`, a removal reason, and user approval reference; the tombstone remains permanently.
+- `removed` requires `lifecycle_status: removed`, a non-empty `removal_reason`, and user approval reference; the tombstone remains permanently.
 - `implemented` never means `verified`.
 
 Every approved requirement remains visible in the register until it is verified, explicitly deferred, or explicitly removed. Moving it to a future slice is an assignment, not a deferral.
@@ -387,12 +388,14 @@ Dynamic PSP UI must not be replaced with fake buttons to make evidence determini
 
 The agent-system implementation must provide two deterministic coverage gates.
 
+`scripts/validate-demo-workflow.mjs <demo-directory>` implements both gates against live Markdown records. `scripts/check-agent-system.sh` validates the template and instruction structure, runs the semantic validator regression suite, and invokes the live validator for each materialized demo that has `REQUIREMENTS.md`. These are different responsibilities; static heading checks cannot satisfy semantic coverage.
+
 The **full-register disposition gate** fails when:
 
 - an approved unresolved requirement lacks a valid `planning_disposition`
 - `active_slice` or `future_slice` lacks a valid target slice
 - `blocked`, `deferral_proposed`, `deferred`, or `removed` lacks its required fields
-- an identifier is malformed, reused, renumbered, duplicated, or references an unknown record
+- an identifier is malformed, duplicated, or references an unknown record; the required history review additionally rejects reused or renumbered identifiers
 
 The **active-slice coverage gate** fails when:
 
@@ -403,6 +406,8 @@ The **active-slice coverage gate** fails when:
 - the active slice, `PLAN.md`, and tracking status disagree
 
 Automated checks verify structure and linkage. They do not replace semantic review by the Slice Steward and independent reviewers.
+
+The validator detects malformed and duplicate live IDs and unresolved references. Tombstones plus git history preserve the evidence needed for the decline-oriented reviewer to reject renumbering or reuse across revisions.
 
 ## Change Management
 

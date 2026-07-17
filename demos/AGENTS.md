@@ -63,6 +63,7 @@ Each standard or complex demo should maintain (this is the canonical tracking-fi
 - `tracking/progress.md`
 - `tracking/debug.md`
 - `tracking/test-cases.md`
+- `tracking/evidence.md`
 - `tracking/learnings.md`
 
 Tracking status must reference stable requirement, slice, task, test, and evidence identifiers. It never becomes a second requirements register.

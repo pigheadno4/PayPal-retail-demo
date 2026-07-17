@@ -2,7 +2,7 @@
 
 ## Role
 
-This file contains long-lived guardrails for this demo. During the targeted workflow backfill, the authority transition is atomic: before the approved handover gate, existing canonical documents and `IMPLEMENTATION_TASKS.md` retain their current milestone roles; after the requirement register, traceability, design links, and coverage validator are approved together, `REQUIREMENTS.md` becomes the only product-requirement authority and task/tracking files become derived execution views.
+This file contains long-lived guardrails for this demo. During the targeted workflow backfill, the authority transition is atomic. The named Workflow Authority Handover Gate passes only when the user approves the requirement register, traceability matrix, design links and artifact index, and a passing deterministic coverage validator together. Before that gate passes, existing canonical documents and `IMPLEMENTATION_TASKS.md` retain their current milestone roles; after it passes, `REQUIREMENTS.md` becomes the only product-requirement authority and task/tracking files become derived execution views.
 
 ## Guardrails
 

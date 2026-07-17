@@ -37,6 +37,33 @@ Use a full traceability matrix if the demo grows into complex-demo scope.
 - Payment-domain review is part of the engineering lane for PSP work.
 - Keep `tracking/todos.md`, `tracking/test-cases.md`, and `tracking/progress.md` aligned before moving phases.
 
-## Tasks
+## Active Slice
 
-Tasks should be written as checkbox steps before implementation starts.
+- Slice: none
+- Charter: none
+
+## Task Register
+
+Task IDs use `TASK-0001` through `TASK-9999`, are permanent, and are never reused.
+
+| Task | Slice | Requirements | Design decisions | Tests | Evidence | Status |
+| ---- | ----- | ------------ | ---------------- | ----- | -------- | ------ |
+
+Statuses: `planned`, `in_progress`, `implemented`, `reviewed`, `blocked`, `retired`.
+
+## Task Record Template
+
+```markdown
+### TASK-0001 — Independently reviewable result
+
+- Slice: SLICE-001
+- Requirements: REQ-0001
+- Design decisions: none
+- Files: exact paths
+- Interfaces: consumed and produced contracts
+- Test cases: TC-0001
+- Evidence: EVID-0001
+- Non-goals: exact exclusions
+- Model/effort: assigned in slice charter
+- Status: planned
+```

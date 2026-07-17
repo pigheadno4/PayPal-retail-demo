@@ -51,6 +51,7 @@ Every requirement record contains these fields:
 - `target_slice`
 - `blocker`
 - `deferral_reason`
+- `removal_reason`
 - `next_trigger`
 - `approval_reference`
 - `acceptance`
@@ -84,7 +85,7 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 - `blocked` requires a blocker and reevaluation trigger.
 - `deferral_proposed` requires a reason, next trigger, and pending user approval.
 - `deferred` requires lifecycle `approved`, a reason, next trigger, and user approval reference.
-- `removed` requires lifecycle and disposition `removed`, a reason, and user approval reference.
+- `removed` requires lifecycle and disposition `removed`, a non-empty `removal_reason`, and user approval reference.
 
 ## Requirement Register
 
@@ -103,6 +104,7 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 - Target slice: none
 - Blocker: none
 - Deferral reason: none
+- Removal reason: none
 - Next trigger: none
 - Approval reference: none
 - Acceptance:
@@ -119,3 +121,12 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 ## Tombstones
 
 Removed requirements remain here with their original IDs, removal reasons, and user approval references.
+
+```markdown
+### REQ-0001 — Removed promise
+
+- Lifecycle status: removed
+- Planning disposition: removed
+- Removal reason: exact reason
+- Approval reference: user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>
+```

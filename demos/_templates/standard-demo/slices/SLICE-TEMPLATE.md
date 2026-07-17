@@ -3,6 +3,7 @@
 - Status: proposed
 - User approval reference: none
 - Slice Steward: {{PRIMARY_AGENT}}
+- Payment-domain sub-review required: yes | no
 
 ## Goal And Outcome
 
@@ -60,13 +61,14 @@ Requirements approval, design synthesis/fidelity, PSP semantics/conflicting evid
 
 ## Reviewer Assignments
 
-| Lane                  | Reviewer/agent     | Independent from implementer | Model and effort                              | Required inputs                            | Decision authority                    |
-| --------------------- | ------------------ | ---------------------------- | --------------------------------------------- | ------------------------------------------ | ------------------------------------- |
-| Requirements coverage | {{REVIEWER}}       | yes                          | strongest suitable, high                      | requirement register, charter, diff        | accept or reject requirement coverage |
-| Design fidelity       | {{REVIEWER_OR_NA}} | yes                          | strongest suitable design model, high         | decisions, contracts, mockups, screenshots | accept or reject design fidelity      |
-| Engineering quality   | {{REVIEWER}}       | yes                          | risk-scaled; strongest for PSP/security/final | charter, diff, tests, evidence             | accept or reject engineering quality  |
+| Lane                                  | Reviewer/agent                         | Independent from implementer | Model and effort                                     | Required inputs                              | Decision authority                                     |
+| ------------------------------------- | -------------------------------------- | ---------------------------- | ---------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------ |
+| Requirements coverage                 | {{REVIEWER}}                           | yes                          | strongest suitable, high                             | requirement register, charter, diff          | accept or reject requirement coverage                  |
+| Design fidelity                       | {{REVIEWER_OR_NA}}                     | yes                          | strongest suitable design model, high                | decisions, contracts, mockups, screenshots   | accept or reject design fidelity                       |
+| Engineering quality                   | {{REVIEWER}}                           | yes                          | risk-scaled; strongest for PSP/security/final        | charter, diff, tests, evidence               | accept or reject engineering quality                   |
+| Payment-domain engineering sub-review | {{PAYMENT_REVIEWER_OR_NA_WITH_REASON}} | yes                          | strongest suitable payment model, high when required | Knowledge Evidence, PSP sources, diff, tests | accept or reject PSP semantics inside engineering lane |
 
-For payment slices, the engineering lane includes an explicitly assigned payment-domain sub-review using the Knowledge Evidence block.
+When payment-domain sub-review is `no`, its row records `not applicable: <reason>`. When it is `yes`, every row field names the independent reviewer, model/effort, inputs, and decision authority.
 
 ## Entry Criteria
 

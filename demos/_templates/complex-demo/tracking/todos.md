@@ -1,5 +1,7 @@
 # Todos
 
+- Active slice: none
+
 - [ ] Approve `REQUIREMENTS.md` and valid planning dispositions.
 - [ ] Approve the active slice charter and requirement coverage.
 - [ ] Confirm implementation architecture and traceability.

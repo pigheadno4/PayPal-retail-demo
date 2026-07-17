@@ -1177,10 +1177,16 @@ This demo adopts the revised `demos/NEW_DEMO_PROTOCOL.md` through a targeted bac
 ### Backfill Goals
 
 - Create `REQUIREMENTS.md` from unresolved original promises, still-relevant approved requirements, explicit exclusions, and known gaps such as unfinished vaulting decisions.
-- Make requirements, rather than `IMPLEMENTATION_TASKS.md`, the product source of truth after the requirement register, traceability links, and coverage validator are approved. Until that handover gate passes, the existing task list remains the current milestone-completion authority. Existing task and progress history remains append-only evidence throughout.
+- Make requirements, rather than `IMPLEMENTATION_TASKS.md`, the product source of truth only after the named Workflow Authority Handover Gate below passes. Until that handover gate passes, the existing task list remains the current milestone-completion authority. Existing task and progress history remains append-only evidence throughout.
 - Introduce approved slice charters for future work with inherited `REQ-*`, design links, non-goals, deferrals, evidence, review lanes, and model/skill routing.
 - Split stable design-system authority out of the accumulated `DESIGN.md` history without deleting historical decisions.
 - Add deterministic requirement-coverage validation before future milestones can close.
+
+### Workflow Authority Handover Gate
+
+The named Workflow Authority Handover Gate passes only when the user approves the requirement register, traceability matrix, design links and artifact index, and a passing deterministic coverage validator together.
+
+Record the user approval reference and validator output in the future backfill slice close record. Authority does not switch when only a subset of these prerequisites is ready.
 
 ### Representative Design Coverage
 
