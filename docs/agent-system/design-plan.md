@@ -68,9 +68,11 @@ Recommended sections:
 # Payment Demo Pool Agent Rules
 
 ## Repository Purpose
+
 This repository is a payment demo pool for creating customer-facing, sales-facing, and internal comparison demos.
 
 ## Agent Operating Contract
+
 - Understand the demo goal, audience, payment products, target platforms, and success criteria before making substantial changes.
 - Prefer small, scoped, reversible changes over broad rewrites.
 - Ask before assuming PSP behavior, compliance meaning, pricing, settlement timing, risk logic, or product capability.
@@ -79,17 +81,20 @@ This repository is a payment demo pool for creating customer-facing, sales-facin
 - Preserve working demos. Do not refactor unrelated demos while working on one demo.
 
 ## Payment Safety Rules
+
 - Do not invent PayPal, Stripe, Klarna, Afterpay, Apple Pay, Google Pay, or other PSP capabilities.
 - Do not make unsupported compliance, pricing, settlement, risk, or contractual claims.
 - Do not copy secrets, merchant credentials, or private customer data into demo code or docs.
 - Clearly separate demo assumptions from PSP-confirmed behavior.
 
 ## Knowledge Sources
-- When PayPal or Stripe integration details matter, consult `/Users/tengtao/Development/wiki-v2`.
-- Before using `wiki-v2`, read and follow `/Users/tengtao/Development/wiki-v2/AGENTS.md`.
+
+- When PayPal or Stripe integration details matter, resolve the payment wiki through repository-root `KNOWLEDGE_SOURCES.md`.
+- Before using the payment wiki, read and follow the local instructions identified by `KNOWLEDGE_SOURCES.md`.
 - Extract relevant conclusions into `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, or learning entries. Do not paste large wiki sections into AGENTS.md.
 
 ## Instruction Maintenance
+
 - Keep AGENTS.md short and high-signal.
 - Add a root rule only when removing it would likely cause repeated agent mistakes.
 - If a rule is local to demos, put it under `demos/AGENTS.md`.
@@ -216,9 +221,11 @@ Example distinction:
 
 ```md
 Requirement:
+
 - The demo supports PayPal vaulting and Stripe saved-card payments.
 
 Guardrail:
+
 - Do not mix PayPal vaulting semantics with Stripe saved-card semantics.
 ```
 
@@ -296,7 +303,7 @@ UX review should not only judge visual style. It should also check whether the d
 The user's payment wiki is a reference source:
 
 ```text
-/Users/tengtao/Development/wiki-v2
+Payment wiki location: resolve through repository-root `KNOWLEDGE_SOURCES.md`.
 ```
 
 Rules:
@@ -348,22 +355,27 @@ Example learning entry:
 # PayPal Vaulting Requires Clear Separation From One-Time Checkout
 
 ## Summary
+
 PayPal vaulting demos should keep saved-payment semantics separate from one-time checkout semantics.
 
 ## Applies To
+
 - PayPal vaulting
 - Subscription demos
 - Auto-charge demos
 
 ## Lesson
+
 When a demo supports both one-time checkout and vaulting, the UI, backend routes, and database records should make the distinction explicit.
 
 ## Source
+
 - [[demos/ai-subscription/tracking/debug.md]]
 - [[demos/ai-subscription/DEMO.md]]
-- [[/Users/tengtao/Development/wiki-v2/wiki/concepts/paypal-vault.md]]
+- Payment-wiki concept `wiki/concepts/paypal-vault.md`, resolved through repository-root `KNOWLEDGE_SOURCES.md`.
 
 ## Status
+
 Active
 ```
 

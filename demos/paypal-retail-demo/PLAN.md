@@ -86,7 +86,7 @@ Read these before implementation:
 
 - Use TypeScript for web, server, shared modules, tests, and seed tooling.
 - Start deterministic business logic with tests before UI.
-- Use `/Users/tengtao/Development/wiki-v2` for PayPal details before implementing PayPal behavior.
+- Resolve the payment wiki through the repository-root `KNOWLEDGE_SOURCES.md` before implementing PayPal behavior.
 - Do not replace the v1 BOPIS Create Order contract with authorize-at-checkout/capture-at-pickup.
 - Keep POP MART assets local and customer-specific.
 - Keep buyer UI retail-first; PayPal branding belongs in official payment surfaces only.

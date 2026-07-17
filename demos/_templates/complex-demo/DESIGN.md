@@ -1,66 +1,63 @@
 # {{DEMO_NAME}} Design
 
-## UX Goal
-{{UX_GOAL}}
+This file routes design authority. Detailed tokens, typography, components, pages, research, mockups, and states live in the linked canonical artifacts.
+
+## Taste Brief
+
+- Audience: {{PRIMARY_AUDIENCE}}
+- Product personality: {{PRODUCT_PERSONALITY}}
+- Density: {{DENSITY}}
+- Typography goals: {{TYPOGRAPHY_GOALS}}
+- Imagery direction: {{IMAGERY_DIRECTION}}
+- References: {{REFERENCES}}
+- Explicit reject list: {{REJECT_LIST}}
+
+## Approved Direction
+
+{{APPROVED_VISUAL_DIRECTION}}
+
+## Design Decision Ledger
+
+Design IDs use `DESIGN-0001` through `DESIGN-9999`, are permanent, and are never reused.
+
+| ID  | Decision | Status | Requirement links | Artifact links | Approval reference |
+| --- | -------- | ------ | ----------------- | -------------- | ------------------ |
+
+Statuses: `proposed`, `approved`, `rejected`, `superseded`. Superseded and rejected decisions remain in the ledger.
+
+## Artifact Index
+
+- Master system: `design-system/MASTER.md`
+- Typography: `design-system/TYPOGRAPHY.md`
+- Components: `design-system/COMPONENTS.md`
+- Component board: `design-system/BOARD.md`
+- Research records: `design-system/research/`
+- Page contracts: `design-system/pages/`
+- Mockup and state-board registry: `mockups/INDEX.md`
 
 ## Main Screens
-{{MAIN_SCREENS}}
 
-## Interaction Model
-{{INTERACTION_MODEL}}
+{{MAIN_SCREENS_AND_PAGE_CONTRACT_LINKS}}
 
-## UX State Contracts And Mockups
+## UX Flow Links
 
-Required for multi-step UI, payment flows, cart/minicart interactions, account flows, admin lifecycle flows, or PSP SDK surface placement.
+{{FLOW_AND_SLICE_LINKS}}
 
-Capture:
+## Platform Experience Links
 
-- initial state
-- allowed transitions
-- loading, success, failure, retry, blocked, and ineligible states
-- expanded versus collapsed sections
-- edit behavior
-- backend or SDK unavailable behavior
-- mobile sticky or responsive behavior when applicable
+- Web: {{WEB_CONTRACT_LINKS}}
+- Backend/operator: {{BACKEND_OR_OPERATOR_CONTRACT_LINKS}}
+- iOS: {{IOS_CONTRACT_LINKS}}
+- Android: {{ANDROID_CONTRACT_LINKS}}
 
-Use virtual mockups during planning when the interaction is easier to understand visually. Keep mockups aligned with `IMPLEMENTATION_PLAN.md` and `tracking/test-cases.md`.
+## Design Approval Record
 
-## UI/UX Implementation Guide
+- Component board: pending
+- Typography proof: pending
+- Representative desktop surfaces: pending
+- Representative mobile surfaces: pending
+- Required interaction states: pending
+- Platform differences: pending
+- User approval reference: none
 
-Use this section as the frontend source of truth before coding customer-facing or sales-facing UI.
-
-### Design Tokens
-
-Define colors, typography, spacing, radius, shadows, motion, and responsive breakpoints. Include what each token is for, not only the raw value.
-
-### Component Contracts
-
-Define expected behavior and states for shared components such as buttons, cards, forms, modals, tabs, accordions, tables, payment surfaces, loading states, empty states, and errors.
-
-### Page-Level Implementation Specs
-
-For each main screen, define the layout, content hierarchy, primary/secondary actions, loading state, empty state, error state, mobile behavior, and accessibility expectations.
-
-### UX Flow Contracts
-
-For each multi-step flow, define the entry point, allowed transitions, blocked states, save/edit behavior, async behavior, completion state, and evidence required before the flow can be marked complete.
-
-### Frontend Close Gate
-
-A frontend slice is not complete until the touched page matches these design specs and has tracking/test-case coverage for visual state, interaction state, async loading/error state, and responsive behavior.
-
-## Visual Direction
-{{VISUAL_DIRECTION}}
-
-## Architecture
-{{ARCHITECTURE}}
-
-## Platform Experience
-- Web: {{WEB_EXPERIENCE}}
-- Backend: {{BACKEND_EXPERIENCE}}
-- Database: {{DATABASE_EXPERIENCE}}
-- iOS: {{IOS_EXPERIENCE}}
-- Android: {{ANDROID_EXPERIENCE}}
-
-## Open Decisions
-Decisions should be resolved before implementation starts.
+Frontend planning remains blocked while an applicable approval is pending.

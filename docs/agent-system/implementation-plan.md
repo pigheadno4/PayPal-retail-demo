@@ -75,9 +75,11 @@ Use this content:
 # Payment Demo Pool Agent Rules
 
 ## Repository Purpose
+
 This repository is a payment demo pool for creating customer-facing, sales-facing, and internal comparison demos.
 
 ## Agent Operating Contract
+
 - Understand the demo goal, audience, payment products, target platforms, and success criteria before making substantial changes.
 - Prefer small, scoped, reversible changes over broad rewrites.
 - Ask before assuming PSP behavior, compliance meaning, pricing, settlement timing, risk logic, or product capability.
@@ -86,17 +88,20 @@ This repository is a payment demo pool for creating customer-facing, sales-facin
 - Preserve working demos. Do not refactor unrelated demos while working on one demo.
 
 ## Payment Safety Rules
+
 - Do not invent PayPal, Stripe, Klarna, Afterpay, Apple Pay, Google Pay, or other PSP capabilities.
 - Do not make unsupported compliance, pricing, settlement, risk, or contractual claims.
 - Do not copy secrets, merchant credentials, or private customer data into demo code or docs.
 - Clearly separate demo assumptions from PSP-confirmed behavior.
 
 ## Knowledge Sources
-- When PayPal or Stripe integration details matter, consult `/Users/tengtao/Development/wiki-v2`.
-- Before using `wiki-v2`, read and follow `/Users/tengtao/Development/wiki-v2/AGENTS.md`.
+
+- When PayPal or Stripe integration details matter, resolve the payment wiki through repository-root `KNOWLEDGE_SOURCES.md`.
+- Before using the payment wiki, read and follow the local instructions identified by `KNOWLEDGE_SOURCES.md`.
 - Extract relevant conclusions into `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, or learning entries. Do not paste large wiki sections into AGENTS.md.
 
 ## Instruction Maintenance
+
 - Keep AGENTS.md short and high-signal.
 - Add a root rule only when removing it would likely cause repeated agent mistakes.
 - If a rule is local to demos, put it under `demos/AGENTS.md`.
@@ -138,23 +143,28 @@ Use this content:
 # Demo Development Rules
 
 ## Purpose
+
 This directory contains runnable payment demos and their supporting documentation.
 
 ## Demo Complexity Levels
 
 ### Simple Demo
+
 Single HTML, small script, or narrow PSP behavior demo. Requires `DEMO.md` and `tracking/test-cases.md`.
 
 ### Standard Demo
+
 Web plus backend, one PSP flow, or meaningful state. Requires `AGENTS.md`, `CLAUDE.md`, `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, and tracking files.
 
 ### Complex Demo
+
 Multiple PSPs, multiple platforms, subscriptions, vaulting, webhooks, Supabase, mobile apps, or customer-facing flows. Requires the full lifecycle in `NEW_DEMO_PROTOCOL.md`.
 
 ## Complex Demo Lifecycle
+
 - Start with brainstorming. Do not code immediately.
 - Clarify purpose, audience, payment products, platforms, and success criteria.
-- Consult `/Users/tengtao/Development/wiki-v2` for PayPal or Stripe details when relevant.
+- Resolve the payment wiki through repository-root `KNOWLEDGE_SOURCES.md` for PayPal or Stripe details when relevant.
 - Create or update `DEMO.md`, `DESIGN.md`, and `IMPLEMENTATION_PLAN.md`.
 - Add TDD and verification strategy before implementation.
 - Run UI/UX review for customer-facing demos.
@@ -164,6 +174,7 @@ Multiple PSPs, multiple platforms, subscriptions, vaulting, webhooks, Supabase, 
 - Promote reusable lessons into the root `learnings/` pool at milestones.
 
 ## TDD Rules
+
 - Define expected behavior before implementation.
 - Add or update `tracking/test-cases.md` for each meaningful task.
 - Write automated tests first when practical.
@@ -171,7 +182,9 @@ Multiple PSPs, multiple platforms, subscriptions, vaulting, webhooks, Supabase, 
 - Do not report completion until verification is run or the blocker is documented.
 
 ## Tracking Rules
+
 Each standard or complex demo should maintain:
+
 - `tracking/todos.md`
 - `tracking/progress.md`
 - `tracking/debug.md`
@@ -199,7 +212,7 @@ When the user starts a new demo:
 1. Do not create code immediately.
 2. Use brainstorming to clarify the demo purpose, audience, business scenario, PSP products, target platforms, and initial UI direction.
 3. Classify the demo as simple, standard, or complex.
-4. For PayPal or Stripe details, consult `/Users/tengtao/Development/wiki-v2` after reading that wiki's local `AGENTS.md`.
+4. For PayPal or Stripe details, resolve the payment wiki through repository-root `KNOWLEDGE_SOURCES.md` after reading that wiki's local instructions.
 5. Select the matching template from `demos/_templates/`.
 6. Create the new demo directory under `demos/<demo-name>/`.
 7. Fill `DEMO.md`, `DESIGN.md`, and `IMPLEMENTATION_PLAN.md` from confirmed decisions.
@@ -237,18 +250,23 @@ Create `demos/_templates/simple-demo/DEMO.md`:
 # {{DEMO_NAME}}
 
 ## Audience
+
 {{PRIMARY_AUDIENCE}}
 
 ## Purpose
+
 {{DEMO_PURPOSE}}
 
 ## Payment Products
+
 {{PAYMENT_PRODUCTS}}
 
 ## Run Instructions
+
 Open the demo HTML file in a browser, or follow the local run command documented in this demo after creation.
 
 ## Verification
+
 See `tracking/test-cases.md`.
 ```
 
@@ -258,6 +276,7 @@ Create `demos/_templates/simple-demo/tracking/test-cases.md`:
 # Test Cases
 
 ## Manual Verification
+
 - [ ] Open the demo successfully.
 - [ ] Complete the primary demo scenario.
 - [ ] Confirm customer-facing text is accurate and does not make unsupported PSP claims.
@@ -286,9 +305,11 @@ Create `demos/_templates/standard-demo/AGENTS.md`:
 # {{DEMO_NAME}} Agent Rules
 
 ## Role
+
 This file contains long-lived guardrails for this demo. Feature requirements belong in `DEMO.md`, `DESIGN.md`, and `IMPLEMENTATION_PLAN.md`.
 
 ## Guardrails
+
 - Preserve the confirmed demo purpose and audience.
 - Ask before changing payment-flow semantics.
 - Update `DEMO.md`, `DESIGN.md`, and `tracking/test-cases.md` when payment behavior changes.
@@ -307,25 +328,32 @@ Create `demos/_templates/standard-demo/DEMO.md`:
 # {{DEMO_NAME}}
 
 ## Audience
+
 {{PRIMARY_AUDIENCE}}
 
 ## Business Scenario
+
 {{BUSINESS_SCENARIO}}
 
 ## Payment Products
+
 {{PAYMENT_PRODUCTS}}
 
 ## Supported Flows
+
 {{SUPPORTED_FLOWS}}
 
 ## Demo Boundaries
+
 - This is a demo, not a production compliance reference.
 - Product behavior should be verified against current PSP documentation before customer delivery.
 
 ## Runbook
+
 {{RUNBOOK}}
 
 ## Verification Checklist
+
 {{VERIFICATION_CHECKLIST}}
 ```
 
@@ -335,21 +363,27 @@ Create `demos/_templates/standard-demo/DESIGN.md`:
 # {{DEMO_NAME}} Design
 
 ## UX Goal
+
 {{UX_GOAL}}
 
 ## Main Screens
+
 {{MAIN_SCREENS}}
 
 ## Interaction Model
+
 {{INTERACTION_MODEL}}
 
 ## Visual Direction
+
 {{VISUAL_DIRECTION}}
 
 ## Architecture
+
 {{ARCHITECTURE}}
 
 ## Open Decisions
+
 Decisions should be resolved before implementation starts.
 ```
 
@@ -359,18 +393,22 @@ Create `demos/_templates/standard-demo/IMPLEMENTATION_PLAN.md`:
 # {{DEMO_NAME}} Implementation Plan
 
 ## Goal
+
 {{IMPLEMENTATION_GOAL}}
 
 ## Scope
+
 {{IMPLEMENTATION_SCOPE}}
 
 ## Test Strategy
+
 - Unit tests: {{UNIT_TEST_STRATEGY}}
 - Integration tests: {{INTEGRATION_TEST_STRATEGY}}
 - UI tests: {{UI_TEST_STRATEGY}}
 - Manual sandbox verification: {{MANUAL_VERIFICATION_STRATEGY}}
 
 ## Tasks
+
 Tasks should be written as checkbox steps before implementation starts.
 ```
 
@@ -387,6 +425,7 @@ Create tracking files:
 # Progress
 
 ## Milestones
+
 - Project created from standard demo template.
 ```
 
@@ -400,6 +439,7 @@ Record bugs, root cause, fix, and verification.
 # Test Cases
 
 ## Acceptance Criteria
+
 - [ ] Demo can run locally.
 - [ ] Primary payment scenario can be verified.
 - [ ] Customer-facing text avoids unsupported PSP claims.
@@ -421,6 +461,7 @@ Copy the standard template structure, then extend these files:
 ## Payment Flow Map
 
 ### {{PAYMENT_FLOW_NAME}}
+
 Entry point: {{FLOW_ENTRY_POINT}}
 Frontend SDK or UI layer: {{FRONTEND_PAYMENT_LAYER}}
 Backend APIs: {{BACKEND_PAYMENT_APIS}}
@@ -432,6 +473,7 @@ Verification: {{FLOW_VERIFICATION}}
 
 ```md
 ## Platform Plan
+
 - Web: {{WEB_PLAN}}
 - Backend: {{BACKEND_PLAN}}
 - Database: {{DATABASE_PLAN}}
@@ -439,6 +481,7 @@ Verification: {{FLOW_VERIFICATION}}
 - Android: {{ANDROID_PLAN}}
 
 ## Subagent Expansion Areas
+
 - Frontend review
 - Backend/payment review
 - Database review
@@ -451,6 +494,7 @@ Verification: {{FLOW_VERIFICATION}}
 
 ```md
 ## Ask Before Changing
+
 - Subscription lifecycle.
 - Vaulting semantics.
 - Saved-payment semantics.
@@ -487,20 +531,24 @@ Use this content:
 # Learning Pool Rules
 
 ## Purpose
+
 This directory stores reusable lessons learned from payment demo development. Raw notes belong in each demo's `tracking/learnings.md`. Only reusable, reviewed lessons belong here.
 
 ## Search Rules
+
 - Before solving a difficult payment, PSP, architecture, mobile, or demo-ops problem, search `learnings/INDEX.md`.
 - Then search this directory with relevant keywords.
 - Follow `[[source]]` links when the origin matters.
 
 ## Add Rules
+
 - Add a learning only when it is reusable across demos or important for future maintenance.
 - Include source links using `[[...]]`.
 - Prefer one focused lesson per file.
 - Do not add secrets, merchant credentials, private customer data, or unsupported PSP claims.
 
 ## Category Rules
+
 - Use the existing categories when they fit: `payment`, `frontend`, `backend`, `mobile`, and `demo-ops`.
 - If a reusable learning does not fit any existing category, create a clear new category folder.
 - Update `INDEX.md` whenever a new category is created.
@@ -508,16 +556,19 @@ This directory stores reusable lessons learned from payment demo development. Ra
 - Update `scripts/check-agent-system.sh` only when a new category becomes a required baseline category for this repo.
 
 ## Update Rules
+
 - Update an existing learning when new information refines the same lesson.
 - Keep source links current.
 - If the old lesson is no longer correct, mark it as superseded instead of silently deleting it.
 
 ## Delete Rules
+
 - Do not delete learning entries casually.
 - Prefer marking entries as `Deprecated` or `Superseded`.
 - Delete only duplicate, empty, or clearly incorrect entries after preserving useful source links.
 
 ## Index Rules
+
 - Every learning entry must be listed in `INDEX.md`.
 - Use concise summaries and clear categories.
 ```
@@ -538,21 +589,27 @@ Use this content:
 # Learning Pool Index
 
 ## Payment
+
 Reusable payment-flow, PSP, vaulting, saved-payment, authorization, capture, webhook, subscription, and checkout lessons.
 
 ## Frontend
+
 Reusable web UI, checkout UI, shadcn, React, accessibility, and browser verification lessons.
 
 ## Backend
+
 Reusable Node.js, API, webhook, environment, logging, and server verification lessons.
 
 ## Mobile
+
 Reusable iOS, Android, React Native, simulator, emulator, and mobile payment verification lessons.
 
 ## Demo Operations
+
 Reusable planning, customer-facing presentation, sales enablement, tracking, and demo maintenance lessons.
 
 ## Category Growth
+
 If a reusable lesson does not fit the current categories, create a clear new category folder and add a matching heading here. Avoid a permanent `misc` category; unclear or temporary lessons should stay in the source demo's `tracking/learnings.md` until they are ready to promote.
 ```
 
@@ -564,21 +621,27 @@ Use this content:
 # {{LEARNING_TITLE}}
 
 ## Summary
+
 {{SUMMARY}}
 
 ## Applies To
+
 - {{APPLIES_TO}}
 
 ## Lesson
+
 {{LESSON}}
 
 ## Source
+
 - [[{{SOURCE_PATH}}]]
 
 ## Related
+
 - [[{{RELATED_PATH}}]]
 
 ## Status
+
 Active
 ```
 

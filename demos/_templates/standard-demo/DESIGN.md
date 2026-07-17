@@ -1,36 +1,55 @@
 # {{DEMO_NAME}} Design
 
-## UX Goal
-{{UX_GOAL}}
+This file routes design authority. Detailed tokens, typography, components, pages, research, mockups, and states live in the linked canonical artifacts.
+
+## Taste Brief
+
+- Audience: {{PRIMARY_AUDIENCE}}
+- Product personality: {{PRODUCT_PERSONALITY}}
+- Density: {{DENSITY}}
+- Typography goals: {{TYPOGRAPHY_GOALS}}
+- Imagery direction: {{IMAGERY_DIRECTION}}
+- References: {{REFERENCES}}
+- Explicit reject list: {{REJECT_LIST}}
+
+## Approved Direction
+
+{{APPROVED_VISUAL_DIRECTION}}
+
+## Design Decision Ledger
+
+Design IDs use `DESIGN-0001` through `DESIGN-9999`, are permanent, and are never reused.
+
+| ID  | Decision | Status | Requirement links | Artifact links | Approval reference |
+| --- | -------- | ------ | ----------------- | -------------- | ------------------ |
+
+Statuses: `proposed`, `approved`, `rejected`, `superseded`. Superseded and rejected decisions remain in the ledger.
+
+## Artifact Index
+
+- Master system: `design-system/MASTER.md`
+- Typography: `design-system/TYPOGRAPHY.md`
+- Components: `design-system/COMPONENTS.md`
+- Component board: `design-system/BOARD.md`
+- Research records: `design-system/research/`
+- Page contracts: `design-system/pages/`
+- Mockup and state-board registry: `mockups/INDEX.md`
 
 ## Main Screens
-{{MAIN_SCREENS}}
 
-## Interaction Model
-{{INTERACTION_MODEL}}
+{{MAIN_SCREENS_AND_PAGE_CONTRACT_LINKS}}
 
-## UX State Contracts And Mockups
+## UX Flow Links
 
-For multi-step UI or PSP SDK placement, define the expected states before coding: initial, loading, success, failure, retry, blocked, and completion states.
+{{FLOW_AND_SLICE_LINKS}}
 
-Use virtual mockups when the interaction is easier to validate visually, and keep them aligned with tests.
+## Design Approval Record
 
-## UI/UX Implementation Guide
+- Component board: pending
+- Typography proof: pending
+- Representative desktop surfaces: pending
+- Representative mobile surfaces: pending
+- Required interaction states: pending
+- User approval reference: none
 
-Use this section as the frontend source of truth before coding customer-facing or sales-facing UI.
-
-- Design tokens: colors, typography, spacing, radius, motion, and responsive breakpoints.
-- Component contracts: buttons, cards, forms, modals, payment surfaces, loading, empty, and error states.
-- Page-level implementation specs: layout, content hierarchy, actions, states, mobile behavior, and accessibility for each main screen.
-- UX flow contracts: entry point, transitions, blocked states, async behavior, completion state, and evidence required before completion.
-
-A frontend slice is not complete until the touched UI matches this guide and has test or manual evidence for visual, interaction, async, and responsive behavior.
-
-## Visual Direction
-{{VISUAL_DIRECTION}}
-
-## Architecture
-{{ARCHITECTURE}}
-
-## Open Decisions
-Decisions should be resolved before implementation starts.
+Frontend planning remains blocked while an applicable approval is pending.

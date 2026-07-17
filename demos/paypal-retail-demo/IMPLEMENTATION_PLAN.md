@@ -36,7 +36,7 @@ Out of scope for v1:
 
 ## Evidence Pass
 
-This section captures implementation evidence from `/Users/tengtao/Development/wiki-v2`. Start with `wiki-v2` concepts, source summaries, and raw evidence for PayPal questions. Verify high-stakes or likely-changed behavior against current official PayPal documentation; use a live official refresh for other claims when the wiki has a gap or the user requests it.
+This section captures implementation evidence from the payment wiki resolved through the repository-root `KNOWLEDGE_SOURCES.md` (including its environment override). Start with wiki concepts, source summaries, and raw evidence for PayPal questions. Verify high-stakes or likely-changed behavior against current official PayPal documentation; use a live official refresh for other claims when the wiki has a gap or the user requests it.
 
 ### PayPal SDK v6 And React
 
@@ -1220,6 +1220,6 @@ This is not authorization to restyle every historical page. The approved board a
 
 - The user approves the requirement register and first slice charter.
 - The user approves the design-system board, typography proof, and representative responsive surfaces.
-- Every approved requirement has a task, test, and required evidence disposition.
-- Decline-oriented requirement, design-fidelity, payment-domain, and engineering reviews have no unresolved blocking findings.
+- Every approved requirement has a valid full-register planning disposition; every requirement inherited by the active slice has concrete task, test, and required evidence links.
+- Decline-oriented requirement, design-fidelity, and engineering reviews (including the payment-domain sub-review) have no unresolved Critical or Important findings; every Minor finding has an explicit accepted disposition.
 - The deterministic coverage validator and existing agent-system checks pass.

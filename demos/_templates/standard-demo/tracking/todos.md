@@ -1,7 +1,8 @@
 # Todos
 
-- [ ] Confirm implementation plan.
-- [ ] Confirm requirement traceability checklist before coding.
-- [ ] Complete implementation-grade `DESIGN.md` before customer-facing frontend coding.
-- [ ] Define UX state guidance or mockup coverage for multi-step UI or PSP SDK placement.
+- [ ] Approve `REQUIREMENTS.md` and valid planning dispositions.
+- [ ] Approve the active slice charter and requirement coverage.
+- [ ] Confirm implementation architecture and traceability.
+- [ ] Approve the design router and linked system/page/mockup/state contracts before customer-facing frontend coding.
 - [ ] Confirm test strategy.
+- [ ] Assign independent reviewers and model effort.

@@ -49,47 +49,94 @@ Reviewers verify the decision system; they do not become new sources of product 
 
 Each artifact owns one concern. History and execution convenience must not replace approved requirements.
 
-| Artifact | Authority |
-| --- | --- |
-| `DEMO.md` | Audience, business scenario, supported flows, demo boundaries, and success criteria |
-| `REQUIREMENTS.md` | Approved promises, stable `REQ-*` identifiers, acceptance criteria, status, dependencies, exclusions, and target slice |
-| `DESIGN.md` | Slim design router, approved visual direction, design decisions, and links to detailed design-system and page contracts |
-| `design-system/MASTER.md` | Color, spacing, geometry, elevation, motion, responsive, and accessibility foundations |
-| `design-system/TYPOGRAPHY.md` | Actual font files, roles, scales, weights, line heights, fallbacks, loading, and verification |
-| `design-system/COMPONENTS.md` | Customized component primitives, semantic variants, interaction states, and usage examples |
-| `design-system/pages/*.md` | Page-specific layout, state, responsive, content, and accessibility contracts; exceptions override the master only where stated |
-| `IMPLEMENTATION_PLAN.md` | Architecture, interfaces, platform plan, traceability, test strategy, and evidence strategy |
-| `IMPLEMENTATION_TASKS.md` | Complex-demo execution tasks linked to `REQ-*`, `DESIGN-*`, `TC-*`, and `EVID-*`; never the product source of truth |
-| `slices/<SLICE-ID>.md` | Approved slice charter and its close record |
-| `PLAN.md` | Small active-slice router; it does not redefine requirements or milestone status |
-| `tracking/test-cases.md` | `TC-*` acceptance and evidence rows linked to requirements |
-| `tracking/todos.md` | Near-term operational queue derived from the active slice |
-| `tracking/progress.md` | Append-only execution history |
-| `tracking/debug.md` | Investigation and diagnostic record |
-| `tracking/learnings.md` | Demo-local lessons awaiting promotion |
+| Artifact                                       | Authority                                                                                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEMO.md`                                      | Derived audience, business scenario, supported-flow summary, demo boundaries, and success criteria; it does not own detailed requirements           |
+| `REQUIREMENTS.md`                              | Approved promises, stable `REQ-*` identifiers, acceptance criteria, status, dependencies, exclusions, and target slice                              |
+| `DESIGN.md`                                    | Taste brief, approved direction, stable `DESIGN-*` decision ledger, and artifact index; it routes to detailed contracts instead of duplicating them |
+| `design-system/MASTER.md`                      | Color, spacing, geometry, elevation, motion, responsive, and accessibility foundations                                                              |
+| `design-system/TYPOGRAPHY.md`                  | Actual font files, roles, scales, weights, line heights, fallbacks, loading, and verification                                                       |
+| `design-system/COMPONENTS.md`                  | Customized component primitives, semantic variants, interaction states, and usage examples                                                          |
+| `design-system/BOARD.md`                       | Required design-system/component-board surfaces, states, implementation route, evidence, and approval record                                        |
+| `design-system/research/YYYY-MM-DD-<topic>.md` | UI/UX Pro Max queries, other research inputs, accepted and rejected recommendations, conflicts, and synthesis; create from `RESEARCH-TEMPLATE.md`   |
+| `design-system/pages/*.md`                     | Page-specific layout, state, responsive, content, and accessibility contracts; exceptions override the master only where stated                     |
+| `mockups/INDEX.md`                             | Registry of approved and rejected mockups and state boards; artifacts use `DESIGN-*` IDs and are linked from page contracts and slice charters      |
+| `IMPLEMENTATION_PLAN.md`                       | Architecture, interfaces, platform plan, traceability, test strategy, and evidence strategy                                                         |
+| `IMPLEMENTATION_TASKS.md`                      | Complex-demo execution tasks linked to `REQ-*`, `DESIGN-*`, `TC-*`, and `EVID-*`; never the product source of truth                                 |
+| `slices/<SLICE-ID>.md`                         | Approved slice charter and its close record                                                                                                         |
+| `PLAN.md`                                      | Small active-slice router; it does not redefine requirements or milestone status                                                                    |
+| `tracking/test-cases.md`                       | `TC-*` acceptance and evidence rows linked to requirements                                                                                          |
+| `tracking/todos.md`                            | Near-term operational queue derived from the active slice                                                                                           |
+| `tracking/progress.md`                         | Append-only execution history                                                                                                                       |
+| `tracking/debug.md`                            | Investigation and diagnostic record                                                                                                                 |
+| `tracking/learnings.md`                        | Demo-local lessons awaiting promotion                                                                                                               |
 
 Simple demos may keep atomic requirements and tasks inside `DEMO.md`. Standard demos require `REQUIREMENTS.md`, but may keep task steps in `IMPLEMENTATION_PLAN.md`. Complex demos use the complete structure above.
 
 `AGENTS.md` contains stable guardrails only. Feature requirements, slice decisions, and transient task detail do not belong there.
 
-## Stable Identifiers And Status
+## Stable Identifiers And Requirement Schema
 
-Use stable identifiers throughout the lifecycle:
+Identifiers are demo-local, permanent, and never renumbered or reused:
 
-- `REQ-*` for product, behavior, payment, operator, and design requirements
-- `DESIGN-*` for approved design decisions
-- `SLICE-*` for independently closable implementation slices
-- `TASK-*` for implementation work
-- `TC-*` for test and acceptance cases
-- `EVID-*` for evidence obligations and captured proof
+- `REQ-0001` through `REQ-9999` for product, behavior, payment, operator, and design requirements
+- `DESIGN-0001` through `DESIGN-9999` for approved design decisions
+- `SLICE-001` through `SLICE-999` for independently closable implementation slices
+- `TASK-0001` through `TASK-9999` for implementation work
+- `TC-0001` through `TC-9999` for test and acceptance cases
+- `EVID-0001` through `EVID-9999` for evidence obligations and captured proof
 
-Requirement status follows this path:
+Removed records remain as tombstones with their original identifiers and approval references. A durable user-decision source uses `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`. Repository, wiki, and official-document sources use a stable file/heading, raw-source identifier, or URL plus retrieval date.
 
-`draft -> approved -> in_progress -> implemented -> verified`
+Every requirement record has two orthogonal fields.
 
-`deferred` and `removed` are separate decisions. Both require a reason, a next trigger when applicable, and user approval. `implemented` never means `verified`.
+`lifecycle_status` is one of:
 
-Every approved requirement must remain visible in the traceability matrix until it is verified, explicitly deferred, or explicitly removed. Moving it to a future slice is an assignment, not a deferral.
+- `draft`
+- `approved`
+- `in_progress`
+- `implemented`
+- `verified`
+- `removed`
+
+`planning_disposition` is one of:
+
+- `unassigned`
+- `active_slice`
+- `future_slice`
+- `blocked`
+- `deferral_proposed`
+- `deferred`
+- `complete`
+- `removed`
+
+The required fields are `id`, `title`, `audience`, `source`, `lifecycle_status`, `planning_disposition`, `target_slice`, `blocker`, `deferral_reason`, `next_trigger`, `approval_reference`, `acceptance`, `negative_cases`, `dependencies`, `design_links`, `task_links`, `test_links`, and `evidence_links`.
+
+The fields are independent concerns but their allowed combinations are deterministic:
+
+| Lifecycle status | Allowed planning dispositions                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `draft`          | `unassigned`                                                                             |
+| `approved`       | `unassigned`, `active_slice`, `future_slice`, `blocked`, `deferral_proposed`, `deferred` |
+| `in_progress`    | `active_slice`                                                                           |
+| `implemented`    | `active_slice`                                                                           |
+| `verified`       | `complete`                                                                               |
+| `removed`        | `removed`                                                                                |
+
+Any combination not listed in this table is invalid. A lifecycle transition records what is true about the promise; a disposition transition records what planning has decided to do with it. Changing one never implicitly changes the other.
+
+The following constraints are normative:
+
+- `in_progress` or `implemented` requires `planning_disposition: active_slice` and an approved `target_slice`.
+- `verified` requires `planning_disposition: complete` and passing required evidence.
+- `future_slice` requires a named target slice but does not require speculative task, test, or evidence IDs before that slice is approved.
+- `blocked` requires a concrete blocker and reevaluation trigger.
+- `deferral_proposed` requires a reason, next trigger, and pending user approval; it is not an approved deferral.
+- `deferred` requires `lifecycle_status: approved`, a reason, next trigger, and user approval reference.
+- `removed` requires `lifecycle_status: removed`, a removal reason, and user approval reference; the tombstone remains permanently.
+- `implemented` never means `verified`.
+
+Every approved requirement remains visible in the register until it is verified, explicitly deferred, or explicitly removed. Moving it to a future slice is an assignment, not a deferral.
 
 ## Lifecycle
 
@@ -137,13 +184,13 @@ Customer-facing and sales-facing work requires the following design sequence.
 
 #### Taste Brief
 
-Record the desired personality, audience, references, density, typography goals, imagery approach, and explicit reject list. User-provided drafts and references are binding input unless the user changes them.
+Record the desired personality, audience, references, density, typography goals, imagery approach, and explicit reject list in `DESIGN.md`. User-provided drafts and references are binding input unless the user changes them.
 
 #### UI/UX Pro Max Retrieval
 
 Run the design-system search first. Then run only the targeted style, typography, UX, accessibility, React, and shadcn searches needed for the surface.
 
-Record:
+Create `design-system/research/YYYY-MM-DD-<topic>.md` from `RESEARCH-TEMPLATE.md` and record:
 
 - queries used
 - recommendations accepted
@@ -158,7 +205,7 @@ Use gstack design-shotgun when the project needs a new identity, a material typo
 
 Use the Superpowers visual companion when responsive layouts, flows, or UI states are clearer to approve visually. Produce inspectable desktop and mobile references for representative critical surfaces and their loading, empty, error, selected, disabled, and expanded states.
 
-The user selects the direction. Selected and rejected decisions are recorded as `DESIGN-*` entries so later agents do not restart visual discovery.
+The user selects the direction. Selected and rejected decisions are recorded in the `DESIGN.md` decision ledger and `mockups/INDEX.md` with `DESIGN-*` identifiers so later agents do not restart visual discovery.
 
 #### Typography Gate
 
@@ -200,6 +247,8 @@ Before frontend tasks start, the user approves:
 
 Implementation begins from these approved artifacts, not from fresh styling choices inside each slice.
 
+`design-system/BOARD.md` defines the component-board contract and implementation route. `mockups/INDEX.md` is the only mockup/state-board registry; page contracts and slice charters link to its entries rather than relying on chat history or unindexed image folders.
+
 ### 4. Slice Charter Before Implementation
 
 The Slice Steward writes `slices/<SLICE-ID>.md` before task decomposition. The charter contains:
@@ -213,6 +262,7 @@ The Slice Steward writes `slices/<SLICE-ID>.md` before task decomposition. The c
 - required `TASK-*`, `TC-*`, and `EVID-*` coverage
 - payment Knowledge Evidence when applicable
 - skill routing and agent/model-effort routing
+- reviewer assignments and independence
 - entry criteria, exit criteria, and review lanes
 
 The user approves the charter before implementation. A slice may elaborate approved requirements but cannot silently narrow, reinterpret, or postpone them.
@@ -247,6 +297,10 @@ Every slice passes three independent review lanes:
 
 A passed lane cannot compensate for a failed lane. Critical and important findings are corrected and re-reviewed before the task or slice closes.
 
+The charter assigns each lane to a reviewer who did not implement the work being reviewed. The assignment records reviewer/agent, model and effort, required inputs, independence confirmation, and decision authority. An implementer self-review is useful evidence but cannot satisfy an independent lane.
+
+For a payment-related slice, payment-domain review is a required sub-review of the engineering-quality lane. It uses the Knowledge Evidence block and checks PSP semantics, source authority, sandbox/production boundaries, and official-provider evidence; it is not a fourth independently closable lane.
+
 ### 7. Close And Learn
 
 Before closing a slice or milestone:
@@ -265,17 +319,18 @@ Rendered UI or passing unit tests alone cannot close a user-visible or PSP-criti
 
 Skills are stage-specific methods. Their raw output never replaces canonical requirements or approved design decisions.
 
-| Stage | Skill route | Model and effort guidance |
-| --- | --- | --- |
-| New or changed requirements | Superpowers brainstorming | strongest suitable model, high effort |
-| UI research | UI/UX Pro Max design-system then targeted retrieval | lower-cost retrieval; strong synthesis |
-| Major visual direction | gstack design-shotgun | strong visual judgment, high effort |
-| Responsive and state design | Superpowers visual companion | strong design agent, medium/high effort |
-| Slice planning | Superpowers writing-plans | Slice Steward, high effort |
-| Mechanical implementation | Superpowers subagent-driven development and TDD | fast/lower-cost model only with an exact bounded brief |
-| Integration, PSP, or ambiguous implementation | Superpowers execution workflow | standard or strongest model according to risk |
-| Visual correction | read-only fidelity review first; gstack design-review for the correction loop | standard/high design judgment |
-| Final closure | independent reviews and verification-before-completion | strongest suitable reviewer |
+| Stage                                               | Skill route                                                                   | Model and effort guidance                                                        |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| New or changed requirements                         | Superpowers brainstorming                                                     | strongest suitable model, high effort                                            |
+| UI research                                         | UI/UX Pro Max design-system then targeted retrieval                           | lower-cost agent may retrieve; strongest suitable model synthesizes and approves |
+| Major visual direction                              | gstack design-shotgun                                                         | strongest suitable visual-judgment model, high effort                            |
+| Responsive and state design                         | Superpowers visual companion                                                  | strongest suitable design model, high effort                                     |
+| Slice planning                                      | Superpowers writing-plans                                                     | Slice Steward, high effort                                                       |
+| Mechanical implementation                           | Superpowers subagent-driven development and TDD                               | fast/lower-cost model only with an exact bounded brief                           |
+| Non-payment integration or ambiguous implementation | Superpowers execution workflow                                                | standard model; escalate on cross-cutting judgment                               |
+| PSP semantics or conflicting payment evidence       | Payment Knowledge Gate plus implementation workflow                           | strongest suitable payment model, high effort                                    |
+| Design synthesis, fidelity, or correction           | read-only fidelity review first; gstack design-review for the correction loop | strongest suitable design model, high effort                                     |
+| Final closure                                       | independent reviews and verification-before-completion                        | strongest suitable reviewer, high effort                                         |
 
 The Slice Steward records required skills, conditional skills and triggers, non-applicable skills and reasons, assigned model class, effort, and escalation conditions in the slice charter.
 
@@ -310,7 +365,7 @@ Each payment-related slice charter contains a Knowledge Evidence block with:
 - official documentation verification when required
 - affected `REQ-*`, `DESIGN-*`, `TASK-*`, `TC-*`, and `EVID-*`
 
-A lower-cost agent may retrieve and inventory evidence. A standard or high-effort payment specialist synthesizes ambiguous or conflicting evidence. If evidence is insufficient, record a knowledge gap and stop the affected decision; never fill it by assumption.
+A lower-cost agent may retrieve and inventory evidence. The strongest suitable high-effort payment specialist synthesizes ambiguous or conflicting evidence and owns PSP-semantic recommendations. If evidence is insufficient, record a knowledge gap and stop the affected decision; never fill it by assumption.
 
 ## Evidence Ladder
 
@@ -330,13 +385,21 @@ Dynamic PSP UI must not be replaced with fake buttons to make evidence determini
 
 ## Automated Coverage Gate
 
-The agent-system implementation must provide a deterministic requirement-coverage validator. It fails when:
+The agent-system implementation must provide two deterministic coverage gates.
 
-- an approved requirement has no task, test, or required evidence link
+The **full-register disposition gate** fails when:
+
+- an approved unresolved requirement lacks a valid `planning_disposition`
+- `active_slice` or `future_slice` lacks a valid target slice
+- `blocked`, `deferral_proposed`, `deferred`, or `removed` lacks its required fields
+- an identifier is malformed, reused, renumbered, duplicated, or references an unknown record
+
+The **active-slice coverage gate** fails when:
+
+- an inherited active-slice requirement has no concrete task, test, or required evidence link
 - a verified requirement has missing or failed evidence
 - a slice closes with unresolved inherited requirements
-- a deferral lacks a reason, next trigger, or user approval
-- tasks, tests, evidence, or design decisions reference unknown identifiers
+- a charter lacks independent reviewer assignments or required review decisions
 - the active slice, `PLAN.md`, and tracking status disagree
 
 Automated checks verify structure and linkage. They do not replace semantic review by the Slice Steward and independent reviewers.
@@ -366,3 +429,7 @@ Do not rewrite the complete history of a mature demo merely to adopt this protoc
 - leave historical progress append-only
 
 The adoption plan itself requires user approval before backfill implementation begins.
+
+## Protocol Rollout Gate
+
+Before the next standard or complex pilot starts, the matching template package and `scripts/check-agent-system.sh` must contain and validate every required artifact, schema, authority rule, and slice gate in this protocol. A structural checker that accepts the previous template shape does not satisfy this rollout gate.

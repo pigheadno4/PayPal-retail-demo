@@ -17,7 +17,7 @@ The default customer-specific profile is a POP MART storefront presentation. A r
 - Promo, tax, shipping, inventory, and payment totals remain consistent before capture.
 - Admin Portal supports profile/market control plus route-separated Orders, Lifecycle, Inventory, Webhooks, and Diagnostics workbenches; buyer Account order history reflects merchant lifecycle updates without inventing PayPal webhook events.
 - POP MART profile feels customer-ready; MochiToy profile keeps the demo reusable.
-- PayPal behavior is verified from `/Users/tengtao/Development/wiki-v2` or marked as a demo assumption.
+- PayPal behavior is verified from the payment wiki resolved through the repository-root `KNOWLEDGE_SOURCES.md` or marked as a demo assumption.
 
 ## Payment Products
 
@@ -225,7 +225,7 @@ Admin Portal controls active profile and market globally. Switching profile/mark
 - This is a demo, not a production compliance, pricing, tax, settlement, risk, or contractual reference.
 - Shipping fee is excluded from promo and tax calculations as a demo assumption.
 - POP MART assets are customer-specific and must not be reused outside this demo.
-- PayPal behavior must be confirmed against `/Users/tengtao/Development/wiki-v2` before customer delivery. Use external PayPal docs only if the wiki has a gap or the user asks for a live refresh.
+- PayPal behavior must be confirmed against the payment wiki resolved through the repository-root `KNOWLEDGE_SOURCES.md` before customer delivery. Use external PayPal docs only if the wiki has a gap or the user asks for a live refresh.
 - The BOPIS receiver-name convention `s2s ${storeName}` is part of the v1 demo payload contract from prior implementation experience.
 
 ## Runbook

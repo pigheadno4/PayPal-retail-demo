@@ -15,7 +15,7 @@
 - Do not start implementation until `DEMO.md`, `DESIGN.md`, `IMPLEMENTATION_PLAN.md`, `DATA_MODEL.md`, and `API_CONTRACT.md` are approved.
 - Use TypeScript for web, server, shared domain modules, tests, and seed tooling.
 - Start implementation with tests for deterministic business logic before UI.
-- Use `/Users/tengtao/Development/wiki-v2` for PayPal evidence.
+- Resolve the payment wiki through the repository-root `KNOWLEDGE_SOURCES.md` for PayPal evidence.
 - Do not replace the v1 BOPIS Create Order contract with authorize-at-checkout/capture-at-pickup.
 - Keep POP MART assets local and customer-specific.
 - Update tracking files after every implementation milestone.

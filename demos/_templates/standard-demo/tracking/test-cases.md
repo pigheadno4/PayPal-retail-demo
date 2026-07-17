@@ -1,18 +1,34 @@
 # Test Cases
 
-## Acceptance Criteria
-- [ ] Demo can run locally.
-- [ ] Primary payment scenario can be verified.
-- [ ] Requirement Traceability: important promises are mapped to a task, test or manual verification row, and evidence type.
-- [ ] `DESIGN.md` is implementation-grade before customer-facing frontend coding: tokens, component contracts, page specs, UX-flow contracts, responsive rules, accessibility, and visual QA gates.
-- [ ] UX State Contracts: multi-step UI or PSP SDK placement has state guidance or mockup coverage before implementation.
-- [ ] Every visible user action is wired, disabled with a reason, or explicitly deferred in tracking.
-- [ ] Rendered UI is paired with interaction or manual verification for the promised user journey.
-- [ ] PSP or wallet UI uses the official hydrated SDK/provider surface in every promised placement.
-- [ ] API-backed UI covers loading, success, and failure states against the backend contract.
-- [ ] Multi-step UI has a state contract or mockup aligned with implementation and tracking.
-- [ ] Customer-facing text avoids unsupported PSP claims.
+Test IDs use `TC-0001` through `TC-9999`, are permanent, and are never reused.
+
+## Test Case Register
+
+| Test ID | Requirements | Slice | Evidence | Status |
+| ------- | ------------ | ----- | -------- | ------ |
+
+Statuses: `planned`, `failing`, `passing`, `blocked`, `retired`.
+
+## Test Case Template
+
+```markdown
+### TC-0001 — Observable behavior
+
+- Requirements: REQ-0001
+- Slice: SLICE-001
+- Evidence: EVID-0001
+- Layer: unit | integration | interaction | browser | hosted | sandbox | manual
+- Preconditions: describe exact state
+- Action: describe exact action
+- Expected: describe observable result
+- Negative case: describe failure or exclusion
+- Status: planned
+```
 
 ## Milestone Close Gate
-- [ ] Implementation plan, todos, test cases, and progress agree on what is done.
-- [ ] Shell-only work remains unchecked as behavior until the user action is verified.
+
+- Every active-slice requirement has concrete test and evidence links.
+- Future-slice requirements have a valid disposition without speculative coverage.
+- Shell-only work remains open until interaction and required state evidence pass.
+- PSP or wallet UI proves the official hydrated provider surface in every promised placement.
+- API-backed UI covers loading, success, failure, retry, and recovery against the backend contract.
