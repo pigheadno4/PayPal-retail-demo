@@ -87,7 +87,7 @@ Identifiers are demo-local, permanent, and never renumbered or reused:
 - `TC-0001` through `TC-9999` for test and acceptance cases
 - `EVID-0001` through `EVID-9999` for evidence obligations and captured proof
 
-Removed records remain as tombstones with their original identifiers and approval references. A durable user-decision source uses `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`. Repository, wiki, and official-document sources use a stable file/heading, raw-source identifier, or URL plus retrieval date.
+Removed records remain as full-schema tombstones under `## Tombstones`, indexed only by `## Tombstone Register`, with their original identifiers, prior context, removal reasons, and approval references. Non-removed records live under `## Active Requirement Records` and are indexed only by `## Requirement Register`. A durable user-decision source uses `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`. Repository, wiki, and official-document sources use a stable file/heading, raw-source identifier, or URL plus retrieval date.
 
 Every requirement record has two orthogonal fields.
 
@@ -130,7 +130,7 @@ The following constraints are normative:
 
 - `in_progress` or `implemented` requires `planning_disposition: active_slice` and an approved `target_slice`.
 - `verified` requires `planning_disposition: complete` and passing required evidence.
-- `future_slice` requires a named target slice but does not require speculative task, test, or evidence IDs before that slice is approved.
+- `future_slice` requires a named target slice. A proposed target slice must not have speculative task, test, or evidence IDs; concrete links may be added only after that slice is approved.
 - `blocked` requires a concrete blocker and reevaluation trigger.
 - `deferral_proposed` requires a reason, next trigger, and pending user approval; it is not an approved deferral.
 - `deferred` requires `lifecycle_status: approved`, a reason, next trigger, and user approval reference.
@@ -400,10 +400,14 @@ The **full-register disposition gate** fails when:
 The **active-slice coverage gate** fails when:
 
 - an inherited active-slice requirement has no concrete task, test, or required evidence link
+- a requirement's coverage IDs are absent from that requirement's own coverage row
+- a linked task, test, or evidence record belongs to a slice other than the requirement's target slice
 - a verified requirement has missing or failed evidence
 - a slice closes with unresolved inherited requirements
 - a charter lacks independent reviewer assignments or required review decisions
 - the active slice, `PLAN.md`, and tracking status disagree
+
+A closed slice records structured requirements, design, engineering, and conditional payment-domain review decisions; zero unresolved Critical or Important findings; and either no Minor findings or explicit accepted dispositions for every Minor.
 
 Automated checks verify structure and linkage. They do not replace semantic review by the Slice Steward and independent reviewers.
 

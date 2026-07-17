@@ -92,6 +92,10 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 | ID  | Title | Lifecycle | Disposition | Target slice | Source |
 | --- | ----- | --------- | ----------- | ------------ | ------ |
 
+## Active Requirement Records
+
+Add every non-removed `REQ-*` record here using the full schema below.
+
 ## Requirement Record Template
 
 ```markdown
@@ -118,15 +122,35 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 - Evidence links: none
 ```
 
+## Tombstone Register
+
+| ID  | Title | Removal reason | Approval reference |
+| --- | ----- | -------------- | ------------------ |
+
 ## Tombstones
 
-Removed requirements remain here with their original IDs, removal reasons, and user approval references.
+Removed requirements remain here as full records with their original IDs, prior context, removal reasons, and user approval references. Do not use a shortened schema.
 
 ```markdown
 ### REQ-0001 — Removed promise
 
+- Audience: buyer | operator | developer | mixed
+- Source: user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>
 - Lifecycle status: removed
 - Planning disposition: removed
+- Target slice: none
+- Blocker: none
+- Deferral reason: none
 - Removal reason: exact reason
+- Next trigger: none
 - Approval reference: user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>
+- Acceptance:
+  - Historical observable outcome retained for audit
+- Negative cases:
+  - Historical exclusion retained for audit
+- Dependencies: none
+- Design links: none
+- Task links: none
+- Test links: none
+- Evidence links: none
 ```

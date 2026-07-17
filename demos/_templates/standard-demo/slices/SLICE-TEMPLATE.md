@@ -91,6 +91,11 @@ When payment-domain sub-review is `no`, its row records `not applicable: <reason
 
 - Closed by: none
 - Closed at: none
-- Review decisions: none
+- Requirements review decision: pending
+- Design review decision: pending
+- Engineering review decision: pending
+- Payment-domain sub-review decision: pending
+- Critical/Important findings: pending
+- Minor findings disposition: pending
 - Evidence summary: none
 - Progress-log reference: none

@@ -150,11 +150,16 @@ function parseRecords(text, prefix, digits, file, errors) {
     const match = matches[index];
     const start = match.index + match[0].length;
     const end = matches[index + 1]?.index ?? stripped.length;
+    const precedingSections = [
+      ...stripped.slice(0, match.index).matchAll(/^## ([^#].*)$/gm),
+    ];
     const record = {
       id: match[1],
       title: match[2].trim(),
       fields: parseFields(stripped.slice(start, end)),
       file,
+      sectionHeading:
+        precedingSections[precedingSections.length - 1]?.[1]?.trim() ?? "none",
     };
 
     if (seen.has(record.id)) {
@@ -169,6 +174,15 @@ function parseRecords(text, prefix, digits, file, errors) {
 
 function isNone(value) {
   return !value || value.trim().toLowerCase() === "none";
+}
+
+function isPlaceholder(value) {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  return (
+    ["none", "pending", "not applicable", "n/a"].includes(normalized) ||
+    value.includes("{{")
+  );
 }
 
 function idsIn(value, prefix, digits) {
@@ -318,6 +332,18 @@ function validateRequirement(requirement, known, slices, errors) {
 
   const lifecycle = requirement.fields.get("lifecycle_status");
   const disposition = requirement.fields.get("planning_disposition");
+  if (lifecycle === "removed" && requirement.sectionHeading !== "Tombstones") {
+    errors.push(
+      `${requirement.file}: removed requirement ${requirement.id} must be in the Tombstones section`,
+    );
+  } else if (
+    lifecycle !== "removed" &&
+    requirement.sectionHeading !== "Active Requirement Records"
+  ) {
+    errors.push(
+      `${requirement.file}: active requirement ${requirement.id} must be in Active Requirement Records`,
+    );
+  }
   const allowedDispositions = lifecycleDispositionMatrix.get(lifecycle);
   if (!allowedDispositions?.has(disposition)) {
     errors.push(
@@ -456,6 +482,42 @@ function validateRequirement(requirement, known, slices, errors) {
     }
   }
 
+  if (disposition === "future_slice" && target?.status === "proposed") {
+    const hasSpeculativeLinks = [
+      ["task_links", "TASK"],
+      ["test_links", "TC"],
+      ["evidence_links", "EVID"],
+    ].some(
+      ([field, prefix]) =>
+        idsIn(requirement.fields.get(field), prefix, 4).length > 0,
+    );
+    if (hasSpeculativeLinks) {
+      errors.push(
+        `${requirement.file}: ${requirement.id} future_slice targeting proposed ${targetSlice} cannot have speculative task, test, or evidence links`,
+      );
+    }
+  }
+
+  if (["active_slice", "future_slice"].includes(disposition) && target) {
+    for (const [field, prefix, records] of [
+      ["task_links", "TASK", known.tasks],
+      ["test_links", "TC", known.tests],
+      ["evidence_links", "EVID", known.evidence],
+    ]) {
+      for (const id of idsIn(requirement.fields.get(field), prefix, 4)) {
+        const record = records.get(id);
+        if (
+          record &&
+          !idsIn(record.fields.get("slice"), "SLICE", 3).includes(targetSlice)
+        ) {
+          errors.push(
+            `${record.file}: ${id} must belong to target slice ${targetSlice} for ${requirement.id}`,
+          );
+        }
+      }
+    }
+  }
+
   if (disposition === "active_slice") {
     for (const [field, prefix] of [
       ["task_links", "TASK"],
@@ -481,20 +543,23 @@ function validateRequirement(requirement, known, slices, errors) {
           `${slice.file}: active-slice requirement ${requirement.id} is not inherited by ${targetSlice}`,
         );
       }
-      const coverage = section(slice.text, "Coverage");
-      for (const field of ["task_links", "test_links", "evidence_links"]) {
-        for (const id of idsIn(
-          requirement.fields.get(field),
-          field === "task_links"
-            ? "TASK"
-            : field === "test_links"
-              ? "TC"
-              : "EVID",
-          4,
-        )) {
-          if (!coverage.includes(id)) {
+      const coverageRow = tableRows(section(slice.text, "Coverage")).find(
+        (cells) => cells[0] === requirement.id,
+      );
+      if (!coverageRow) {
+        errors.push(
+          `${slice.file}: ${targetSlice} has no coverage row for ${requirement.id}`,
+        );
+      }
+      for (const [field, prefix, column] of [
+        ["task_links", "TASK", 1],
+        ["test_links", "TC", 2],
+        ["evidence_links", "EVID", 3],
+      ]) {
+        for (const id of idsIn(requirement.fields.get(field), prefix, 4)) {
+          if (!idsIn(coverageRow?.[column], prefix, 4).includes(id)) {
             errors.push(
-              `${slice.file}: ${targetSlice} coverage is missing ${id} for ${requirement.id}`,
+              `${slice.file}: coverage row for ${requirement.id} is missing ${id}`,
             );
           }
         }
@@ -582,13 +647,9 @@ function validateReviewers(slice, errors) {
     const incomplete =
       !row ||
       row.length < 6 ||
-      row[1]?.toLowerCase() === "not applicable" ||
+      isPlaceholder(row[1]) ||
       row[2]?.toLowerCase() !== "yes" ||
-      row
-        .slice(3, 6)
-        .some(
-          (value) => isNone(value) || value.toLowerCase() === "not applicable",
-        );
+      row.slice(3, 6).some((value) => isPlaceholder(value));
     if (incomplete) {
       errors.push(
         `${slice.file}: ${slice.id} requires a complete payment-domain engineering sub-review assignment`,
@@ -660,11 +721,72 @@ function validateSlice(slice, requirements, known, errors) {
         );
       }
     }
+    const closeRecord = section(slice.text, "Close Record");
+    const requirementsDecision = topField(
+      closeRecord,
+      "Requirements review decision",
+    ).toLowerCase();
+    if (requirementsDecision !== "approved") {
+      errors.push(
+        `${slice.file}: closed slice ${slice.id} requires approved requirements review decision`,
+      );
+    }
+    const designDecision = topField(
+      closeRecord,
+      "Design review decision",
+    ).toLowerCase();
     if (
-      isNone(topField(section(slice.text, "Close Record"), "Review decisions"))
+      designDecision !== "approved" &&
+      !designDecision.startsWith("not applicable:")
     ) {
       errors.push(
-        `${slice.file}: closed slice ${slice.id} requires review decisions`,
+        `${slice.file}: closed slice ${slice.id} requires an approved or explicitly non-applicable design review decision`,
+      );
+    }
+    const engineeringDecision = topField(
+      closeRecord,
+      "Engineering review decision",
+    ).toLowerCase();
+    if (engineeringDecision !== "approved") {
+      errors.push(
+        `${slice.file}: closed slice ${slice.id} requires approved engineering review decision`,
+      );
+    }
+    const paymentDecision = topField(
+      closeRecord,
+      "Payment-domain sub-review decision",
+    ).toLowerCase();
+    const paymentDecisionValid =
+      slice.paymentReviewRequired === "yes"
+        ? paymentDecision === "approved"
+        : paymentDecision.startsWith("not applicable:");
+    if (!paymentDecisionValid) {
+      errors.push(
+        `${slice.file}: closed slice ${slice.id} has invalid payment-domain sub-review decision`,
+      );
+    }
+    const criticalImportant = topField(
+      closeRecord,
+      "Critical/Important findings",
+    ).toLowerCase();
+    if (
+      criticalImportant !== "none" &&
+      !criticalImportant.startsWith("resolved:")
+    ) {
+      errors.push(
+        `${slice.file}: closed slice ${slice.id} has unresolved Critical/Important findings`,
+      );
+    }
+    const minorDisposition = topField(
+      closeRecord,
+      "Minor findings disposition",
+    ).toLowerCase();
+    if (
+      minorDisposition !== "none" &&
+      !minorDisposition.startsWith("accepted:")
+    ) {
+      errors.push(
+        `${slice.file}: closed slice ${slice.id} requires explicit accepted Minor dispositions`,
       );
     }
   }
@@ -688,6 +810,15 @@ function validateOwnedRecord(record, requiredFields, known, errors) {
     3,
     known.slices,
     "slice",
+    errors,
+  );
+  validateReferences(
+    record,
+    "design_decisions",
+    "DESIGN",
+    4,
+    known.design,
+    "design decision",
     errors,
   );
   validateReferences(
@@ -873,16 +1004,42 @@ export async function validateDemoWorkflow(demoPath) {
     evidence: indexRecords(evidence),
     slices,
     design: new Map(
-      idsIn(stripFencedCode(designText), "DESIGN", 4).map((id) => [id, true]),
+      idsIn(
+        tableRows(section(designText, "Design Decision Ledger"))
+          .flat()
+          .join(" "),
+        "DESIGN",
+        4,
+      ).map((id) => [id, true]),
     ),
   };
+
+  const activeRequirements = new Map(
+    [...known.requirements].filter(
+      ([, record]) => record.fields.get("lifecycle_status") !== "removed",
+    ),
+  );
+  const tombstones = new Map(
+    [...known.requirements].filter(
+      ([, record]) => record.fields.get("lifecycle_status") === "removed",
+    ),
+  );
 
   validateRecordIndex(
     requirementsText,
     "Requirement Register",
     "REQ",
     4,
-    known.requirements,
+    activeRequirements,
+    "REQUIREMENTS.md",
+    errors,
+  );
+  validateRecordIndex(
+    requirementsText,
+    "Tombstone Register",
+    "REQ",
+    4,
+    tombstones,
     "REQUIREMENTS.md",
     errors,
   );

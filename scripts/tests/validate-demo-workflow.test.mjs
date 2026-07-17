@@ -15,6 +15,8 @@ const validFiles = {
 | --- | --- |
 | REQ-0001 | Complete checkout |
 
+## Active Requirement Records
+
 ### REQ-0001 — Complete checkout
 
 - Audience: buyer
@@ -97,7 +99,12 @@ const validFiles = {
 
 ## Close Record
 
-- Review decisions: none
+- Requirements review decision: pending
+- Design review decision: pending
+- Engineering review decision: pending
+- Payment-domain sub-review decision: pending
+- Critical/Important findings: pending
+- Minor findings disposition: pending
 `,
   "tracking/test-cases.md": `# Test Cases
 
@@ -346,6 +353,69 @@ test("rejects incomplete active-slice coverage", async () => {
       new RegExp(`active-slice requirement REQ-0001 requires ${expected}`),
     );
   }
+
+  const misplacedErrors = await errorsFor({
+    "slices/SLICE-001.md": (text) =>
+      text
+        .replace(
+          "| REQ-0001 | TASK-0001 | TC-0001 | EVID-0001 |",
+          "| REQ-0001 | none | none | none |",
+        )
+        .replace(
+          "## Reviewer Assignments",
+          "TASK-0001 TC-0001 EVID-0001\n\n## Reviewer Assignments",
+        ),
+  });
+  assert.match(
+    misplacedErrors.join("\n"),
+    /coverage row for REQ-0001 is missing TASK-0001/,
+  );
+});
+
+test("rejects cross-slice ownership and premature future-slice links", async () => {
+  const secondSlice = `# SLICE-002 — Future work
+
+- Status: proposed
+- Payment-domain sub-review required: no
+`;
+  const crossSliceErrors = await errorsFor({
+    "IMPLEMENTATION_PLAN.md": (text) =>
+      text.replaceAll("Slice: SLICE-001", "Slice: SLICE-002"),
+    "tracking/test-cases.md": (text) =>
+      text.replaceAll("Slice: SLICE-001", "Slice: SLICE-002"),
+    "tracking/evidence.md": (text) =>
+      text.replaceAll("Slice: SLICE-001", "Slice: SLICE-002"),
+    "slices/SLICE-002.md": secondSlice,
+  });
+  assert.match(
+    crossSliceErrors.join("\n"),
+    /TASK-0001 must belong to target slice SLICE-001/,
+  );
+  assert.match(
+    crossSliceErrors.join("\n"),
+    /TC-0001 must belong to target slice SLICE-001/,
+  );
+  assert.match(
+    crossSliceErrors.join("\n"),
+    /EVID-0001 must belong to target slice SLICE-001/,
+  );
+
+  const futureErrors = await errorsFor({
+    "REQUIREMENTS.md": (text) =>
+      text.replace(
+        "Planning disposition: active_slice",
+        "Planning disposition: future_slice",
+      ),
+    "slices/SLICE-001.md": (text) =>
+      text.replace("Status: active", "Status: proposed"),
+    "PLAN.md": (text) => text.replace("SLICE-001", "none"),
+    "tracking/todos.md": (text) => text.replace("SLICE-001", "none"),
+    "tracking/progress.md": (text) => text.replace("SLICE-001", "none"),
+  });
+  assert.match(
+    futureErrors.join("\n"),
+    /future_slice targeting proposed SLICE-001 cannot have speculative task, test, or evidence links/,
+  );
 });
 
 test("rejects verified requirements without passing proof", async () => {
@@ -411,7 +481,30 @@ test("accepts a fully verified and reviewed closed slice", async () => {
       "slices/SLICE-001.md": (text) =>
         text
           .replace("Status: active", "Status: closed")
-          .replace("Review decisions: none", "Review decisions: APPROVE"),
+          .replace(
+            "Requirements review decision: pending",
+            "Requirements review decision: approved",
+          )
+          .replace(
+            "Design review decision: pending",
+            "Design review decision: not applicable: no user-facing design in this slice",
+          )
+          .replace(
+            "Engineering review decision: pending",
+            "Engineering review decision: approved",
+          )
+          .replace(
+            "Payment-domain sub-review decision: pending",
+            "Payment-domain sub-review decision: not applicable: no payment behavior in this slice",
+          )
+          .replace(
+            "Critical/Important findings: pending",
+            "Critical/Important findings: none",
+          )
+          .replace(
+            "Minor findings disposition: pending",
+            "Minor findings disposition: none",
+          ),
       "PLAN.md": (text) => text.replace("SLICE-001", "none"),
       "tracking/todos.md": (text) => text.replace("SLICE-001", "none"),
       "tracking/progress.md": (text) => text.replace("SLICE-001", "none"),
@@ -434,7 +527,15 @@ test("rejects slice closure with unresolved requirements or review decisions", a
   );
   assert.match(
     unresolvedErrors.join("\n"),
-    /closed slice SLICE-001 requires review decisions/,
+    /closed slice SLICE-001 requires approved requirements review decision/,
+  );
+  assert.match(
+    unresolvedErrors.join("\n"),
+    /closed slice SLICE-001 has unresolved Critical\/Important findings/,
+  );
+  assert.match(
+    unresolvedErrors.join("\n"),
+    /closed slice SLICE-001 requires explicit accepted Minor dispositions/,
   );
 });
 
@@ -474,6 +575,23 @@ test("rejects non-independent or missing required reviewers", async () => {
   });
   assert.match(
     paymentErrors.join("\n"),
+    /payment-domain engineering sub-review assignment/,
+  );
+
+  const paymentIdentityErrors = await errorsFor({
+    "slices/SLICE-001.md": (text) =>
+      text
+        .replace(
+          "Payment-domain sub-review required: no",
+          "Payment-domain sub-review required: yes",
+        )
+        .replace(
+          "| Payment-domain engineering sub-review | not applicable: no payment behavior in this slice | yes | not applicable | not applicable | not applicable |",
+          "| Payment-domain engineering sub-review | none | yes | strongest payment, high | Knowledge Evidence and diff | accept or reject PSP semantics |",
+        ),
+  });
+  assert.match(
+    paymentIdentityErrors.join("\n"),
     /payment-domain engineering sub-review assignment/,
   );
 
@@ -530,5 +648,118 @@ test("rejects non-durable user sources and invalid target-slice state", async ()
   assert.match(
     futureErrors.join("\n"),
     /future_slice target SLICE-001 must be proposed or approved/,
+  );
+});
+
+test("resolves design links only through the Design Decision Ledger", async () => {
+  const proseOnlyErrors = await errorsFor({
+    "DESIGN.md": (text) => `${text}\nDESIGN-9999 appears only in prose.\n`,
+    "IMPLEMENTATION_PLAN.md": (text) =>
+      text.replace("Design decisions: none", "Design decisions: DESIGN-9999"),
+  });
+  assert.match(
+    proseOnlyErrors.join("\n"),
+    /TASK-0001 references unknown design decision DESIGN-9999/,
+  );
+
+  const unknownTaskErrors = await errorsFor({
+    "IMPLEMENTATION_PLAN.md": (text) =>
+      text.replace("Design decisions: none", "Design decisions: DESIGN-8888"),
+  });
+  assert.match(
+    unknownTaskErrors.join("\n"),
+    /TASK-0001 references unknown design decision DESIGN-8888/,
+  );
+});
+
+test("requires full removed records in the Tombstones section and index", async () => {
+  const tombstoneRequirements = `# Requirements
+
+## Requirement Register
+
+| ID | Title |
+| --- | --- |
+
+## Active Requirement Records
+
+## Tombstone Register
+
+| ID | Title | Removal reason | Approval reference |
+| --- | --- | --- | --- |
+| REQ-0001 | Removed checkout | Explicitly withdrawn | user:workflow-test:2026-07-17:removal |
+
+## Tombstones
+
+### REQ-0001 — Removed checkout
+
+- Audience: buyer
+- Source: user:workflow-test:2026-07-17:checkout
+- Lifecycle status: removed
+- Planning disposition: removed
+- Target slice: none
+- Blocker: none
+- Deferral reason: none
+- Removal reason: explicitly withdrawn
+- Next trigger: none
+- Approval reference: user:workflow-test:2026-07-17:removal
+- Acceptance:
+  - Historical promise retained.
+- Negative cases:
+  - Historical exclusion retained.
+- Dependencies: none
+- Design links: none
+- Task links: none
+- Test links: none
+- Evidence links: none
+`;
+  const noTasks = `# Implementation Plan
+
+## Task Register
+
+| Task | Slice |
+| --- | --- |
+`;
+  const noTests = `# Test Cases
+
+## Test Case Register
+
+| Test ID | Requirements |
+| --- | --- |
+`;
+  const noEvidence = `# Evidence
+
+## Evidence Index
+
+| Evidence | Requirements |
+| --- | --- |
+`;
+  const proposedSlice = `# SLICE-001 — Proposed work
+
+- Status: proposed
+- Payment-domain sub-review required: no
+`;
+  const tombstoneChanges = {
+    "REQUIREMENTS.md": tombstoneRequirements,
+    "IMPLEMENTATION_PLAN.md": noTasks,
+    "tracking/test-cases.md": noTests,
+    "tracking/evidence.md": noEvidence,
+    "slices/SLICE-001.md": proposedSlice,
+    "PLAN.md": "# Active Plan\n\n- Active slice: none\n",
+    "tracking/todos.md": "# Todos\n\n- Active slice: none\n",
+    "tracking/progress.md": "# Progress\n\n- Active slice: none\n",
+  };
+
+  assert.deepEqual(await errorsFor(tombstoneChanges), []);
+
+  const wrongSectionErrors = await errorsFor({
+    ...tombstoneChanges,
+    "REQUIREMENTS.md": tombstoneRequirements.replace(
+      "## Tombstones\n\n### REQ-0001",
+      "## Active Requirement Records\n\n### REQ-0001",
+    ),
+  });
+  assert.match(
+    wrongSectionErrors.join("\n"),
+    /removed requirement REQ-0001 must be in the Tombstones section/,
   );
 });

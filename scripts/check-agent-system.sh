@@ -127,6 +127,9 @@ for template in standard-demo complex-demo; do
   require_content "$requirement_file" "Allowed lifecycle/disposition combinations" "lifecycle/disposition matrix"
   require_content "$requirement_file" "## Transition Rules" "transition rules"
   require_content "$requirement_file" "## Requirement Register" "requirement register"
+  require_content "$requirement_file" "## Active Requirement Records" "active requirement record section"
+  require_content "$requirement_file" "## Tombstone Register" "tombstone register"
+  require_content "$requirement_file" "Do not use a shortened schema" "full tombstone schema rule"
   require_content "$requirement_file" '`removal_reason`' "removal reason field"
 
   require_content "$design_file" "## Taste Brief" "taste brief"
@@ -143,6 +146,10 @@ for template in standard-demo complex-demo; do
   require_content "$slice_file" "## Exit Criteria" "slice exit criteria"
   require_content "$slice_file" "No unresolved Critical or Important findings remain" "review close gate"
   require_content "$slice_file" "Every Minor finding has an explicit accepted disposition" "Minor finding disposition"
+  require_content "$slice_file" "Requirements review decision" "structured requirements review decision"
+  require_content "$slice_file" "Payment-domain sub-review decision" "structured payment review decision"
+  require_content "$slice_file" "Critical/Important findings" "structured high-severity finding disposition"
+  require_content "$slice_file" "Minor findings disposition" "structured Minor finding disposition"
 
   require_content "$evidence_file" "## Evidence Record Template" "evidence record schema"
   require_content "$evidence_file" "## Evidence Index" "evidence index"
