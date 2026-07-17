@@ -36,7 +36,7 @@ Out of scope for v1:
 
 ## Evidence Pass
 
-This section captures implementation evidence from `/Users/tengtao/Development/wiki-v2`. Treat `wiki-v2` raw/source pages as the PayPal source of truth for this repo. Use external PayPal docs only if the wiki has a gap or the user explicitly asks for a live refresh.
+This section captures implementation evidence from `/Users/tengtao/Development/wiki-v2`. Start with `wiki-v2` concepts, source summaries, and raw evidence for PayPal questions. Verify high-stakes or likely-changed behavior against current official PayPal documentation; use a live official refresh for other claims when the wiki has a gap or the user requests it.
 
 ### PayPal SDK v6 And React
 
@@ -1167,3 +1167,59 @@ Run: `git diff --check`
 - [x] Resolve the third decline review's bootstrap and payment-entry races: disable cart mutations until initial restore settles, make payment refresh await that restore, and suspend standard payment actions while coordinated cart work is pending; prove both boundaries with deferred-response regressions.
 - [x] Pass corrected full verification with typecheck, 764 tests across 77 files, lint, formatting, production build, diff check, and agent-system validation.
 - [x] Pass a decline-first independent review before staging or committing; final re-review returned APPROVE with no Critical, Important, or Minor findings.
+
+## Approved Targeted Workflow Backfill Design
+
+Status: approved design, 2026-07-17. Implementation planning has not started.
+
+This demo adopts the revised `demos/NEW_DEMO_PROTOCOL.md` through a targeted backfill, not a full rewrite of its historical tasks, evidence, or progress.
+
+### Backfill Goals
+
+- Create `REQUIREMENTS.md` from unresolved original promises, still-relevant approved requirements, explicit exclusions, and known gaps such as unfinished vaulting decisions.
+- Make requirements, rather than `IMPLEMENTATION_TASKS.md`, the product source of truth after the requirement register, traceability links, and coverage validator are approved. Until that handover gate passes, the existing task list remains the current milestone-completion authority. Existing task and progress history remains append-only evidence throughout.
+- Introduce approved slice charters for future work with inherited `REQ-*`, design links, non-goals, deferrals, evidence, review lanes, and model/skill routing.
+- Split stable design-system authority out of the accumulated `DESIGN.md` history without deleting historical decisions.
+- Add deterministic requirement-coverage validation before future milestones can close.
+
+### Representative Design Coverage
+
+The initial visual backfill covers the design-system/component board plus representative critical surfaces:
+
+- storefront character: Home and PDP
+- transaction experience: Cart, Checkout, and the payment wall
+- post-purchase experience: Account and Admin
+
+This is not authorization to restyle every historical page. The approved board and representative surfaces establish the shared typography, tokens, components, responsive behavior, and state contracts that later slices inherit.
+
+### Design-System Target
+
+- Keep `DESIGN.md` as a slim router and approved-direction record.
+- Add `design-system/MASTER.md`, `design-system/TYPOGRAPHY.md`, `design-system/COMPONENTS.md`, and focused `design-system/pages/*.md` contracts.
+- Use UI/UX Pro Max for design-system and targeted retrieval, gstack design-shotgun only for major direction choices, and the Superpowers visual companion for responsive and stateful approval artifacts.
+- Treat shadcn/ui as a customized primitive foundation, not the visual identity. Prefer shared tokens and semantic variants before page-local CSS.
+- Prove the selected fonts load from real files and render correctly across buyer and operator content.
+- Preserve official PayPal, Apple Pay, Google Pay, Venmo, Pay Later, and Card Fields surfaces without fake substitutes or merchant styling of provider-controlled internals.
+
+### Requirement And Payment-Knowledge Backfill
+
+- Inventory unresolved buyer, operator, data, payment, vaulting, shipping-update, webhook, resume-order, and lifecycle promises against current canonical documents.
+- Query local `wiki-v2` through `KNOWLEDGE_SOURCES.md` for each payment-domain decision, then inspect source summaries and raw evidence for exact or conflicting behavior.
+- Verify high-stakes or likely-changed PayPal behavior against current official documentation before it becomes an approved requirement.
+- Record knowledge evidence, assumptions, gaps, tests, and required hosted or sandbox proof against stable identifiers.
+
+### Explicit Non-Goals
+
+- no full historical requirement or task rewrite
+- no deletion or rewriting of append-only tracking history
+- no broad runtime refactor before the requirement register, design contracts, and slice charter are approved
+- no generic polish round without root cause, affected identifiers, states, and exit criteria
+- no closure of payment behavior from static labels, fake wallet buttons, or local unit tests alone
+
+### Backfill Exit Criteria
+
+- The user approves the requirement register and first slice charter.
+- The user approves the design-system board, typography proof, and representative responsive surfaces.
+- Every approved requirement has a task, test, and required evidence disposition.
+- Decline-oriented requirement, design-fidelity, payment-domain, and engineering reviews have no unresolved blocking findings.
+- The deterministic coverage validator and existing agent-system checks pass.
