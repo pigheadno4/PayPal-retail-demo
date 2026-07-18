@@ -8,7 +8,7 @@ This file is the only product-requirement authority for this demo. Scenario, des
 - IDs are demo-local, unique, permanent, never renumbered, and never reused.
 - Removed requirements remain as tombstones with their original ID and approval reference.
 - User decisions use `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`.
-- Repository, wiki, and official-document sources use a stable file/heading, raw-source identifier, or URL plus retrieval date.
+- Other durable sources use `repo:<path>#<heading>@<YYYY-MM-DD>`, `wiki:<path-or-raw-id>#<heading>@<YYYY-MM-DD>`, or `official:<https-url>@<YYYY-MM-DD>`.
 
 Related identifiers:
 
@@ -79,9 +79,11 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 
 ## Transition Rules
 
+- `approved`, `in_progress`, `implemented`, and `verified` records require a durable user approval reference and concrete acceptance, negative cases, affected surfaces, required test types, required evidence types, and exclusions; placeholders are invalid.
 - `in_progress` or `implemented` requires `active_slice` and an approved target slice.
 - `verified` requires `complete` and passing required evidence.
 - `future_slice` requires a named slice but no speculative task, test, or evidence links before that slice is approved.
+- Required test and evidence types must be present in linked test `Layer` and evidence `Type` values before execution or verification.
 - `blocked` requires a blocker and reevaluation trigger.
 - `deferral_proposed` requires a reason, next trigger, and pending user approval.
 - `deferred` requires lifecycle `approved`, a reason, next trigger, and user approval reference.
@@ -91,6 +93,8 @@ Any other combination is invalid. Lifecycle describes promise verification; disp
 
 | ID  | Title | Lifecycle | Disposition | Target slice | Source |
 | --- | ----- | --------- | ----------- | ------------ | ------ |
+
+`ID` is the only register key. Use one exact `REQ-NNNN` per non-empty row; identifiers in other columns do not create records, duplicate keys are invalid, and every declared summary column mirrors the full record. The same rule applies to the Tombstone Register.
 
 ## Active Requirement Records
 
@@ -116,6 +120,12 @@ Add every non-removed `REQ-*` record here using the full schema below.
 - Negative cases:
   - Failure or exclusion that must remain true
 - Dependencies: none
+- Affected surfaces: platforms, pages, APIs, data, and PSP surfaces
+- Required test types: unit | integration | interaction | hosted | other concrete types
+- Required evidence types: static | interaction | backend | failure | responsive | accessibility | typography | provider | hosted
+- Exclusions: explicit behavior this promise does not include
+- Payment-domain review required: yes | no
+- Payment-domain review reason: concrete PSP scope or concrete non-applicability reason
 - Design links: none
 - Task links: none
 - Test links: none

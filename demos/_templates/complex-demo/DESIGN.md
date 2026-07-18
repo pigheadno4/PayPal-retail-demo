@@ -23,7 +23,7 @@ Design IDs use `DESIGN-0001` through `DESIGN-9999`, are permanent, and are never
 | ID  | Decision | Status | Requirement links | Artifact links | Approval reference |
 | --- | -------- | ------ | ----------------- | -------------- | ------------------ |
 
-Statuses: `proposed`, `approved`, `rejected`, `superseded`. Superseded and rejected decisions remain in the ledger.
+`ID` is the only ledger key. Use one exact `DESIGN-NNNN` per non-empty row; identifiers in other columns do not create decisions, and duplicate keys are invalid. Statuses are `proposed`, `approved`, `rejected`, and `superseded`. Historical decisions remain in the ledger, but only `approved` decisions with concrete artifact links, at least one reciprocal requirement link, and a durable `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>` approval reference may be linked by active requirements, slice charters, or execution records. A slice linking one of these decisions requires a concrete design-fidelity reviewer and an approved design decision before closure.
 
 ## Artifact Index
 
@@ -60,4 +60,4 @@ Statuses: `proposed`, `approved`, `rejected`, `superseded`. Superseded and rejec
 - Platform differences: pending
 - User approval reference: none
 
-Frontend planning remains blocked while an applicable approval is pending.
+Frontend planning remains blocked while an applicable approval is pending. Approved decisions require concrete decision text, at least one reciprocal requirement, and existing local or HTTPS artifacts. Every Artifact Index and Design Approval Record proof field resolves to an existing local or HTTPS artifact, and its user approval reference is durable before design-linked execution starts.

@@ -87,7 +87,9 @@ Identifiers are demo-local, permanent, and never renumbered or reused:
 - `TC-0001` through `TC-9999` for test and acceptance cases
 - `EVID-0001` through `EVID-9999` for evidence obligations and captured proof
 
-Removed records remain as full-schema tombstones under `## Tombstones`, indexed only by `## Tombstone Register`, with their original identifiers, prior context, removal reasons, and approval references. Non-removed records live under `## Active Requirement Records` and are indexed only by `## Requirement Register`. A durable user-decision source uses `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`. Repository, wiki, and official-document sources use a stable file/heading, raw-source identifier, or URL plus retrieval date.
+Removed records remain as full-schema tombstones under `## Tombstones`, indexed only by `## Tombstone Register`, with their original identifiers, prior context, removal reasons, and approval references. Non-removed records live under `## Active Requirement Records` and are indexed only by `## Requirement Register`. A durable user-decision source uses `user:<task-or-thread-id>:<YYYY-MM-DD>:<decision-locator>`. Other durable forms are `repo:<path>#<heading>@<YYYY-MM-DD>`, `wiki:<path-or-raw-id>#<heading>@<YYYY-MM-DD>`, and `official:<https-url>@<YYYY-MM-DD>`. Dates must be real calendar dates, and identity and locator segments cannot be placeholders.
+
+Canonical sections appear exactly once. Canonical tables retain every declared template column even when they have zero rows and are keyed only by their declared ID column: `ID` for requirement, tombstone, and design-decision ledgers; `Task` for the task register; `Test ID` for the test register; `Evidence` for the evidence index; and `Requirement` for inherited-requirement and coverage tables. Every non-empty row has one exact key, duplicate keys are invalid, column meaning follows the declared header rather than physical position, and an identifier mentioned in prose or another column does not create a record. Register summaries and inherited lifecycle/disposition cells must agree with their authoritative records. Only `approved` design decisions with a durable user approval reference, concrete artifact links, and at least one reciprocal requirement link may be used by active requirements, slice charters, or execution records. Every non-retired task, test case, and evidence record links at least one governing requirement and has exactly one exact `SLICE-NNN` owner; duplicate fields and a target-slice match plus any second owner are invalid. Record-like headings use exact uppercase identifier grammar; case variants do not create hidden work.
 
 Every requirement record has two orthogonal fields.
 
@@ -111,7 +113,7 @@ Every requirement record has two orthogonal fields.
 - `complete`
 - `removed`
 
-The required fields are `id`, `title`, `audience`, `source`, `lifecycle_status`, `planning_disposition`, `target_slice`, `blocker`, `deferral_reason`, `removal_reason`, `next_trigger`, `approval_reference`, `acceptance`, `negative_cases`, `dependencies`, `design_links`, `task_links`, `test_links`, and `evidence_links`.
+The required fields are `id`, `title`, `audience`, `source`, `lifecycle_status`, `planning_disposition`, `target_slice`, `blocker`, `deferral_reason`, `removal_reason`, `next_trigger`, `approval_reference`, `acceptance`, `negative_cases`, `dependencies`, `affected_surfaces`, `required_test_types`, `required_evidence_types`, `exclusions`, `payment_domain_review_required`, `payment_domain_review_reason`, `design_links`, `task_links`, `test_links`, and `evidence_links`.
 
 The fields are independent concerns but their allowed combinations are deterministic:
 
@@ -128,9 +130,11 @@ Any combination not listed in this table is invalid. A lifecycle transition reco
 
 The following constraints are normative:
 
+- `approved`, `in_progress`, `implemented`, and `verified` requirements have a durable user approval reference plus concrete acceptance, negative-case, affected-surface, required-test, required-evidence, and exclusion fields; `none` and other placeholders are invalid.
 - `in_progress` or `implemented` requires `planning_disposition: active_slice` and an approved `target_slice`.
 - `verified` requires `planning_disposition: complete` and passing required evidence.
 - `future_slice` requires a named target slice. A proposed target slice must not have speculative task, test, or evidence IDs; concrete links may be added only after that slice is approved.
+- required test and evidence types reconcile with linked test `Layer` and evidence `Type` values whenever a slice is execution-ready or the requirement is verified.
 - `blocked` requires a concrete blocker and reevaluation trigger.
 - `deferral_proposed` requires a reason, next trigger, and pending user approval; it is not an approved deferral.
 - `deferred` requires `lifecycle_status: approved`, a reason, next trigger, and user approval reference.
@@ -268,6 +272,8 @@ The Slice Steward writes `slices/<SLICE-ID>.md` before task decomposition. The c
 
 The user approves the charter before implementation. A slice may elaborate approved requirements but cannot silently narrow, reinterpret, or postpone them.
 
+Every charter retains each canonical template section exactly once and names a concrete Slice Steward before approval. Approved, active, blocked, and closed slices have checked Entry Criteria, concrete skill/model routing, and complete independent reviewer assignments. Closed slices additionally have every Exit Criterion checked.
+
 ### 5. Planning And Execution
 
 Use writing-plans only after the requirements, design, and slice charter are approved. Each task must:
@@ -277,6 +283,8 @@ Use writing-plans only after the requirements, design, and slice charter are app
 - define its test cycle and evidence obligation
 - state non-goals and PSP boundaries
 - produce an independently reviewable result
+
+Every non-retired task names concrete files, interfaces, test cases, evidence, and model/effort routing. A placeholder cannot become executable work merely by advancing its status.
 
 Use subagent-driven development when planned tasks are sufficiently independent. A fresh implementer receives a bounded task package rather than the complete conversation:
 
@@ -300,7 +308,11 @@ A passed lane cannot compensate for a failed lane. Critical and important findin
 
 The charter assigns each lane to a reviewer who did not implement the work being reviewed. The assignment records reviewer/agent, model and effort, required inputs, independence confirmation, and decision authority. An implementer self-review is useful evidence but cannot satisfy an independent lane.
 
+A requirement's approved `DESIGN-*` links propagate to its target slice and linked tasks; task-specific design decisions also appear in the owning slice. Any applicable design decision requires concrete design-system, page-contract, and mockup/state-board links plus a concrete design-fidelity reviewer. The design authority retains the taste brief, approved direction, artifact index, critical screens, flows, and approval record; approved decisions have concrete content, existing local or HTTPS artifacts, and completed board, typography, representative desktop/mobile, interaction-state, and durable user approval fields. Design review is not applicable only when neither the slice nor its inherited work has design links. A linked-design slice can close only with `Design review decision: approved`.
+
 For a payment-related slice, payment-domain review is a required sub-review of the engineering-quality lane. It uses the Knowledge Evidence block and checks PSP semantics, source authority, sandbox/production boundaries, and official-provider evidence; it is not a fourth independently closable lane.
+
+Payment applicability is requirement-owned, never inferred from keywords: each requirement records `payment_domain_review_required` and a concrete reason. The owning slice derives its payment-review flag from inherited requirements, so a PSP promise cannot self-declare the review gate away.
 
 ### 7. Close And Learn
 
@@ -315,6 +327,8 @@ Before closing a slice or milestone:
 - promote reusable lessons into `learnings/` and update `learnings/INDEX.md`
 
 Rendered UI or passing unit tests alone cannot close a user-visible or PSP-critical promise.
+
+The Close Record resolves its Evidence summary to passing `EVID-*` records and its progress reference to an existing `tracking/progress.md#<heading-anchor>`. Local passing-evidence artifacts must exist inside the demo; external evidence uses an HTTPS URL.
 
 ## Skill And Model-Effort Routing
 
@@ -392,22 +406,36 @@ The agent-system implementation must provide two deterministic coverage gates.
 
 The **full-register disposition gate** fails when:
 
+- an approved or later requirement lacks durable approval or has placeholder promise-detail fields
 - an approved unresolved requirement lacks a valid `planning_disposition`
 - `active_slice` or `future_slice` lacks a valid target slice
 - `blocked`, `deferral_proposed`, `deferred`, or `removed` lacks its required fields
+- deferred or removed scope retains executable non-retired work outside compatible historical closure
 - an identifier is malformed, duplicated, or references an unknown record; the required history review additionally rejects reused or renumbered identifiers
 
 The **active-slice coverage gate** fails when:
 
+- a canonical charter section, concrete steward, routing assignment, or required checked criterion is missing
+- an active or blocked slice inherits a requirement that is not assigned to that exact slice with `active_slice`
 - an inherited active-slice requirement has no concrete task, test, or required evidence link
 - a requirement's coverage IDs are absent from that requirement's own coverage row
-- a linked task, test, or evidence record belongs to a slice other than the requirement's target slice
+- a closed slice drops inherited coverage or claims a linked record owned by another slice
+- a linked task, test, or evidence record does not belong exclusively to the requirement's target slice
+- a non-retired record is incompatible with its requirement disposition or owner-slice status
+- a verified requirement retains a task outside `implemented` or `reviewed`
+- a passing test contains placeholder preconditions, action, expected result, or negative case
+- passing evidence contains placeholder proof metadata, a non-success result, or a non-real ISO timestamp
+- a local passing-evidence or approved-design artifact does not exist
 - a verified requirement has missing or failed evidence
 - a slice closes with unresolved inherited requirements
-- a charter lacks independent reviewer assignments or required review decisions
+- a charter lacks independent reviewer assignments or required review decisions, including concrete design review whenever it links a design decision
+- a protected reviewer is also assigned implementation work or lacks strongest high-effort routing
+- payment review is required but its complete wiki/official Knowledge Evidence block is missing or placeholder
+- a deferral/removal row disagrees with the requirement register or lacks its reason, trigger, or durable approval
+- a requirement or task design decision is absent from its owning slice, or an approved decision lacks concrete artifacts and reciprocal requirement linkage
 - the active slice, `PLAN.md`, and tracking status disagree
 
-A closed slice records structured requirements, design, engineering, and conditional payment-domain review decisions; zero unresolved Critical or Important findings; and either no Minor findings or explicit accepted dispositions for every Minor.
+A closed slice records its steward and time; structured requirements, design, engineering, and conditional payment-domain review decisions; zero unresolved Critical or Important findings; either no Minor findings or explicit accepted dispositions for every Minor; passing evidence IDs; and a resolvable progress-log anchor. Use `none` only when a finding class is empty, `resolved: <REVIEW-* or FINDING-* reference>` for corrected Critical/Important findings, and `accepted: <FINDING-*>=<disposition>` for Minors. Placeholder vocabulary such as `pending`, `unknown`, `unresolved`, `not applicable`, `unavailable`, `none`, `tbd`, or `unassigned` anywhere in the payload never closes a finding. Any `not applicable:` review assignment or decision includes a concrete non-placeholder reason.
 
 Automated checks verify structure and linkage. They do not replace semantic review by the Slice Steward and independent reviewers.
 

@@ -7,6 +7,8 @@ Test IDs use `TC-0001` through `TC-9999`, are permanent, and are never reused.
 | Test ID | Requirements | Slice | Evidence | Status |
 | ------- | ------------ | ----- | -------- | ------ |
 
+`Test ID` is the only register key. Keep every declared register column. Each non-retired test record links at least one governing requirement and uses one exact test ID and one exact `SLICE-NNN` owner; prose, multiple owners, duplicate keys, and summary values that disagree with the full record are invalid. A `passing` test has concrete non-placeholder preconditions, action, expected result, and negative case.
+
 Statuses: `planned`, `failing`, `passing`, `blocked`, `retired`.
 
 ## Test Case Template
