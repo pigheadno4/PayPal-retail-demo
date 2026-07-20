@@ -2521,27 +2521,51 @@ export function createSupabaseCheckoutDataSource(
         readonly id: string;
         readonly category_id: string;
         readonly name: string;
-        readonly image_path: string | null;
       }>(
         supabase
           .from("products")
-          .select("id, category_id, name, image_path")
+          .select("id, category_id, name")
           .in(
             "id",
             cartItems.map((item) => item.product_id),
           ),
         `List checkout cart product categories ${cartId}`,
       );
+      const productImageRows = await queryMany<{
+        readonly product_id: string;
+        readonly image_path: string;
+        readonly sort_order: number;
+      }>(
+        supabase
+          .from("product_images")
+          .select("product_id, image_path, sort_order")
+          .in(
+            "product_id",
+            cartItems.map((item) => item.product_id),
+          )
+          .order("sort_order", { ascending: true }),
+        `List checkout cart product images ${cartId}`,
+      );
       const productById = new Map(
         productRows.map((product) => [product.id, product]),
       );
+      const firstImageByProductId = new Map<
+        string,
+        (typeof productImageRows)[number]
+      >();
+      for (const image of productImageRows) {
+        const existing = firstImageByProductId.get(image.product_id);
+        if (!existing || image.sort_order < existing.sort_order) {
+          firstImageByProductId.set(image.product_id, image);
+        }
+      }
 
       return cartItems.map((item) => ({
         ...item,
         category_id: productById.get(item.product_id)?.category_id ?? "",
         product_name: productById.get(item.product_id)?.name ?? "Cart item",
         product_image_path:
-          productById.get(item.product_id)?.image_path ?? null,
+          firstImageByProductId.get(item.product_id)?.image_path ?? null,
       }));
     },
     async getResumeOrderForUser(input) {

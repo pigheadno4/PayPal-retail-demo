@@ -817,6 +817,8 @@ Reference-level polish execution guide:
 - [x] Correct the third decline review: gate cart mutation controls and payment creation on initial cart restore, keep standard payment actions suspended while cart operations remain pending, and prove delayed restore and minicart-close/payment races.
 - [x] Pass corrected full verification for the Render stateful hotfix: typecheck, 764 tests across 77 files, lint, formatting, production build, diff check, and agent-system validation.
 - [x] Pass decline-first review with zero Critical, Important, or Minor findings; redeploy remains required before closing the hosted shipping-callback evidence row.
+- [x] Repair the Render checkout-draft image-schema regression: load product identity/category/name from `products`, load the primary ordered image from `product_images`, and lock the Supabase adapter contract with a failing-first regression test.
+- [ ] Deploy the checkout-draft repair and close the hosted evidence row only after Delivery shipping submission reaches Billing with successful draft/address responses and no checkout update error.
 
 Verification:
 

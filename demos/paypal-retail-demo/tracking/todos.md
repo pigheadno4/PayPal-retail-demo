@@ -389,3 +389,5 @@ Active stage: Milestone 16 QA, UX Review, and Demo Polish. Round 4 hosted deploy
 - [ ] Deploy the wallet SDK upgrade, register `paypal-retail-demo.onrender.com` in PayPal Apple Pay settings, and verify the well-known route plus eligible Apple/Google wallet buttons on supported browsers/devices.
 - [x] Complete local shipping-callback diagnostics and authenticated pending-order resume: saved order items drive Checkout, promo/tax/inventory and PayPal attempts; Account routes into the existing payment wall; resumed capture preserves a newer active cart.
 - [ ] After this branch is committed, pushed, and deployed, complete one new Render Sandbox delivery-express approval and prove the sanitized shipping callback diagnostics plus a new `paypal_shipping_update` total snapshot.
+- [x] Fix Render checkout-draft creation by hydrating item images from normalized `product_images` rows instead of querying nonexistent `products.image_path`, with failing-first adapter coverage and full local verification.
+- [ ] Deploy the checkout image-schema repair and rerun a fresh Render Delivery shipping-address submit through Billing address with clean checkout API/console evidence.
