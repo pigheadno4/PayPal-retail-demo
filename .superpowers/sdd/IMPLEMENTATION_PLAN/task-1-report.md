@@ -70,3 +70,37 @@ The runtime/configuration and env test files were preserved from the pre-existin
 1. Production dependency audit requires explicit authority to send the dependency inventory to npm; it remains unverified in this environment.
 2. Local `supabase test db` remains unavailable without Docker, so pgTAP proof is linked-remote direct-query evidence rather than the CLI’s local pg_prove output.
 3. The temporary database test inserts are wrapped in the test file transaction and rolled back; no fixture records persist remotely.
+
+## Fix round 1/5 — environment and SSR session hardening
+
+### Changed files
+
+- `demos/ai-service-subscription-pilot/src/server/config/env.ts`
+- `demos/ai-service-subscription-pilot/src/server/config/env.test.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/browser.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/browser.test.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/server.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/server.test.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/proxy.ts`
+- `demos/ai-service-subscription-pilot/src/lib/supabase/proxy.test.ts`
+- `demos/ai-service-subscription-pilot/vitest.config.ts`
+- `demos/ai-service-subscription-pilot/supabase/tests/slice001_core_test.sql`
+
+### Fixes
+
+- Replaced the browser-secret denylist with an explicit three-name `NEXT_PUBLIC_*` allowlist. Any other browser-prefixed name, including service-role, Resend, and token-style names, now fails validation before Zod can strip it.
+- Applied matching `SameSite=Lax` cookie options and production-only `secure: true` behavior to browser, server, and proxy Supabase clients. Development remains `secure: false` for localhost.
+- The proxy now accepts the second `setAll` header argument from `@supabase/ssr` 0.12.4 and copies it to the rebuilt `NextResponse`, preserving private/no-store protections with refreshed session cookies.
+- Removed the server helper's cookie-writing callback. Server Components cannot safely attach the paired no-store response headers; the proxy is the only refresh writer and therefore owns both cookie and cache-header emission.
+- Added pgTAP proof that `app_private` has exactly eleven tables and that `CREATE` is revoked from `PUBLIC`, `anon`, and `authenticated`.
+
+### TDD and verification
+
+| Command | Result |
+| --- | --- |
+| `npm test -- src/server/config/env.test.ts src/lib/supabase/browser.test.ts src/lib/supabase/server.test.ts src/lib/supabase/proxy.test.ts` before fixes | Failed as expected: three non-allowlisted public names were accepted; all three clients lacked cookie options; proxy did not preserve refresh headers. |
+| Same focused test command after fixes | Passed: 4 files, 9 tests. |
+| `./node_modules/.bin/supabase db query --linked --file supabase/tests/slice001_core_test.sql --agent no` | Passed: exit 0; final pgTAP result `ok 37 - all persisted instants retain timezone information`. |
+| `npm run typecheck && npm run lint && npm test` | Passed: typecheck, lint, 4 files / 9 tests. |
+
+No migration or dependency file changed in this fix round, so no linked migration push or npm audit was required. The existing local-Docker limitation and initial npm-audit authorization concern remain unchanged.

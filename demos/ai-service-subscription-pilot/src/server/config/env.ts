@@ -36,17 +36,21 @@ export type RuntimeEnv = Readonly<{
   appUrl: string;
 }>;
 
-const publicSecretPattern = /^NEXT_PUBLIC_.*(?:SECRET|PRIVATE|DATABASE_URL|WEBHOOK)/i;
+const allowedPublicEnvironmentNames = new Set([
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_PAYPAL_CLIENT_ID",
+]);
 
 export function parseRuntimeEnv(
   environment: Record<string, string | undefined>,
 ): RuntimeEnv {
-  const exposedSecret = Object.entries(environment).find(
-    ([name, value]) => value !== undefined && value !== "" && publicSecretPattern.test(name),
+  const exposedPublicEnvironmentVariable = Object.keys(environment).find(
+    (name) => name.startsWith("NEXT_PUBLIC_") && !allowedPublicEnvironmentNames.has(name),
   );
 
-  if (exposedSecret) {
-    throw new Error(`${exposedSecret[0]} must never be exposed to the browser`);
+  if (exposedPublicEnvironmentVariable) {
+    throw new Error(`${exposedPublicEnvironmentVariable} is not an approved browser environment variable`);
   }
 
   const parsed = runtimeEnvironmentSchema.parse(environment);

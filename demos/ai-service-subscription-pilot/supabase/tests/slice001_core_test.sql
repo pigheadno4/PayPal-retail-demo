@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(33);
+select plan(37);
 
 select has_schema('app_private', 'server-owned schema exists');
 
@@ -17,6 +17,18 @@ select has_table('app_private', 'payment_methods', 'payment methods table exists
 select has_table('app_private', 'billing_arrangements', 'billing arrangements table exists');
 select has_table('app_private', 'allowance_windows', 'allowance windows table exists');
 select has_table('app_private', 'usage_operations', 'usage operations table exists');
+
+select is(
+  (
+    select count(*)::integer
+    from pg_class relation_record
+    join pg_namespace schema_record on schema_record.oid = relation_record.relnamespace
+    where schema_record.nspname = 'app_private'
+      and relation_record.relkind = 'r'
+  ),
+  11,
+  'app_private contains exactly the eleven planned tables'
+);
 
 select is(
   (
@@ -47,6 +59,9 @@ select is(
 select is(has_schema_privilege('anon', 'app_private', 'usage'), false, 'anon has no private schema usage');
 select is(has_schema_privilege('authenticated', 'app_private', 'usage'), false, 'authenticated has no private schema usage');
 select is(has_schema_privilege('public', 'app_private', 'usage'), false, 'PUBLIC has no private schema usage');
+select is(has_schema_privilege('anon', 'app_private', 'create'), false, 'anon cannot create private schema objects');
+select is(has_schema_privilege('authenticated', 'app_private', 'create'), false, 'authenticated cannot create private schema objects');
+select is(has_schema_privilege('public', 'app_private', 'create'), false, 'PUBLIC cannot create private schema objects');
 
 select is(
   (

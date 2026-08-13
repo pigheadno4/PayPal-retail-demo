@@ -8,5 +8,10 @@ export function createBrowserSupabaseClient() {
     throw new Error("Missing required public Supabase configuration");
   }
 
-  return createBrowserClient(url, publishableKey);
+  return createBrowserClient(url, publishableKey, {
+    cookieOptions: {
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+  });
 }

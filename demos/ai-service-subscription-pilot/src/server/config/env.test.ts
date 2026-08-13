@@ -28,6 +28,19 @@ describe("parseRuntimeEnv", () => {
     ).toThrow(/NEXT_PUBLIC_PAYPAL_CLIENT_SECRET/);
   });
 
+  it.each([
+    "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
+    "NEXT_PUBLIC_RESEND_API_KEY",
+    "NEXT_PUBLIC_INTERNAL_ACCESS_TOKEN",
+  ])("rejects every non-allowlisted browser environment variable: %s", (secretName) => {
+    expect(() =>
+      parseRuntimeEnv({
+        ...validEnvironment,
+        [secretName]: "must-not-ship",
+      }),
+    ).toThrow(new RegExp(secretName));
+  });
+
   it("reports required server-owned settings instead of accepting an empty environment", () => {
     expect(() => parseRuntimeEnv({})).toThrow(/DATABASE_URL/);
   });

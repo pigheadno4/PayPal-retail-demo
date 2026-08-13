@@ -13,17 +13,15 @@ export async function createServerSupabaseClient() {
     runtimeEnv.public.supabaseUrl,
     runtimeEnv.public.supabasePublishableKey,
     {
+      cookieOptions: {
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-          } catch {
-            // Route handlers refresh sessions; Server Components cannot mutate cookies.
-          }
-        },
+        // The proxy is the sole refresh writer because it can also emit the required no-store headers.
       },
     },
   );
