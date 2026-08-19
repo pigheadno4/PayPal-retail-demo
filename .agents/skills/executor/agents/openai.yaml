@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Executor"
+  short_description: "Implement one approved bounded demo task"
+  default_prompt: "Use $executor to implement this approved demo task and return evidence."

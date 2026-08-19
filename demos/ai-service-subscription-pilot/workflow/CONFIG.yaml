@@ -1,0 +1,39 @@
+version: 1
+
+task:
+  max_acceptance_criteria: 5
+
+budget:
+  max_plan_rounds: 3
+  max_implementation_rounds: 3
+  max_role_turns_per_task: 15
+  soft_limit_percent: 80
+  hard_limit_percent: 100
+
+review:
+  lanes:
+    - spec
+    - quality
+  require_same_candidate_commit: true
+  scoped_re_review_default: true
+
+frontend:
+  visual_routes:
+    - reuse
+    - focused-mockup
+    - design-shotgun
+    - undetermined
+    - not_applicable
+
+pull_request:
+  boundary: slice
+  require_user_approval_to_create: true
+  require_user_approval_to_merge: true
+
+skills:
+  orchestrator: .agents/skills/orchestrator/SKILL.md
+  planner: .agents/skills/planner/SKILL.md
+  plan_critic: .agents/skills/plan-critic/SKILL.md
+  executor: .agents/skills/executor/SKILL.md
+  reviewer: .agents/skills/reviewer/SKILL.md
+  budget_guard: .agents/skills/budget-guard/SKILL.md

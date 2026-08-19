@@ -5,11 +5,31 @@ required_files=(
   "AGENTS.md"
   "CLAUDE.md"
   "KNOWLEDGE_SOURCES.md"
+  ".agents/skills/orchestrator/SKILL.md"
+  ".agents/skills/orchestrator/agents/openai.yaml"
+  ".agents/skills/planner/SKILL.md"
+  ".agents/skills/planner/agents/openai.yaml"
+  ".agents/skills/plan-critic/SKILL.md"
+  ".agents/skills/plan-critic/agents/openai.yaml"
+  ".agents/skills/executor/SKILL.md"
+  ".agents/skills/executor/agents/openai.yaml"
+  ".agents/skills/reviewer/SKILL.md"
+  ".agents/skills/reviewer/agents/openai.yaml"
+  ".agents/skills/budget-guard/SKILL.md"
+  ".agents/skills/budget-guard/agents/openai.yaml"
   "demos/AGENTS.md"
   "demos/CLAUDE.md"
   "demos/NEW_DEMO_PROTOCOL.md"
   "demos/paypal-retail-demo/AGENTS.md"
   "demos/paypal-retail-demo/IMPLEMENTATION_PLAN.md"
+  "demos/ai-service-subscription-pilot/workflow/CONFIG.yaml"
+  "demos/ai-service-subscription-pilot/workflow/CONSTRAINTS.md"
+  "demos/ai-service-subscription-pilot/ROADMAP.md"
+  "demos/ai-service-subscription-pilot/knowledge/INDEX.md"
+  "demos/ai-service-subscription-pilot/tracking/loop-state.json"
+  "demos/ai-service-subscription-pilot/tracking/loop-budget.json"
+  "demos/ai-service-subscription-pilot/tracking/loop-log.jsonl"
+  "docs/agent-system/delivery-loop-design.md"
   "demos/_templates/simple-demo/DEMO.md"
   "demos/_templates/simple-demo/tracking/test-cases.md"
   "demos/_templates/standard-demo/AGENTS.md"
@@ -61,6 +81,8 @@ required_files=(
   "learnings/_template.md"
   "scripts/validate-demo-workflow.mjs"
   "scripts/tests/validate-demo-workflow.test.mjs"
+  "scripts/validate-delivery-loop.mjs"
+  "scripts/tests/validate-delivery-loop.test.mjs"
 )
 
 for file in "${required_files[@]}"; do
@@ -94,6 +116,7 @@ grep -q "Complexity: complex" demos/_templates/complex-demo/DEMO.md
 
 # Requirement and design authority must be explicit and consistent.
 require_content "AGENTS.md" '`REQUIREMENTS.md` is the only product-requirement authority' "requirement authority"
+require_content "AGENTS.md" 'Implement the smallest complete solution that satisfies the approved requirements and acceptance criteria.' "scope and simplicity rule"
 require_content "demos/AGENTS.md" '`REQUIREMENTS.md` is the only product-requirement authority' "requirement authority"
 require_content "demos/_templates/standard-demo/AGENTS.md" 'Product requirements belong only in `REQUIREMENTS.md`' "requirement authority"
 require_content "demos/_templates/complex-demo/AGENTS.md" 'Product requirements belong only in `REQUIREMENTS.md`' "requirement authority"
@@ -201,6 +224,8 @@ fi
 # Exercise the semantic validator and then apply it to each materialized demo
 # that has adopted the new REQUIREMENTS.md authority.
 node --test scripts/tests/validate-demo-workflow.test.mjs >/dev/null
+node --test scripts/tests/validate-delivery-loop.test.mjs >/dev/null
+node scripts/validate-delivery-loop.mjs demos/ai-service-subscription-pilot
 while IFS= read -r requirement_file; do
   demo_dir="${requirement_file%/REQUIREMENTS.md}"
   node scripts/validate-demo-workflow.mjs "$demo_dir"

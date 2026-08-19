@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "task_id": null,
+  "status": "not_started",
+  "limits": {
+    "max_plan_rounds": 3,
+    "max_implementation_rounds": 3,
+    "max_role_turns_per_task": 15,
+    "soft_limit_percent": 80,
+    "hard_limit_percent": 100
+  },
+  "usage": {
+    "plan_rounds": 0,
+    "implementation_rounds": 0,
+    "role_turns": 0
+  },
+  "updated_at": "2026-08-16T15:17:34Z"
+}

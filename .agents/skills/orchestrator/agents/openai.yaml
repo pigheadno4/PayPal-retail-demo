@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Orchestrator"
+  short_description: "Control bounded demo delivery loops"
+  default_prompt: "Use $orchestrator to coordinate the next approved demo task."

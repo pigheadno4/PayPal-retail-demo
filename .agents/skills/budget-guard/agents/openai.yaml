@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delivery Budget Guard"
+  short_description: "Bound demo delivery cost without weaker gates"
+  default_prompt: "Use $budget-guard to check whether this demo task can safely continue."

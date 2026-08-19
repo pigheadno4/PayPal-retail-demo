@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Reviewer"
+  short_description: "Review demo changes in independent lanes"
+  default_prompt: "Use $reviewer to review this candidate in the assigned lane."

@@ -13,6 +13,13 @@ This repository is a payment demo pool for creating customer-facing, sales-facin
 - Verify affected behavior before reporting completion. If verification is blocked, document the blocker clearly.
 - Preserve working demos. Do not refactor unrelated demos while working on one demo.
 
+## Scope And Simplicity
+
+- Implement the smallest complete solution that satisfies the approved requirements and acceptance criteria.
+- Every new service, table, abstraction, configuration layer, fallback path, or review gate must trace to an approved requirement, task acceptance criterion, or verified recurring defect. Otherwise, record it as a future suggestion and do not build it.
+- Stop when the requested outcome and required evidence pass. Do not turn a task or review finding into adjacent hardening, refactoring, or hypothetical future support without user approval.
+- Demo-first scope does not relax payment correctness, security, data integrity, secret handling, or required PSP evidence within the approved boundary.
+
 ## Payment Safety Rules
 
 - Do not invent PayPal, Stripe, Klarna, Afterpay, Apple Pay, Google Pay, or other PSP capabilities.
