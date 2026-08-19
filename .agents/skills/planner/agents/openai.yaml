@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Planner"
+  short_description: "Plan one bounded approved demo task"
+  default_prompt: "Use $planner to prepare the next bounded demo task plan."
