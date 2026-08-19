@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Critic"
+  short_description: "Challenge bounded demo task plans"
+  default_prompt: "Use $plan-critic to review this demo task plan before implementation."

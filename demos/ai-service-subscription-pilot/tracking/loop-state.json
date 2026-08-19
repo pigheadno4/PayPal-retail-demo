@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "demo": "ai-service-subscription-pilot",
+  "slice_id": "SLICE-001",
+  "task_id": null,
+  "state": "blocked",
+  "blocker": {
+    "code": "canonical_state_reconciliation_required",
+    "details": [
+      "IMPLEMENTATION_TASKS.md and tracking history record TASK-0001 reviewed/passing",
+      "AGENTS.md, PLAN.md, tracking/todos.md, and slices/README.md still describe TASK-0001 as active or incomplete"
+    ]
+  },
+  "round": {
+    "plan": 0,
+    "implementation": 0
+  },
+  "role_results": {
+    "planner": null,
+    "plan_critic": null,
+    "executor": null
+  },
+  "executor": null,
+  "visual_design": null,
+  "candidate_commit": null,
+  "approvals": {
+    "plan": null,
+    "spec": null,
+    "quality": null,
+    "task_acceptance": null
+  },
+  "updated_at": "2026-08-16T15:17:34Z"
+}

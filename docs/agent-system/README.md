@@ -9,6 +9,7 @@ Use this phrase in future sessions when you want to return to the AGENTS.md hier
 - `design-plan.md`: overall design and rationale.
 - `implementation-plan.md`: step-by-step setup plan.
 - `requirement-traceability-design.md`: guardrails for preserving kickoff requirements into tasks, tests, evidence, and milestone close gates.
+- `delivery-loop-design.md`: approved reusable planner, critic, executor, review, budget, state, and user-gate design.
 - `../../AGENTS.md`: canonical root agent rules.
 - `../../demos/NEW_DEMO_PROTOCOL.md`: workflow for creating a new demo.
 - `../../learnings/INDEX.md`: reusable lessons index.
