@@ -21,6 +21,97 @@ const sourceDemo = path.join(
   "demos/ai-service-subscription-pilot",
 );
 
+const neutralConfig = `version: 1
+
+task:
+  max_acceptance_criteria: 5
+
+budget:
+  max_plan_rounds: 3
+  max_implementation_rounds: 3
+  max_role_turns_per_task: 15
+  soft_limit_percent: 80
+  hard_limit_percent: 100
+
+review:
+  lanes:
+    - spec
+    - quality
+  require_same_candidate_commit: true
+  scoped_re_review_default: true
+
+frontend:
+  visual_routes:
+    - reuse
+    - focused-mockup
+    - design-shotgun
+    - undetermined
+    - not_applicable
+
+pull_request:
+  boundary: slice
+  require_user_approval_to_create: true
+  require_user_approval_to_merge: true
+
+skills:
+  orchestrator: .agents/skills/orchestrator/SKILL.md
+  planner: .agents/skills/planner/SKILL.md
+  plan_critic: .agents/skills/plan-critic/SKILL.md
+  executor: .agents/skills/executor/SKILL.md
+  reviewer: .agents/skills/reviewer/SKILL.md
+  budget_guard: .agents/skills/budget-guard/SKILL.md
+`;
+
+const neutralState = {
+  schema_version: 1,
+  demo: "ai-service-subscription-pilot",
+  slice_id: "SLICE-001",
+  task_id: null,
+  state: "blocked",
+  blocker: {
+    code: "fixture_not_started",
+    details: ["Neutral validator fixture"],
+  },
+  round: { plan: 0, implementation: 0 },
+  role_results: { planner: null, plan_critic: null, executor: null },
+  executor: null,
+  visual_design: null,
+  candidate_commit: null,
+  approvals: {
+    plan: null,
+    spec: null,
+    quality: null,
+    task_acceptance: null,
+  },
+  updated_at: "2026-08-16T00:00:00Z",
+};
+
+const neutralBudget = {
+  schema_version: 1,
+  task_id: null,
+  status: "not_started",
+  limits: {
+    max_plan_rounds: 3,
+    max_implementation_rounds: 3,
+    max_role_turns_per_task: 15,
+    soft_limit_percent: 80,
+    hard_limit_percent: 100,
+  },
+  usage: { plan_rounds: 0, implementation_rounds: 0, role_turns: 0 },
+  updated_at: neutralState.updated_at,
+};
+
+const neutralLogEvent = {
+  timestamp: neutralState.updated_at,
+  event: "scaffold_initialized",
+  slice_id: neutralState.slice_id,
+  task_id: null,
+  from: null,
+  to: "blocked",
+  reason: neutralState.blocker.code,
+  actor: "orchestrator",
+};
+
 async function makeFixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "delivery-loop-"));
   const demo = path.join(root, "demo");
@@ -34,22 +125,19 @@ async function makeFixture() {
   await cp(path.join(sourceDemo, "knowledge"), path.join(demo, "knowledge"), {
     recursive: true,
   });
-  await cp(
-    path.join(sourceDemo, "tracking/loop-state.json"),
+  await writeFile(path.join(demo, "workflow/CONFIG.yaml"), neutralConfig);
+  await mkdir(path.join(demo, "tracking/tasks"), { recursive: true });
+  await writeFile(
     path.join(demo, "tracking/loop-state.json"),
+    `${JSON.stringify(neutralState, null, 2)}\n`,
   );
-  await cp(
-    path.join(sourceDemo, "tracking/loop-budget.json"),
+  await writeFile(
     path.join(demo, "tracking/loop-budget.json"),
+    `${JSON.stringify(neutralBudget, null, 2)}\n`,
   );
-  await cp(
-    path.join(sourceDemo, "tracking/loop-log.jsonl"),
+  await writeFile(
     path.join(demo, "tracking/loop-log.jsonl"),
-  );
-  await cp(
-    path.join(sourceDemo, "tracking/tasks"),
-    path.join(demo, "tracking/tasks"),
-    { recursive: true },
+    `${JSON.stringify(neutralLogEvent)}\n`,
   );
   await writeFile(path.join(demo, "ROADMAP.md"), "# Roadmap\n");
 

@@ -1,0 +1,177 @@
+import { randomUUID } from "node:crypto";
+
+import type { DemoSessionRecord, DemoSessionRepository } from "@/server/auth/send-email-hook";
+import type { GoMonthlyQuoteDraft } from "@/server/quote/go-monthly-seattle";
+
+type SqlClient = typeof import("@/server/db/client")["sql"];
+
+async function database(): Promise<SqlClient> {
+  return (await import("@/server/db/client")).sql;
+}
+
+export async function insertPendingIntent(sessionTokenHash: string, now: Date) {
+  const sql = await database();
+  const publicId = randomUUID();
+  const rows = await sql<{ public_id: string }[]>`
+    insert into app_private.checkout_intents
+      (public_id, anonymous_session_token_hash, tier, cadence, state, expires_at, created_at, updated_at)
+    values
+      (${publicId}, ${Buffer.from(sessionTokenHash, "hex")}, 'go', 'monthly', 'selected', ${new Date(now.getTime() + 24 * 60 * 60_000)}, ${now}, ${now})
+    returning public_id
+  `;
+  return rows[0]!.public_id;
+}
+
+export class PostgresDemoSessionRepository implements DemoSessionRepository {
+  async findByPublicId(publicId: string): Promise<DemoSessionRecord | null> {
+    const sql = await database();
+    const rows = await sql<DemoSessionRow[]>`
+      select public_id, encode(token_hash, 'hex') as token_hash, test_alias, expires_at,
+             otp_ciphertext, otp_expires_at, consumed_at
+      from app_private.demo_sessions where public_id = ${publicId} limit 1
+    `;
+    return rows[0] ? mapDemoSession(rows[0]) : null;
+  }
+
+  async findByAlias(alias: string): Promise<DemoSessionRecord | null> {
+    const sql = await database();
+    const rows = await sql<DemoSessionRow[]>`
+      select public_id, encode(token_hash, 'hex') as token_hash, test_alias, expires_at,
+             otp_ciphertext, otp_expires_at, consumed_at
+      from app_private.demo_sessions where test_alias = ${alias} limit 1
+    `;
+    return rows[0] ? mapDemoSession(rows[0]) : null;
+  }
+
+  async storeOtp(publicId: string, ciphertext: string, expiresAt: Date): Promise<boolean> {
+    const sql = await database();
+    const rows = await sql<{ public_id: string }[]>`
+      update app_private.demo_sessions set otp_ciphertext = ${ciphertext}, otp_expires_at = ${expiresAt}
+      where public_id = ${publicId} and consumed_at is null and expires_at > now()
+      returning public_id
+    `;
+    return rows.length === 1;
+  }
+
+  async clearOtp(publicId: string, consumedAt?: Date): Promise<void> {
+    const sql = await database();
+    await sql`
+      update app_private.demo_sessions
+      set otp_ciphertext = null, otp_expires_at = null, consumed_at = coalesce(${consumedAt ?? null}, consumed_at)
+      where public_id = ${publicId}
+    `;
+  }
+}
+
+type DemoSessionRow = {
+  public_id: string;
+  token_hash: string;
+  test_alias: string | null;
+  expires_at: string | Date;
+  otp_ciphertext: string | null;
+  otp_expires_at: string | Date | null;
+  consumed_at: string | Date | null;
+};
+
+function mapDemoSession(row: DemoSessionRow): DemoSessionRecord {
+  return {
+    publicId: row.public_id,
+    tokenHash: row.token_hash,
+    testAlias: row.test_alias,
+    expiresAt: new Date(row.expires_at),
+    otpCiphertext: row.otp_ciphertext,
+    otpExpiresAt: row.otp_expires_at ? new Date(row.otp_expires_at) : null,
+    consumedAt: row.consumed_at ? new Date(row.consumed_at) : null,
+  };
+}
+
+export async function createOrReadTemporarySession(input: Readonly<{
+  publicId: string;
+  tokenHash: string;
+  expiresAt: Date;
+}>) {
+  const sql = await database();
+  const alias = `demo-${randomUUID().replaceAll("-", "").slice(0, 12)}@test`;
+  const rows = await sql<{ test_alias: string; expires_at: Date }[]>`
+    insert into app_private.demo_sessions (public_id, token_hash, test_alias, expires_at)
+    values (${input.publicId}, ${Buffer.from(input.tokenHash, "hex")}, ${alias}, ${input.expiresAt})
+    on conflict (public_id) do update set public_id = excluded.public_id
+    returning test_alias, expires_at
+  `;
+  return { email: rows[0]!.test_alias, expiresAt: new Date(rows[0]!.expires_at).toISOString() };
+}
+
+export async function getTemporaryAlias(publicId: string): Promise<string | null> {
+  const session = await new PostgresDemoSessionRepository().findByPublicId(publicId);
+  return session?.testAlias ?? null;
+}
+
+export async function bindVerifiedIdentityAndQuote(input: Readonly<{
+  authUserId: string;
+  identityKind: "persistent" | "temporary";
+  temporaryExpiresAt: Date | null;
+  intentId: string;
+  sessionTokenHash: string;
+  demoSessionPublicId: string;
+  quote: GoMonthlyQuoteDraft;
+}>) {
+  const sql = await database();
+  return sql.begin(async (tx) => {
+    const accounts = await tx<{ id: string }[]>`
+      insert into app_private.accounts
+        (public_id, auth_user_id, identity_kind, temporary_demo_expires_at)
+      values
+        (${randomUUID()}, ${input.authUserId}, ${input.identityKind}, ${input.temporaryExpiresAt})
+      on conflict (auth_user_id) do update set updated_at = now()
+      returning id
+    `;
+    const accountId = BigInt(accounts[0]!.id);
+    const intents = await tx<{ id: string; public_id: string }[]>`
+      select id, public_id from app_private.checkout_intents
+      where public_id = ${input.intentId}
+        and anonymous_session_token_hash = ${Buffer.from(input.sessionTokenHash, "hex")}
+        and (account_id is null or account_id = ${accountId.toString()})
+      order by id for update
+    `;
+    const intent = intents[0];
+    if (!intent) throw new Error("intent_not_found");
+    await tx`
+      update app_private.checkout_intents set account_id = ${accountId.toString()}, state = 'identity_verified', updated_at = now()
+      where id = ${intent.id}
+    `;
+    const existing = await tx<{ public_id: string }[]>`
+      select public_id from app_private.quotes where checkout_intent_id = ${intent.id}
+      order by id desc limit 1
+    `;
+    let quoteId = existing[0]?.public_id as string | undefined;
+    if (!quoteId) {
+      quoteId = randomUUID();
+      await tx`
+        insert into app_private.quotes
+          (public_id, checkout_intent_id, currency, base_cents, promotion_cents, taxable_subtotal_cents,
+           tax_basis_points, tax_cents, total_cents, pricing_version, tax_version, issued_at, expires_at,
+           renews_at, allowance_resets_at, time_zone)
+        values
+          (${quoteId}, ${intent.id}, 'USD', ${input.quote.baseCents}, ${input.quote.promotionCents},
+           ${input.quote.taxableSubtotalCents}, ${input.quote.taxBasisPoints}, ${input.quote.taxCents},
+           ${input.quote.totalCents}, ${input.quote.pricingVersion}, ${input.quote.taxVersion},
+           ${new Date(input.quote.issuedAt)}, ${new Date(input.quote.expiresAt)}, ${new Date(input.quote.renewsAt)},
+           ${new Date(input.quote.allowanceResetsAt)}, ${input.quote.timeZone})
+      `;
+    }
+    if (input.identityKind === "temporary") {
+      await tx`
+        update app_private.demo_sessions
+        set otp_ciphertext = null, otp_expires_at = null, consumed_at = now()
+        where public_id = ${input.demoSessionPublicId}
+      `;
+    }
+    return { accountId, intentId: intent.public_id, quoteId };
+  });
+}
+
+export async function findAccountIdByAuthUser(authUserId: string): Promise<bigint | null> {
+  const sql = await database();
+  const rows = await sql<{ id: bigint }[]>`select id from app_private.accounts where auth_user_id = ${authUserId} limit 1`;
+  return rows[0]?.id ?? null;
+}

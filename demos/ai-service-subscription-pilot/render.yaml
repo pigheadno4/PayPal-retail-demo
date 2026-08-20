@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-service-subscription-pilot
+    runtime: node
+    rootDir: demos/ai-service-subscription-pilot
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0

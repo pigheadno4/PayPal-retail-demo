@@ -7,7 +7,7 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 | Evidence | Requirements | Slice | Type | Status | Artifact |
 | --- | --- | --- | --- | --- | --- |
 | EVID-0001 | REQ-0034, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | static, backend | passing | tracking/evidence/EVID-0001.md |
-| EVID-0002 | REQ-0034, REQ-0035, REQ-0038 | SLICE-001 | backend, interaction, hosted, failure | planned | pending |
+| EVID-0002 | REQ-0034, REQ-0035, REQ-0038 | SLICE-001 | backend, interaction, hosted, failure | blocked | tracking/evidence/EVID-0002.md |
 | EVID-0003 | REQ-0036, REQ-0038 | SLICE-001 | backend, provider, hosted, failure | planned | pending |
 | EVID-0004 | REQ-0037, REQ-0038 | SLICE-001 | backend, interaction, hosted, failure | planned | pending |
 | EVID-0005 | REQ-0034, REQ-0035, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | static, backend, provider, interaction, responsive, accessibility, typography, hosted, failure | planned | pending |
@@ -28,11 +28,11 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 - Requirements: REQ-0034, REQ-0035, REQ-0038
 - Slice: SLICE-001
 - Type: backend, interaction, hosted, failure
-- Status: planned
-- Artifact: pending
-- Captured at: pending
+- Status: blocked
+- Artifact: tracking/evidence/EVID-0002.md
+- Captured at: 2026-08-19
 - Verified by: pending
-- Result: pending
+- Result: local tests, build, and interaction proof pass; hosted Hook/session isolation and live database transition counts remain unverified
 
 ### EVID-0003 — PayPal funding and reusable-credential proof
 
