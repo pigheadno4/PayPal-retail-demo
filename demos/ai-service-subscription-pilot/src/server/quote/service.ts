@@ -13,7 +13,18 @@ export type StoredQuote = GoMonthlyQuoteDraft & Readonly<{
 export interface QuoteRepository {
   findOwnedQuote(accountId: bigint, intentId: string, quoteId: string): Promise<StoredQuote | null>;
   findReplacementOf(internalId: bigint): Promise<StoredQuote | null>;
-  insertReplacement(current: StoredQuote, draft: GoMonthlyQuoteDraft): Promise<StoredQuote>;
+  replaceOwnedQuoteAtomically(input: Readonly<{
+    accountId: bigint;
+    intentId: string;
+    currentQuoteId: string;
+    draft: GoMonthlyQuoteDraft;
+    now: Date;
+  }>): Promise<
+    | Readonly<{ kind: "not_found" }>
+    | Readonly<{ kind: "conflict" }>
+    | Readonly<{ kind: "current"; quote: StoredQuote }>
+    | Readonly<{ kind: "replaced"; quote: StoredQuote }>
+  >;
 }
 
 export class QuoteNotFoundError extends Error {
@@ -24,7 +35,7 @@ export class QuoteConflictError extends Error {
   constructor() { super("stale_quote"); }
 }
 
-function toReview(quote: StoredQuote): CheckoutReview {
+export function toCheckoutReview(quote: StoredQuote): CheckoutReview {
   const money = (cents: number) => ({ currency: "USD" as const, cents });
   return Object.freeze({
     intentId: quote.intentId,
@@ -46,7 +57,11 @@ function toReview(quote: StoredQuote): CheckoutReview {
   });
 }
 
-function requiresReplacement(current: StoredQuote, draft: GoMonthlyQuoteDraft, now: Date): boolean {
+export function quoteRequiresReplacement(current: StoredQuote, draft: GoMonthlyQuoteDraft, now: Date): boolean {
+  const issuedAt = new Date(current.issuedAt);
+  const expectedExpiry = new Date(issuedAt.getTime() + 15 * 60_000);
+  const expectedRenewal = new Date(issuedAt);
+  expectedRenewal.setUTCMonth(expectedRenewal.getUTCMonth() + 1);
   return current.baseCents !== draft.baseCents
     || current.promotionCents !== draft.promotionCents
     || current.taxableSubtotalCents !== draft.taxableSubtotalCents
@@ -57,6 +72,10 @@ function requiresReplacement(current: StoredQuote, draft: GoMonthlyQuoteDraft, n
     || current.taxVersion !== draft.taxVersion
     || current.locationKey !== draft.locationKey
     || current.timeZone !== draft.timeZone
+    || !Number.isFinite(issuedAt.getTime())
+    || current.expiresAt !== expectedExpiry.toISOString()
+    || current.renewsAt !== expectedRenewal.toISOString()
+    || current.allowanceResetsAt !== expectedRenewal.toISOString()
     || Date.parse(current.expiresAt) <= now.getTime();
 }
 
@@ -67,18 +86,18 @@ export async function replaceCurrentQuote(input: Readonly<{
   clock: () => Date;
   repository: QuoteRepository;
 }>): Promise<ReplaceQuoteResponse> {
-  const current = await input.repository.findOwnedQuote(input.accountId, input.intentId, input.currentQuoteId);
-  if (!current) throw new QuoteNotFoundError();
-  if (await input.repository.findReplacementOf(current.internalId)) throw new QuoteConflictError();
-
   const now = input.clock();
   const draft = createGoMonthlyQuote(() => now);
-  if (!requiresReplacement(current, draft, now)) {
-    return { review: toReview(current), replacementCreated: false };
-  }
-
-  const replacement = await input.repository.insertReplacement(current, draft);
-  return { review: toReview(replacement), replacementCreated: true };
+  const result = await input.repository.replaceOwnedQuoteAtomically({
+    accountId: input.accountId,
+    intentId: input.intentId,
+    currentQuoteId: input.currentQuoteId,
+    draft,
+    now,
+  });
+  if (result.kind === "not_found") throw new QuoteNotFoundError();
+  if (result.kind === "conflict") throw new QuoteConflictError();
+  return { review: toCheckoutReview(result.quote), replacementCreated: result.kind === "replaced" };
 }
 
 export async function requireCurrentQuoteForPayment(input: Readonly<{
@@ -92,5 +111,5 @@ export async function requireCurrentQuoteForPayment(input: Readonly<{
   if (!current) throw new QuoteNotFoundError();
   if (await input.repository.findReplacementOf(current.internalId)) throw new QuoteConflictError();
   if (Date.parse(current.expiresAt) <= input.now.getTime()) throw new QuoteConflictError();
-  return toReview(current);
+  return toCheckoutReview(current);
 }

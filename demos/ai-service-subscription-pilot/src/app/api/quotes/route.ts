@@ -4,7 +4,7 @@ import { parseReplaceQuoteRequest } from "@/contracts/checkout";
 import { requireCurrentUser } from "@/lib/supabase/server";
 import { findAccountIdByAuthUser } from "@/server/checkout/repository";
 import { findCurrentOwnedQuote, PostgresQuoteRepository } from "@/server/quote/repository";
-import { QuoteConflictError, QuoteNotFoundError, replaceCurrentQuote, requireCurrentQuoteForPayment } from "@/server/quote/service";
+import { QuoteConflictError, QuoteNotFoundError, replaceCurrentQuote, toCheckoutReview } from "@/server/quote/service";
 
 const headers = { "Cache-Control": "private, no-store" };
 
@@ -21,8 +21,7 @@ export async function GET(request: Request) {
     const id = await accountId();
     const current = await findCurrentOwnedQuote(id, intentId);
     if (!current) throw new QuoteNotFoundError();
-    const review = await requireCurrentQuoteForPayment({ accountId: id, intentId, quoteId: current.quoteId, now: new Date(), repository: new PostgresQuoteRepository() });
-    return NextResponse.json(review, { headers });
+    return NextResponse.json(toCheckoutReview(current), { headers });
   } catch {
     return NextResponse.json({ error: "quote_not_found" }, { status: 404, headers });
   }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { DemoSessionRecord, DemoSessionRepository } from "@/server/auth/send-email-hook";
 import type { GoMonthlyQuoteDraft } from "@/server/quote/go-monthly-seattle";
+import { mapQuoteRow, type QuoteRow } from "@/server/quote/repository";
 
 type SqlClient = typeof import("@/server/db/client")["sql"];
 
@@ -139,14 +140,15 @@ export async function bindVerifiedIdentityAndQuote(input: Readonly<{
       update app_private.checkout_intents set account_id = ${accountId.toString()}, state = 'identity_verified', updated_at = now()
       where id = ${intent.id}
     `;
-    const existing = await tx<{ public_id: string }[]>`
-      select public_id from app_private.quotes where checkout_intent_id = ${intent.id}
+    let quoteRows = await tx<QuoteRow[]>`
+      select q.*, i.public_id as intent_public_id, i.account_id
+      from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
+      where q.checkout_intent_id = ${intent.id}
       order by id desc limit 1
     `;
-    let quoteId = existing[0]?.public_id as string | undefined;
-    if (!quoteId) {
-      quoteId = randomUUID();
-      await tx`
+    if (!quoteRows[0]) {
+      const quoteId = randomUUID();
+      quoteRows = await tx<QuoteRow[]>`
         insert into app_private.quotes
           (public_id, checkout_intent_id, currency, base_cents, promotion_cents, taxable_subtotal_cents,
            tax_basis_points, tax_cents, total_cents, pricing_version, tax_version, issued_at, expires_at,
@@ -157,6 +159,7 @@ export async function bindVerifiedIdentityAndQuote(input: Readonly<{
            ${input.quote.totalCents}, ${input.quote.pricingVersion}, ${input.quote.taxVersion},
            ${new Date(input.quote.issuedAt)}, ${new Date(input.quote.expiresAt)}, ${new Date(input.quote.renewsAt)},
            ${new Date(input.quote.allowanceResetsAt)}, ${input.quote.timeZone})
+        returning *, ${intent.public_id}::uuid as intent_public_id, ${accountId.toString()}::bigint as account_id
       `;
     }
     if (input.identityKind === "temporary") {
@@ -166,7 +169,7 @@ export async function bindVerifiedIdentityAndQuote(input: Readonly<{
         where public_id = ${input.demoSessionPublicId}
       `;
     }
-    return { accountId, intentId: intent.public_id, quoteId };
+    return { accountId, intentId: intent.public_id, quote: mapQuoteRow(quoteRows[0]!) };
   });
 }
 

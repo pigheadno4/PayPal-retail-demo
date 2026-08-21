@@ -3,69 +3,51 @@
 - status: needs_review
 - executor: task0002_executor
 - task: TASK-0002
-- execution_round: 3
+- execution_round: 4
 - approved_plan_sha256: `b97ce3b969e0f2c8087038a649bd549789eba0168b378d84454f8176ab995e78`
-- plan_approval: `user:TASK-0002:2026-08-20:final-fixture-plan-approved`
+- recovery_approval: `user:TASK-0002:2026-08-21:three-spec-findings-recovery-approved`
 - visual_approval: `user:TASK-0002:2026-08-19:schema-aligned-focused-mockup-approved`
-- candidate_commit: supplied in the executor handoff after the report is committed
+- base_candidate: `55f2297dce3c288a31f54a53dfe9d3df7a69e866`
+- candidate_commit: supplied in the executor handoff after this report is committed
 
-## Attempt History
+## Bounded Recovery
 
-Round 1 stopped before TDD because the original approved plan pinned unpublished `standardwebhooks@1.0.1`. The corrected plan explicitly approved `standardwebhooks@1.0.0` and retained `resend@6.18.1`; round 2 resumed from a clean implementation boundary.
+Round 4 changed only the three Important findings from `spec-review-round-1.md`. It did not alter AC-5, add a migration, or add payment, provider, funding, entitlement, allowance, suspension, recovery, or later-task scope.
 
-Round 2 completed the application implementation but stopped without a commit because repository validator fixtures copied live TASK-0002 workflow and tracking state. Round 3 applied only the approved neutral fixture correction in `scripts/tests/validate-delivery-loop.test.mjs`.
-
-## Files Changed
-
-- `package.json`, `package-lock.json` — exact approved Hook and email-client pins.
-- `src/contracts/*` — strict public identity and immutable checkout DTOs.
-- `src/server/auth/*` — signed session proof, encrypted OTP lifecycle, verified Hook handling, and Supabase identity orchestration.
-- `src/server/checkout/*` — private pending-intent, demo-session, and verified identity/quote persistence.
-- `src/server/quote/*` — fixed Seattle quote, ownership/replacement service, and private repository.
-- `src/app/**`, `src/components/checkout/*` — planned API routes and five approved customer states.
-- `render.yaml` — minimal hosted prerequisite without secrets.
-- `tests/e2e/identity-and-quote.spec.ts` — interaction, responsive, console, control-size, and hosted-tag contracts.
-- `tracking/evidence/EVID-0002.md`, screenshot artifacts, and `tracking/evidence.md` — sanitized incomplete evidence record.
-- `scripts/tests/validate-delivery-loop.test.mjs` — neutral in-test configuration, state, budget, log, and empty task baseline independent of live TASK-0002 artifacts.
-
-No migration, schema, TASK-0001 foundation interface, payment, funding, entitlement, allowance, suspension, canonical authority, later-task, or loop-control file was changed.
+1. **Identity interaction lifecycle:** the existing customer UI now creates the intent before Auth, retains persistent email only in component memory, renders the server-issued temporary alias, retrieves the temporary OTP through the originating-session API, stops on request failures, and clears the temporary OTP only after successful verification or observed expiry. Unit and browser tests cover intent-only deltas, invalid-code safety, canonical retry/same-account recovery, temporary retrieval, and failure handling.
+2. **Canonical and atomic quote lifecycle:** idempotent verification returns the canonical stored quote. Replacement ownership/current checks and insertion are one short row-locked transaction, preventing a second successor. Stored tax/time provenance and fixed Seattle fixture provenance are mapped without a schema change. Retry, concurrency, and every approved effective-time input are covered.
+3. **Server-owned review:** query text cannot grant review. The route loads an owned review from `/api/quotes`, keeps expired current quotes visible as stale, posts only `intentId` and `currentQuoteId` for replacement, and renders the returned review. Laptop and 390px tests cover the approved header theme/separator/account controls.
 
 ## Acceptance Results
 
 | AC | Local result | Remaining evidence |
 | --- | --- | --- |
-| AC-1 | route/cookie/intent-only code boundary implemented | live database before/after delta table |
-| AC-2 | Supabase OTP orchestration and atomic identity/intent/quote transition implemented | hosted inbox, remote transition, return-account proof |
-| AC-3 | signed-session, Hook signature, encryption, isolation, expiry, clearing, replay, and invalid-signature tests pass | hosted Hook/session-isolation proof |
-| AC-4 | exact arithmetic, strict body, provenance groups, ownership, replacement, stale gate, and five UI states pass locally | hosted interaction proof |
-| AC-5 | neutral fixture uses a 15-turn cap and no live task artifacts; validator suite passes 48/48 and `scripts/check-agent-system.sh` passes | none |
+| AC-1 | selection lifecycle and repository-boundary +1/zero-delta assertion pass | hosted/live database count capture |
+| AC-2 | persistent request/verify, invalid safety, canonical retry, and same-account recovery pass | hosted persistent inbox and remote transition |
+| AC-3 | issued alias, originating-session retrieval, non-consuming reveal, success/expiry clearing, isolation helper, replay, and invalid-signature checks pass | hosted Hook/browser-A-versus-B proof |
+| AC-4 | exact arithmetic, stored provenance, strict API body, atomic exactly-one replacement, stale gate, server-owned review, and responsive UI pass | hosted interaction proof |
+| AC-5 | neutral fixture and unchanged production validator remain green at 48/48 | none |
 
 ## Red / Green Sequence
 
-- Baseline: 9 tests passed; typecheck and lint passed.
-- Domain red: two suites failed on missing TASK-0002 modules.
-- Domain green: 14 focused assertions passed.
-- Interaction red: Next reported the missing approved `app` routes.
-- Interaction green: production-server Playwright run passed 5 local checks; the hosted tag was skipped.
-- Full green: 23 tests passed; typecheck and lint passed; production audit found 0 vulnerabilities; webpack production build passed.
-- Fixture red: the retained pre-fix run had eight fixture-coupling failures after restoring the live default budget.
-- Fixture green: `node --test scripts/tests/validate-delivery-loop.test.mjs` passed 48/48; `scripts/check-agent-system.sh` passed without changing the production validator.
+- Recovery domain red: 22 focused tests ran; 9 failed on non-consuming retrieval, canonical retry, selection deltas, effective-time drift, concurrent replacement, and stored provenance.
+- Recovery domain green: 22/22 focused tests passed.
+- Recovery interaction red: 4/4 local interactions failed against the direct-navigation shells.
+- Recovery interaction green: 4/4 local interactions passed; hosted test skipped honestly.
+- Full regression: 31/31 Vitest assertions passed across six files; typecheck and lint passed.
+- Production proof: webpack build passed and the same 4/4 local interactions passed against `next start`; hosted test skipped.
+- Dependency audit: 0 production vulnerabilities.
+- Delivery-loop gate: validator tests passed 48/48 and `scripts/check-agent-system.sh` passed.
 
-## Evidence
+## Evidence And Operational Status
 
-- Artifact: `tracking/evidence/EVID-0002.md`
-- Status: blocked, not relabeled passing; hosted proof remains incomplete.
-- Local screenshots: six sanitized artifacts under `tracking/evidence/artifacts/EVID-0002/`.
-- Hosted status: blocked by absent Render URL, deployed configuration, Supabase Send Email Hook configuration, and controlled inbox.
-- Schema status: no schema change; local reset not executed because disposability was not explicitly authorized.
-
-## Unresolved Concerns
-
-- Required hosted identity/Hook proof remains an operational follow-up.
-- Required live database side-effect counts remain an operational follow-up.
-- The default Turbopack build path cannot bind an internal worker port in this managed environment; the supported webpack production build passes.
-- The pinned Playwright browser download did not finish; local interaction proof used a compatible cached Chromium selected only through a test environment variable.
+- Evidence artifact: `tracking/evidence/EVID-0002.md`.
+- Evidence status remains `blocked`; no local result is relabeled as hosted proof.
+- Six sanitized runtime screenshots are under `tracking/evidence/artifacts/EVID-0002/`.
+- Hosted blocker: no deployed Render base URL, configured Supabase Send Email Hook, controlled inbox, or hosted browser-isolation run was available.
+- Database status: no migration changed. Existing reviewed TASK-0001 schema proof is retained; a disposable local reset was not authorized.
+- The default Turbopack worker cannot bind an internal port in the managed environment; the supported webpack production build passes.
 
 ## Rollback
 
-Revert the single TASK-0002 candidate commit. No database migration, PSP state, payment operation, entitlement, or allowance requires rollback.
+Revert the round-4 candidate commit and then the base TASK-0002 candidate if full rollback is required. No database migration or PSP state requires reversal.

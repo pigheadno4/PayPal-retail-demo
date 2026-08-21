@@ -13,6 +13,10 @@ import {
   type DemoSessionRecord,
   type DemoSessionRepository,
 } from "@/server/auth/send-email-hook";
+import { completeVerifiedIdentity } from "@/server/auth/service";
+import { createPendingGoMonthlyIntent } from "@/server/checkout/service";
+import { createGoMonthlyQuote } from "@/server/quote/go-monthly-seattle";
+import type { StoredQuote } from "@/server/quote/service";
 
 const SESSION_SECRET = "session-signing-secret-with-at-least-thirty-two-bytes";
 const HOOK_SECRET = Buffer.from("hook-secret-with-at-least-thirty-two-bytes").toString("base64");
@@ -102,7 +106,7 @@ describe("TC-0003 originating-session temporary OTP", () => {
     expect(decryptDemoOtp(record.otpCiphertext!, SESSION_SECRET)).toBe("385104");
   });
 
-  it("returns the OTP only to browser A and denies replay with the same result", async () => {
+  it("returns the OTP only to browser A without consuming it before successful verification", async () => {
     const repository = new MemorySessionRepository();
     const browserA = createSignedDemoSession(SESSION_SECRET, () => NOW);
     const browserB = createSignedDemoSession(SESSION_SECRET, () => NOW);
@@ -121,6 +125,8 @@ describe("TC-0003 originating-session temporary OTP", () => {
 
     await expect(retrieveDemoOtp({ cookieValue: browserB.cookieValue, clock: () => NOW, signingSecret: SESSION_SECRET, encryptionSecret: SESSION_SECRET, repository })).rejects.toBeInstanceOf(DemoOtpUnavailableError);
     await expect(retrieveDemoOtp({ cookieValue: browserA.cookieValue, clock: () => NOW, signingSecret: SESSION_SECRET, encryptionSecret: SESSION_SECRET, repository })).resolves.toEqual({ otp: "385104", expiresAt: "2026-07-15T19:05:00.000Z" });
+    await expect(retrieveDemoOtp({ cookieValue: browserA.cookieValue, clock: () => NOW, signingSecret: SESSION_SECRET, encryptionSecret: SESSION_SECRET, repository })).resolves.toEqual({ otp: "385104", expiresAt: "2026-07-15T19:05:00.000Z" });
+    await repository.clearOtp(browserA.publicId, NOW);
     await expect(retrieveDemoOtp({ cookieValue: browserA.cookieValue, clock: () => NOW, signingSecret: SESSION_SECRET, encryptionSecret: SESSION_SECRET, repository })).rejects.toBeInstanceOf(DemoOtpUnavailableError);
   });
 
@@ -145,5 +151,78 @@ describe("TC-0003 originating-session temporary OTP", () => {
       sendPersistentEmail: async () => undefined,
     })).rejects.toThrow("hook_rejected");
     expect(repository.sessions).toHaveLength(0);
+  });
+});
+
+describe("TC-0002 intent and verified identity integration", () => {
+  const intentId = "11111111-1111-4111-8111-111111111111";
+  const stored: StoredQuote = {
+    internalId: 11n,
+    intentInternalId: 7n,
+    accountId: 3n,
+    intentId,
+    quoteId: "22222222-2222-4222-8222-222222222222",
+    supersedesInternalId: null,
+    ...createGoMonthlyQuote(() => NOW),
+  };
+
+  it("selection adds only one pending intent and no forbidden side effects", async () => {
+    const before = { checkout_intents: 0, accounts: 0, quotes: 0, payment_operations: 0, billing_arrangements: 0, allowance_windows: 0 };
+    const after = { ...before };
+
+    const result = await createPendingGoMonthlyIntent(
+      { signingSecret: SESSION_SECRET, now: NOW },
+      { insertPendingIntent: async () => { after.checkout_intents += 1; return intentId; } },
+    );
+
+    expect(result.response).toEqual({ intentId, tier: "go", cadence: "monthly", state: "selected" });
+    expect(Object.fromEntries(Object.keys(before).map((key) => [key, after[key as keyof typeof after] - before[key as keyof typeof before]]))).toEqual({
+      checkout_intents: 1,
+      accounts: 0,
+      quotes: 0,
+      payment_operations: 0,
+      billing_arrangements: 0,
+      allowance_windows: 0,
+    });
+  });
+
+  it("returns the canonical stored quote on retry and resolves the same account", async () => {
+    const session = createSignedDemoSession(SESSION_SECRET, () => NOW);
+    const boundUsers: string[] = [];
+    const dependencies = {
+      clock: () => NOW,
+      getTemporaryAlias: async () => null,
+      verifyEmailOtp: async () => ({ userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      bindIdentityAndQuote: async (input: { authUserId: string }) => {
+        boundUsers.push(input.authUserId);
+        return { accountId: 3n, intentId, quote: stored };
+      },
+    };
+    const input = { intentId, identityRoute: "persistent" as const, email: "person@example.com", token: "385104" };
+
+    const first = await completeVerifiedIdentity(input, session.cookieValue, SESSION_SECRET, dependencies);
+    const retry = await completeVerifiedIdentity(input, session.cookieValue, SESSION_SECRET, dependencies);
+
+    expect(first).toEqual(retry);
+    expect(first.quoteId).toBe(stored.quoteId);
+    expect(first.expiresAt).toBe(stored.expiresAt);
+    expect(boundUsers).toEqual(["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]);
+  });
+
+  it("leaves the intent unbound when OTP verification fails", async () => {
+    const session = createSignedDemoSession(SESSION_SECRET, () => NOW);
+    let bindCalls = 0;
+    await expect(completeVerifiedIdentity(
+      { intentId, identityRoute: "persistent", email: "person@example.com", token: "000000" },
+      session.cookieValue,
+      SESSION_SECRET,
+      {
+        clock: () => NOW,
+        getTemporaryAlias: async () => null,
+        verifyEmailOtp: async () => null,
+        bindIdentityAndQuote: async () => { bindCalls += 1; return { accountId: 3n, intentId, quote: stored }; },
+      },
+    )).rejects.toThrow("verification_failed");
+    expect(bindCalls).toBe(0);
   });
 });

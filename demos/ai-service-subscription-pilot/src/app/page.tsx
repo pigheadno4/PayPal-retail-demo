@@ -11,7 +11,7 @@ export default function HomePage() {
     try {
       const response = await fetch("/api/checkout-intents", { method: "POST" });
       const result = await response.json();
-      if (response.ok) router.push(`/checkout/${result.intentId}?state=identity`);
+      if (response.ok) router.push(`/checkout/${result.intentId}`);
       else setBusy(false);
     } catch { setBusy(false); }
   }

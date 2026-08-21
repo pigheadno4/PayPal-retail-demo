@@ -85,6 +85,5 @@ export async function retrieveDemoOtp(input: Readonly<{
   }
   const otp = decryptDemoOtp(session.otpCiphertext, input.encryptionSecret);
   const expiresAt = session.otpExpiresAt.toISOString();
-  await input.repository.clearOtp(session.publicId, now);
   return { otp, expiresAt };
 }
