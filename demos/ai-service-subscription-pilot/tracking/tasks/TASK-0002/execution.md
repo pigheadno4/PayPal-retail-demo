@@ -3,51 +3,41 @@
 - status: needs_review
 - executor: task0002_executor
 - task: TASK-0002
-- execution_round: 4
+- execution_round: 6
 - approved_plan_sha256: `b97ce3b969e0f2c8087038a649bd549789eba0168b378d84454f8176ab995e78`
-- recovery_approval: `user:TASK-0002:2026-08-21:three-spec-findings-recovery-approved`
+- recovery_approval: `user:TASK-0002:2026-08-23:database-connection-and-one-turn-extension-approved`
 - visual_approval: `user:TASK-0002:2026-08-19:schema-aligned-focused-mockup-approved`
-- base_candidate: `55f2297dce3c288a31f54a53dfe9d3df7a69e866`
+- base_candidate: `9d858d2a76a821ff36517297f95abd5dfd2dd009`
 - candidate_commit: supplied in the executor handoff after this report is committed
 
-## Bounded Recovery
+## Scoped Finding Dispositions
 
-Round 4 changed only the three Important findings from `spec-review-round-1.md`. It did not alter AC-5, add a migration, or add payment, provider, funding, entitlement, allowance, suspension, recovery, or later-task scope.
+1. **Auth response and real selection evidence — corrected.** OTP verification now uses a route-handler Supabase client that collects `setAll` cookies/cache headers and applies them to the real JSON response. The proxy remains the refresh boundary and Supabase remains the only identity authority. Request-OTP success and provider failure both return the approved non-enumerating `202 { accepted: true }`. Route tests cover session persistence into the owned review response. The production repository test observes exactly `+1` checkout intent and zero deltas for accounts, quotes, payment operations, billing arrangements, and allowance windows.
+2. **Initial quote and actual Postgres concurrency — corrected and clarified.** The query now explicitly orders by `q.id`. The reviewer-predicted ambiguity did not reproduce against PostgreSQL because only `q.*` exposes `id` in the selected output; the requested qualification was still applied. A Shared-Pooler test executes the production insert, bind, and `PostgresQuoteRepository` paths: first bind succeeds, retry returns the same account/quote, and two concurrent replacement transactions yield one replacement plus one conflict and exactly one successor. Isolated fixture cleanup is transactional and the six observed table counts return to their exact baseline.
+3. **Effective theme and bounded responsive proof — corrected.** The header derives the effective OS color scheme through `useSyncExternalStore`; the first action switches from either starting scheme without a hydration effect. Playwright now asserts both starts, zero browser console/page errors, no payment controls, and 390px overflow/control sizing on identity, review, and stale states.
 
-1. **Identity interaction lifecycle:** the existing customer UI now creates the intent before Auth, retains persistent email only in component memory, renders the server-issued temporary alias, retrieves the temporary OTP through the originating-session API, stops on request failures, and clears the temporary OTP only after successful verification or observed expiry. Unit and browser tests cover intent-only deltas, invalid-code safety, canonical retry/same-account recovery, temporary retrieval, and failure handling.
-2. **Canonical and atomic quote lifecycle:** idempotent verification returns the canonical stored quote. Replacement ownership/current checks and insertion are one short row-locked transaction, preventing a second successor. Stored tax/time provenance and fixed Seattle fixture provenance are mapped without a schema change. Retry, concurrency, and every approved effective-time input are covered.
-3. **Server-owned review:** query text cannot grant review. The route loads an owned review from `/api/quotes`, keeps expired current quotes visible as stale, posts only `intentId` and `currentQuoteId` for replacement, and renders the returned review. Laptop and 390px tests cover the approved header theme/separator/account controls.
+## TDD And Verification
 
-## Acceptance Results
+- Auth/route red: 3 of 4 focused assertions failed on the missing writer, missing verification cookie, and incorrect request-failure status.
+- Auth/route green: 12/12 focused assertions passed including the existing auth service suite.
+- Theme red: OS-dark start reported `aria-pressed=false`; green after effective-theme correction.
+- Actual Postgres integration: 1/1 passed against the Supabase Shared Pooler; all isolated rows were removed and counts returned to baseline.
+- Full unit suite: 34 passed; the environment-gated Postgres test skipped in the credential-free run and passed separately with `.env.local`.
+- Full local browser suite: 4 passed; hosted case skipped honestly.
+- Production server browser suite: 4 passed; hosted case skipped honestly.
+- Typecheck and lint: passed.
+- Webpack production build: passed.
+- Production dependency audit: 0 vulnerabilities.
+- Delivery-loop validator: 48/48 passed.
+- `scripts/check-agent-system.sh`: passed.
 
-| AC | Local result | Remaining evidence |
-| --- | --- | --- |
-| AC-1 | selection lifecycle and repository-boundary +1/zero-delta assertion pass | hosted/live database count capture |
-| AC-2 | persistent request/verify, invalid safety, canonical retry, and same-account recovery pass | hosted persistent inbox and remote transition |
-| AC-3 | issued alias, originating-session retrieval, non-consuming reveal, success/expiry clearing, isolation helper, replay, and invalid-signature checks pass | hosted Hook/browser-A-versus-B proof |
-| AC-4 | exact arithmetic, stored provenance, strict API body, atomic exactly-one replacement, stale gate, server-owned review, and responsive UI pass | hosted interaction proof |
-| AC-5 | neutral fixture and unchanged production validator remain green at 48/48 | none |
+## Evidence And Security
 
-## Red / Green Sequence
-
-- Recovery domain red: 22 focused tests ran; 9 failed on non-consuming retrieval, canonical retry, selection deltas, effective-time drift, concurrent replacement, and stored provenance.
-- Recovery domain green: 22/22 focused tests passed.
-- Recovery interaction red: 4/4 local interactions failed against the direct-navigation shells.
-- Recovery interaction green: 4/4 local interactions passed; hosted test skipped honestly.
-- Full regression: 31/31 Vitest assertions passed across six files; typecheck and lint passed.
-- Production proof: webpack build passed and the same 4/4 local interactions passed against `next start`; hosted test skipped.
-- Dependency audit: 0 production vulnerabilities.
-- Delivery-loop gate: validator tests passed 48/48 and `scripts/check-agent-system.sh` passed.
-
-## Evidence And Operational Status
-
-- Evidence artifact: `tracking/evidence/EVID-0002.md`.
-- Evidence status remains `blocked`; no local result is relabeled as hosted proof.
-- Six sanitized runtime screenshots are under `tracking/evidence/artifacts/EVID-0002/`.
-- Hosted blocker: no deployed Render base URL, configured Supabase Send Email Hook, controlled inbox, or hosted browser-isolation run was available.
-- Database status: no migration changed. Existing reviewed TASK-0001 schema proof is retained; a disposable local reset was not authorized.
-- The default Turbopack worker cannot bind an internal port in the managed environment; the supported webpack production build passes.
+- Artifact: `tracking/evidence/EVID-0002.md`.
+- Status remains `blocked` only for hosted Render/Supabase Hook, inbox, and browser-isolation proof.
+- `.env.local` is ignored and was never printed, logged, staged, or copied into evidence. No database URL or password appears in the candidate.
+- No migration, schema, PayPal/provider, payment/funding, entitlement, allowance, suspension, feature, later-task, canonical-authority, or loop-control file was changed.
 
 ## Rollback
 
-Revert the round-4 candidate commit and then the base TASK-0002 candidate if full rollback is required. No database migration or PSP state requires reversal.
+Revert the round-6 candidate commit. The integration fixture was removed during the test and all observed table counts returned to baseline; no migration or PSP state requires rollback.

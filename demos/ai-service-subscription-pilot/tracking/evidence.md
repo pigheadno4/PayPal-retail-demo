@@ -30,9 +30,9 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 - Type: backend, interaction, hosted, failure
 - Status: blocked
 - Artifact: tracking/evidence/EVID-0002.md
-- Captured at: 2026-08-21
+- Captured at: 2026-08-23
 - Verified by: pending
-- Result: 31 local tests, production build, 4/4 local development and production interactions, 48/48 delivery-loop checks, and static audits pass; hosted Hook/session isolation and live database transition counts remain unverified
+- Result: 34 local tests, actual Shared-Pooler repository proof, production build, 4/4 local development and production interactions, 48/48 delivery-loop checks, and static audits pass; hosted Hook/session isolation remains unverified
 
 ### EVID-0003 — PayPal funding and reusable-credential proof
 

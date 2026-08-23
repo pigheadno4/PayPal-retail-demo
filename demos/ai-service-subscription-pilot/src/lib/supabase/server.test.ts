@@ -8,7 +8,7 @@ const { createServerClient, cookies } = vi.hoisted(() => ({
 vi.mock("@supabase/ssr", () => ({ createServerClient }));
 vi.mock("next/headers", () => ({ cookies }));
 
-import { createServerSupabaseClient } from "./server";
+import { createRouteHandlerSupabaseClient, createServerSupabaseClient } from "./server";
 
 const runtimeEnvironment = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
@@ -42,5 +42,22 @@ describe("createServerSupabaseClient", () => {
 
     expect(options.cookieOptions).toMatchObject({ sameSite: "lax", secure: true });
     expect(options.cookies.setAll).toBeUndefined();
+  });
+
+  it("applies OTP verification cookies and cache headers to the route response", async () => {
+    const cookieSet = vi.fn();
+    const response = { cookies: { set: cookieSet }, headers: new Headers() };
+    const routeAuth = await createRouteHandlerSupabaseClient();
+    const options = createServerClient.mock.calls[0]?.[2];
+
+    options.cookies.setAll(
+      [{ name: "sb-session", value: "redacted", options: { httpOnly: true } }],
+      { "Cache-Control": "private, no-store", Pragma: "no-cache" },
+    );
+    routeAuth.applyToResponse(response as never);
+
+    expect(cookieSet).toHaveBeenCalledWith("sb-session", "redacted", { httpOnly: true });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("pragma")).toBe("no-cache");
   });
 });

@@ -12,6 +12,6 @@ export async function POST(request: Request) {
     await requestOtp(input, (await cookies()).get("demo-session")?.value ?? "", env.demoSessionSigningSecret);
     return NextResponse.json({ accepted: true }, { status: 202, headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    return NextResponse.json({ error: "request_failed" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ accepted: true }, { status: 202, headers: { "Cache-Control": "private, no-store" } });
   }
 }

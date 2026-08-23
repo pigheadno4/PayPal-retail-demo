@@ -29,6 +29,15 @@ async function routeNoCurrentQuote(page: Page) {
   await page.route("**/api/quotes?**", (route) => route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"quote_not_found"}' }));
 }
 
+async function expectResponsiveBoundary(page: Page) {
+  const metrics = await page.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    undersized: [...document.querySelectorAll("button,input")].filter((element) => element.getBoundingClientRect().height < 44).length,
+  }));
+  expect(metrics).toEqual({ overflow: false, undersized: 0 });
+  await expect(page.getByRole("button", { name: /paypal|pay with|card|apple pay|google pay/i })).toHaveCount(0);
+}
+
 test("TC-0002 selection and persistent identity execute the API lifecycle without URL exposure", async ({ page }) => {
   let selected = false;
   let requestedEmail = "";
@@ -111,19 +120,43 @@ test("TC-0004 query state cannot grant review and stale replacement uses the str
   await expect(page.getByRole("heading", { name: "Choose how to continue" })).toBeVisible();
 });
 
-test("approved header and 390px transitions remain usable", async ({ page }) => {
-  await routeNoCurrentQuote(page);
+test("theme switches from both effective schemes and 390px identity, review, and stale states stay bounded", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  let current: ReturnType<typeof review> | null = null;
+  await page.route("**/api/quotes?**", (route) => current
+    ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) })
+    : route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
   await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(`/checkout/${INTENT_ID}`);
-  await expect(page.getByRole("button", { name: "Toggle theme" })).toBeVisible();
+  const themeToggle = page.getByRole("button", { name: "Toggle theme" });
+  await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
+  await themeToggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.reload();
+  await expect(themeToggle).toHaveAttribute("aria-pressed", "false");
+  await themeToggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByText("Demo account")).toBeVisible();
-  await page.getByRole("button", { name: "Toggle theme" }).click();
-  const metrics = await page.evaluate(() => ({
-    overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    undersized: [...document.querySelectorAll("button,input")].filter((element) => element.getBoundingClientRect().height < 44).length,
-  }));
-  expect(metrics).toEqual({ overflow: false, undersized: 0 });
+  await expect(page.getByRole("heading", { name: "Choose how to continue" })).toBeVisible();
+  await expectResponsiveBoundary(page);
   await page.screenshot({ path: resolve(evidenceDirectory, "06-account-route-mobile-dark.png"), fullPage: true });
+
+  current = review();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Review Go Monthly" })).toBeVisible();
+  await expectResponsiveBoundary(page);
+
+  current = review({ expiresAt: "2026-07-15T19:15:00.000Z" });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Your review changed" })).toBeVisible();
+  await expectResponsiveBoundary(page);
+  expect(consoleErrors).toEqual([]);
 });
 
 test.skip("@hosted originating-session isolation", async () => {

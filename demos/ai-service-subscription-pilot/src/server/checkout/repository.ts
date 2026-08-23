@@ -144,7 +144,7 @@ export async function bindVerifiedIdentityAndQuote(input: Readonly<{
       select q.*, i.public_id as intent_public_id, i.account_id
       from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
       where q.checkout_intent_id = ${intent.id}
-      order by id desc limit 1
+      order by q.id desc limit 1
     `;
     if (!quoteRows[0]) {
       const quoteId = randomUUID();

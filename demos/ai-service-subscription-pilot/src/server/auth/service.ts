@@ -56,8 +56,9 @@ export async function completeVerifiedIdentity(
   input: VerifyOtpRequest,
   cookieValue: string,
   signingSecret: string,
-  dependencies: VerifyOtpDependencies = verifyDependencies,
+  dependencyOverrides: Partial<VerifyOtpDependencies> = {},
 ): Promise<CheckoutReview> {
+  const dependencies = { ...verifyDependencies, ...dependencyOverrides };
   const now = dependencies.clock?.() ?? new Date();
   const proof = verifySignedDemoSession(cookieValue, signingSecret, now);
   const temporaryAlias = input.identityRoute === "temporary" ? await dependencies.getTemporaryAlias(proof.publicId) : null;

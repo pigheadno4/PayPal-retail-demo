@@ -1,13 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+type Theme = "light" | "dark";
+
+function subscribeToColorScheme(onChange: () => void) {
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
 
 export function HeaderControls() {
-  const [dark, setDark] = useState(false);
+  const systemDark = useSyncExternalStore(subscribeToColorScheme, () => window.matchMedia("(prefers-color-scheme: dark)").matches, () => false);
+  const [chosenTheme, setChosenTheme] = useState<Theme | null>(null);
+  const theme: Theme = chosenTheme ?? (systemDark ? "dark" : "light");
   function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
+    const next = theme === "dark" ? "light" : "dark";
+    setChosenTheme(next);
+    document.documentElement.dataset.theme = next;
   }
-  return <div className="header-actions"><button className="theme-toggle" aria-label="Toggle theme" aria-pressed={dark} onClick={toggleTheme}>{dark ? "☀" : "◐"}</button><span className="header-separator" aria-hidden="true" /><span className="account-cue">Demo account</span></div>;
+  return <div className="header-actions"><button className="theme-toggle" aria-label="Toggle theme" aria-pressed={theme === "dark"} onClick={toggleTheme}>{theme === "dark" ? "☀" : "◐"}</button><span className="header-separator" aria-hidden="true" /><span className="account-cue">Demo account</span></div>;
 }
