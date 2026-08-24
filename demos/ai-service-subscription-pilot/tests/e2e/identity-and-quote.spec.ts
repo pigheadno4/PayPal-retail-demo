@@ -38,6 +38,29 @@ async function expectResponsiveBoundary(page: Page) {
   await expect(page.getByRole("button", { name: /paypal|pay with|card|apple pay|google pay/i })).toHaveCount(0);
 }
 
+async function expectEffectiveThemeSurfaces(
+  page: Page,
+  expected: { bodyBackground: string; bodyGradientMarker: string; articleBackground: string; paragraphForeground: string },
+) {
+  const renderedColors = await page.evaluate(() => {
+    const article = document.querySelector<HTMLElement>(".route-grid article");
+    const paragraph = article?.querySelector<HTMLElement>("p");
+    if (!article || !paragraph) throw new Error("Identity route surfaces are missing");
+    return {
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+      bodyBackgroundImage: getComputedStyle(document.body).backgroundImage,
+      articleBackground: getComputedStyle(article).backgroundColor,
+      paragraphForeground: getComputedStyle(paragraph).color,
+    };
+  });
+  expect(renderedColors.bodyBackgroundImage).toContain(expected.bodyGradientMarker);
+  expect(renderedColors).toMatchObject({
+    bodyBackground: expected.bodyBackground,
+    articleBackground: expected.articleBackground,
+    paragraphForeground: expected.paragraphForeground,
+  });
+}
+
 test("TC-0002 selection and persistent identity execute the API lifecycle without URL exposure", async ({ page }) => {
   let selected = false;
   let requestedEmail = "";
@@ -136,12 +159,24 @@ test("theme switches from both effective schemes and 390px identity, review, and
   await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
   await themeToggle.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expectEffectiveThemeSurfaces(page, {
+    bodyBackground: "rgb(245, 237, 231)",
+    bodyGradientMarker: "rgba(232, 145, 103, 0.25)",
+    articleBackground: "rgba(255, 255, 255, 0.35)",
+    paragraphForeground: "rgb(114, 95, 86)",
+  });
 
   await page.emulateMedia({ colorScheme: "light" });
   await page.reload();
   await expect(themeToggle).toHaveAttribute("aria-pressed", "false");
   await themeToggle.click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expectEffectiveThemeSurfaces(page, {
+    bodyBackground: "rgb(23, 19, 20)",
+    bodyGradientMarker: "rgba(157, 68, 52, 0.3)",
+    articleBackground: "rgba(29, 22, 24, 0.65)",
+    paragraphForeground: "rgb(205, 187, 178)",
+  });
   await expect(page.getByText("Demo account")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Choose how to continue" })).toBeVisible();
   await expectResponsiveBoundary(page);
