@@ -11,6 +11,7 @@ const runtimeEnvironmentSchema = z.object({
   SUPABASE_SEND_EMAIL_HOOK_SECRET: z.string().min(1),
   DEMO_SESSION_SIGNING_SECRET: z.string().min(32),
   PAYPAL_CLIENT_SECRET: z.string().min(1),
+  PAYPAL_MERCHANT_ID: z.string().min(1),
   PAYPAL_WEBHOOK_ID: z.string().min(1),
   PAYPAL_ENVIRONMENT: z.enum(["sandbox", "live"]),
   RESEND_API_KEY: z.string().min(1),
@@ -29,6 +30,7 @@ export type RuntimeEnv = Readonly<{
   supabaseSendEmailHookSecret: string;
   demoSessionSigningSecret: string;
   paypalClientSecret: string;
+  paypalMerchantId: string;
   paypalWebhookId: string;
   paypalEnvironment: "sandbox" | "live";
   resendApiKey: string;
@@ -66,6 +68,7 @@ export function parseRuntimeEnv(
     supabaseSendEmailHookSecret: parsed.SUPABASE_SEND_EMAIL_HOOK_SECRET,
     demoSessionSigningSecret: parsed.DEMO_SESSION_SIGNING_SECRET,
     paypalClientSecret: parsed.PAYPAL_CLIENT_SECRET,
+    paypalMerchantId: parsed.PAYPAL_MERCHANT_ID,
     paypalWebhookId: parsed.PAYPAL_WEBHOOK_ID,
     paypalEnvironment: parsed.PAYPAL_ENVIRONMENT,
     resendApiKey: parsed.RESEND_API_KEY,

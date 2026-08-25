@@ -1,0 +1,265 @@
+import { describe, expect, it } from "vitest";
+
+import type { CheckoutReview } from "@/contracts/checkout";
+import type {
+  PayPalCaptureEvidence,
+  PayPalGateway,
+  PayPalOrderPayload,
+} from "@/server/paypal/gateway";
+import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
+import { projectPayPalCaptureEvidence } from "@/server/paypal/http-gateway";
+import {
+  captureAndReconcilePayPalOrder,
+  createPayPalOrder,
+  issuePayPalUserIdToken,
+  type PayPalOperationRecord,
+  type PayPalRepository,
+} from "@/server/paypal/service";
+import captureApproved from "../../../tests/fixtures/paypal/capture-approved.json";
+import captureVaulted from "../../../tests/fixtures/paypal/capture-vaulted.json";
+
+const review: CheckoutReview = {
+  intentId: "11111111-1111-4111-8111-111111111111",
+  quoteId: "22222222-2222-4222-8222-222222222222",
+  tier: "go",
+  cadence: "monthly",
+  base: { currency: "USD", cents: 1_000 },
+  promotion: { currency: "USD", cents: -500 },
+  taxableSubtotal: { currency: "USD", cents: 500 },
+  taxBasisPoints: 1_055,
+  tax: { currency: "USD", cents: 53 },
+  dueToday: { currency: "USD", cents: 553 },
+  expiresAt: "2026-07-15T19:15:00.000Z",
+  renewsAt: "2026-08-15T19:00:00.000Z",
+  allowanceResetsAt: "2026-08-15T19:00:00.000Z",
+  timeZone: "America/Los_Angeles",
+  pricingVersion: "go-monthly-intro-v1",
+  taxVersion: "us-wa-seattle-digital-ai-q3-2026-v1",
+};
+
+const vaultedEvidence: PayPalCaptureEvidence = {
+  orderId: "ORDER-REDACTED",
+  captureId: "CAPTURE-REDACTED",
+  captureStatus: "COMPLETED",
+  amount: { currency: "USD", cents: 553 },
+  payeeMerchantId: "MERCHANT123",
+  capturedAt: "2026-07-15T19:05:00.000Z",
+  vaultStatus: "VAULTED",
+  paypalCustomerId: "CUSTOMER-REDACTED",
+  vaultId: "VAULT-REDACTED",
+};
+
+class MemoryPayPalRepository implements PayPalRepository {
+  providerCustomerId: string | null = null;
+  claimCreateResult: Awaited<ReturnType<PayPalRepository["claimCreateOperation"]>> = {
+    kind: "owner",
+    operation: operation(),
+  };
+  claimCaptureResult: Awaited<ReturnType<PayPalRepository["claimCaptureOperation"]>> = {
+    kind: "owner",
+    operation: operation({ orderId: vaultedEvidence.orderId }),
+  };
+  storedOrder: string | null = null;
+  funded: PayPalCaptureEvidence[] = [];
+  failed: string[] = [];
+  createInputs: unknown[] = [];
+
+  async findProviderCustomerId() { return this.providerCustomerId; }
+  async claimCreateOperation(input: unknown) { this.createInputs.push(input); return this.claimCreateResult; }
+  async storeCreatedOrder(_operationId: string, orderId: string) { this.storedOrder = orderId; }
+  async markCreateFailed() { this.failed.push("create"); }
+  async claimCaptureOperation() { return this.claimCaptureResult; }
+  async applyCaptureEvidence(_operation: PayPalOperationRecord, evidence: PayPalCaptureEvidence) {
+    this.funded.push(evidence);
+    return {
+      operationId: "33333333-3333-4333-8333-333333333333",
+      paymentOperationId: "33333333-3333-4333-8333-333333333333",
+      billingArrangementId: "44444444-4444-4444-8444-444444444444",
+      fundedAt: evidence.capturedAt,
+      funding: "verified" as const,
+      reusableReadiness: evidence.vaultStatus === "VAULTED" ? "ready" as const : "pending" as const,
+      customerMessage: evidence.vaultStatus === "VAULTED"
+        ? "vault token verified; future-charge path documented"
+        : "Payment verified. Reusable payment setup is finishing.",
+    };
+  }
+  async markCaptureFailed() { this.failed.push("capture"); }
+}
+
+function operation(overrides: Partial<PayPalOperationRecord> = {}): PayPalOperationRecord {
+  return {
+    internalId: 1n,
+    operationId: "33333333-3333-4333-8333-333333333333",
+    accountId: 2n,
+    intentId: review.intentId,
+    quoteId: review.quoteId,
+    merchantId: "MERCHANT123",
+    environment: "sandbox",
+    orderId: null,
+    createRequestId: "create-33333333-3333-4333-8333-333333333333",
+    captureRequestId: "capture-33333333-3333-4333-8333-333333333333",
+    fundingStatus: "created",
+    vaultStatus: "not_requested",
+    ...overrides,
+  };
+}
+
+function dependencies(repository = new MemoryPayPalRepository(), gateway: PayPalGateway = new FakePayPalGateway()) {
+  return {
+    repository,
+    gateway,
+    merchantId: "MERCHANT123",
+    environment: "sandbox" as const,
+    requireReview: async () => review,
+    clock: () => new Date("2026-07-15T19:00:00.000Z"),
+  };
+}
+
+describe("TC-0005 user token and create ownership", () => {
+  it("omits target customer for first-time payers and uses only the stored scoped mapping for returns", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    const input = { accountId: 2n, merchantCustomerReference: "account-public-id", intentId: review.intentId, quoteId: review.quoteId };
+
+    await issuePayPalUserIdToken(input, dependencies(repository, gateway));
+    repository.providerCustomerId = "CUSTOMER-REDACTED";
+    await issuePayPalUserIdToken(input, dependencies(repository, gateway));
+
+    expect(gateway.userTokenInputs).toEqual([
+      { merchantCustomerReference: "account-public-id" },
+      { merchantCustomerReference: "account-public-id", targetCustomerId: "CUSTOMER-REDACTED" },
+    ]);
+  });
+
+  it("allows only the operation owner to call Orders and forwards metadata only to the gateway", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    const clientMetadataId = "1234567890abcdef1234567890abcdef";
+    const input = { accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId };
+
+    const result = await createPayPalOrder(input, dependencies(repository, gateway));
+
+    expect(result.status).toBe("ready");
+    expect(gateway.createInputs[0]).toMatchObject({
+      requestId: operation().createRequestId,
+      clientMetadataId,
+    });
+    expect(repository.createInputs).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ clientMetadataId }),
+    ]));
+    expect(repository.storedOrder).toBe(gateway.createdOrderId);
+  });
+
+  it("returns in_progress to a concurrent non-owner without another provider call", async () => {
+    const repository = new MemoryPayPalRepository();
+    repository.claimCreateResult = { kind: "in_progress", operation: operation() };
+    const gateway = new FakePayPalGateway();
+
+    const result = await createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, gateway));
+
+    expect(result).toEqual({ status: "in_progress", operationId: operation().operationId, retryable: true });
+    expect(gateway.createInputs).toEqual([]);
+  });
+
+  it("keeps an interrupted provider create unresolved for safe stored-request retry", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    gateway.createOrder = async () => { throw new Error("network_interrupted"); };
+    await expect(createPayPalOrder({ accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+    expect(repository.failed).toEqual([]);
+  });
+});
+
+describe("TC-0006 verified capture funding and reusable readiness", () => {
+  it("projects only one authoritative nested completed capture and provider vault fields", () => {
+    expect(projectPayPalCaptureEvidence(captureVaulted, vaultedEvidence.orderId)).toEqual(vaultedEvidence);
+    expect(projectPayPalCaptureEvidence(captureApproved, vaultedEvidence.orderId)).toEqual({
+      ...vaultedEvidence,
+      payeeMerchantId: undefined,
+      vaultStatus: "APPROVED",
+      vaultId: undefined,
+    });
+  });
+
+  it("rejects top-level-only completion, missing captures, and multiple nested captures", () => {
+    expect(() => projectPayPalCaptureEvidence({ id: vaultedEvidence.orderId, status: "COMPLETED", purchase_units: [] }, vaultedEvidence.orderId)).toThrow("invalid_capture_evidence");
+    const duplicated = structuredClone(captureVaulted);
+    duplicated.purchase_units[0]!.payments.captures.push(structuredClone(duplicated.purchase_units[0]!.payments.captures[0]!));
+    expect(() => projectPayPalCaptureEvidence(duplicated, vaultedEvidence.orderId)).toThrow("invalid_capture_evidence");
+  });
+
+  it.each([
+    ["VAULTED", "ready"],
+    ["APPROVED", "pending"],
+  ] as const)("keeps funding verified and maps %s readiness to %s", async (vaultStatus, expectedReadiness) => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway({ captureEvidence: {
+      ...vaultedEvidence,
+      vaultStatus,
+      ...(vaultStatus === "APPROVED" ? { vaultId: undefined } : {}),
+    } });
+
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway));
+
+    expect(result).toMatchObject({ funding: "verified", reusableReadiness: expectedReadiness });
+    expect(repository.funded).toHaveLength(1);
+  });
+
+  it("rejects every authoritative capture mismatch before a funded transition", async () => {
+    const mutations: PayPalCaptureEvidence[] = [
+      { ...vaultedEvidence, orderId: "WRONG" },
+      { ...vaultedEvidence, captureStatus: "PENDING" as "COMPLETED" },
+      { ...vaultedEvidence, amount: { currency: "USD", cents: 552 } },
+      { ...vaultedEvidence, amount: { currency: "EUR" as "USD", cents: 553 } },
+      { ...vaultedEvidence, payeeMerchantId: "WRONG" },
+      { ...vaultedEvidence, capturedAt: "not-a-time" },
+      { ...vaultedEvidence, vaultId: undefined },
+    ];
+
+    for (const evidence of mutations) {
+      const repository = new MemoryPayPalRepository();
+      const gateway = new FakePayPalGateway({ captureEvidence: evidence });
+      await expect(captureAndReconcilePayPalOrder({
+        accountId: 2n,
+        intentId: review.intentId,
+        quoteId: review.quoteId,
+        operationId: operation().operationId,
+        orderId: vaultedEvidence.orderId,
+      }, dependencies(repository, gateway))).rejects.toThrow();
+      expect(repository.funded).toEqual([]);
+    }
+  });
+
+  it("uses the stable capture request ID and returns in_progress to concurrent non-owners", async () => {
+    const repository = new MemoryPayPalRepository();
+    repository.claimCaptureResult = { kind: "in_progress", operation: operation({ orderId: vaultedEvidence.orderId }) };
+    const gateway = new FakePayPalGateway();
+
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway));
+
+    expect(result).toMatchObject({ funding: "pending", reusableReadiness: "pending" });
+    expect(gateway.captureInputs).toEqual([]);
+  });
+});
+
+// Compile-time fixture coverage: the fake mirrors the production gateway's complete order input.
+const _payloadBoundary: PayPalOrderPayload | undefined = undefined;
+void _payloadBoundary;

@@ -11,6 +11,7 @@ const validEnvironment = {
   SUPABASE_SEND_EMAIL_HOOK_SECRET: "v1,whsec_example",
   DEMO_SESSION_SIGNING_SECRET: "a-demo-session-secret-with-32-characters",
   PAYPAL_CLIENT_SECRET: "paypal-client-secret",
+  PAYPAL_MERCHANT_ID: "MERCHANT123",
   PAYPAL_WEBHOOK_ID: "paypal-webhook-id",
   PAYPAL_ENVIRONMENT: "sandbox",
   RESEND_API_KEY: "re_example",
@@ -48,6 +49,7 @@ describe("parseRuntimeEnv", () => {
   it("returns a typed configuration for a complete valid environment", () => {
     expect(parseRuntimeEnv(validEnvironment)).toMatchObject({
       paypalEnvironment: "sandbox",
+      paypalMerchantId: "MERCHANT123",
       appUrl: "http://127.0.0.1:3000",
       public: {
         supabaseUrl: "https://example.supabase.co",

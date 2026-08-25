@@ -12,7 +12,7 @@ function expired(review: CheckoutReview) {
   return Date.parse(review.expiresAt) <= Date.now();
 }
 
-export function IdentityPanel({ intentId }: { intentId: string }) {
+export function IdentityPanel({ intentId, nonce }: { intentId: string; nonce: string }) {
   const [stage, setStage] = useState<Stage>("loading");
   const [identityRoute, setIdentityRoute] = useState<IdentityRoute>("persistent");
   const [email, setEmail] = useState("");
@@ -131,7 +131,7 @@ export function IdentityPanel({ intentId }: { intentId: string }) {
   if (stage === "loading") {
     content = <section className="evidence-card identity" aria-live="polite"><p className="step">Restoring checkout</p><h1>Checking your account…</h1></section>;
   } else if ((stage === "review" || stage === "stale") && review) {
-    content = <QuoteReview review={review} stale={stage === "stale"} busy={busy} notice={notice} onReplace={replaceReview} />;
+    content = <QuoteReview review={review} stale={stage === "stale"} busy={busy} notice={notice} onReplace={replaceReview} nonce={nonce} />;
   } else if (stage === "otp") {
     content = <section className="evidence-card identity"><p className="step">Step 2 of 3 · Verify</p><h1>{identityRoute === "temporary" ? "Verify your temporary demo identity" : "Check your email"}</h1><p>{identityRoute === "temporary" ? <>This browser can securely reveal the short-lived code sent to <strong>{temporaryAlias}</strong>.</> : <>Enter the code sent to <strong>{email}</strong>. Your checkout selection is waiting.</>}</p>{identityRoute === "temporary" && <button className="secondary" disabled={busy} onClick={revealTemporaryOtp}>Reveal code in this browser</button>}<label>Six-digit code<input inputMode="numeric" maxLength={6} value={token} onChange={(event) => setToken(event.target.value)} /></label>{notice && <p className="warning" role="alert">{notice}</p>}<button disabled={busy || token.length !== 6} onClick={verify}>{busy ? "Verifying…" : "Verify and review"}</button></section>;
   } else {

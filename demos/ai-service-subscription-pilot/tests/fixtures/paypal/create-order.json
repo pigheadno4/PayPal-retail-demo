@@ -1,0 +1,8 @@
+{
+  "id": "ORDER-REDACTED",
+  "status": "PAYER_ACTION_REQUIRED",
+  "payment_source": { "paypal": {} },
+  "links": [
+    { "href": "https://www.sandbox.paypal.com/checkoutnow?token=redacted", "rel": "payer-action", "method": "GET" }
+  ]
+}

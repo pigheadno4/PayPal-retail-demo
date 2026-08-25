@@ -10,7 +10,7 @@ vi.mock("next/server", () => ({
   NextResponse: { next: nextResponse },
 }));
 
-import { refreshSupabaseSession } from "./proxy";
+import { buildCheckoutCsp, refreshSupabaseSession } from "./proxy";
 
 describe("refreshSupabaseSession", () => {
   beforeEach(() => {
@@ -37,6 +37,20 @@ describe("refreshSupabaseSession", () => {
         },
       },
     }));
+  });
+
+  it("binds one checkout nonce to the request and exact PayPal FraudNet CSP", async () => {
+    const request = { nextUrl: { pathname: "/checkout/intent" }, headers: new Headers(), cookies: { getAll: vi.fn(() => []), set: vi.fn() } };
+    const response = await refreshSupabaseSession(request as never);
+    const forwarded = nextResponse.mock.calls.at(-1)?.[0].request.headers as Headers;
+    const nonce = forwarded.get("x-nonce");
+    expect(nonce).toBeTruthy();
+    const csp = response.headers.get("content-security-policy")!;
+    expect(csp).toBe(buildCheckoutCsp(nonce!));
+    expect(csp).toContain("script-src 'self' 'nonce-");
+    expect(csp).toContain("https://c.paypal.com");
+    expect(csp).toContain("https://b.stats.paypal.com");
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
   });
 
   it("preserves Supabase refresh cache headers and secure cookies in production", async () => {

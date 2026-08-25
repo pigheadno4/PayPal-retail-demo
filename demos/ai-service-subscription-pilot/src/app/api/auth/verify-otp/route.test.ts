@@ -42,6 +42,7 @@ describe("POST /api/auth/verify-otp", () => {
     vi.stubEnv("SUPABASE_SEND_EMAIL_HOOK_SECRET", "v1,whsec_example");
     vi.stubEnv("DEMO_SESSION_SIGNING_SECRET", "a-demo-session-secret-with-32-characters");
     vi.stubEnv("PAYPAL_CLIENT_SECRET", "paypal-client-secret");
+    vi.stubEnv("PAYPAL_MERCHANT_ID", "MERCHANT123");
     vi.stubEnv("PAYPAL_WEBHOOK_ID", "paypal-webhook-id");
     vi.stubEnv("PAYPAL_ENVIRONMENT", "sandbox");
     vi.stubEnv("RESEND_API_KEY", "re_example");

@@ -19,6 +19,7 @@ const runtimeEnvironment = {
   SUPABASE_SEND_EMAIL_HOOK_SECRET: "v1,whsec_example",
   DEMO_SESSION_SIGNING_SECRET: "a-demo-session-secret-with-32-characters",
   PAYPAL_CLIENT_SECRET: "paypal-client-secret",
+  PAYPAL_MERCHANT_ID: "MERCHANT123",
   PAYPAL_WEBHOOK_ID: "paypal-webhook-id",
   PAYPAL_ENVIRONMENT: "sandbox",
   RESEND_API_KEY: "re_example",

@@ -1,0 +1,12 @@
+{
+  "id": "WH-REDACTED",
+  "event_version": "1.0",
+  "create_time": "2026-07-15T19:06:00.000Z",
+  "resource_type": "payment_token",
+  "resource_version": "3.0",
+  "event_type": "VAULT.PAYMENT-TOKEN.CREATED",
+  "resource": {
+    "id": "VAULT-REDACTED",
+    "customer": { "id": "CUSTOMER-REDACTED" }
+  }
+}
