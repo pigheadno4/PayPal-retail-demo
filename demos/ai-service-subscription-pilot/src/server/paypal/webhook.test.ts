@@ -47,20 +47,21 @@ describe("TC-0007 delayed vault reconciliation", () => {
     const result = await reconcilePayPalWebhook(JSON.stringify(event), { "paypal-transmission-id": "redacted" }, dependencies(repository));
     expect(result).toEqual({ accepted: true, disposition: "matched" });
     expect(repository.promotions).toBe(1);
-    expect(repository.dispositions).toEqual(["matched"]);
+    expect(repository.dispositions).toEqual([]);
   });
 
   it.each([
-    ["invalid signature", (repo: MemoryWebhookRepository) => repo, false, "rejected"],
-    ["duplicate event", (repo: MemoryWebhookRepository) => { repo.existing = true; return repo; }, true, "duplicate"],
-    ["unmatched customer", (repo: MemoryWebhookRepository) => { repo.candidates = []; return repo; }, true, "unmatched"],
-    ["ambiguous customer", (repo: MemoryWebhookRepository) => { repo.candidates = [{ operationInternalId: 1n, operationId: "a" }, { operationInternalId: 2n, operationId: "b" }]; return repo; }, true, "ambiguous"],
-    ["owned vault", (repo: MemoryWebhookRepository) => { repo.vaultOwned = true; return repo; }, true, "rejected"],
-  ] as const)("fails closed for %s", async (_name, configure, signatureValid, disposition) => {
+    ["invalid signature", (repo: MemoryWebhookRepository) => repo, false, "rejected", ["rejected"]],
+    ["duplicate event", (repo: MemoryWebhookRepository) => { repo.existing = true; return repo; }, true, "duplicate", []],
+    ["unmatched customer", (repo: MemoryWebhookRepository) => { repo.candidates = []; return repo; }, true, "unmatched", ["unmatched"]],
+    ["ambiguous customer", (repo: MemoryWebhookRepository) => { repo.candidates = [{ operationInternalId: 1n, operationId: "a" }, { operationInternalId: 2n, operationId: "b" }]; return repo; }, true, "ambiguous", ["ambiguous"]],
+    ["owned vault", (repo: MemoryWebhookRepository) => { repo.vaultOwned = true; return repo; }, true, "rejected", ["rejected"]],
+  ] as const)("fails closed for %s", async (_name, configure, signatureValid, disposition, recorded) => {
     const repository = configure(new MemoryWebhookRepository());
     const result = await reconcilePayPalWebhook(JSON.stringify(event), {}, dependencies(repository, signatureValid));
     expect(result.disposition).toBe(disposition);
     expect(repository.promotions).toBe(0);
+    expect(repository.dispositions).toEqual(recorded);
   });
 
   it.each([
@@ -72,6 +73,7 @@ describe("TC-0007 delayed vault reconciliation", () => {
     const result = await reconcilePayPalWebhook(JSON.stringify(payload), {}, dependencies(repository));
     expect(result.disposition).toBe("rejected");
     expect(repository.promotions).toBe(0);
+    expect(repository.dispositions).toEqual(["rejected"]);
   });
 
   it("rejects invalid JSON only after signature verification and records no transition", async () => {

@@ -3,13 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export function buildCheckoutCsp(nonce: string) {
   const developmentEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
+  const styleProtection = process.env.NODE_ENV === "development" ? "'unsafe-inline'" : `'nonce-${nonce}'`;
+  const paypalSdkOrigins = "https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com";
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${developmentEval} https://www.paypal.com https://www.sandbox.paypal.com https://c.paypal.com`,
-    "connect-src 'self' https://www.paypal.com https://www.sandbox.paypal.com",
-    "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com https://c.paypal.com",
-    "img-src 'self' data: https://www.paypalobjects.com https://c.paypal.com https://b.stats.paypal.com",
-    "style-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}'${developmentEval} ${paypalSdkOrigins} https://c.paypal.com`,
+    `connect-src 'self' ${paypalSdkOrigins}`,
+    `child-src 'self' ${paypalSdkOrigins}`,
+    `frame-src 'self' ${paypalSdkOrigins} https://c.paypal.com`,
+    `img-src 'self' data: ${paypalSdkOrigins} https://c.paypal.com https://b.stats.paypal.com`,
+    `style-src 'self' ${styleProtection} ${paypalSdkOrigins}`,
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",

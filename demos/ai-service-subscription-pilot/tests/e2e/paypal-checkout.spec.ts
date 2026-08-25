@@ -69,6 +69,32 @@ test("TC-0006 capture failure returns to retryable review and grants nothing", a
   await page.screenshot({ path: resolve(evidenceDirectory, `${testInfo.project.name}-capture-failure.png`), fullPage: true });
 });
 
+test("TC-0006 in-progress capture stays pending and can return to a safe status retry", async ({ page }, testInfo) => {
+  await stubProvider(page, "ready");
+  await page.unroute("**/api/paypal/orders/*/capture");
+  await page.route("**/api/paypal/orders/*/capture", (route) => route.fulfill({
+    status: 202,
+    contentType: "application/json",
+    body: JSON.stringify({
+      operationId: "33333333-3333-4333-8333-333333333333",
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    }),
+  }));
+
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await page.getByRole("button", { name: "Pay with PayPal" }).click();
+
+  await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+  await expect(page.locator(".status-row").filter({ hasText: "Funding" })).toContainText("Pending");
+  await expect(page.getByRole("heading", { name: "Preparing your Go workspace" })).toHaveCount(0);
+  await page.screenshot({ path: resolve(evidenceDirectory, `${testInfo.project.name}-funding-pending.png`), fullPage: true });
+  await page.getByRole("button", { name: "Check payment status" }).click();
+  await expect(page.getByRole("heading", { name: "Review Go Monthly" })).toBeVisible();
+  await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);
+});
+
 test.skip("@sandbox @hosted real PayPal SDK, FraudNet, capture, and webhook evidence", async () => {
   // Requires an orchestrator-supplied hosted URL and configured direct sandbox merchant.
 });

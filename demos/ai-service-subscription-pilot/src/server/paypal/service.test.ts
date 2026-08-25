@@ -6,6 +6,7 @@ import type {
   PayPalGateway,
   PayPalOrderPayload,
 } from "@/server/paypal/gateway";
+import { PayPalDefinitiveError } from "@/server/paypal/gateway";
 import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
 import { projectPayPalCaptureEvidence } from "@/server/paypal/http-gateway";
 import {
@@ -167,6 +168,31 @@ describe("TC-0005 user token and create ownership", () => {
     expect(gateway.createInputs).toEqual([]);
   });
 
+  it("restores the owning operation identifier when a new browser attempt finds its stored order", async () => {
+    const repository = new MemoryPayPalRepository();
+    repository.claimCreateResult = {
+      kind: "ready",
+      operation: operation(),
+      orderId: vaultedEvidence.orderId,
+    };
+    const gateway = new FakePayPalGateway();
+
+    const result = await createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: "55555555-5555-4555-8555-555555555555",
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, gateway));
+
+    expect(result).toEqual({
+      status: "ready",
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    });
+    expect(gateway.createInputs).toEqual([]);
+  });
+
   it("keeps an interrupted provider create unresolved for safe stored-request retry", async () => {
     const repository = new MemoryPayPalRepository();
     const gateway = new FakePayPalGateway();
@@ -257,6 +283,38 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
 
     expect(result).toMatchObject({ funding: "pending", reusableReadiness: "pending" });
     expect(gateway.captureInputs).toEqual([]);
+  });
+
+  it("marks a definitive provider capture rejection failed", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    gateway.captureOrder = async () => { throw new PayPalDefinitiveError(); };
+
+    await expect(captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+
+    expect(repository.failed).toEqual(["capture"]);
+  });
+
+  it("keeps an uncertain capture transport failure unresolved", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    gateway.captureOrder = async () => { throw new Error("network_interrupted"); };
+
+    await expect(captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+
+    expect(repository.failed).toEqual([]);
   });
 });
 

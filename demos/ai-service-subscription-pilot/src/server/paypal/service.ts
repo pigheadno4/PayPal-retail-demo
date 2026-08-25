@@ -140,10 +140,10 @@ export async function createPayPalOrder(
     environment: dependencies.environment,
   });
   if (claim.kind === "ready") {
-    return Object.freeze({ status: "ready" as const, operationId: input.operationId, orderId: claim.orderId });
+    return Object.freeze({ status: "ready" as const, operationId: claim.operation.operationId, orderId: claim.orderId });
   }
   if (claim.kind === "in_progress") {
-    return Object.freeze({ status: "in_progress" as const, operationId: input.operationId, retryable: true as const });
+    return Object.freeze({ status: "in_progress" as const, operationId: claim.operation.operationId, retryable: true as const });
   }
   if (claim.kind === "failed") throw new Error("payment_unavailable");
 
@@ -219,7 +219,10 @@ export async function captureAndReconcilePayPalOrder(
     assertCaptureMatches(evidence, claim.operation, review);
     return await dependencies.repository.applyCaptureEvidence(claim.operation, evidence);
   } catch (error) {
-    if (error instanceof Error && (error.message === "capture_mismatch" || error.message === "invalid_capture_evidence")) {
+    if (
+      error instanceof PayPalDefinitiveError
+      || (error instanceof Error && (error.message === "capture_mismatch" || error.message === "invalid_capture_evidence"))
+    ) {
       await dependencies.repository.markCaptureFailed(input.operationId);
     }
     throw new Error("payment_unavailable");
@@ -260,21 +263,6 @@ function mapOperation(row: OperationRow): PayPalOperationRecord {
 
 async function database() {
   return (await import("@/server/db/client")).sql;
-}
-
-async function readOperation(
-  sql: Awaited<ReturnType<typeof database>>,
-  operationId: string,
-): Promise<PayPalOperationRecord | null> {
-  const rows = await sql<OperationRow[]>`
-    select o.*, i.public_id as intent_public_id, q.public_id as quote_public_id
-    from app_private.payment_operations o
-    join app_private.checkout_intents i on i.id = o.checkout_intent_id
-    join app_private.quotes q on q.id = o.quote_id
-    where o.public_id = ${operationId}
-    limit 1
-  `;
-  return rows[0] ? mapOperation(rows[0]) : null;
 }
 
 function sameOperation(
@@ -320,27 +308,62 @@ export class PostgresPayPalRepository implements PayPalRepository {
     environment: PayPalEnvironment;
   }): Promise<CreateClaim> {
     const sql = await database();
-    const createRequestId = randomUUID();
-    const captureRequestId = randomUUID();
-    const inserted = await sql<OperationRow[]>`
-      insert into app_private.payment_operations
-        (public_id, checkout_intent_id, quote_id, account_id, merchant_id, environment,
-         create_request_id, capture_request_id, funding_status, vault_status)
-      select ${input.operationId}, i.id, q.id, ${input.accountId.toString()}, ${input.merchantId}, ${input.environment},
-             ${createRequestId}, ${captureRequestId}, 'created', 'not_requested'
-      from app_private.checkout_intents i
-      join app_private.quotes q on q.checkout_intent_id = i.id
-      where i.public_id = ${input.intentId} and i.account_id = ${input.accountId.toString()}
-        and q.public_id = ${input.quoteId}
-      on conflict (public_id) do nothing
-      returning *, ${input.intentId}::uuid as intent_public_id, ${input.quoteId}::uuid as quote_public_id
-    `;
-    if (inserted[0]) return { kind: "owner", operation: mapOperation(inserted[0]) };
-    const operation = await readOperation(sql, input.operationId);
-    if (!operation || !sameOperation(operation, input)) throw new Error("payment_not_found");
-    if (operation.orderId) return { kind: "ready", operation, orderId: operation.orderId };
-    if (operation.fundingStatus === "failed" || operation.fundingStatus === "canceled") return { kind: "failed", operation };
-    return { kind: "in_progress", operation };
+    return sql.begin(async (tx) => {
+      const purchases = await tx<{ intent_id: string; quote_id: string; state: string }[]>`
+        select i.id as intent_id, q.id as quote_id, i.state
+        from app_private.checkout_intents i
+        join app_private.quotes q on q.checkout_intent_id = i.id
+        where i.public_id = ${input.intentId} and i.account_id = ${input.accountId.toString()}
+          and q.public_id = ${input.quoteId}
+        for update of i, q
+      `;
+      const purchase = purchases[0];
+      if (!purchase) throw new Error("payment_not_found");
+      const successors = await tx<{ exists: boolean }[]>`
+        select exists(select 1 from app_private.quotes where supersedes_quote_id = ${purchase.quote_id}) as exists
+      `;
+      if (successors[0]?.exists) throw new Error("payment_not_found");
+
+      const rows = await tx<OperationRow[]>`
+        select o.*, ${input.intentId}::uuid as intent_public_id, ${input.quoteId}::uuid as quote_public_id
+        from app_private.payment_operations o
+        where o.checkout_intent_id = ${purchase.intent_id} and o.quote_id = ${purchase.quote_id}
+        order by o.id
+        for update of o
+      `;
+      const operations = rows.map(mapOperation);
+      const requested = operations.find((operation) => operation.operationId === input.operationId);
+      if (requested && !sameOperation(requested, input)) throw new Error("payment_not_found");
+      const active = operations.filter((operation) => ["created", "approved", "completed"].includes(operation.fundingStatus));
+      if (active.length > 1) throw new Error("payment_state_conflict");
+      const owning = active[0];
+      if (owning && !sameOperation(owning, input)) throw new Error("payment_state_conflict");
+      if (purchase.state === "funded" || owning?.fundingStatus === "completed") {
+        if (!owning) throw new Error("payment_state_conflict");
+        return { kind: "failed" as const, operation: owning };
+      }
+      if (owning) {
+        if (owning.orderId) return { kind: "ready" as const, operation: owning, orderId: owning.orderId };
+        return { kind: "in_progress" as const, operation: owning };
+      }
+      if (requested) return { kind: "failed" as const, operation: requested };
+      if (purchase.state !== "identity_verified" && purchase.state !== "payment_pending") throw new Error("payment_not_found");
+
+      const inserted = await tx<OperationRow[]>`
+        insert into app_private.payment_operations
+          (public_id, checkout_intent_id, quote_id, account_id, merchant_id, environment,
+           create_request_id, capture_request_id, funding_status, vault_status)
+        values
+          (${input.operationId}, ${purchase.intent_id}, ${purchase.quote_id}, ${input.accountId.toString()},
+           ${input.merchantId}, ${input.environment}, ${randomUUID()}, ${randomUUID()}, 'created', 'not_requested')
+        returning *, ${input.intentId}::uuid as intent_public_id, ${input.quoteId}::uuid as quote_public_id
+      `;
+      await tx`
+        update app_private.checkout_intents set state = 'payment_pending', updated_at = now()
+        where id = ${purchase.intent_id} and state = 'identity_verified'
+      `;
+      return { kind: "owner" as const, operation: mapOperation(inserted[0]!) };
+    });
   }
 
   async storeCreatedOrder(operationId: string, orderId: string) {
