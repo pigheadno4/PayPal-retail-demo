@@ -306,14 +306,20 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
     const gateway = new FakePayPalGateway();
     gateway.captureOrder = async () => { throw new Error("network_interrupted"); };
 
-    await expect(captureAndReconcilePayPalOrder({
+    const result = await captureAndReconcilePayPalOrder({
       accountId: 2n,
       intentId: review.intentId,
       quoteId: review.quoteId,
       operationId: operation().operationId,
       orderId: vaultedEvidence.orderId,
-    }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+    }, dependencies(repository, gateway));
 
+    expect(result).toEqual({
+      operationId: operation().operationId,
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    });
     expect(repository.failed).toEqual([]);
   });
 });

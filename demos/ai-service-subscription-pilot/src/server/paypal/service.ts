@@ -224,8 +224,14 @@ export async function captureAndReconcilePayPalOrder(
       || (error instanceof Error && (error.message === "capture_mismatch" || error.message === "invalid_capture_evidence"))
     ) {
       await dependencies.repository.markCaptureFailed(input.operationId);
+      throw new Error("payment_unavailable");
     }
-    throw new Error("payment_unavailable");
+    return Object.freeze({
+      operationId: input.operationId,
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    });
   }
 }
 
