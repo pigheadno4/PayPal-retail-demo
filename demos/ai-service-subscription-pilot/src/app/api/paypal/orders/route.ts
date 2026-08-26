@@ -21,7 +21,10 @@ export async function POST(request: Request) {
       gateway: new HttpPayPalGateway({ clientId: env.public.paypalClientId, clientSecret: env.paypalClientSecret, environment: env.paypalEnvironment }),
       requireReview: ({ accountId: id, intentId, quoteId, now }) => requireCurrentQuoteForPayment({ accountId: id, intentId, quoteId, now, repository: new PostgresQuoteRepository() }),
     });
-    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(result, {
+      status: result.status === "in_progress" ? 202 : 200,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch {
     return NextResponse.json({ error: "payment_not_available" }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }

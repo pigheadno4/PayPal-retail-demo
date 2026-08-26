@@ -196,9 +196,32 @@ describe("TC-0005 user token and create ownership", () => {
   it("keeps an interrupted provider create unresolved for safe stored-request retry", async () => {
     const repository = new MemoryPayPalRepository();
     const gateway = new FakePayPalGateway();
-    gateway.createOrder = async () => { throw new Error("network_interrupted"); };
-    await expect(createPayPalOrder({ accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+    let providerCalls = 0;
+    gateway.createOrder = async () => {
+      providerCalls += 1;
+      throw new Error("network_interrupted");
+    };
+    const result = await createPayPalOrder({ accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" }, dependencies(repository, gateway));
+
+    expect(result).toEqual({ status: "in_progress", operationId: operation().operationId, retryable: true });
     expect(repository.failed).toEqual([]);
+    expect(providerCalls).toBe(1);
+  });
+
+  it("marks only a definitive provider create rejection failed", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    gateway.createOrder = async () => { throw new PayPalDefinitiveError(); };
+
+    await expect(createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, gateway))).rejects.toThrow("payment_unavailable");
+
+    expect(repository.failed).toEqual(["create"]);
   });
 });
 
@@ -257,15 +280,35 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
     for (const evidence of mutations) {
       const repository = new MemoryPayPalRepository();
       const gateway = new FakePayPalGateway({ captureEvidence: evidence });
-      await expect(captureAndReconcilePayPalOrder({
+      const result = await captureAndReconcilePayPalOrder({
         accountId: 2n,
         intentId: review.intentId,
         quoteId: review.quoteId,
         operationId: operation().operationId,
         orderId: vaultedEvidence.orderId,
-      }, dependencies(repository, gateway))).rejects.toThrow();
+      }, dependencies(repository, gateway));
+      expect(result).toMatchObject({ funding: "pending", reusableReadiness: "pending" });
       expect(repository.funded).toEqual([]);
+      expect(repository.failed).toEqual([]);
     }
+  });
+
+  it("keeps invalid projected capture evidence unresolved without a normalized mutation", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    gateway.captureOrder = async () => { throw new Error("invalid_capture_evidence"); };
+
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway));
+
+    expect(result).toMatchObject({ funding: "pending", reusableReadiness: "pending" });
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual([]);
   });
 
   it("uses the stable capture request ID and returns in_progress to concurrent non-owners", async () => {

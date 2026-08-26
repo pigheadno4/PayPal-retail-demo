@@ -156,8 +156,11 @@ export async function createPayPalOrder(
     await dependencies.repository.storeCreatedOrder(input.operationId, created.orderId);
     return Object.freeze({ status: "ready" as const, operationId: input.operationId, orderId: created.orderId });
   } catch (error) {
-    if (error instanceof PayPalDefinitiveError) await dependencies.repository.markCreateFailed(input.operationId);
-    throw new Error("payment_unavailable");
+    if (error instanceof PayPalDefinitiveError) {
+      await dependencies.repository.markCreateFailed(input.operationId);
+      throw new Error("payment_unavailable");
+    }
+    return Object.freeze({ status: "in_progress" as const, operationId: claim.operation.operationId, retryable: true as const });
   }
 }
 
@@ -219,10 +222,7 @@ export async function captureAndReconcilePayPalOrder(
     assertCaptureMatches(evidence, claim.operation, review);
     return await dependencies.repository.applyCaptureEvidence(claim.operation, evidence);
   } catch (error) {
-    if (
-      error instanceof PayPalDefinitiveError
-      || (error instanceof Error && (error.message === "capture_mismatch" || error.message === "invalid_capture_evidence"))
-    ) {
+    if (error instanceof PayPalDefinitiveError) {
       await dependencies.repository.markCaptureFailed(input.operationId);
       throw new Error("payment_unavailable");
     }

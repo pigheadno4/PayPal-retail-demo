@@ -5,7 +5,7 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 
-import type { PayPalCheckoutStatus, PayPalIdTokenResponse } from "@/contracts/paypal";
+import type { CreatePayPalOrderResponse, PayPalCheckoutStatus, PayPalIdTokenResponse } from "@/contracts/paypal";
 
 type Props = Readonly<{
   intentId: string;
@@ -38,12 +38,31 @@ export function classifyCaptureStatus(status: PayPalCheckoutStatus) {
   return "failed" as const;
 }
 
+export function classifyCreateOrderResponse(result: Partial<CreatePayPalOrderResponse>) {
+  if (result.status === "ready" && result.operationId && result.orderId) {
+    return Object.freeze({ kind: "ready" as const, operationId: result.operationId, orderId: result.orderId });
+  }
+  if (result.status === "in_progress" && result.operationId) {
+    return Object.freeze({
+      kind: "pending" as const,
+      status: Object.freeze({
+        operationId: result.operationId,
+        funding: "pending" as const,
+        reusableReadiness: "pending" as const,
+        customerMessage: "Payment verification is still in progress.",
+      }),
+    });
+  }
+  return Object.freeze({ kind: "failed" as const });
+}
+
 export function PayPalWalletButton(props: Props) {
   const [bootstrap, setBootstrap] = useState<PayPalIdTokenResponse | null>(null);
   const [fraudNetReady, setFraudNetReady] = useState(false);
   const [error, setError] = useState("");
   const [attemptId] = useState(newAttemptId);
   const operationId = useRef(crypto.randomUUID());
+  const createPending = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -64,11 +83,19 @@ export function PayPalWalletButton(props: Props) {
     {bootstrap && fraudNetReady && <PayPalScriptProvider options={buildPayPalScriptOptions({ clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!, idToken: bootstrap.idToken, nonce: props.nonce })}>
       <PayPalButtons fundingSource="paypal" style={{ layout: "vertical", shape: "rect", label: "paypal" }} createOrder={async () => {
         setError("");
+        createPending.current = false;
         const response = await fetch("/api/paypal/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intentId: props.intentId, quoteId: props.quoteId, operationId: operationId.current, clientMetadataId: attemptId }) });
-        const result = await response.json() as { status?: string; operationId?: string; orderId?: string };
-        if (!response.ok || result.status !== "ready" || !result.operationId || !result.orderId) throw new Error("payment_not_available");
-        operationId.current = result.operationId;
-        return result.orderId;
+        const result = await response.json() as Partial<CreatePayPalOrderResponse>;
+        if (!response.ok) throw new Error("payment_not_available");
+        const outcome = classifyCreateOrderResponse(result);
+        if (outcome.kind === "failed") throw new Error("payment_not_available");
+        operationId.current = outcome.kind === "ready" ? outcome.operationId : outcome.status.operationId;
+        if (outcome.kind === "pending") {
+          createPending.current = true;
+          props.onPending(outcome.status);
+          throw new Error("payment_in_progress");
+        }
+        return outcome.orderId;
       }} onApprove={async ({ orderID }) => {
         props.onVerifying();
         const response = await fetch(`/api/paypal/orders/${encodeURIComponent(orderID)}/capture`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intentId: props.intentId, quoteId: props.quoteId, operationId: operationId.current }) });
@@ -78,7 +105,13 @@ export function PayPalWalletButton(props: Props) {
         if (outcome === "complete") props.onComplete(status);
         else if (outcome === "pending") props.onPending(status);
         else props.onFailure();
-      }} onCancel={props.onCancel} onError={() => props.onFailure()} />
+      }} onCancel={props.onCancel} onError={() => {
+        if (createPending.current) {
+          createPending.current = false;
+          return;
+        }
+        props.onFailure();
+      }} />
     </PayPalScriptProvider>}
     {!fraudNetReady && !error && <p className="muted" aria-live="polite">Preparing secure PayPal checkout…</p>}
     {error && <p className="warning" role="alert">{error}</p>}
