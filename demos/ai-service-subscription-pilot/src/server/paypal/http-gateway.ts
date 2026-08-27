@@ -14,6 +14,29 @@ function throwForProviderResponse(response: Response): never {
   throw new Error("paypal_unavailable");
 }
 
+type MutationEndpoint = "create_order" | "capture_order";
+
+const definitiveMutationIssues: Readonly<Record<MutationEndpoint, ReadonlySet<string>>> = Object.freeze({
+  create_order: new Set(["INSTRUMENT_DECLINED"]),
+  capture_order: new Set(["INSTRUMENT_DECLINED"]),
+});
+
+async function throwForMutationResponse(response: Response, endpoint: MutationEndpoint): Promise<never> {
+  let body: JsonRecord | null = null;
+  try {
+    body = record(await response.json());
+  } catch {
+    throw new Error("paypal_unavailable");
+  }
+  const issues = array(body?.details)
+    .map((detail) => nonEmptyString(record(detail)?.issue))
+    .filter((issue): issue is string => issue !== undefined);
+  if (issues.length > 0 && issues.every((issue) => definitiveMutationIssues[endpoint].has(issue))) {
+    throw new PayPalDefinitiveError();
+  }
+  throw new Error("paypal_unavailable");
+}
+
 type JsonRecord = Record<string, unknown>;
 
 function record(value: unknown): JsonRecord | null {
@@ -139,7 +162,7 @@ export class HttpPayPalGateway implements PayPalGateway {
       body: JSON.stringify(input.payload),
       cache: "no-store",
     });
-    if (!response.ok) throwForProviderResponse(response);
+    if (!response.ok) await throwForMutationResponse(response, "create_order");
     const orderId = nonEmptyString(record(await response.json())?.id);
     if (!orderId) throw new Error("paypal_unavailable");
     return { orderId };
@@ -158,7 +181,7 @@ export class HttpPayPalGateway implements PayPalGateway {
       body: "{}",
       cache: "no-store",
     });
-    if (!response.ok) throwForProviderResponse(response);
+    if (!response.ok) await throwForMutationResponse(response, "capture_order");
     return projectPayPalCaptureEvidence(await response.json(), input.orderId);
   }
 

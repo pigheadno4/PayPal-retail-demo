@@ -8,7 +8,7 @@ import type {
 } from "@/server/paypal/gateway";
 import { PayPalDefinitiveError } from "@/server/paypal/gateway";
 import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
-import { projectPayPalCaptureEvidence } from "@/server/paypal/http-gateway";
+import { HttpPayPalGateway, projectPayPalCaptureEvidence } from "@/server/paypal/http-gateway";
 import {
   captureAndReconcilePayPalOrder,
   createPayPalOrder,
@@ -113,6 +113,35 @@ function dependencies(repository = new MemoryPayPalRepository(), gateway: PayPal
     environment: "sandbox" as const,
     requireReview: async () => review,
     clock: () => new Date("2026-07-15T19:00:00.000Z"),
+  };
+}
+
+function mutationGateway(errorStatus: number, errorBody: unknown) {
+  const responses = [
+    new Response(JSON.stringify({ access_token: "ACCESS-TOKEN-REDACTED" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+    new Response(JSON.stringify(errorBody), {
+      status: errorStatus,
+      headers: { "Content-Type": "application/json" },
+    }),
+  ];
+  return new HttpPayPalGateway({
+    clientId: "client-id",
+    clientSecret: "client-secret",
+    environment: "sandbox",
+    fetch: async () => responses.shift() ?? (() => { throw new Error("unexpected_request"); })(),
+  });
+}
+
+function providerError(name: string, issue: string) {
+  return {
+    name,
+    details: [{ issue, description: "Provider description is not exposed to the customer." }],
+    message: "Provider message is not exposed to the customer.",
+    debug_id: "DEBUG-ID-REDACTED",
+    links: [{ href: "https://developer.paypal.com/api/orders/v2/error-messages/", rel: "information_link", method: "GET" }],
   };
 }
 
@@ -223,6 +252,39 @@ describe("TC-0005 user token and create ownership", () => {
 
     expect(repository.failed).toEqual(["create"]);
   });
+
+  it.each([
+    [409, "RESOURCE_CONFLICT", "PREVIOUS_REQUEST_IN_PROGRESS"],
+    [422, "UNPROCESSABLE_ENTITY", "UNRECOGNIZED_CREATE_ISSUE"],
+  ])("keeps unclear create mutation %i/%s/%s unresolved", async (status, name, issue) => {
+    const repository = new MemoryPayPalRepository();
+    const result = await createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, mutationGateway(status, providerError(name, issue))));
+
+    expect(result).toEqual({ status: "in_progress", operationId: operation().operationId, retryable: true });
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual([]);
+  });
+
+  it("terminalizes only an unambiguous provider create rejection", async () => {
+    const repository = new MemoryPayPalRepository();
+
+    await expect(createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, mutationGateway(422, providerError("UNPROCESSABLE_ENTITY", "INSTRUMENT_DECLINED"))))).rejects.toThrow("payment_unavailable");
+
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual(["create"]);
+  });
 });
 
 describe("TC-0006 verified capture funding and reusable readiness", () => {
@@ -241,6 +303,9 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
     const duplicated = structuredClone(captureVaulted);
     duplicated.purchase_units[0]!.payments.captures.push(structuredClone(duplicated.purchase_units[0]!.payments.captures[0]!));
     expect(() => projectPayPalCaptureEvidence(duplicated, vaultedEvidence.orderId)).toThrow("invalid_capture_evidence");
+    const missingCaptureId = structuredClone(captureVaulted);
+    Reflect.deleteProperty(missingCaptureId.purchase_units[0]!.payments.captures[0]!, "id");
+    expect(() => projectPayPalCaptureEvidence(missingCaptureId, vaultedEvidence.orderId)).toThrow("invalid_capture_evidence");
   });
 
   it.each([
@@ -266,31 +331,58 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
     expect(repository.funded).toHaveLength(1);
   });
 
-  it("rejects every authoritative capture mismatch before a funded transition", async () => {
-    const mutations: PayPalCaptureEvidence[] = [
-      { ...vaultedEvidence, orderId: "WRONG" },
-      { ...vaultedEvidence, captureStatus: "PENDING" as "COMPLETED" },
-      { ...vaultedEvidence, amount: { currency: "USD", cents: 552 } },
-      { ...vaultedEvidence, amount: { currency: "EUR" as "USD", cents: 553 } },
-      { ...vaultedEvidence, payeeMerchantId: "WRONG" },
-      { ...vaultedEvidence, capturedAt: "not-a-time" },
-      { ...vaultedEvidence, vaultId: undefined },
-    ];
+  it.each([
+    ["order ID", { ...vaultedEvidence, orderId: "WRONG" }],
+    ["capture status", { ...vaultedEvidence, captureStatus: "PENDING" as "COMPLETED" }],
+    ["amount", { ...vaultedEvidence, amount: { currency: "USD", cents: 552 } }],
+    ["currency", { ...vaultedEvidence, amount: { currency: "EUR" as "USD", cents: 553 } }],
+    ["payee", { ...vaultedEvidence, payeeMerchantId: "WRONG" }],
+    ["capture time", { ...vaultedEvidence, capturedAt: "not-a-time" }],
+    ["VAULTED vault ID", { ...vaultedEvidence, vaultId: undefined }],
+    ["PayPal customer ID", { ...vaultedEvidence, paypalCustomerId: undefined }],
+    ["APPROVED unexpected vault ID", { ...vaultedEvidence, vaultStatus: "APPROVED", vaultId: "VAULT-UNEXPECTED" }],
+  ] satisfies ReadonlyArray<readonly [string, PayPalCaptureEvidence]>)
+  ("keeps a %s mismatch unresolved before any normalized mutation", async (_field, evidence) => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway({ captureEvidence: evidence });
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, gateway));
+    expect(result).toEqual({
+      operationId: operation().operationId,
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    });
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual([]);
+  });
 
-    for (const evidence of mutations) {
-      const repository = new MemoryPayPalRepository();
-      const gateway = new FakePayPalGateway({ captureEvidence: evidence });
-      const result = await captureAndReconcilePayPalOrder({
-        accountId: 2n,
-        intentId: review.intentId,
-        quoteId: review.quoteId,
-        operationId: operation().operationId,
-        orderId: vaultedEvidence.orderId,
-      }, dependencies(repository, gateway));
-      expect(result).toMatchObject({ funding: "pending", reusableReadiness: "pending" });
-      expect(repository.funded).toEqual([]);
-      expect(repository.failed).toEqual([]);
-    }
+  it("keeps a missing nested capture ID unresolved through the real projection boundary", async () => {
+    const repository = new MemoryPayPalRepository();
+    const missingCaptureId = structuredClone(captureVaulted);
+    Reflect.deleteProperty(missingCaptureId.purchase_units[0]!.payments.captures[0]!, "id");
+
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, mutationGateway(200, missingCaptureId)));
+
+    expect(result).toEqual({
+      operationId: operation().operationId,
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    });
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual([]);
   });
 
   it("keeps invalid projected capture evidence unresolved without a normalized mutation", async () => {
@@ -364,6 +456,46 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
       customerMessage: "Payment verification is still in progress.",
     });
     expect(repository.failed).toEqual([]);
+  });
+
+  it.each([
+    [409, "RESOURCE_CONFLICT", "PREVIOUS_REQUEST_IN_PROGRESS"],
+    [422, "UNPROCESSABLE_ENTITY", "ORDER_COMPLETION_IN_PROGRESS"],
+    [422, "UNPROCESSABLE_ENTITY", "ORDER_ALREADY_CAPTURED"],
+    [422, "UNPROCESSABLE_ENTITY", "UNRECOGNIZED_CAPTURE_ISSUE"],
+  ])("keeps unclear capture mutation %i/%s/%s unresolved", async (status, name, issue) => {
+    const repository = new MemoryPayPalRepository();
+    const result = await captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, mutationGateway(status, providerError(name, issue))));
+
+    expect(result).toEqual({
+      operationId: operation().operationId,
+      funding: "pending",
+      reusableReadiness: "pending",
+      customerMessage: "Payment verification is still in progress.",
+    });
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual([]);
+  });
+
+  it("terminalizes only an unambiguous provider capture rejection", async () => {
+    const repository = new MemoryPayPalRepository();
+
+    await expect(captureAndReconcilePayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: operation().operationId,
+      orderId: vaultedEvidence.orderId,
+    }, dependencies(repository, mutationGateway(422, providerError("UNPROCESSABLE_ENTITY", "INSTRUMENT_DECLINED"))))).rejects.toThrow("payment_unavailable");
+
+    expect(repository.funded).toEqual([]);
+    expect(repository.failed).toEqual(["capture"]);
   });
 });
 

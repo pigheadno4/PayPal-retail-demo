@@ -9,12 +9,14 @@
 - round_1_candidate_commit: `aa3e969fd14660b73ead988fd26d630b7edbb53a`
 - round_2_candidate_commit: `7571e7c4d13ac2e2717e22567ca178618647c51e`
 - round_3_candidate_commit: `ef206c47013c9685e20500f3729fbe4294e5c10f`
-- round_4_candidate_commit: supplied in the executor handoff after this report is committed
+- round_4_candidate_commit: `c5d34ba0e9945e6f19c9b1a864ec89b9311ef4fe`
+- round_5_extension_approval: `user:TASK-0003:2026-08-27:provider-error-classification-extension-approved`
+- round_5_candidate_commit: supplied in the executor handoff after this report is committed
 - review_source: `tracking/tasks/TASK-0003/review-quality.md`
 
 ## Delivered Boundary
 
-Implemented the direct first-party PayPal Wallet save-with-purchase handoff on the existing checkout route: server-issued user ID token, documented FraudNet/CSP contract, exact Orders v2 payload, stable operation-specific idempotency, authoritative nested capture verification, durable verified-funded arrangement, immediate or delayed reusable-readiness reconciliation, and sanitized pending/ready/cancel/failure UI states. The review corrections serialize distinct operation IDs into exactly one intent/quote owner without holding the repository lock across the provider call, restore that owner during re-entry, persist exact webhook dispositions atomically, and expose only verified funding to the activation handoff. Only a definitive PayPal rejection terminalizes create or capture. Create/capture transport interruption, invalid capture projection, and capture correlation mismatch preserve normalized state and return the existing sanitized unresolved contract; the routes emit HTTP 202 and the client renders `Confirming your payment` rather than claiming non-payment. The official `@paypal/react-paypal-js@10.3.0` wrapper owns approval initiation and receives the supported `dataCspNonce` option.
+Implemented the direct first-party PayPal Wallet save-with-purchase handoff on the existing checkout route: server-issued user ID token, documented FraudNet/CSP contract, exact Orders v2 payload, stable operation-specific idempotency, authoritative nested capture verification, durable verified-funded arrangement, immediate or delayed reusable-readiness reconciliation, and sanitized pending/ready/cancel/failure UI states. The review corrections serialize distinct operation IDs into exactly one intent/quote owner without holding the repository lock across the provider call, restore that owner during re-entry, persist exact webhook dispositions atomically, and expose only verified funding to the activation handoff. Mutation error classification now inspects the endpoint and provider issue: only a narrow allowlist of unambiguous rejection issues terminalizes create or capture. `PREVIOUS_REQUEST_IN_PROGRESS`, `ORDER_COMPLETION_IN_PROGRESS`, `ORDER_ALREADY_CAPTURED`, unknown issues, transport interruption, invalid capture projection, and capture correlation mismatch preserve normalized state and return the existing sanitized unresolved contract; the routes emit HTTP 202 and the client renders `Confirming your payment` rather than claiming non-payment. The official `@paypal/react-paypal-js@10.3.0` wrapper owns approval initiation and receives the supported `dataCspNonce` option.
 
 No migration, entitlement/allowance/usage behavior, later renewal charge, refund, generic PSP abstraction, new page, mobile-app integration, or unrelated refactor was introduced.
 
@@ -26,7 +28,9 @@ No migration, entitlement/allowance/usage behavior, later renewal charge, refund
 - Scoped round-3 green: the exact regression passed 1/1; the affected service, route, capture-classifier, and customer-state group passed 23/23. Existing definitive-failure, concurrent-pending, and verified cases remained green.
 - Scoped round-4 red: 5 focused assertions failed while 16 passed, reproducing mismatch mutation, invalid projection, create interruption, create-route status, and client classification gaps.
 - Scoped round-4 green: 28/28 passed across the affected create/capture service, routes, classifier, and customer-state files. Every mismatch fixture asserts zero funded and zero failed normalized mutation; definitive create/capture rejection remains terminal.
-- Full unit regression: 83 passed, 2 environment-gated tests skipped.
+- Scoped round-5 red: 6 provider-shaped assertions failed while 17 passed, reproducing terminalization of in-progress, already-captured, and unrecognized PayPal mutation issues.
+- Scoped round-5 green: 32/32 passed at the gateway-to-service boundary; the affected gateway/service/route/client group passed 42/42. Missing nested capture ID, missing PayPal customer ID, and `APPROVED` with an unexpected vault ID each return the exact sanitized pending DTO with zero funded and zero failed normalized mutation.
+- Full unit regression: 100 passed, 2 environment-gated tests skipped.
 - Actual remote Supabase PostgreSQL: 2/2 passed in 60.01 seconds. TASK-0003 ownership/disposition transitions and the unrelated TASK-0002 repository proof both restored all affected tables to baseline.
 - Local Playwright: routine and explicit production-promotion runs each passed 14/14 across desktop and exact 390px mobile with a labeled provider test double; hosted case skipped.
 - Typecheck and lint: passed with zero findings.
@@ -51,6 +55,8 @@ The review-fix red run then reproduced two distinct operation IDs both becoming 
 
 Round 4 does not change repository code, SQL, schema, operation persistence, or cleanup. The available rollback-only real PostgreSQL suite was nevertheless rerun and passed 2/2 in 60.01 seconds, including its final baseline assertions. No manual cleanup was required.
 
+Round 5 changes only HTTP mutation-response classification and focused tests. Repository code, SQL, schema, operation persistence, and cleanup remain byte-for-byte unchanged from the real PostgreSQL proof above, so no remote database rerun was required. Customer-visible DTOs and UI rendering are also unchanged, so the existing 14/14 Playwright interaction and promoted visual evidence remain applicable without refreshing tracked artifacts.
+
 ## Rollback
 
-Revert the round-4 candidate to restore the previous mismatch/create customer handling and Playwright evidence workflow. Revert earlier candidates only if the complete TASK-0003 feature must be removed. Remote test fixtures were removed and verified against their pre-run counts; no migration, provider, or hosted state requires rollback.
+Revert the round-5 candidate to restore the prior HTTP-status-only PayPal mutation classification. Revert earlier candidates only if the complete TASK-0003 feature must be removed. Remote test fixtures were removed and verified against their pre-run counts; no migration, provider, or hosted state requires rollback.
