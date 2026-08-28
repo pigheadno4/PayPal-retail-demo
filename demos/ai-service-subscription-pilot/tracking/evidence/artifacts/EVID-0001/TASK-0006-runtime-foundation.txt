@@ -1,0 +1,75 @@
+TASK-0006 runtime-foundation candidate evidence
+Captured: 2026-08-28T13:22:11Z
+Classification: sanitized, candidate, local-only
+Plan SHA-256: 5a7b74c75c8c9c4b5f033a8fc6ff4aa6e5cce837e34cd52345bc575f50427ba8
+Approval: user:TASK-0006:2026-08-28:plan-approved
+
+BASELINE
+- Protected feature/domain/Supabase path diff: clean before execution.
+- npm test: 100 passed, 2 skipped.
+- npm run typecheck: exit 0.
+- npm run lint: exit 0.
+- Historical Next build: exit 1 because the sandbox denied Turbopack an internal port bind. This is baseline context, not replacement-runtime evidence.
+
+TDD RED EVIDENCE
+- server/src/config/env.test.ts: failed because ./env was absent.
+- invalid DATABASE_URL mutation: 1 expected failing assertion before validation was added.
+- server/src/app.test.ts: failed because ./app was absent.
+- web foundation suite: failed because app.tsx, styles.css, and vite.config.ts were absent.
+- First Supertest green attempt inside the restricted sandbox received EPERM for an ephemeral bind; the same tests passed under the approved localhost permission.
+
+TDD GREEN AND REGRESSION EVIDENCE
+- Focused TC-0013 command:
+  npm test -- server/src/config/env.test.ts server/src/app.test.ts web/src/app.test.tsx web/src/styles.test.ts web/src/vite-config.test.ts
+  Result: 5 files passed, 42 tests passed, 0 failed.
+- Full regression after npm ci:
+  npm test
+  Result: 21 files passed, 1 file skipped; 142 tests passed, 2 skipped, 0 failed.
+- npm run typecheck: exit 0.
+- npm run lint: exit 0 with no warnings.
+- npm run build: exit 0; Vite transformed 74 modules.
+- test -f dist/server/src/server.js: exit 0.
+- test -f dist/web/index.html: exit 0.
+- npm audit --omit=dev --audit-level=high: found 0 vulnerabilities.
+- Protected feature/domain/Supabase path diff: clean after execution.
+- Approved scope scan: only /api/v1 declarations/tests and the Render health path matched; no legacy feature adapter, domain, or schema import was found.
+
+EXACT PIN AND RUNTIME CONTRACT
+- express 5.2.1
+- @types/express 5.0.6
+- vite 8.2.2
+- @vitejs/plugin-react 6.1.0
+- react-router 8.3.0
+- tsx 4.22.4
+- supertest 7.2.2
+- @types/supertest 7.2.1
+- package.json engine and Render NODE_VERSION: 24.18.0
+- Render service count: one
+- Render build: npm ci && npm run build
+- Render start: npm start
+- Render health path: /api/v1/health
+
+LOCAL DEVELOPMENT PROXY
+- Vite: http://127.0.0.1:5173
+- Express: http://127.0.0.1:3000
+- GET /api/v1/health through Vite: 200 application/json
+  {"status":"ready"}
+- /api is not a configured proxy key. The Vite development server handled that path as its SPA; no legacy Express adapter was invoked.
+
+LOCAL COMPILED-SERVICE SMOKE
+- GET /api/v1/health: 200 application/json
+  {"status":"ready"}
+- GET /: 200 text/html; compiled AI Service Studio index.
+- GET /foundation/deep-link with Accept: text/html: 200 text/html; compiled index.
+- GET /api/v1/missing: 404 application/json
+  {"error":{"code":"not_found"}}
+- GET /webhooks/missing: 404 application/json
+  {"error":{"code":"not_found"}}
+- GET /assets/missing.js: 404 application/json
+  {"error":{"code":"not_found"}}
+
+HONEST LIMITATIONS
+- The verification host provided Node v26.0.0 and npm 11.12.1. npm therefore emitted an engine warning against the exact configured Node 24.18.0; Render and package metadata remain pinned to 24.18.0. No Node-24-hosted run is claimed here.
+- npm ls labels @img/sharp-wasm32 and @emnapi/runtime as extraneous optional packages in the preserved Next/sharp compatibility tree. They are not TASK-0006 runtime replacements or top-level manifest dependencies.
+- This artifact proves local build, test, proxy, route, configuration, and static-delivery behavior only. It does not prove a Render deployment, linked Supabase behavior, email delivery, PayPal behavior, webhook delivery, customer-journey parity, real font loading, accessibility, mobile behavior, or production readiness.
+- No real credential, token, provider payload, customer datum, authorization header, or private identifier is retained.

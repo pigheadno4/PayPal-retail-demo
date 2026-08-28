@@ -9,6 +9,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "server/src/**/*.test.ts",
+      "shared/src/**/*.test.ts",
+      "web/src/**/*.test.{ts,tsx}",
+    ],
   },
 });

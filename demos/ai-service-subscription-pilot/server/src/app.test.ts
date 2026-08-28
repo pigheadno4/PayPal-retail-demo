@@ -1,0 +1,190 @@
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+} from "vitest";
+import express from "express";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import request from "supertest";
+
+import { createApp } from "./app";
+import type { BaseServerConfig } from "./config/env";
+import { IntegrationNotConfiguredError } from "./http/errors";
+
+const config: BaseServerConfig = {
+  appUrl: "https://app-secret.example.test",
+  port: 3000,
+  databaseUrl: "postgresql://database-secret.example.test/demo",
+  supabaseUrl: "https://supabase-secret.example.test",
+  supabasePublishableKey: "publishable-secret-fixture",
+  supabaseSecretKey: "supabase-secret-fixture",
+  demoSessionSigningSecret: "demo-session-secret-fixture-32-chars",
+};
+
+describe("createApp", () => {
+  let webDistPath: string;
+
+  beforeAll(() => {
+    webDistPath = mkdtempSync(join(tmpdir(), "task0006-web-"));
+    mkdirSync(join(webDistPath, "assets"));
+    writeFileSync(
+      join(webDistPath, "index.html"),
+      "<!doctype html><html><body><main>Foundation shell</main></body></html>",
+    );
+    writeFileSync(join(webDistPath, "assets", "main.js"), "export {};\n");
+  });
+
+  afterAll(() => {
+    rmSync(webDistPath, { recursive: true, force: true });
+  });
+
+  it("returns a constant readiness response without configuration values", async () => {
+    const response = await request(createApp({ config, webDistPath })).get(
+      "/api/v1/health",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/^application\/json/);
+    expect(response.body).toEqual({ status: "ready" });
+    expect(response.text).not.toContain("secret");
+  });
+
+  it.each(["/api/v1/missing", "/webhooks/missing", "/api/missing"])(
+    "isolates the %s boundary with a sanitized JSON 404",
+    async (path) => {
+      const response = await request(createApp({ config, webDistPath })).get(path);
+
+      expect(response.status).toBe(404);
+      expect(response.headers["content-type"]).toMatch(/^application\/json/);
+      expect(response.body).toEqual({ error: { code: "not_found" } });
+    },
+  );
+
+  it("serves a compiled asset with its content type", async () => {
+    const response = await request(createApp({ config, webDistPath })).get(
+      "/assets/main.js",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/javascript/);
+    expect(response.text).toBe("export {};\n");
+  });
+
+  it.each(["/", "/foundation/deep-link"])(
+    "serves the compiled shell for eligible browser GET %s",
+    async (path) => {
+      const response = await request(createApp({ config, webDistPath }))
+        .get(path)
+        .set("Accept", "text/html");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toMatch(/^text\/html/);
+      expect(response.text).toContain("Foundation shell");
+    },
+  );
+
+  it.each([
+    ["get", "/assets/missing.js"],
+    ["post", "/foundation/deep-link"],
+  ] as const)("does not send index.html for %s %s", async (method, path) => {
+    const response = await request(createApp({ config, webDistPath }))[method](
+      path,
+    ).set("Accept", "text/html");
+
+    expect(response.status).toBe(404);
+    expect(response.headers["content-type"]).toMatch(/^application\/json/);
+    expect(response.body).toEqual({ error: { code: "not_found" } });
+    expect(response.text).not.toContain("Foundation shell");
+  });
+
+  it("returns a sanitized 404 when the compiled index is absent", async () => {
+    const emptyWebDistPath = mkdtempSync(join(tmpdir(), "task0006-empty-web-"));
+
+    try {
+      const response = await request(
+        createApp({ config, webDistPath: emptyWebDistPath }),
+      )
+        .get("/foundation/deep-link")
+        .set("Accept", "text/html");
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({ error: { code: "not_found" } });
+    } finally {
+      rmSync(emptyWebDistPath, { recursive: true, force: true });
+    }
+  });
+
+  it("mounts an injected API router before the API fallback and parses JSON there", async () => {
+    const apiRouter = express.Router();
+    apiRouter.post("/fixture", (request, response) => {
+      response.json({ received: request.body });
+    });
+
+    const response = await request(
+      createApp({ config, webDistPath, apiRouter }),
+    )
+      .post("/api/v1/fixture")
+      .send({ enabled: true });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ received: { enabled: true } });
+  });
+
+  it("does not parse webhook JSON before an injected webhook router", async () => {
+    const webhookRouter = express.Router();
+    webhookRouter.post("/fixture", (request, response) => {
+      response.json({ bodyWasParsed: request.body !== undefined });
+    });
+
+    const response = await request(
+      createApp({ config, webDistPath, webhookRouter }),
+    )
+      .post("/webhooks/fixture")
+      .set("Content-Type", "application/json")
+      .send({ provider: "fixture" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ bodyWasParsed: false });
+  });
+
+  it("maps a missing capability error to a sanitized 503", async () => {
+    const apiRouter = express.Router();
+    apiRouter.get("/capability", () => {
+      throw new IntegrationNotConfiguredError();
+    });
+
+    const response = await request(
+      createApp({ config, webDistPath, apiRouter }),
+    ).get("/api/v1/capability");
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      error: { code: "integration_not_configured" },
+    });
+    expect(response.text).not.toContain("PAYPAL_CLIENT_SECRET");
+  });
+
+  it("maps unexpected errors to a sanitized 500", async () => {
+    const apiRouter = express.Router();
+    apiRouter.get("/failure", () => {
+      throw new Error("supabase-secret-fixture");
+    });
+
+    const response = await request(
+      createApp({ config, webDistPath, apiRouter }),
+    ).get("/api/v1/failure");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: { code: "internal_error" } });
+    expect(response.text).not.toContain("supabase-secret-fixture");
+  });
+});

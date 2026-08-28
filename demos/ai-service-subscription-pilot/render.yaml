@@ -5,7 +5,7 @@ services:
     rootDir: demos/ai-service-subscription-pilot
     buildCommand: npm ci && npm run build
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_VERSION
         value: 24.18.0
