@@ -1,5 +1,6 @@
 TASK-0006 runtime-foundation candidate evidence
 Captured: 2026-08-28T13:22:11Z
+Refreshed for implementation round 2: 2026-08-28T13:38:11Z
 Classification: sanitized, candidate, local-only
 Plan SHA-256: 5a7b74c75c8c9c4b5f033a8fc6ff4aa6e5cce837e34cd52345bc575f50427ba8
 Approval: user:TASK-0006:2026-08-28:plan-approved
@@ -21,10 +22,17 @@ TDD RED EVIDENCE
 TDD GREEN AND REGRESSION EVIDENCE
 - Focused TC-0013 command:
   npm test -- server/src/config/env.test.ts server/src/app.test.ts web/src/app.test.tsx web/src/styles.test.ts web/src/vite-config.test.ts
-  Result: 5 files passed, 42 tests passed, 0 failed.
+  Round-1 result: 5 files passed, 42 tests passed, 0 failed.
+- FINDING-001 round-2 focused regression:
+  npm test -- server/src/app.test.ts
+  Red: GET /assets/missing with Accept: text/html returned 200 instead of 404.
+  Green: 1 file passed, 15 tests passed, 0 failed.
 - Full regression after npm ci:
   npm test
-  Result: 21 files passed, 1 file skipped; 142 tests passed, 2 skipped, 0 failed.
+  Round-1 result: 21 files passed, 1 file skipped; 142 tests passed, 2 skipped, 0 failed.
+- Round-2 full regression:
+  npm test
+  Result: 21 files passed, 1 file skipped; 143 tests passed, 2 skipped, 0 failed.
 - npm run typecheck: exit 0.
 - npm run lint: exit 0 with no warnings.
 - npm run build: exit 0; Vite transformed 74 modules.
@@ -67,6 +75,17 @@ LOCAL COMPILED-SERVICE SMOKE
   {"error":{"code":"not_found"}}
 - GET /assets/missing.js: 404 application/json
   {"error":{"code":"not_found"}}
+- Round-2 GET /assets/missing with Accept: text/html: 404 application/json
+  {"error":{"code":"not_found"}}
+- Round-2 GET /foundation/deep-link with Accept: text/html: 200 text/html; compiled index.
+- Round-2 GET /api/v1/health: 200 application/json
+  {"status":"ready"}
+
+FINDING-001 DISPOSITION
+- Previous candidate: a4522b5cb7800777a3b4841bae3be1e2abb23b74 (specification review rejected).
+- Root cause: browser-history eligibility used only method, HTML acceptance, and an empty file extension, so an extensionless path under the Vite /assets tree received SPA HTML.
+- Scoped correction: /assets and its descendants are ineligible for history fallback regardless of extension.
+- Status: resolved in implementation round 2, pending independent scoped re-review of the replacement candidate.
 
 HONEST LIMITATIONS
 - The verification host provided Node v26.0.0 and npm 11.12.1. npm therefore emitted an engine warning against the exact configured Node 24.18.0; Render and package metadata remain pinned to 24.18.0. No Node-24-hosted run is claimed here.

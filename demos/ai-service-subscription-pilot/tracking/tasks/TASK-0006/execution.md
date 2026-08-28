@@ -2,15 +2,16 @@
 
 - status: needs_review
 - task: TASK-0006
-- implementation_round: 1
+- implementation_round: 2
 - plan_sha256: `5a7b74c75c8c9c4b5f033a8fc6ff4aa6e5cce837e34cd52345bc575f50427ba8`
 - plan_approval: `user:TASK-0006:2026-08-28:plan-approved`
 - candidate_base_commit: `c797dcd992f0e744cdc47c79bcf2ea0e8b5102e9`
+- previous_rejected_candidate: `a4522b5cb7800777a3b4841bae3be1e2abb23b74`
 - candidate_commit: the single evidence-bearing commit containing this report; its exact post-freeze hash is returned to the orchestrator because a commit cannot contain its own final hash
 - frontend_route: reuse
 - payment_route: not_applicable
 - evidence_artifact: `tracking/evidence/artifacts/EVID-0001/TASK-0006-runtime-foundation.txt`
-- evidence_artifact_sha256: `6cc87b5022bcc43fee7958e7e3a91bc9f946601ed40dc326e61efc488eafdf0f`
+- evidence_artifact_sha256: `03416fbc4c6a096cc33a78c246c10f2c255f5299e673f505f57d619df491b22e`
 
 ## Scope Delivered
 
@@ -62,10 +63,10 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 | AC | Result | Tests and evidence |
 | --- | --- | --- |
 | AC-1 | Pass, local candidate | Exact pins are in manifest/lockfile; `npm ci`, typecheck, lint, combined build, compiled output checks, and one-service Render inspection passed. `build` and `start` do not invoke Next. |
-| AC-2 | Pass, local candidate | `server/src/app.test.ts` and compiled smoke prove constant health, API/webhook isolation, legacy `/api` isolation, real static content types, eligible HTML fallback, and non-HTML 404 behavior. |
+| AC-2 | Pass, local replacement candidate | `server/src/app.test.ts` and compiled smoke prove constant health, API/webhook isolation, legacy `/api` isolation, real static content types, eligible HTML fallback, and missing `/assets` paths returning sanitized JSON 404 even when extensionless and HTML-accepting. |
 | AC-3 | Pass, local candidate | `server/src/config/env.test.ts` proves base startup validation, port and URL bounds, optional capability isolation, all-or-none PayPal/email groups, and sanitized capability errors. |
 | AC-4 | Pass, bounded source/runtime shell | Web tests prove semantic header/main structure, absence of payment/provider controls, approved public-variable boundary, reusable tokens/font roles/reading surface/opaque fallback, and exact Vite roots/proxies. No visual-completion or runtime-accessibility claim is made. |
-| AC-5 | Pass, local candidate | Focused 42/42; full 142 passed and 2 skipped; typecheck, lint, build, audit, output checks, route smoke, protected-path diff, and scope scan passed. Evidence is captured before freeze. |
+| AC-5 | Pass, local replacement candidate | Focused 43/43; full 143 passed and 2 skipped; typecheck, lint, build, audit, output checks, route smoke, protected-path diff, and scope scan passed. Evidence is refreshed before replacement freeze. |
 
 ## Red-Green Record
 
@@ -75,13 +76,16 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 4. HTTP green: the first restricted-sandbox attempt received `EPERM` on Supertest's ephemeral bind; the approved localhost run passed 33 combined configuration/HTTP tests.
 5. Vite red: the three web files failed because `app.tsx`, `styles.css`, and `vite.config.ts` did not exist.
 6. Vite green: 3 files and 7 tests passed.
-7. Final focused: 5 files and 42 tests passed.
-8. Final regression after `npm ci`: 21 files passed, 1 skipped; 142 tests passed, 2 skipped.
+7. Round-1 focused: 5 files and 42 tests passed.
+8. Round-1 regression after `npm ci`: 21 files passed, 1 skipped; 142 tests passed, 2 skipped.
+9. Round-2 FINDING-001 red: `npm test -- server/src/app.test.ts` failed only for `GET /assets/missing` because it returned `200` instead of `404`.
+10. Round-2 FINDING-001 green: the same focused file passed 15/15 after excluding `/assets` and descendants from history fallback.
+11. Round-2 full regression: 21 files passed, 1 skipped; 143 tests passed, 2 skipped.
 
 ## Final Verification
 
 - `npm ci`: exit 0; 516 packages installed; audit reported 0 vulnerabilities.
-- `npm test`: exit 0; 142 passed, 2 skipped.
+- `npm test`: exit 0; 143 passed, 2 skipped.
 - `npm run typecheck`: exit 0.
 - `npm run lint`: exit 0 with no warnings.
 - `npm run build`: exit 0; 74 Vite modules transformed.
@@ -89,7 +93,7 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 - `test -f dist/web/index.html`: exit 0.
 - `npm audit --omit=dev --audit-level=high`: exit 0; 0 vulnerabilities.
 - Development proxy `GET http://127.0.0.1:5173/api/v1/health`: `200` with exactly `{"status":"ready"}`.
-- Compiled production smoke: root and deep link `200 text/html`; health `200` exact JSON; unknown API, unknown webhook, and missing asset `404` exact sanitized JSON.
+- Compiled production smoke: extensionless `GET /assets/missing` with `Accept: text/html` returns `404` exact sanitized JSON; the normal deep link remains `200 text/html`; health remains `200` exact JSON. Round-1 root, unknown API, unknown webhook, and `.js` missing-asset outcomes remain covered by the unchanged route suite.
 - Protected feature/domain/Supabase diff: exit 0 before and after execution.
 - Scope scan: no imported legacy feature adapter, domain, or schema path; matches are only approved `/api/v1` declarations/tests and Render health configuration.
 
@@ -102,6 +106,10 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 - The local shell is not proof of customer journey parity, responsive final fidelity, real font loading, accessibility completion, PSP hydration, or payment behavior.
 - No hosted Render deployment, linked Supabase run, email delivery, provider call, webhook delivery, mobile run, or production-readiness verification occurred.
 
+## Review Finding Disposition
+
+- `FINDING-001` (`important`, specification review): resolved in implementation round 2 pending independent scoped re-review. Root cause was the history predicate's reliance on an empty file extension; `/assets/missing` therefore looked like an eligible SPA route. The replacement candidate adds one negative regression and one explicit `/assets` namespace exclusion. No generic asset abstraction or other routing behavior was added.
+
 ## Out-Of-Scope Observations
 
 - TASK-0007 still owns migration of customer React surfaces and feature adapters onto the replacement boundaries.
@@ -110,4 +118,4 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 
 ## Rollback Notes
 
-Revert the single TASK-0006 candidate commit. That restores the previous package scripts, dependency lock, TypeScript/Vitest/ESLint environment, `.env.example`, and Render health path and removes only the new `server/`, `shared/`, `web/`, Vite configuration, and additive TASK-0006 evidence. It does not alter the preserved `src/` feature/domain tree, any Supabase migration/test, accepted schema evidence, payment evidence, provider object, hosted resource, or unrelated dirty-worktree file.
+Roll back both TASK-0006 commits in reverse order: revert the current replacement candidate at `HEAD` first, then revert the initial runtime-foundation commit `a4522b5cb7800777a3b4841bae3be1e2abb23b74`. Equivalently, restore the complete TASK-0006 range to base commit `c797dcd992f0e744cdc47c79bcf2ea0e8b5102e9`; reverting only the latest correction does not remove the foundation. This restores the previous package scripts, dependency lock, TypeScript/Vitest/ESLint environment, `.env.example`, and Render health path and removes only the new `server/`, `shared/`, `web/`, Vite configuration, and additive TASK-0006 evidence. Preserve unrelated dirty work and the accepted evidence that predates TASK-0006. This boundary does not alter the preserved `src/` feature/domain tree, any Supabase migration/test, accepted schema evidence, payment evidence, provider object, or hosted resource.

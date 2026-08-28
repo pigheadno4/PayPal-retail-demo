@@ -94,6 +94,7 @@ describe("createApp", () => {
 
   it.each([
     ["get", "/assets/missing.js"],
+    ["get", "/assets/missing"],
     ["post", "/foundation/deep-link"],
   ] as const)("does not send index.html for %s %s", async (method, path) => {
     const response = await request(createApp({ config, webDistPath }))[method](

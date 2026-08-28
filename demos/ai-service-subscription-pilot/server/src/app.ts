@@ -33,7 +33,13 @@ function isBrowserHistoryRequest(
   path: string,
   acceptsHtml: boolean,
 ): boolean {
-  return method === "GET" && acceptsHtml && extname(path) === "";
+  return (
+    method === "GET" &&
+    acceptsHtml &&
+    path !== "/assets" &&
+    !path.startsWith("/assets/") &&
+    extname(path) === ""
+  );
 }
 
 export function createApp(options: CreateAppOptions): Express {
