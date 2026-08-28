@@ -33,12 +33,24 @@ function isBrowserHistoryRequest(
   path: string,
   acceptsHtml: boolean,
 ): boolean {
+  let decodedPath: string;
+
+  try {
+    decodedPath = decodeURIComponent(path);
+  } catch {
+    return false;
+  }
+
   return (
     method === "GET" &&
     acceptsHtml &&
-    path !== "/assets" &&
-    !path.startsWith("/assets/") &&
-    extname(path) === ""
+    decodedPath !== "/assets" &&
+    !decodedPath.startsWith("/assets/") &&
+    decodedPath !== "/api" &&
+    !decodedPath.startsWith("/api/") &&
+    decodedPath !== "/webhooks" &&
+    !decodedPath.startsWith("/webhooks/") &&
+    extname(decodedPath) === ""
   );
 }
 

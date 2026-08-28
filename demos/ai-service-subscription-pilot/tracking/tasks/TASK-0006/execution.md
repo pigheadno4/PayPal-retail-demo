@@ -2,16 +2,17 @@
 
 - status: needs_review
 - task: TASK-0006
-- implementation_round: 2
+- implementation_round: 3
 - plan_sha256: `5a7b74c75c8c9c4b5f033a8fc6ff4aa6e5cce837e34cd52345bc575f50427ba8`
 - plan_approval: `user:TASK-0006:2026-08-28:plan-approved`
 - candidate_base_commit: `c797dcd992f0e744cdc47c79bcf2ea0e8b5102e9`
-- previous_rejected_candidate: `a4522b5cb7800777a3b4841bae3be1e2abb23b74`
+- previous_rejected_candidate: `cb546a8cc430f6a11ccbd85be4d2eb494f702c56`
+- earlier_rejected_candidate: `a4522b5cb7800777a3b4841bae3be1e2abb23b74`
 - candidate_commit: the single evidence-bearing commit containing this report; its exact post-freeze hash is returned to the orchestrator because a commit cannot contain its own final hash
 - frontend_route: reuse
 - payment_route: not_applicable
 - evidence_artifact: `tracking/evidence/artifacts/EVID-0001/TASK-0006-runtime-foundation.txt`
-- evidence_artifact_sha256: `03416fbc4c6a096cc33a78c246c10f2c255f5299e673f505f57d619df491b22e`
+- evidence_artifact_sha256: `c5fbbf0d4d401bcae2bbce690c6efa1f7108d67a5d81c45cf15ed9ceb748a499`
 
 ## Scope Delivered
 
@@ -63,10 +64,10 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 | AC | Result | Tests and evidence |
 | --- | --- | --- |
 | AC-1 | Pass, local candidate | Exact pins are in manifest/lockfile; `npm ci`, typecheck, lint, combined build, compiled output checks, and one-service Render inspection passed. `build` and `start` do not invoke Next. |
-| AC-2 | Pass, local replacement candidate | `server/src/app.test.ts` and compiled smoke prove constant health, API/webhook isolation, legacy `/api` isolation, real static content types, eligible HTML fallback, and missing `/assets` paths returning sanitized JSON 404 even when extensionless and HTML-accepting. |
+| AC-2 | Pass, local replacement candidate | `server/src/app.test.ts` and compiled smoke prove constant health, API/webhook isolation, legacy `/api` isolation, real static content types, eligible HTML fallback, and literal, encoded, or malformed file/reserved paths returning sanitized JSON 404 rather than SPA HTML. |
 | AC-3 | Pass, local candidate | `server/src/config/env.test.ts` proves base startup validation, port and URL bounds, optional capability isolation, all-or-none PayPal/email groups, and sanitized capability errors. |
 | AC-4 | Pass, bounded source/runtime shell | Web tests prove semantic header/main structure, absence of payment/provider controls, approved public-variable boundary, reusable tokens/font roles/reading surface/opaque fallback, and exact Vite roots/proxies. No visual-completion or runtime-accessibility claim is made. |
-| AC-5 | Pass, local replacement candidate | Focused 43/43; full 143 passed and 2 skipped; typecheck, lint, build, audit, output checks, route smoke, protected-path diff, and scope scan passed. Evidence is refreshed before replacement freeze. |
+| AC-5 | Pass, local replacement candidate | Focused 48/48; full 148 passed and 2 skipped; typecheck, lint, build, audit, output checks, route smoke, protected-path diff, and scope scan passed. Evidence is refreshed before replacement freeze. |
 
 ## Red-Green Record
 
@@ -81,11 +82,14 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 9. Round-2 FINDING-001 red: `npm test -- server/src/app.test.ts` failed only for `GET /assets/missing` because it returned `200` instead of `404`.
 10. Round-2 FINDING-001 green: the same focused file passed 15/15 after excluding `/assets` and descendants from history fallback.
 11. Round-2 full regression: 21 files passed, 1 skipped; 143 tests passed, 2 skipped.
+12. Round-3 FINDING-002 red: `npm test -- server/src/app.test.ts` failed for encoded file, asset, API, and webhook paths plus malformed percent encoding; each returned `200` instead of `404`, while 15 existing cases passed.
+13. Round-3 FINDING-002 green: the same focused file passed 20/20 after safely decoding only for history classification, failing closed on malformed encoding, and checking decoded reserved namespaces and file extensions.
+14. Round-3 full regression: 21 files passed, 1 skipped; 148 tests passed, 2 skipped.
 
 ## Final Verification
 
 - `npm ci`: exit 0; 516 packages installed; audit reported 0 vulnerabilities.
-- `npm test`: exit 0; 143 passed, 2 skipped.
+- `npm test`: exit 0; 148 passed, 2 skipped.
 - `npm run typecheck`: exit 0.
 - `npm run lint`: exit 0 with no warnings.
 - `npm run build`: exit 0; 74 Vite modules transformed.
@@ -93,7 +97,7 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 - `test -f dist/web/index.html`: exit 0.
 - `npm audit --omit=dev --audit-level=high`: exit 0; 0 vulnerabilities.
 - Development proxy `GET http://127.0.0.1:5173/api/v1/health`: `200` with exactly `{"status":"ready"}`.
-- Compiled production smoke: extensionless `GET /assets/missing` with `Accept: text/html` returns `404` exact sanitized JSON; the normal deep link remains `200 text/html`; health remains `200` exact JSON. Round-1 root, unknown API, unknown webhook, and `.js` missing-asset outcomes remain covered by the unchanged route suite.
+- Compiled production smoke: `/missing%2Ejs`, `/assets%2Fmissing`, `/api%2Fv1%2Fhealth`, `/webhooks%2Fmissing`, malformed `/malformed%2`, and literal `/assets/missing` with `Accept: text/html` each return `404 application/json` with exact sanitized `not_found`; the normal deep link remains `200 text/html`; literal health remains `200` exact ready JSON.
 - Protected feature/domain/Supabase diff: exit 0 before and after execution.
 - Scope scan: no imported legacy feature adapter, domain, or schema path; matches are only approved `/api/v1` declarations/tests and Render health configuration.
 
@@ -109,6 +113,7 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 ## Review Finding Disposition
 
 - `FINDING-001` (`important`, specification review): resolved in implementation round 2 pending independent scoped re-review. Root cause was the history predicate's reliance on an empty file extension; `/assets/missing` therefore looked like an eligible SPA route. The replacement candidate adds one negative regression and one explicit `/assets` namespace exclusion. No generic asset abstraction or other routing behavior was added.
+- `FINDING-002` (`important`, engineering-quality review): resolved in implementation round 3 pending both independent lanes reviewing the same replacement candidate. Root cause was classifying the percent-encoded request path. The scoped correction decodes once inside history eligibility, returns ineligible when decoding fails, and checks the decoded asset/API/webhook namespaces and file extension. No routing abstraction or adjacent behavior was added.
 
 ## Out-Of-Scope Observations
 
@@ -118,4 +123,4 @@ No identity, OTP, quote, checkout, PayPal call, webhook verification, entitlemen
 
 ## Rollback Notes
 
-Roll back both TASK-0006 commits in reverse order: revert the current replacement candidate at `HEAD` first, then revert the initial runtime-foundation commit `a4522b5cb7800777a3b4841bae3be1e2abb23b74`. Equivalently, restore the complete TASK-0006 range to base commit `c797dcd992f0e744cdc47c79bcf2ea0e8b5102e9`; reverting only the latest correction does not remove the foundation. This restores the previous package scripts, dependency lock, TypeScript/Vitest/ESLint environment, `.env.example`, and Render health path and removes only the new `server/`, `shared/`, `web/`, Vite configuration, and additive TASK-0006 evidence. Preserve unrelated dirty work and the accepted evidence that predates TASK-0006. This boundary does not alter the preserved `src/` feature/domain tree, any Supabase migration/test, accepted schema evidence, payment evidence, provider object, or hosted resource.
+Roll back all three TASK-0006 commits in reverse order: revert the current round-3 replacement candidate at `HEAD`, then revert round-2 candidate `cb546a8cc430f6a11ccbd85be4d2eb494f702c56`, then revert the initial runtime-foundation commit `a4522b5cb7800777a3b4841bae3be1e2abb23b74`. Equivalently, restore the complete TASK-0006 range to base commit `c797dcd992f0e744cdc47c79bcf2ea0e8b5102e9`; reverting only the latest correction does not remove the earlier corrections or foundation. This restores the previous package scripts, dependency lock, TypeScript/Vitest/ESLint environment, `.env.example`, and Render health path and removes only the new `server/`, `shared/`, `web/`, Vite configuration, and additive TASK-0006 evidence. Preserve unrelated dirty work and the accepted evidence that predates TASK-0006. This boundary does not alter the preserved `src/` feature/domain tree, any Supabase migration/test, accepted schema evidence, payment evidence, provider object, or hosted resource.
