@@ -1,3 +1,6 @@
+@import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource-variable/source-sans-3/index.css";
+
 :root {
   color-scheme: light;
   --background: #fff8f1;
@@ -18,8 +21,8 @@
   --destructive-foreground: #ffffff;
   --surface-glass: rgb(255 253 249 / 82%);
   --surface-reading: rgb(255 253 249 / 94%);
-  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
-  --font-interface: "Source Sans 3", system-ui, -apple-system, BlinkMacSystemFont,
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-interface: "Source Sans 3 Variable", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
 }
 
@@ -47,6 +50,32 @@
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #201a1b;
+  --foreground: #fff6ef;
+  --card: #2a2223;
+  --card-foreground: #fff6ef;
+  --primary: #f28a66;
+  --primary-foreground: #2a1611;
+  --secondary: #3a2c2e;
+  --secondary-foreground: #ffd1c0;
+  --accent: #e7b363;
+  --accent-foreground: #2a1c08;
+  --muted: #302627;
+  --muted-foreground: #c9b7af;
+  --border: #4a393b;
+  --ring: #f28a66;
+  --destructive: #f97066;
+  --destructive-foreground: #2a1611;
+  --surface-glass: rgb(42 34 35 / 75%);
+  --surface-reading: rgb(42 34 35 / 90%);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -66,10 +95,27 @@ body {
     radial-gradient(circle at 16% 82%, rgb(199 91 57 / 14%), transparent 24rem),
     var(--background);
   font-family: var(--font-interface);
+  overflow-x: hidden;
 }
 
 a {
   color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+input,
+a {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
 }
 
 .app-frame {
@@ -99,6 +145,7 @@ a {
   align-items: center;
   padding: 10px 16px;
   border-radius: 20px;
+  justify-content: space-between;
 }
 
 .brand {
@@ -119,6 +166,40 @@ a {
   background: var(--primary);
   font-family: var(--font-display);
   font-size: 1.25rem;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-context {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.vertical-separator {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+}
+
+.icon-button {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  color: var(--foreground);
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--secondary);
 }
 
 .foundation-main {
@@ -161,6 +242,284 @@ h1 {
   line-height: 1.65;
 }
 
+.home-main,
+.checkout-main,
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 28px;
+  align-items: stretch;
+  padding-block: clamp(48px, 8vw, 96px);
+}
+
+.home-copy,
+.identity-card,
+.review-copy,
+.plan-card,
+.summary-card {
+  padding: clamp(26px, 5vw, 54px);
+  border-radius: 24px;
+}
+
+.home-copy {
+  display: flex;
+  min-height: 560px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.plan-card {
+  align-self: center;
+}
+
+.plan-heading,
+.summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+}
+
+.status-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.plan-card h2,
+.selection-summary h2 {
+  margin: 28px 0 0;
+  font-family: var(--font-display);
+  font-size: 2.3rem;
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.plan-price strong {
+  font-family: var(--font-display);
+  font-size: 3.8rem;
+}
+
+.promotion,
+.discount {
+  color: var(--secondary-foreground);
+  font-weight: 750;
+}
+
+.plan-card ul {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0;
+  padding-left: 22px;
+  color: var(--muted-foreground);
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 48px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.primary-button {
+  width: 100%;
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.secondary-button {
+  color: var(--secondary-foreground);
+  border-color: var(--border);
+  background: var(--secondary);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.section-copy {
+  max-width: 55ch;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.identity-choice {
+  display: grid;
+  gap: 12px;
+  margin: 30px 0;
+  padding: 0;
+  border: 0;
+}
+
+.identity-choice legend {
+  margin-bottom: 12px;
+  font-weight: 750;
+}
+
+.choice-card {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.choice-card.selected {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.choice-card input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.choice-card span,
+.identity-form,
+.identity-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.choice-card small {
+  color: var(--muted-foreground);
+}
+
+.identity-form {
+  gap: 16px;
+}
+
+.identity-form input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--foreground);
+  background: var(--card);
+}
+
+.selection-summary {
+  align-self: start;
+  padding: 28px;
+  border-radius: 24px;
+}
+
+.selection-summary p:not(.eyebrow) {
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.review-copy {
+  align-self: start;
+}
+
+.warning-note,
+.status-note,
+.boundary-card,
+.evidence-note,
+.error-note {
+  display: grid;
+  gap: 5px;
+  margin-block: 20px;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.status-note,
+.evidence-note {
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+}
+
+.warning-note {
+  color: var(--accent-foreground);
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--card));
+}
+
+.boundary-card {
+  margin-top: 44px;
+  color: var(--muted-foreground);
+  border: 1px dashed var(--border);
+  background: var(--muted);
+}
+
+.boundary-card strong {
+  color: var(--foreground);
+}
+
+.error-note {
+  color: var(--destructive);
+  border: 1px solid var(--destructive);
+  background: var(--card);
+}
+
+.summary-card dl {
+  margin: 28px 0;
+}
+
+.summary-card dl div,
+.quote-facts p {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-card dt,
+.summary-card dd {
+  margin: 0;
+}
+
+.summary-card .total {
+  margin-top: 8px;
+  padding-top: 18px;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.quote-facts {
+  margin-bottom: 24px;
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+}
+
+.quote-facts p {
+  align-items: flex-start;
+}
+
+.quote-facts strong {
+  max-width: 62%;
+  color: var(--foreground);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.route-status {
+  display: grid;
+  min-height: 55vh;
+  place-items: center;
+  text-align: center;
+}
+
 .ambient-panel {
   display: grid;
   gap: 18px;
@@ -196,6 +555,43 @@ h1 {
     border-radius: 18px;
   }
 
+  .account-context {
+    display: none;
+  }
+
+  .home-main,
+  .checkout-main,
+  .review-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding-block: 32px 48px;
+  }
+
+  .home-copy {
+    min-height: auto;
+  }
+
+  .home-copy,
+  .identity-card,
+  .review-copy,
+  .plan-card,
+  .summary-card {
+    padding: 24px;
+    border-radius: 20px;
+  }
+
+  h1 {
+    font-size: clamp(2.3rem, 14vw, 4rem);
+  }
+
+  .review-copy {
+    order: 1;
+  }
+
+  .summary-card {
+    order: 2;
+  }
+
   .foundation-main {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -213,6 +609,17 @@ h1 {
 
   .ambient-panel span {
     height: 70px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 

@@ -1,0 +1,55 @@
+import type { CheckoutReview, ReplaceQuoteResponse } from "../../../shared/src/checkout.js";
+import type {
+  CreateCheckoutIntentResponse,
+  DemoOtpResponse,
+  DemoSessionResponse,
+  RequestOtpRequest,
+} from "../../../shared/src/identity.js";
+
+export class ApiRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`request_failed_${status}`);
+  }
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
+  });
+  if (!response.ok) throw new ApiRequestError(response.status);
+  return response.json() as Promise<T>;
+}
+
+function bearer(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}` };
+}
+
+export const demoApi = {
+  createIntent: () => requestJson<CreateCheckoutIntentResponse>("/api/v1/checkout-intents", {
+    method: "POST",
+  }),
+  createDemoSession: () => requestJson<DemoSessionResponse>("/api/v1/demo-sessions", {
+    method: "POST",
+  }),
+  requestOtp: (body: RequestOtpRequest) => requestJson<{ accepted: true }>(
+    "/api/v1/auth/request-otp",
+    { method: "POST", body: JSON.stringify(body) },
+  ),
+  retrieveDemoOtp: () => requestJson<DemoOtpResponse>("/api/v1/demo-sessions/otp"),
+  resume: (intentId: string, token: string) => requestJson<CheckoutReview>(
+    `/api/v1/checkout-intents/${encodeURIComponent(intentId)}/resume`,
+    { method: "POST", headers: bearer(token) },
+  ),
+  readQuote: (intentId: string, token: string) => requestJson<CheckoutReview>(
+    `/api/v1/quotes?intentId=${encodeURIComponent(intentId)}`,
+    { headers: bearer(token) },
+  ),
+  replaceQuote: (intentId: string, currentQuoteId: string, token: string) =>
+    requestJson<ReplaceQuoteResponse>("/api/v1/quotes", {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ intentId, currentQuoteId }),
+    }),
+};

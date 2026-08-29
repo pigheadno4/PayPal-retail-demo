@@ -1,3 +1,9 @@
+import { Route, Routes } from "react-router";
+
+import { HeaderControls } from "./components/checkout/header-controls.js";
+import { CheckoutRoute } from "./routes/checkout.js";
+import { HomeRoute } from "./routes/home.js";
+
 export function App() {
   return (
     <div className="app-frame">
@@ -8,24 +14,13 @@ export function App() {
           </span>
           <span>AI Service Studio</span>
         </a>
+        <HeaderControls />
       </header>
-
-      <main className="foundation-main">
-        <section className="reading-surface foundation-copy">
-          <p className="eyebrow">AI service subscription demo</p>
-          <h1>Create with a plan shaped around your work.</h1>
-          <p className="lede">
-            One warm, focused space will bring service access, allowance, and
-            account context together.
-          </p>
-        </section>
-
-        <div className="ambient-panel glass-surface" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-      </main>
+      <Routes>
+        <Route path="/" element={<HomeRoute />} />
+        <Route path="/checkout/:intentId" element={<CheckoutRoute />} />
+        <Route path="*" element={<main className="route-status"><h1>Page not found</h1><a href="/">Return home</a></main>} />
+      </Routes>
     </div>
   );
 }

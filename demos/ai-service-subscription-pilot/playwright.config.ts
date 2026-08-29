@@ -2,7 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 
 const hostedBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
-const captureEvidence = process.env.TASK0003_CAPTURE_EVIDENCE === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -16,16 +15,20 @@ export default defineConfig({
     { name: "mobile-chromium", use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } },
   ],
   webServer: hostedBaseUrl ? undefined : {
-    command: captureEvidence
-      ? "npm run start -- --hostname 127.0.0.1"
-      : "npm run dev -- --hostname 127.0.0.1",
+    command: "npm run build && npm run start",
     url: "http://127.0.0.1:3000",
-    reuseExistingServer: captureEvidence ? false : !process.env.CI,
+    reuseExistingServer: !process.env.CI,
     env: {
       ...process.env,
-      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321",
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "local-e2e-placeholder",
-      NEXT_PUBLIC_PAYPAL_CLIENT_ID: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "local-e2e-placeholder",
+      APP_URL: process.env.APP_URL ?? "http://127.0.0.1:3000",
+      PORT: process.env.PORT ?? "3000",
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://local:local@127.0.0.1:1/postgres",
+      SUPABASE_URL: process.env.SUPABASE_URL ?? "https://task0007.supabase.test",
+      SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_e2e_placeholder",
+      SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? "sb_secret_e2e_placeholder",
+      DEMO_SESSION_SIGNING_SECRET: process.env.DEMO_SESSION_SIGNING_SECRET ?? "task-0007-e2e-signing-secret-at-least-32-characters",
+      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ?? "https://task0007.supabase.test",
+      VITE_SUPABASE_PUBLISHABLE_KEY: process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_e2e_placeholder",
     },
   },
 });
