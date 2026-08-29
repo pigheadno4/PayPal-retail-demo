@@ -1,7 +1,8 @@
 @import "@fontsource-variable/fraunces/full.css";
 @import "@fontsource-variable/source-sans-3/index.css";
 
-:root {
+:root,
+:root[data-theme="light"] {
   color-scheme: light;
   --background: #fff8f1;
   --foreground: #352623;
@@ -70,10 +71,6 @@
   --destructive-foreground: #2a1611;
   --surface-glass: rgb(42 34 35 / 75%);
   --surface-reading: rgb(42 34 35 / 90%);
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
 }
 
 * {

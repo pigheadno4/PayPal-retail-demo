@@ -284,6 +284,34 @@ test("mobile light and dark identity/review surfaces remain usable", async ({ pa
   expect(consoleErrors).toEqual([]);
 });
 
+test("manual light selection overrides dark-OS body and evidence surfaces", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() => page.evaluate(() => ({
+    backgroundVariable: getComputedStyle(document.documentElement).getPropertyValue("--background").trim(),
+    foregroundVariable: getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim(),
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    bodyForeground: getComputedStyle(document.body).color,
+    readingSurface: getComputedStyle(document.querySelector<HTMLElement>(".identity-card")!).backgroundColor,
+    evidenceSurface: getComputedStyle(document.querySelector<HTMLElement>(".selection-summary")!).backgroundColor,
+  }))).toEqual({
+    backgroundVariable: "#fff8f1",
+    foregroundVariable: "#352623",
+    bodyBackground: "rgb(255, 248, 241)",
+    bodyForeground: "rgb(53, 38, 35)",
+    readingSurface: "rgba(255, 253, 249, 0.94)",
+    evidenceSurface: "rgba(255, 253, 249, 0.82)",
+  });
+  if (testInfo.project.name === "chromium") {
+    await page.screenshot({ path: resolve(evidenceDirectory, "task-0007-identity-mobile-light.png"), fullPage: true });
+  }
+});
+
 test.skip("@hosted originating-session isolation", async () => {
   // Requires an orchestrator-supplied Render URL and configured Supabase Send Email Hook.
 });

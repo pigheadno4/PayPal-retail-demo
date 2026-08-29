@@ -2,10 +2,12 @@
 
 - status: needs_review
 - task: TASK-0007
-- implementation_round: 1 of 3
+- implementation_round: 2 of 3
 - plan_sha256: `e39aaea70c1c2d6583818dba130a127abb5bc8b850579706a90f55a2614e8c5c`
 - plan_approval: `user:TASK-0007:2026-08-29:plan-approved`
 - candidate_base_commit: `621afb43f731caa780400a9316f2fcdc69d40611`
+- prior_candidate_commit: `39284c72ebce945458f86be78378ae952266cadc`
+- round_2_review_input: `tracking/tasks/TASK-0007/spec-review.md` SHA-256 `2063cec4e0054af9e4765b5ddbc7169f3b9306141509dc789c7c174f6ef9a711`
 - candidate_commit: the single evidence-bearing commit containing this report; its exact final hash is returned to the orchestrator because a commit cannot contain its own hash
 - frontend_route: reuse
 - payment_route: boundary_only
@@ -52,6 +54,7 @@ No Supabase migration, provider adapter, provider control, PayPal call, payment 
 - `tracking/evidence/artifacts/EVID-0002/task-0007-choose-go-laptop.png`
 - `tracking/evidence/artifacts/EVID-0002/task-0007-review-laptop.png`
 - `tracking/evidence/artifacts/EVID-0002/task-0007-identity-mobile-dark.png`
+- `tracking/evidence/artifacts/EVID-0002/task-0007-identity-mobile-light.png`
 - `tracking/tasks/TASK-0007/execution.md`
 
 ## Acceptance Criteria And Proof
@@ -74,6 +77,7 @@ No Supabase migration, provider adapter, provider control, PayPal call, payment 
 7. Font RED/GREEN: the focused style proof failed on absent package/import/license/WOFF2 evidence. After the bounded exact Fontsource 5.3.0 intake, package/license/asset tests passed 4/4 and the production browser confirmed actual local WOFF2 loading.
 8. Final typecheck RED/GREEN: stale generated `.next` validators referenced the intentionally removed adapters. Regenerating only production route types did not clear the separate development cache, confirming that the active Vite/Express typecheck still included obsolete Next-generated authority. The root TypeScript scope was narrowed to preserved source/tests/config while server and web retain their dedicated configs; the exact typecheck then passed without restoring obsolete routes.
 9. Dark-theme evidence RED/GREEN: an immediate computed-style assertion sampled the reduced-motion theme transition's previous frame even though the dark tokens had already changed. Polling the rendered foregrounds until the 0.01 ms transition settled passed in focused and full browser runs; the refreshed mobile artifact confirms the intended contrast without a production-style workaround.
+10. FINDING-001 RED/GREEN: with dark OS emulation, explicit light selection changed `data-theme` but the focused browser test continued to observe the complete dark token set on the body, reading surface, and selection evidence surface. The existing light token block now also applies to `:root[data-theme="light"]`; the focused rerun passed 1/1 and the full two-project browser matrix passed 10 with 2 hosted-only skips.
 
 ## Final Verification
 
@@ -84,7 +88,7 @@ No Supabase migration, provider adapter, provider control, PayPal call, payment 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with zero findings.
 - `npm run build`: passed; server compiled and Vite transformed 124 modules.
-- Production-service Playwright on installed Chrome: 8 passed, 2 hosted-only skipped across laptop and mobile projects.
+- Production-service Playwright on installed Chrome: 10 passed, 2 hosted-only skipped across laptop and mobile projects, including dark-OS to explicit-light rendered body and evidence surfaces.
 - `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities.
 - Protected schema/PayPal/mixed-checkout diff: clean.
 - Forbidden boundary scan: matches only negative test assertions and zero-effect count assertions; no provider import, call, control, or mutation.
