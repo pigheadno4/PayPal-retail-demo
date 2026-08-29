@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(37);
+select plan(42);
 
 select has_schema('app_private', 'server-owned schema exists');
 
@@ -111,6 +111,72 @@ select is(
 select ok(
   exists (select 1 from pg_constraint where conname = 'quotes_amounts_balance'),
   'quote arithmetic is protected by a database constraint'
+);
+
+select has_column(
+  'app_private',
+  'demo_sessions',
+  'otp_issued_at',
+  'demo OTP issuance time is stored explicitly'
+);
+
+insert into app_private.demo_sessions (
+  public_id,
+  token_hash,
+  test_alias,
+  expires_at,
+  created_at
+) values (
+  '00000000-0000-4000-8000-000000000008',
+  decode('00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff', 'hex'),
+  'demo-schema@test',
+  '2026-08-13 00:20:00+00',
+  '2026-08-13 00:00:00+00'
+);
+
+select lives_ok(
+  $$
+    update app_private.demo_sessions
+    set otp_ciphertext = 'encrypted-fixture',
+        otp_issued_at = '2026-08-13 00:10:00+00',
+        otp_expires_at = '2026-08-13 00:15:00+00'
+    where public_id = '00000000-0000-4000-8000-000000000008'
+  $$,
+  'an old valid session accepts a fresh five-minute OTP window'
+);
+
+select throws_ok(
+  $$
+    update app_private.demo_sessions
+    set otp_issued_at = null
+    where public_id = '00000000-0000-4000-8000-000000000008'
+  $$,
+  '23514',
+  null,
+  'OTP ciphertext, issuance, and expiry must be all null or all present'
+);
+
+select throws_ok(
+  $$
+    update app_private.demo_sessions
+    set otp_expires_at = '2026-08-13 00:15:00.000001+00'
+    where public_id = '00000000-0000-4000-8000-000000000008'
+  $$,
+  '23514',
+  null,
+  'OTP expiry cannot exceed five minutes after issuance'
+);
+
+select throws_ok(
+  $$
+    update app_private.demo_sessions
+    set otp_issued_at = '2026-08-13 00:18:00+00',
+        otp_expires_at = '2026-08-13 00:22:00+00'
+    where public_id = '00000000-0000-4000-8000-000000000008'
+  $$,
+  '23514',
+  null,
+  'OTP expiry cannot exceed the originating session expiry'
 );
 
 insert into app_private.checkout_intents (

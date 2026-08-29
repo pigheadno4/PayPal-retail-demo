@@ -14,6 +14,7 @@ type DemoSessionRow = {
   test_alias: string | null;
   expires_at: string | Date;
   otp_ciphertext: string | null;
+  otp_issued_at: string | Date | null;
   otp_expires_at: string | Date | null;
   consumed_at: string | Date | null;
 };
@@ -25,6 +26,7 @@ function mapDemoSession(row: DemoSessionRow): DemoSessionRecord {
     testAlias: row.test_alias,
     expiresAt: new Date(row.expires_at),
     otpCiphertext: row.otp_ciphertext,
+    otpIssuedAt: row.otp_issued_at ? new Date(row.otp_issued_at) : null,
     otpExpiresAt: row.otp_expires_at ? new Date(row.otp_expires_at) : null,
     consumedAt: row.consumed_at ? new Date(row.consumed_at) : null,
   };
@@ -63,7 +65,7 @@ export class PostgresCheckoutRepository implements DemoSessionRepository {
   async findByPublicId(publicId: string): Promise<DemoSessionRecord | null> {
     const rows = await this.sql<DemoSessionRow[]>`
       select public_id, encode(token_hash, 'hex') as token_hash, test_alias, expires_at,
-             otp_ciphertext, otp_expires_at, consumed_at
+             otp_ciphertext, otp_issued_at, otp_expires_at, consumed_at
       from app_private.demo_sessions where public_id = ${publicId} limit 1
     `;
     return rows[0] ? mapDemoSession(rows[0]) : null;
@@ -72,18 +74,30 @@ export class PostgresCheckoutRepository implements DemoSessionRepository {
   async findByAlias(alias: string): Promise<DemoSessionRecord | null> {
     const rows = await this.sql<DemoSessionRow[]>`
       select public_id, encode(token_hash, 'hex') as token_hash, test_alias, expires_at,
-             otp_ciphertext, otp_expires_at, consumed_at
+             otp_ciphertext, otp_issued_at, otp_expires_at, consumed_at
       from app_private.demo_sessions where test_alias = ${alias} limit 1
     `;
     return rows[0] ? mapDemoSession(rows[0]) : null;
   }
 
-  async storeOtp(publicId: string, ciphertext: string, expiresAt: Date): Promise<boolean> {
+  async storeOtp(
+    publicId: string,
+    ciphertext: string,
+    issuedAt: Date,
+    expiresAt: Date,
+  ): Promise<boolean> {
     const rows = await this.sql<{ public_id: string }[]>`
       update app_private.demo_sessions
       set otp_ciphertext = ${ciphertext},
-          otp_expires_at = least(${expiresAt}, created_at + interval '5 minutes')
-      where public_id = ${publicId} and consumed_at is null and expires_at > now()
+          otp_issued_at = ${issuedAt},
+          otp_expires_at = least(
+            ${expiresAt},
+            ${issuedAt}::timestamptz + interval '5 minutes',
+            expires_at
+          )
+      where public_id = ${publicId}
+        and consumed_at is null
+        and expires_at > ${issuedAt}
       returning public_id
     `;
     return rows.length === 1;
@@ -93,6 +107,7 @@ export class PostgresCheckoutRepository implements DemoSessionRepository {
     await this.sql`
       update app_private.demo_sessions
       set otp_ciphertext = null,
+          otp_issued_at = null,
           otp_expires_at = null,
           consumed_at = coalesce(${consumedAt ?? null}, consumed_at)
       where public_id = ${publicId}
@@ -182,7 +197,7 @@ export class PostgresCheckoutRepository implements DemoSessionRepository {
       if (input.identityKind === "temporary") {
         await tx`
           update app_private.demo_sessions
-          set otp_ciphertext = null, otp_expires_at = null, consumed_at = now()
+          set otp_ciphertext = null, otp_issued_at = null, otp_expires_at = null, consumed_at = now()
           where public_id = ${input.demoSessionPublicId}
             and token_hash = ${Buffer.from(input.sessionTokenHash, "hex")}
             and test_alias is not null

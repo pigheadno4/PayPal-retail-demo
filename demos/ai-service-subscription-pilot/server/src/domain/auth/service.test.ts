@@ -35,10 +35,11 @@ class MemorySessionRepository implements DemoSessionRepository {
     return this.sessions.find((session) => session.testAlias === alias) ?? null;
   }
 
-  async storeOtp(publicId: string, ciphertext: string, expiresAt: Date) {
+  async storeOtp(publicId: string, ciphertext: string, issuedAt: Date, expiresAt: Date) {
     const session = await this.findByPublicId(publicId);
     if (!session) return false;
     session.otpCiphertext = ciphertext;
+    session.otpIssuedAt = issuedAt;
     session.otpExpiresAt = expiresAt;
     return true;
   }
@@ -47,6 +48,7 @@ class MemorySessionRepository implements DemoSessionRepository {
     const session = await this.findByPublicId(publicId);
     if (!session) return;
     session.otpCiphertext = null;
+    session.otpIssuedAt = null;
     session.otpExpiresAt = null;
     session.consumedAt = consumedAt ?? session.consumedAt;
   }
@@ -73,6 +75,7 @@ describe("TC-0003 originating-session temporary identity", () => {
       testAlias: "demo-q7n4k2@test",
       expiresAt: browserA.expiresAt,
       otpCiphertext: null,
+      otpIssuedAt: null,
       otpExpiresAt: null,
       consumedAt: null,
     });
@@ -95,6 +98,7 @@ describe("TC-0003 originating-session temporary identity", () => {
     const stored = repository.sessions[0]!;
     expect(stored.otpCiphertext).not.toContain("385104");
     expect(decryptDemoOtp(stored.otpCiphertext!, SESSION_SECRET)).toBe("385104");
+    expect(stored.otpIssuedAt?.toISOString()).toBe("2026-07-15T19:00:00.000Z");
     expect(stored.otpExpiresAt?.toISOString()).toBe("2026-07-15T19:05:00.000Z");
     await expect(retrieveDemoOtp({
       cookieValue: browserB.cookieValue,
@@ -121,6 +125,7 @@ describe("TC-0003 originating-session temporary identity", () => {
       testAlias: "demo-q7n4k2@test",
       expiresAt: browser.expiresAt,
       otpCiphertext: "expired",
+      otpIssuedAt: NOW,
       otpExpiresAt: new Date("2026-07-15T19:05:00.000Z"),
       consumedAt: null,
     });
@@ -132,7 +137,11 @@ describe("TC-0003 originating-session temporary identity", () => {
       encryptionSecret: SESSION_SECRET,
       repository,
     })).rejects.toBeInstanceOf(DemoOtpUnavailableError);
-    expect(repository.sessions[0]).toMatchObject({ otpCiphertext: null, otpExpiresAt: null });
+    expect(repository.sessions[0]).toMatchObject({
+      otpCiphertext: null,
+      otpIssuedAt: null,
+      otpExpiresAt: null,
+    });
 
     await expect(processSendEmailHook({
       rawBody: "not-json",
@@ -197,6 +206,7 @@ describe("TC-0002 bearer resume owns identity", () => {
           testAlias: "demo-q7n4k2@test",
           expiresAt: browser.expiresAt,
           otpCiphertext: "encrypted",
+          otpIssuedAt: NOW,
           otpExpiresAt: new Date("2026-07-15T19:05:00.000Z"),
           consumedAt: null,
         }),

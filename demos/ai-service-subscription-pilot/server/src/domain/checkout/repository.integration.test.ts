@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { createDatabaseClient, type DatabaseClient } from "../../db/client.js";
+import { createSignedDemoSession, encryptDemoOtp } from "../auth/demo-session.js";
+import { DemoOtpUnavailableError, retrieveDemoOtp } from "../auth/send-email-hook.js";
 import { createPendingGoMonthlyIntent } from "./service.js";
 import { PostgresCheckoutRepository } from "./repository.js";
 import { createGoMonthlyQuote } from "../quote/go-monthly-seattle.js";
@@ -80,12 +82,14 @@ describe.skipIf(!databaseUrl)("TASK-0007 Express repository on actual Postgres",
       await expect(checkoutRepository.storeOtp(
         demoSessionPublicId,
         "encrypted-only",
+        now,
         new Date(now.getTime() + 5 * 60_000),
       )).resolves.toBe(true);
       expect((await checkoutRepository.findByAlias(temporary.email))?.otpCiphertext).toBe("encrypted-only");
       await checkoutRepository.clearOtp(demoSessionPublicId, new Date());
       expect(await checkoutRepository.findByAlias(temporary.email)).toMatchObject({
         otpCiphertext: null,
+        otpIssuedAt: null,
         otpExpiresAt: null,
       });
 
@@ -155,6 +159,101 @@ describe.skipIf(!databaseUrl)("TASK-0007 Express repository on actual Postgres",
           await tx`delete from auth.users where id = ${authUserId}`;
         });
       }
+      expect(await counts(sql)).toEqual(before);
+      await sql.end();
+    }
+  }, 60_000);
+
+  it("keeps a delayed OTP usable, denies replay after consumption, and clears expiry", async () => {
+    const sql = createDatabaseClient(databaseUrl!);
+    const checkoutRepository = new PostgresCheckoutRepository(sql);
+    const secret = "task-0007-delayed-otp-secret-at-least-32-characters";
+    const issuedAt = new Date();
+    const sessionCreatedAt = new Date(issuedAt.getTime() - 10 * 60_000);
+    const availableProof = createSignedDemoSession(secret, () => sessionCreatedAt);
+    const expiringProof = createSignedDemoSession(secret, () => sessionCreatedAt);
+    const availableAlias = `demo-${randomUUID()}@test`;
+    const expiringAlias = `demo-${randomUUID()}@test`;
+    const before = await counts(sql);
+
+    try {
+      await sql`
+        insert into app_private.demo_sessions
+          (public_id, token_hash, test_alias, expires_at, created_at)
+        values
+          (${availableProof.publicId}, ${Buffer.from(availableProof.tokenHash, "hex")},
+           ${availableAlias}, ${availableProof.expiresAt}, ${sessionCreatedAt}),
+          (${expiringProof.publicId}, ${Buffer.from(expiringProof.tokenHash, "hex")},
+           ${expiringAlias}, ${expiringProof.expiresAt}, ${sessionCreatedAt})
+      `;
+
+      const expiresAt = new Date(issuedAt.getTime() + 5 * 60_000);
+      await expect(checkoutRepository.storeOtp(
+        availableProof.publicId,
+        encryptDemoOtp("385104", secret),
+        issuedAt,
+        expiresAt,
+      )).resolves.toBe(true);
+      expect((await checkoutRepository.findByPublicId(availableProof.publicId))?.otpExpiresAt)
+        .toEqual(expiresAt);
+      await expect(retrieveDemoOtp({
+        cookieValue: availableProof.cookieValue,
+        clock: () => issuedAt,
+        signingSecret: secret,
+        encryptionSecret: secret,
+        repository: checkoutRepository,
+      })).resolves.toEqual({ otp: "385104", expiresAt: expiresAt.toISOString() });
+
+      await checkoutRepository.clearOtp(
+        availableProof.publicId,
+        new Date(issuedAt.getTime() + 60_000),
+      );
+      await expect(retrieveDemoOtp({
+        cookieValue: availableProof.cookieValue,
+        clock: () => new Date(issuedAt.getTime() + 60_001),
+        signingSecret: secret,
+        encryptionSecret: secret,
+        repository: checkoutRepository,
+      })).rejects.toBeInstanceOf(DemoOtpUnavailableError);
+      expect(await checkoutRepository.findByPublicId(availableProof.publicId)).toMatchObject({
+        otpCiphertext: null,
+        otpIssuedAt: null,
+        otpExpiresAt: null,
+      });
+
+      await expect(checkoutRepository.storeOtp(
+        expiringProof.publicId,
+        encryptDemoOtp("509318", secret),
+        issuedAt,
+        expiresAt,
+      )).resolves.toBe(true);
+      await expect(retrieveDemoOtp({
+        cookieValue: expiringProof.cookieValue,
+        clock: () => new Date(expiresAt.getTime() + 1),
+        signingSecret: secret,
+        encryptionSecret: secret,
+        repository: checkoutRepository,
+      })).rejects.toBeInstanceOf(DemoOtpUnavailableError);
+      expect(await checkoutRepository.findByPublicId(expiringProof.publicId)).toMatchObject({
+        otpCiphertext: null,
+        otpIssuedAt: null,
+        otpExpiresAt: null,
+        consumedAt: null,
+      });
+      expect(delta(await counts(sql), before)).toEqual({
+        checkout_intents: 0,
+        accounts: 0,
+        demo_sessions: 2,
+        quotes: 0,
+        payment_operations: 0,
+        billing_arrangements: 0,
+        allowance_windows: 0,
+      });
+    } finally {
+      await sql`
+        delete from app_private.demo_sessions
+        where public_id in (${availableProof.publicId}, ${expiringProof.publicId})
+      `;
       expect(await counts(sql)).toEqual(before);
       await sql.end();
     }

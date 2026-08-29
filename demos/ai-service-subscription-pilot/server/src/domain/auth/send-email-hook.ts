@@ -13,6 +13,7 @@ export type DemoSessionRecord = {
   testAlias: string | null;
   expiresAt: Date;
   otpCiphertext: string | null;
+  otpIssuedAt: Date | null;
   otpExpiresAt: Date | null;
   consumedAt: Date | null;
 };
@@ -20,7 +21,7 @@ export type DemoSessionRecord = {
 export interface DemoSessionRepository {
   findByPublicId(publicId: string): Promise<DemoSessionRecord | null>;
   findByAlias(alias: string): Promise<DemoSessionRecord | null>;
-  storeOtp(publicId: string, ciphertext: string, expiresAt: Date): Promise<boolean>;
+  storeOtp(publicId: string, ciphertext: string, issuedAt: Date, expiresAt: Date): Promise<boolean>;
   clearOtp(publicId: string, consumedAt?: Date): Promise<void>;
 }
 
@@ -63,7 +64,8 @@ export async function processSendEmailHook(input: Readonly<{
     await input.repository.storeOtp(
       session.publicId,
       encryptDemoOtp(payload.email_data.token, input.encryptionSecret),
-      new Date(now.getTime() + 5 * 60_000),
+      now,
+      new Date(Math.min(now.getTime() + 5 * 60_000, session.expiresAt.getTime())),
     );
     return;
   }
@@ -91,6 +93,7 @@ export async function retrieveDemoOtp(input: Readonly<{
     !sessionHashesMatch(session.tokenHash, proof.tokenHash) ||
     session.consumedAt ||
     !session.otpCiphertext ||
+    !session.otpIssuedAt ||
     !session.otpExpiresAt
   ) {
     throw new DemoOtpUnavailableError();
