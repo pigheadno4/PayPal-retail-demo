@@ -112,6 +112,30 @@ describe("createApp", () => {
     expect(second.text).not.toContain(`content="${nonce}"`);
   });
 
+  it("allows only the configured Supabase origin in connect-src", async () => {
+    const cspConfig = {
+      ...config,
+      supabaseUrl: "https://supabase-origin.example.test/project/path?token=url-secret#fragment",
+    };
+    const response = await request(createApp({ config: cspConfig, webDistPath }))
+      .get("/")
+      .set("Accept", "text/html");
+    const connectDirective = response.headers["content-security-policy"]
+      .match(/connect-src [^;]+/)?.[0];
+
+    expect(connectDirective).toBe(
+      "connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://supabase-origin.example.test",
+    );
+    expect(connectDirective).not.toContain("/project/path");
+    expect(connectDirective).not.toContain("url-secret");
+    expect(response.headers["content-security-policy"]).not.toContain(
+      config.supabasePublishableKey,
+    );
+    expect(response.headers["content-security-policy"]).not.toContain(
+      config.supabaseSecretKey,
+    );
+  });
+
   it.each([
     ["get", "/assets/missing.js"],
     ["get", "/assets/missing"],

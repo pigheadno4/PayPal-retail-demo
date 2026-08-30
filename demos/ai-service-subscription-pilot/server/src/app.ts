@@ -67,6 +67,7 @@ function isBrowserHistoryRequest(
 export function createApp(options: CreateAppOptions): Express {
   const app = express();
   const indexPath = join(options.webDistPath, "index.html");
+  const supabaseOrigin = new URL(options.config.supabaseUrl).origin;
 
   // API JSON parsing is intentionally scoped away from raw provider webhooks.
   app.use("/api/v1/paypal", (_request, response, next) => {
@@ -108,7 +109,7 @@ export function createApp(options: CreateAppOptions): Express {
         `style-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com`,
         "img-src 'self' data: https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://b.stats.paypal.com",
         "frame-src https://www.paypal.com https://c.paypal.com",
-        "connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com",
+        `connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com ${supabaseOrigin}`,
         "object-src 'none'",
         "base-uri 'self'",
       ].join("; ");

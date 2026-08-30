@@ -1,13 +1,13 @@
-# TASK-0008 Execution — Round 5
+# TASK-0008 Execution — Round 6
 
 - status: needs_review
-- implementation_round: 5
+- implementation_round: 6
 - approved_plan_sha256: `856dad9effdede84a41264c043ca2293d33dd43f955e893dfb91e80926f18843`
 - user_approval: `user:TASK-0008:2026-08-30:plan-approved`
 - focused_mockup_sha256: `9a7e8650227bd3b2a8689426a0b2cad49b2b05627a299d244bcfd7c05fa03def`
 - focused_mockup_approval: `user:TASK-0008:2026-08-30:focused-mockup-approved`
 - schema_override_approval: `user:TASK-0008:2026-08-30:duplicate-disposition-schema-extension-approved`
-- base_candidate: `2b7b4f606c5ebce89bb6bb4a34c180d99fc95b2a`
+- base_candidate: `82e13af44177b4363cb522ab86a48159b24d8a86`
 - replacement_candidate: see executor handoff
 
 ## Closed Final Quality Findings
@@ -18,6 +18,7 @@
 - FINDING-010: Only a verified terminal failure exposes `Try PayPal again`; that action creates a fresh application operation and fresh request-ID pair while preserving the failed original. Pending status checks retain the existing operation.
 - FINDING-006: The stale round-2 focused count is corrected below to 66/66.
 - FINDING-011: Malformed JSON for PayPal ID-token, order-create, and order-capture requests is now rejected before authentication, domain, provider, or use-case handlers run. All three paths return only HTTP 400 `{error:{code:"invalid_request"}}` with exact `Cache-Control: private, no-store`; unrelated API parsing behavior is unchanged.
+- FINDING-012: Browser-history responses derive exactly one Supabase origin from the validated server URL and add only that origin to the existing `connect-src`. URL path/query/fragment and application keys are absent; nonce and all existing PayPal/script/style/frame/image/object/base directives remain unchanged.
 
 ## Test-First Evidence
 
@@ -46,10 +47,15 @@
    - Focused GREEN: webhook unit coverage passed 13/13. The focused webhook plus configured-repository suite passed 15/15, including both repository scenarios and fixture cleanup.
    - Configured PostgreSQL proved one quarantined `unmatched` result, one duplicate acknowledgement, one canonical event row and raw payload, duplicate count/timestamp `1`, null payment-operation correlation, zero payment methods, and unchanged `pending` reusable readiness.
    - Full regression passed 198 tests with 4 environment-gated tests skipped. Typecheck, lint, Node/Vite build (127 modules), production dependency audit, workflow/delivery-loop/agent-system validators, and diff checks passed. The prior 28/28 browser matrix remains the current UI evidence; round 5 changed no route or UI behavior, so no new browser artifact or provider claim was produced.
+7. Round-6 Supabase CSP origin:
+   - Focused RED: the new app test failed 1/25 because `connect-src` omitted the configured Supabase origin. The existing desktop/mobile post-OTP flow also failed 2/2 before the review heading because the browser blocked the Supabase verification request.
+   - Focused GREEN: `npm test -- server/src/app.test.ts` passed 25/25. The exact `connect-src` contains existing self/PayPal origins plus `https://supabase-origin.example.test`; path, query secret, publishable key, and server secret are absent.
+   - After the CSP fix, the broad flow reached the review heading and exposed one obsolete pre-TASK-0008 copy assertion. Approval `user:TASK-0008:2026-08-30:finding-012-stale-e2e-scope-role24-approved` authorized only replacing it with the already-rendered accessible `Save my PayPal Wallet for future recurring Go payments.` control. The zero-provider-request assertion and every other journey check remain unchanged.
+   - Final installed-Chrome post-OTP proof passed 2/2 across desktop and exact 390px mobile; the PayPal matrix passed 28/28. Full regression passed 199 tests with 4 environment-gated tests skipped. Typecheck, lint, Node/Vite build (127 modules), production dependency audit, workflow/delivery-loop/agent-system validators, and diff checks passed.
 
 ## Remaining Verification And Evidence Limits
 
-- Full regression: 198 passed and 4 environment-gated tests skipped.
+- Full regression: 199 passed and 4 environment-gated tests skipped.
 - Typecheck and lint passed; the production Node/Vite build passed with 127 transformed modules.
 - Production dependency audit found 0 vulnerabilities. Workflow, delivery-loop, and agent-system validators passed.
 - `supabase test db --linked supabase/tests/slice001_core_test.sql` is blocked because CLI `2.114.0` attempts to invoke Docker even with `--linked`; Docker Desktop is unavailable. The exact linked migration history and configured-PostgreSQL integration proof verify the added columns and behavior, but no pgTAP pass is claimed.
@@ -58,4 +64,4 @@
 
 ## Rollback
 
-Revert the round-5 application commit to restore the earlier verified-quarantine acknowledgement behavior. The linked database contains the separately approved additive round-3 migration; removing its two evidence columns would require a separately reviewed forward migration and is not performed by reverting application code.
+Revert the round-6 application commit to restore the prior browser-history CSP and identity-flow assertion. The linked database contains the separately approved additive round-3 migration; removing its two evidence columns would require a separately reviewed forward migration and is not performed by reverting application code.

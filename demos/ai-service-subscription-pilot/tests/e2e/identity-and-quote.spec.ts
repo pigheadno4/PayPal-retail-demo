@@ -144,7 +144,7 @@ test("TC-0002 selection and persistent Supabase identity resume the same intent"
   await page.getByRole("button", { name: "Verify and review" }).click();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await expect(page.getByText("$5.53", { exact: true })).toBeVisible();
-  await expect(page.getByText("Payment step not started")).toBeVisible();
+  await expect(page.getByText("Save my PayPal Wallet for future recurring Go payments.")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   if (testInfo.project.name === "chromium") {
