@@ -4,8 +4,8 @@ import type {
   PayPalGateway,
   PayPalOrderPayload,
   PayPalTransmissionHeaders,
-} from "@/server/paypal/gateway";
-import { PayPalDefinitiveError } from "@/server/paypal/gateway";
+} from "./gateway.js";
+import { PayPalDefinitiveError } from "./gateway.js";
 
 function throwForProviderResponse(response: Response): never {
   if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429) {

@@ -4,7 +4,7 @@ import {
   buildPayPalScriptOptions,
   classifyCaptureStatus,
   classifyCreateOrderResponse,
-} from "@/components/checkout/paypal-wallet-button";
+} from "./paypal-wallet-button.js";
 
 describe("PayPalWalletButton payment boundary", () => {
   it("passes the request nonce through the supported PayPal SDK data option", () => {

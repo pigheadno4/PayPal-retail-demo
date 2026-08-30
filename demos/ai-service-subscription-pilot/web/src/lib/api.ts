@@ -5,6 +5,13 @@ import type {
   DemoSessionResponse,
   RequestOtpRequest,
 } from "../../../shared/src/identity.js";
+import type {
+  CapturePayPalOrderRequest,
+  CreatePayPalOrderRequest,
+  CreatePayPalOrderResponse,
+  PayPalCheckoutStatus,
+  PayPalIdTokenResponse,
+} from "../../../shared/src/paypal.js";
 
 export class ApiRequestError extends Error {
   constructor(readonly status: number) {
@@ -51,5 +58,23 @@ export const demoApi = {
       method: "POST",
       headers: bearer(token),
       body: JSON.stringify({ intentId, currentQuoteId }),
+    }),
+  paypalIdToken: (intentId: string, quoteId: string, token: string) =>
+    requestJson<PayPalIdTokenResponse>("/api/v1/paypal/id-token", {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ intentId, quoteId }),
+    }),
+  createPayPalOrder: (body: CreatePayPalOrderRequest, token: string) =>
+    requestJson<CreatePayPalOrderResponse>("/api/v1/paypal/orders", {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify(body),
+    }),
+  capturePayPalOrder: (orderId: string, body: CapturePayPalOrderRequest, token: string) =>
+    requestJson<PayPalCheckoutStatus>(`/api/v1/paypal/orders/${encodeURIComponent(orderId)}/capture`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify(body),
     }),
 };

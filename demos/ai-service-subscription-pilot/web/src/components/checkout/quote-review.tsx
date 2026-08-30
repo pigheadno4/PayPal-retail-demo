@@ -1,4 +1,8 @@
+import { useState } from "react";
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
+import type { PayPalCheckoutStatus } from "../../../../shared/src/paypal.js";
+import { PaymentHandoff } from "./payment-handoff.js";
+import { PayPalWalletButton } from "./paypal-wallet-button.js";
 
 function money(cents: number): string {
   const sign = cents < 0 ? "−" : "";
@@ -17,9 +21,29 @@ export function QuoteReview(props: Readonly<{
   review: CheckoutReview;
   stale: boolean;
   busy: boolean;
+  accessToken: string;
+  nonce: string;
   onReplace: () => void;
 }>) {
   const { review } = props;
+  const [consented, setConsented] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [status, setStatus] = useState<PayPalCheckoutStatus | null>(null);
+  const [operationId, setOperationId] = useState<string>(() => crypto.randomUUID());
+  const [clientMetadataId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
+
+  if (status) {
+    return <PaymentHandoff status={status} onRetry={status.funding === "verified" ? undefined : () => setStatus(null)} />;
+  }
+  if (verifying) {
+    return (
+      <section className="payment-verification" aria-live="polite" aria-busy="true">
+        <p className="eyebrow">Payment approval received</p>
+        <h2>Verifying payment…</h2>
+        <p>Checkout is locked while the server verifies the authoritative PayPal capture.</p>
+      </section>
+    );
+  }
   return (
     <section className="review-layout" aria-labelledby="review-heading">
       <article className="review-copy reading-surface">
@@ -34,10 +58,43 @@ export function QuoteReview(props: Readonly<{
         ) : (
           <div className="status-note" role="status"><strong>Current review</strong> · expires {boundary(review.expiresAt, review.timeZone)}</div>
         )}
-        <div className="boundary-card">
-          <strong>Payment step not started</strong>
-          <span>No provider request or payment operation exists in this task.</span>
-        </div>
+        {!props.stale ? (
+          <div className="payment-lane">
+            <p className="eyebrow">Pay securely with PayPal</p>
+            <label className="consent-control">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={(event) => setConsented(event.currentTarget.checked)}
+              />
+              <span>Save my PayPal Wallet for future recurring Go payments.</span>
+            </label>
+            {consented ? (
+              <PayPalWalletButton
+                intentId={review.intentId}
+                quoteId={review.quoteId}
+                accessToken={props.accessToken}
+                nonce={props.nonce}
+                operationId={operationId}
+                clientMetadataId={clientMetadataId}
+                onOperationResolved={setOperationId}
+                onVerifying={() => setVerifying(true)}
+                onComplete={(next) => { setVerifying(false); setStatus(next); }}
+                onPending={(next) => { setVerifying(false); setStatus(next); }}
+                onCancel={() => { setVerifying(false); setStatus(null); }}
+                onFailure={(operationId) => {
+                  setVerifying(false);
+                  setStatus({
+                    operationId,
+                    funding: "failed",
+                    reusableReadiness: "failed",
+                    customerMessage: "PayPal could not complete this payment. No access was granted.",
+                  });
+                }}
+              />
+            ) : <p className="muted">Confirm consent to load the official PayPal control.</p>}
+          </div>
+        ) : null}
       </article>
 
       <aside className="summary-card reading-surface" aria-label="Go Monthly price review">

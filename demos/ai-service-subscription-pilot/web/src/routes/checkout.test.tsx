@@ -45,7 +45,7 @@ describe("CheckoutRouteView", () => {
   it("renders the exact immutable review and a visible stop before payment", () => {
     const html = renderToStaticMarkup(
       <CheckoutRouteView
-        state={{ phase: "review", review, stale: false, busy: false }}
+        state={{ phase: "review", review, stale: false, busy: false, accessToken: "TOKEN-REDACTED" }}
         onIdentityRoute={vi.fn()}
         onRequestOtp={vi.fn()}
         onVerifyOtp={vi.fn()}
@@ -58,14 +58,15 @@ describe("CheckoutRouteView", () => {
       expect(html).toContain(value);
     }
     expect(html).toContain("America/Los_Angeles");
-    expect(html).toContain("Payment step not started");
-    expect(html).not.toMatch(/paypal|stripe|pay now|activate|allowance balance/i);
+    expect(html).toContain("Save my PayPal Wallet for future recurring Go payments");
+    expect(html).toContain("official PayPal control");
+    expect(html).not.toMatch(/stripe|activate|allowance balance/i);
   });
 
   it("makes stale state explicit and exposes only quote replacement", () => {
     const html = renderToStaticMarkup(
       <CheckoutRouteView
-        state={{ phase: "review", review, stale: true, busy: false }}
+        state={{ phase: "review", review, stale: true, busy: false, accessToken: "TOKEN-REDACTED" }}
         onIdentityRoute={vi.fn()}
         onRequestOtp={vi.fn()}
         onVerifyOtp={vi.fn()}

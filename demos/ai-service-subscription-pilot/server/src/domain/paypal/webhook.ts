@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import type { PayPalEnvironment, PayPalGateway, PayPalTransmissionHeaders } from "@/server/paypal/gateway";
+import type { DatabaseClient } from "../../db/client.js";
+import type { PayPalEnvironment, PayPalGateway, PayPalTransmissionHeaders } from "./gateway.js";
 
 type Candidate = Readonly<{ operationInternalId: bigint; operationId: string }>;
 type Disposition = "matched" | "duplicate" | "unmatched" | "ambiguous" | "rejected";
@@ -56,16 +57,16 @@ export async function reconcilePayPalWebhook(rawBody: string, headers: PayPalTra
   return Object.freeze({ accepted: true, disposition: "matched" as const });
 }
 
-async function database() { return (await import("@/server/db/client")).sql; }
-
 export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository {
+  constructor(private readonly sql: DatabaseClient) {}
+
   async hasProviderEvent(eventId: string) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ exists: boolean }[]>`select exists(select 1 from app_private.provider_events where provider_event_id = ${eventId}) as exists`;
     return rows[0]?.exists ?? false;
   }
   async findPendingOperations(input: { merchantId: string; environment: PayPalEnvironment; customerId: string }) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ id: string; public_id: string }[]>`
       select o.id, o.public_id from app_private.payment_operations o
       join app_private.billing_arrangements b on b.payment_operation_id = o.id
@@ -76,7 +77,7 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
     return rows.map((row) => ({ operationInternalId: BigInt(row.id), operationId: row.public_id }));
   }
   async isVaultOwned(input: { merchantId: string; environment: PayPalEnvironment; vaultId: string; operationInternalId: bigint }) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ owned: boolean }[]>`
       select exists(
         select 1 from app_private.payment_methods m
@@ -89,7 +90,7 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
     return rows[0]?.owned ?? false;
   }
   async recordDisposition(input: { eventId: string; eventType: string; rawPayload: unknown; signatureValid: boolean; disposition: Disposition; merchantId: string; environment: PayPalEnvironment; operationInternalId?: bigint }) {
-    const sql = await database();
+    const sql = this.sql;
     await sql`
       insert into app_private.provider_events
         (public_id, provider, merchant_id, environment, provider_event_id, event_type, raw_payload, signature_valid, correlation_result, payment_operation_id, received_at, processed_at)
@@ -98,7 +99,7 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
     `;
   }
   async promoteReadiness(input: { eventId: string; vaultId: string; customerId: string; merchantId: string; environment: PayPalEnvironment; operation: Candidate; occurredAt: string; rawPayload: unknown }) {
-    const sql = await database();
+    const sql = this.sql;
     try {
       return await sql.begin(async (tx) => {
       const rows = await tx<{ account_id: string; provider_customer_id: string }[]>`

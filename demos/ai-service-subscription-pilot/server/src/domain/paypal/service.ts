@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import type { CheckoutReview } from "@/contracts/checkout";
-import type { PayPalCheckoutStatus } from "@/contracts/paypal";
+import type { CheckoutReview } from "../../../../shared/src/checkout.js";
+import type { PayPalCheckoutStatus } from "../../../../shared/src/paypal.js";
+import type { DatabaseClient } from "../../db/client.js";
 import type {
   PayPalCaptureEvidence,
   PayPalEnvironment,
   PayPalGateway,
-} from "@/server/paypal/gateway";
-import { PayPalDefinitiveError } from "@/server/paypal/gateway";
-import { buildFraudNetBootstrap, buildInitialPayPalOrder, validateClientMetadataId } from "@/server/paypal/payload";
+} from "./gateway.js";
+import { PayPalDefinitiveError } from "./gateway.js";
+import { buildFraudNetBootstrap, buildInitialPayPalOrder, validateClientMetadataId } from "./payload.js";
 
 type FundingStatus = "created" | "approved" | "completed" | "failed" | "canceled";
 type VaultStatus = "not_requested" | "pending" | "approved" | "vaulted" | "failed";
@@ -99,7 +100,7 @@ export async function issuePayPalUserIdToken(
   }>,
   dependencies: ServiceDependencies,
 ) {
-  const fraudNet = buildFraudNetBootstrap(dependencies.merchantId, dependencies.environment);
+  const fraudNet = buildFraudNetBootstrap(dependencies.environment);
   await dependencies.requireReview({ ...input, now: dependencies.clock?.() ?? new Date() });
   const targetCustomerId = await dependencies.repository.findProviderCustomerId({
     accountId: input.accountId,
@@ -124,7 +125,7 @@ export async function createPayPalOrder(
   dependencies: ServiceDependencies,
 ) {
   const clientMetadataId = validateClientMetadataId(input.clientMetadataId);
-  buildFraudNetBootstrap(dependencies.merchantId, dependencies.environment);
+  buildFraudNetBootstrap(dependencies.environment);
   const review = await dependencies.requireReview({
     accountId: input.accountId,
     intentId: input.intentId,
@@ -267,10 +268,6 @@ function mapOperation(row: OperationRow): PayPalOperationRecord {
   });
 }
 
-async function database() {
-  return (await import("@/server/db/client")).sql;
-}
-
 function sameOperation(
   operation: PayPalOperationRecord,
   input: Readonly<{
@@ -289,13 +286,15 @@ function sameOperation(
 }
 
 export class PostgresPayPalRepository implements PayPalRepository {
+  constructor(private readonly sql: DatabaseClient) {}
+
   async findAccountPublicId(accountId: bigint) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ public_id: string }[]>`select public_id from app_private.accounts where id = ${accountId.toString()} limit 1`;
     return rows[0]?.public_id ?? null;
   }
   async findProviderCustomerId(input: { accountId: bigint; merchantId: string; environment: PayPalEnvironment }) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ provider_customer_id: string }[]>`
       select provider_customer_id from app_private.provider_customers
       where account_id = ${input.accountId.toString()} and provider = 'paypal'
@@ -313,7 +312,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
     merchantId: string;
     environment: PayPalEnvironment;
   }): Promise<CreateClaim> {
-    const sql = await database();
+    const sql = this.sql;
     return sql.begin(async (tx) => {
       const purchases = await tx<{ intent_id: string; quote_id: string; state: string }[]>`
         select i.id as intent_id, q.id as quote_id, i.state
@@ -373,7 +372,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
   }
 
   async storeCreatedOrder(operationId: string, orderId: string) {
-    const sql = await database();
+    const sql = this.sql;
     const rows = await sql<{ public_id: string }[]>`
       update app_private.payment_operations
       set paypal_order_id = ${orderId}, updated_at = now()
@@ -385,7 +384,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
   }
 
   async markCreateFailed(operationId: string) {
-    const sql = await database();
+    const sql = this.sql;
     await sql`
       update app_private.payment_operations set funding_status = 'failed', vault_status = 'failed', updated_at = now()
       where public_id = ${operationId} and funding_status = 'created' and paypal_order_id is null
@@ -401,7 +400,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
     merchantId: string;
     environment: PayPalEnvironment;
   }): Promise<CaptureClaim> {
-    const sql = await database();
+    const sql = this.sql;
     return sql.begin(async (tx) => {
       const rows = await tx<OperationRow[]>`
         select o.*, i.public_id as intent_public_id, q.public_id as quote_public_id
@@ -428,7 +427,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
             funding: "verified" as const,
             reusableReadiness: arrangement.reusable_readiness,
             customerMessage: arrangement.reusable_readiness === "ready"
-              ? "vault token verified; future-charge path documented"
+              ? "PayPal Wallet is ready for future recurring payments."
               : "Payment verified. Reusable payment setup is finishing.",
           }),
         };
@@ -446,7 +445,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
   }
 
   async applyCaptureEvidence(operation: PayPalOperationRecord, evidence: PayPalCaptureEvidence) {
-    const sql = await database();
+    const sql = this.sql;
     return sql.begin(async (tx) => {
       const operationRows = await tx<OperationRow[]>`
         select o.*, i.public_id as intent_public_id, q.public_id as quote_public_id
@@ -551,14 +550,14 @@ export class PostgresPayPalRepository implements PayPalRepository {
         funding: "verified" as const,
         reusableReadiness: readiness,
         customerMessage: readiness === "ready"
-          ? "vault token verified; future-charge path documented"
+          ? "PayPal Wallet is ready for future recurring payments."
           : "Payment verified. Reusable payment setup is finishing.",
       });
     });
   }
 
   async markCaptureFailed(operationId: string) {
-    const sql = await database();
+    const sql = this.sql;
     await sql`
       update app_private.payment_operations set funding_status = 'failed', vault_status = 'failed', updated_at = now()
       where public_id = ${operationId} and funding_status = 'approved'

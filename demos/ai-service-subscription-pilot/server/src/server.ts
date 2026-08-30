@@ -7,6 +7,7 @@ import { createApp } from "./app.js";
 import {
   parseBaseServerConfig,
   requireEmailHookConfig,
+  requirePayPalConfig,
 } from "./config/env.js";
 import { createDatabaseClient } from "./db/client.js";
 import {
@@ -24,10 +25,24 @@ import {
   QuoteNotFoundError,
   replaceCurrentQuote,
   toCheckoutReview,
+  requireCurrentQuoteForPayment,
 } from "./domain/quote/service.js";
+import { HttpPayPalGateway } from "./domain/paypal/http-gateway.js";
+import {
+  captureAndReconcilePayPalOrder,
+  createPayPalOrder,
+  issuePayPalUserIdToken,
+  PostgresPayPalRepository,
+} from "./domain/paypal/service.js";
+import {
+  PostgresPayPalWebhookRepository,
+  reconcilePayPalWebhook,
+} from "./domain/paypal/webhook.js";
 import { createSupabaseTokenVerifier } from "./middleware/auth.js";
 import { createIdentityRouter } from "./routes/identity.js";
 import { createQuotesRouter } from "./routes/quotes.js";
+import { createPayPalRouter } from "./routes/paypal.js";
+import { createPayPalWebhookRouter } from "./routes/paypal-webhook.js";
 import { createSupabaseHookRouter } from "./routes/supabase-hook.js";
 
 const config = parseBaseServerConfig(process.env);
@@ -107,6 +122,66 @@ apiRouter.use(createQuotesRouter({
     });
   },
 }));
+apiRouter.use(createPayPalRouter({
+  verifyToken,
+  issueIdToken: async (identity, input) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    const repository = new PostgresPayPalRepository(sql);
+    const merchantCustomerReference = await repository.findAccountPublicId(accountId);
+    if (!merchantCustomerReference) throw new Error("payment_not_found");
+    return issuePayPalUserIdToken(
+      { accountId, merchantCustomerReference, ...input },
+      {
+        repository,
+        gateway: new HttpPayPalGateway(capability),
+        merchantId: capability.merchantId,
+        environment: capability.environment,
+        requireReview: (reviewInput) => requireCurrentQuoteForPayment({
+          ...reviewInput,
+          repository: quoteRepository,
+        }),
+      },
+    );
+  },
+  createOrder: async (identity, input) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    return createPayPalOrder(
+      { accountId, ...input },
+      {
+        repository: new PostgresPayPalRepository(sql),
+        gateway: new HttpPayPalGateway(capability),
+        merchantId: capability.merchantId,
+        environment: capability.environment,
+        requireReview: (reviewInput) => requireCurrentQuoteForPayment({
+          ...reviewInput,
+          repository: quoteRepository,
+        }),
+      },
+    );
+  },
+  captureOrder: async (identity, input) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    return captureAndReconcilePayPalOrder(
+      { accountId, ...input },
+      {
+        repository: new PostgresPayPalRepository(sql),
+        gateway: new HttpPayPalGateway(capability),
+        merchantId: capability.merchantId,
+        environment: capability.environment,
+        requireReview: (reviewInput) => requireCurrentQuoteForPayment({
+          ...reviewInput,
+          repository: quoteRepository,
+        }),
+      },
+    );
+  },
+}));
 
 const webhookRouter = createSupabaseHookRouter({
   processHook: async (rawBody, headers) => {
@@ -131,6 +206,18 @@ const webhookRouter = createSupabaseHookRouter({
     });
   },
 });
+webhookRouter.use(createPayPalWebhookRouter({
+  processWebhook: (rawBody, headers) => {
+    const capability = requirePayPalConfig(process.env);
+    return reconcilePayPalWebhook(rawBody, headers, {
+      repository: new PostgresPayPalWebhookRepository(sql),
+      gateway: new HttpPayPalGateway(capability),
+      merchantId: capability.merchantId,
+      environment: capability.environment,
+      webhookId: capability.webhookId,
+    });
+  },
+}));
 
 const app = createApp({
   config,

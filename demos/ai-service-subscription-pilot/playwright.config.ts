@@ -29,6 +29,7 @@ export default defineConfig({
       DEMO_SESSION_SIGNING_SECRET: process.env.DEMO_SESSION_SIGNING_SECRET ?? "task-0007-e2e-signing-secret-at-least-32-characters",
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ?? "https://task0007.supabase.test",
       VITE_SUPABASE_PUBLISHABLE_KEY: process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_e2e_placeholder",
+      VITE_PAYPAL_CLIENT_ID: process.env.VITE_PAYPAL_CLIENT_ID ?? "paypal-client-id-e2e-placeholder",
     },
   },
 });

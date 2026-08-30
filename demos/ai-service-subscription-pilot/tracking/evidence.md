@@ -41,9 +41,9 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 - Type: backend, provider, hosted, failure
 - Status: blocked
 - Artifact: tracking/evidence/EVID-0003.md
-- Captured at: 2026-08-25
+- Captured at: 2026-08-30
 - Verified by: pending
-- Result: 40/40 focused checks, 78 passed/2 skipped full regression, actual Supabase PostgreSQL ownership/disposition proof, Webpack production build, and 10/10 desktop/mobile simulated-provider interactions pass; PayPal sandbox and hosted proof remain blocked
+- Result: TASK-0008 Vite/Express parity passes 90 focused assertions, 180 passed/4 skipped full regression, 2/2 actual Supabase PostgreSQL proofs, Node/Vite production build, and 14/14 desktop/exact-390px labeled simulated-provider interactions; real PayPal sandbox and hosted proof remain blocked
 
 ### EVID-0004 — Allowance and Generate Answer ledger proof
 

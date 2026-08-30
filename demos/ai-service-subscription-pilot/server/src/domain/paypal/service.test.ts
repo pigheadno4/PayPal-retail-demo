@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import type { CheckoutReview } from "@/contracts/checkout";
+import type { CheckoutReview } from "../../../../shared/src/checkout.js";
 import type {
   PayPalCaptureEvidence,
   PayPalGateway,
   PayPalOrderPayload,
-} from "@/server/paypal/gateway";
-import { PayPalDefinitiveError } from "@/server/paypal/gateway";
-import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
-import { HttpPayPalGateway, projectPayPalCaptureEvidence } from "@/server/paypal/http-gateway";
+} from "./gateway.js";
+import { PayPalDefinitiveError } from "./gateway.js";
+import { FakePayPalGateway } from "./fake-gateway.js";
+import { HttpPayPalGateway, projectPayPalCaptureEvidence } from "./http-gateway.js";
 import {
   captureAndReconcilePayPalOrder,
   createPayPalOrder,
   issuePayPalUserIdToken,
   type PayPalOperationRecord,
   type PayPalRepository,
-} from "@/server/paypal/service";
-import captureApproved from "../../../tests/fixtures/paypal/capture-approved.json";
-import captureVaulted from "../../../tests/fixtures/paypal/capture-vaulted.json";
+} from "./service.js";
+import captureApproved from "../../../../tests/fixtures/paypal/capture-approved.json";
+import captureVaulted from "../../../../tests/fixtures/paypal/capture-vaulted.json";
 
 const review: CheckoutReview = {
   intentId: "11111111-1111-4111-8111-111111111111",
@@ -80,7 +80,7 @@ class MemoryPayPalRepository implements PayPalRepository {
       funding: "verified" as const,
       reusableReadiness: evidence.vaultStatus === "VAULTED" ? "ready" as const : "pending" as const,
       customerMessage: evidence.vaultStatus === "VAULTED"
-        ? "vault token verified; future-charge path documented"
+        ? "PayPal Wallet is ready for future recurring payments."
         : "Payment verified. Reusable payment setup is finishing.",
     };
   }
@@ -362,10 +362,20 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
     expect(repository.failed).toEqual([]);
   });
 
-  it("keeps a missing nested capture ID unresolved through the real projection boundary", async () => {
+  it.each([
+    ["top-level-only completion", () => ({ id: vaultedEvidence.orderId, status: "COMPLETED", purchase_units: [] })],
+    ["missing nested capture ID", () => {
+      const raw = structuredClone(captureVaulted);
+      Reflect.deleteProperty(raw.purchase_units[0]!.payments.captures[0]!, "id");
+      return raw;
+    }],
+    ["multiple nested captures", () => {
+      const raw = structuredClone(captureVaulted);
+      raw.purchase_units[0]!.payments.captures.push(structuredClone(raw.purchase_units[0]!.payments.captures[0]!));
+      return raw;
+    }],
+  ] as const)("keeps %s unresolved through projection and service reconciliation", async (_name, rawCapture) => {
     const repository = new MemoryPayPalRepository();
-    const missingCaptureId = structuredClone(captureVaulted);
-    Reflect.deleteProperty(missingCaptureId.purchase_units[0]!.payments.captures[0]!, "id");
 
     const result = await captureAndReconcilePayPalOrder({
       accountId: 2n,
@@ -373,7 +383,7 @@ describe("TC-0006 verified capture funding and reusable readiness", () => {
       quoteId: review.quoteId,
       operationId: operation().operationId,
       orderId: vaultedEvidence.orderId,
-    }, dependencies(repository, mutationGateway(200, missingCaptureId)));
+    }, dependencies(repository, mutationGateway(200, rawCapture())));
 
     expect(result).toEqual({
       operationId: operation().operationId,

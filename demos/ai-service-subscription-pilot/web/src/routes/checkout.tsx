@@ -18,7 +18,7 @@ type CheckoutState =
       temporaryEmail?: string;
       error?: string;
     }>
-  | Readonly<{ phase: "review"; review: CheckoutReview; stale: boolean; busy: boolean; error?: string }>;
+  | Readonly<{ phase: "review"; review: CheckoutReview; stale: boolean; busy: boolean; accessToken: string; error?: string }>;
 
 type CheckoutRouteViewProps = Readonly<{
   state: CheckoutState;
@@ -45,6 +45,7 @@ async function restoreCheckout(intentId: string): Promise<Readonly<{
         review,
         stale: Date.parse(review.expiresAt) <= Date.now(),
         busy: false,
+        accessToken: token,
       },
       accessToken: token,
     };
@@ -95,6 +96,8 @@ export function CheckoutRouteView(props: CheckoutRouteViewProps) {
         review={props.state.review}
         stale={props.state.stale}
         busy={props.state.busy}
+        accessToken={props.state.accessToken}
+        nonce={typeof document === "undefined" ? "" : document.querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')?.content ?? ""}
         onReplace={props.onReplaceQuote}
       />
       {props.state.error ? <p className="error-note" role="alert">{props.state.error}</p> : null}
@@ -170,6 +173,7 @@ export function CheckoutRoute() {
         review,
         stale: Date.parse(review.expiresAt) <= Date.now(),
         busy: false,
+        accessToken: token,
       });
     } catch {
       setState({ ...previous, busy: false, error: "That code could not be verified." });
@@ -187,6 +191,7 @@ export function CheckoutRoute() {
         review: result.review,
         stale: Date.parse(result.review.expiresAt) <= Date.now(),
         busy: false,
+        accessToken: previous.accessToken,
       });
     } catch {
       setState({ ...previous, busy: false, error: "The review could not be refreshed." });

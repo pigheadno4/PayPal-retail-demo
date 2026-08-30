@@ -1,4 +1,4 @@
-import type { Money } from "@/contracts/checkout";
+import type { Money } from "../../../../shared/src/checkout.js";
 
 export type PayPalEnvironment = "sandbox" | "live";
 export type PayPalOrderPayload = Readonly<Record<string, unknown>>;

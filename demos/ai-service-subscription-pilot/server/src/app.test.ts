@@ -38,7 +38,7 @@ describe("createApp", () => {
     mkdirSync(join(webDistPath, "assets"));
     writeFileSync(
       join(webDistPath, "index.html"),
-      "<!doctype html><html><body><main>Foundation shell</main></body></html>",
+      "<!doctype html><html><head><meta name=\"csp-nonce\" content=\"__CSP_NONCE__\"></head><body><main>Foundation shell</main></body></html>",
     );
     writeFileSync(join(webDistPath, "assets", "main.js"), "export {};\n");
   });
@@ -91,6 +91,20 @@ describe("createApp", () => {
       expect(response.text).toContain("Foundation shell");
     },
   );
+
+  it("uses one fresh 128-bit nonce in both CSP directives and the document", async () => {
+    const app = createApp({ config, webDistPath });
+    const first = await request(app).get("/").set("Accept", "text/html");
+    const second = await request(app).get("/").set("Accept", "text/html");
+    const nonce = first.text.match(/name="csp-nonce" content="([^"]+)"/)?.[1];
+
+    expect(nonce).toBeTruthy();
+    expect(Buffer.from(nonce!, "base64")).toHaveLength(16);
+    expect(first.headers["content-security-policy"]).toContain(`script-src 'self' 'nonce-${nonce}'`);
+    expect(first.headers["content-security-policy"]).toContain(`style-src 'self' 'nonce-${nonce}'`);
+    expect(first.headers["content-security-policy"]).not.toContain("unsafe-inline");
+    expect(second.text).not.toContain(`content="${nonce}"`);
+  });
 
   it.each([
     ["get", "/assets/missing.js"],

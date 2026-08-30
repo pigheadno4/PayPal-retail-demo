@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { CheckoutReview } from "@/contracts/checkout";
-import { createPayPalOrderRequestSchema } from "@/contracts/paypal";
+import type { CheckoutReview } from "../../../../shared/src/checkout.js";
+import { createPayPalOrderRequestSchema } from "../../../../shared/src/paypal.js";
 import {
   buildFraudNetBootstrap,
   buildInitialPayPalOrder,
   validateClientMetadataId,
-} from "@/server/paypal/payload";
+} from "./payload.js";
 
 const review: CheckoutReview = {
   intentId: "11111111-1111-4111-8111-111111111111",
@@ -55,7 +55,7 @@ describe("TC-0005 initial PayPal order", () => {
           },
         },
         items: [{
-          name: "Go Monthly",
+          name: "Billing Plan",
           quantity: "1",
           category: "DIGITAL_GOODS",
           unit_amount: { currency_code: "USD", value: "5.00" },
@@ -68,7 +68,7 @@ describe("TC-0005 initial PayPal order", () => {
               frequency: { interval_unit: "MONTH", interval_count: 1 },
               pricing_scheme: {
                 pricing_model: "FIXED",
-                fixed_price: { currency_code: "USD", value: "5.00" },
+                price: { currency_code: "USD", value: "5.00" },
               },
             }, {
               sequence: 2,
@@ -77,7 +77,7 @@ describe("TC-0005 initial PayPal order", () => {
               frequency: { interval_unit: "MONTH", interval_count: 1 },
               pricing_scheme: {
                 pricing_model: "FIXED",
-                fixed_price: { currency_code: "USD", value: "10.00" },
+                price: { currency_code: "USD", value: "10.00" },
               },
             }],
           },
@@ -85,25 +85,22 @@ describe("TC-0005 initial PayPal order", () => {
       }],
     });
     expect(JSON.stringify(payload)).not.toContain("discount");
+    expect(JSON.stringify(payload)).not.toContain("fixed_price");
     expect(JSON.stringify(payload)).not.toContain("stored_credential");
   });
 });
 
 describe("TC-0005 FraudNet contract", () => {
-  it("uses the exact non-hashed merchant source and environment", () => {
-    expect(buildFraudNetBootstrap("MERCHANT123", "sandbox")).toEqual({
-      sourceId: "MERCHANT123_checkout-page",
+  it("uses the exact public application flow source and environment without merchant identity", () => {
+    expect(buildFraudNetBootstrap("sandbox")).toEqual({
+      sourceId: "AI_SERVICE_STUDIO_CHECKOUT",
       sandbox: true,
     });
-    expect(buildFraudNetBootstrap("MERCHANT123", "live")).toEqual({
-      sourceId: "MERCHANT123_checkout-page",
+    expect(buildFraudNetBootstrap("live")).toEqual({
+      sourceId: "AI_SERVICE_STUDIO_CHECKOUT",
       sandbox: false,
     });
-  });
-
-  it("rejects empty and over-32 exact sources rather than truncating or hashing", () => {
-    expect(() => buildFraudNetBootstrap("", "sandbox")).toThrow("invalid_paypal_merchant_id");
-    expect(() => buildFraudNetBootstrap("12345678901234567890", "sandbox")).toThrow("invalid_fraudnet_source_id");
+    expect(JSON.stringify(buildFraudNetBootstrap("sandbox"))).not.toContain("MERCHANT");
   });
 
   it("accepts only one non-empty client metadata identifier of at most 32 characters", () => {

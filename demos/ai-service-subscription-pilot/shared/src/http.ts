@@ -7,6 +7,7 @@ export type ApiErrorResponse = Readonly<{
       | "invalid_request"
       | "authentication_required"
       | "stale_quote"
+      | "payment_not_available"
       | "hook_rejected"
       | "integration_not_configured"
       | "internal_error";

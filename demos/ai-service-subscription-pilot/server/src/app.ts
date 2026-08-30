@@ -4,7 +4,8 @@ import express, {
   type RequestHandler,
   type Router,
 } from "express";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { extname, join } from "node:path";
 
 import type { ApiErrorResponse } from "../../shared/src/http.js";
@@ -86,11 +87,27 @@ export function createApp(options: CreateAppOptions): Express {
       return;
     }
 
-    response.sendFile(indexPath, (error) => {
-      if (error) {
-        next(error);
-      }
-    });
+    try {
+      const nonce = randomBytes(16).toString("base64");
+      const policy = [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com`,
+        `style-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com`,
+        "img-src 'self' data: https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://b.stats.paypal.com",
+        "frame-src https://www.paypal.com",
+        "connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com",
+        "object-src 'none'",
+        "base-uri 'self'",
+      ].join("; ");
+      const html = readFileSync(indexPath, "utf8").replaceAll("__CSP_NONCE__", nonce);
+      response
+        .set("Content-Security-Policy", policy)
+        .set("Cache-Control", "no-store")
+        .type("html")
+        .send(html);
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.use(notFound);

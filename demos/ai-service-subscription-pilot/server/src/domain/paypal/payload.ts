@@ -1,5 +1,5 @@
-import type { CheckoutReview } from "@/contracts/checkout";
-import type { PayPalEnvironment, PayPalOrderPayload } from "@/server/paypal/gateway";
+import type { CheckoutReview } from "../../../../shared/src/checkout.js";
+import type { PayPalEnvironment, PayPalOrderPayload } from "./gateway.js";
 
 function decimal(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -30,7 +30,7 @@ export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayl
         },
       },
       items: [{
-        name: "Go Monthly",
+        name: "Billing Plan",
         quantity: "1",
         category: "DIGITAL_GOODS",
         unit_amount: { currency_code: "USD", value: decimal(review.taxableSubtotal.cents) },
@@ -43,7 +43,7 @@ export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayl
             frequency: { interval_unit: "MONTH", interval_count: 1 },
             pricing_scheme: {
               pricing_model: "FIXED",
-              fixed_price: { currency_code: "USD", value: decimal(review.taxableSubtotal.cents) },
+              price: { currency_code: "USD", value: decimal(review.taxableSubtotal.cents) },
             },
           }, {
             sequence: 2,
@@ -52,7 +52,7 @@ export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayl
             frequency: { interval_unit: "MONTH", interval_count: 1 },
             pricing_scheme: {
               pricing_model: "FIXED",
-              fixed_price: { currency_code: "USD", value: decimal(review.base.cents) },
+              price: { currency_code: "USD", value: decimal(review.base.cents) },
             },
           }],
         },
@@ -61,14 +61,14 @@ export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayl
   });
 }
 
-export function buildFraudNetBootstrap(merchantId: string, environment: PayPalEnvironment) {
-  if (!merchantId) throw new Error("invalid_paypal_merchant_id");
-  const sourceId = `${merchantId}_checkout-page`;
-  if (sourceId.length > 32) throw new Error("invalid_fraudnet_source_id");
-  return Object.freeze({ sourceId, sandbox: environment === "sandbox" });
+export function buildFraudNetBootstrap(environment: PayPalEnvironment) {
+  return Object.freeze({
+    sourceId: "AI_SERVICE_STUDIO_CHECKOUT" as const,
+    sandbox: environment === "sandbox",
+  });
 }
 
 export function validateClientMetadataId(value: string): string {
-  if (!value || value.length > 32) throw new Error("invalid_client_metadata_id");
+  if (!/^[A-Za-z0-9_-]{32}$/.test(value)) throw new Error("invalid_client_metadata_id");
   return value;
 }

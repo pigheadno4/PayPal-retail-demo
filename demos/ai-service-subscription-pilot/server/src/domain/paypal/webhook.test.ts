@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
+import { FakePayPalGateway } from "./fake-gateway.js";
 import {
   reconcilePayPalWebhook,
   type PayPalWebhookRepository,
-} from "@/server/paypal/webhook";
+} from "./webhook.js";
 
 const event = {
   id: "WH-REDACTED",

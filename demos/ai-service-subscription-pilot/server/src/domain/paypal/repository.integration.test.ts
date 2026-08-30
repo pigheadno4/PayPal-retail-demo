@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { describe, expect, it, vi } from "vitest";
 
-import { bindVerifiedIdentityAndQuote, insertPendingIntent } from "@/server/checkout/repository";
-import { createGoMonthlyQuote } from "@/server/quote/go-monthly-seattle";
-import { PostgresQuoteRepository } from "@/server/quote/repository";
-import { FakePayPalGateway } from "@/server/paypal/fake-gateway";
-import { PostgresPayPalRepository } from "@/server/paypal/service";
-import { PostgresPayPalWebhookRepository, reconcilePayPalWebhook } from "@/server/paypal/webhook";
+import { PostgresCheckoutRepository } from "../checkout/repository.js";
+import { createGoMonthlyQuote } from "../quote/go-monthly-seattle.js";
+import { PostgresQuoteRepository } from "../quote/repository.js";
+import { FakePayPalGateway } from "./fake-gateway.js";
+import { PostgresPayPalRepository } from "./service.js";
+import { PostgresPayPalWebhookRepository, reconcilePayPalWebhook } from "./webhook.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 const NOW = new Date("2026-07-15T19:00:00.000Z");
@@ -44,17 +44,18 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
   it("owns one payment per intent and durably reconciles every webhook disposition without granting units", async () => {
     Object.entries(runtimeFixture).forEach(([name, value]) => vi.stubEnv(name, value));
     const fixtureSql = postgres(databaseUrl!, { max: 4, prepare: false });
+    const checkoutRepository = new PostgresCheckoutRepository(fixtureSql);
     const authUserId = randomUUID();
     const intentIds: string[] = [];
     const eventIds: string[] = [];
     const before = await paymentCounts(fixtureSql);
     try {
       const sessionHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
-      const intentId = await insertPendingIntent(sessionHash, NOW);
+      const intentId = await checkoutRepository.insertPendingIntent(sessionHash, NOW);
       intentIds.push(intentId);
       await fixtureSql`insert into auth.users (id) values (${authUserId})`;
-      const bound = await bindVerifiedIdentityAndQuote({ authUserId, identityKind: "persistent", temporaryExpiresAt: null, intentId, sessionTokenHash: sessionHash, demoSessionPublicId: randomUUID(), quote: createGoMonthlyQuote(() => NOW) });
-      const repository = new PostgresPayPalRepository();
+      const bound = await checkoutRepository.bindVerifiedIdentityAndQuote({ authUserId, identityKind: "persistent", temporaryExpiresAt: null, intentId, sessionTokenHash: sessionHash, demoSessionPublicId: randomUUID(), quote: createGoMonthlyQuote(() => NOW) });
+      const repository = new PostgresPayPalRepository(fixtureSql);
 
       const firstOperationIds = [randomUUID(), randomUUID()];
       const firstClaims = await Promise.all(firstOperationIds.map((operationId) => repository.claimCreateOperation({
@@ -111,7 +112,7 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         environment: "sandbox",
       })).resolves.toMatchObject({ kind: "failed", operation: { operationId: firstOwner.operation.operationId } });
 
-      const webhookRepository = new PostgresPayPalWebhookRepository();
+      const webhookRepository = new PostgresPayPalWebhookRepository(fixtureSql);
       const webhookDependencies = (signatureValid: boolean) => ({
         repository: webhookRepository,
         gateway: new FakePayPalGateway({ webhookVerified: signatureValid }),
@@ -214,13 +215,14 @@ describe.skipIf(!databaseUrl)("TASK-0002 production Postgres repository", () => 
   it("proves intent-only selection, canonical bind retry, and exactly one racing successor", async () => {
     Object.entries(runtimeFixture).forEach(([name, value]) => vi.stubEnv(name, value));
     const fixtureSql = postgres(databaseUrl!, { max: 2, prepare: false });
+    const checkoutRepository = new PostgresCheckoutRepository(fixtureSql);
     const authUserId = randomUUID();
     const sessionHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
     let intentId = "";
     const before = await counts(fixtureSql);
 
     try {
-      intentId = await insertPendingIntent(sessionHash, NOW);
+      intentId = await checkoutRepository.insertPendingIntent(sessionHash, NOW);
       const afterSelection = await counts(fixtureSql);
       expect(Object.fromEntries(Object.keys(before).map((key) => [key, afterSelection[key as keyof Counts] - before[key as keyof Counts]]))).toEqual({
         checkout_intents: 1,
@@ -241,8 +243,8 @@ describe.skipIf(!databaseUrl)("TASK-0002 production Postgres repository", () => 
         demoSessionPublicId: randomUUID(),
         quote: createGoMonthlyQuote(() => NOW),
       };
-      const first = await bindVerifiedIdentityAndQuote(bindInput);
-      const retry = await bindVerifiedIdentityAndQuote(bindInput);
+      const first = await checkoutRepository.bindVerifiedIdentityAndQuote(bindInput);
+      const retry = await checkoutRepository.bindVerifiedIdentityAndQuote(bindInput);
       expect(retry.accountId).toBe(first.accountId);
       expect(retry.quote.quoteId).toBe(first.quote.quoteId);
 
@@ -255,8 +257,8 @@ describe.skipIf(!databaseUrl)("TASK-0002 production Postgres repository", () => 
         now: replacementNow,
       };
       const [left, right] = await Promise.all([
-        new PostgresQuoteRepository().replaceOwnedQuoteAtomically(replacementInput),
-        new PostgresQuoteRepository().replaceOwnedQuoteAtomically(replacementInput),
+        new PostgresQuoteRepository(fixtureSql).replaceOwnedQuoteAtomically(replacementInput),
+        new PostgresQuoteRepository(fixtureSql).replaceOwnedQuoteAtomically(replacementInput),
       ]);
       expect([left.kind, right.kind].sort()).toEqual(["conflict", "replaced"]);
       const successors = await fixtureSql<{ count: number }[]>`
@@ -275,8 +277,6 @@ describe.skipIf(!databaseUrl)("TASK-0002 production Postgres repository", () => 
       }
       const afterCleanup = await counts(fixtureSql);
       await fixtureSql.end();
-      const { sql: repositorySql } = await import("@/server/db/client");
-      await repositorySql.end();
       expect(afterCleanup).toEqual(before);
     }
   }, 30_000);

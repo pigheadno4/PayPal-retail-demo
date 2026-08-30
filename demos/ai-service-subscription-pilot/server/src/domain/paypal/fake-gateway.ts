@@ -3,7 +3,7 @@ import type {
   PayPalGateway,
   PayPalOrderPayload,
   PayPalTransmissionHeaders,
-} from "@/server/paypal/gateway";
+} from "./gateway.js";
 
 const defaultEvidence: PayPalCaptureEvidence = {
   orderId: "ORDER-REDACTED",
