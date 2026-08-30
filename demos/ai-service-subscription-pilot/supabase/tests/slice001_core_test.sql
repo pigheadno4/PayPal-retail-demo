@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(46);
 
 select has_schema('app_private', 'server-owned schema exists');
 
@@ -280,6 +280,37 @@ select throws_ok(
 select ok(
   exists (select 1 from pg_constraint where conname = 'provider_events_provider_event_unique'),
   'provider event delivery is idempotent per provider boundary'
+);
+
+select has_column(
+  'app_private',
+  'provider_events',
+  'duplicate_delivery_count',
+  'provider event records retain a duplicate delivery count'
+);
+
+select has_column(
+  'app_private',
+  'provider_events',
+  'last_duplicate_received_at',
+  'provider event records retain the latest duplicate delivery timestamp'
+);
+
+select is(
+  (
+    select column_default
+    from information_schema.columns
+    where table_schema = 'app_private'
+      and table_name = 'provider_events'
+      and column_name = 'duplicate_delivery_count'
+  ),
+  '0',
+  'provider duplicate delivery count defaults to zero'
+);
+
+select ok(
+  exists (select 1 from pg_constraint where conname = 'provider_events_duplicate_delivery_count_nonnegative'),
+  'provider duplicate delivery count cannot become negative'
 );
 
 insert into app_private.provider_events (

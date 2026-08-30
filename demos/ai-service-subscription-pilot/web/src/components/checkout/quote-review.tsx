@@ -17,6 +17,14 @@ function boundary(value: string, timeZone: string): string {
   }).format(new Date(value));
 }
 
+export function operationIdAfterRetry(
+  funding: PayPalCheckoutStatus["funding"],
+  currentOperationId: string,
+  createOperationId: () => string,
+) {
+  return funding === "failed" ? createOperationId() : currentOperationId;
+}
+
 export function QuoteReview(props: Readonly<{
   review: CheckoutReview;
   stale: boolean;
@@ -33,7 +41,10 @@ export function QuoteReview(props: Readonly<{
   const [clientMetadataId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
 
   if (status) {
-    return <PaymentHandoff status={status} onRetry={status.funding === "verified" ? undefined : () => setStatus(null)} />;
+    return <PaymentHandoff status={status} onRetry={status.funding === "verified" ? undefined : () => {
+      setOperationId(operationIdAfterRetry(status.funding, operationId, () => crypto.randomUUID()));
+      setStatus(null);
+    }} />;
   }
   if (verifying) {
     return (

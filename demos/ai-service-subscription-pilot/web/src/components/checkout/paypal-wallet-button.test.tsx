@@ -4,6 +4,7 @@ import {
   buildPayPalScriptOptions,
   classifyCaptureError,
   classifyCaptureStatus,
+  classifyCreateOrderError,
   classifyCreateOrderResponse,
 } from "./paypal-wallet-button.js";
 import { ApiRequestError } from "../../lib/api.js";
@@ -58,5 +59,15 @@ describe("PayPalWalletButton payment boundary", () => {
         customerMessage: "Payment verification is still in progress.",
       },
     });
+  });
+
+  it.each([
+    [new TypeError("network interruption"), "pending"],
+    [new SyntaxError("malformed response"), "pending"],
+    [new ApiRequestError(503, "internal_error"), "pending"],
+    [new ApiRequestError(200, null), "pending"],
+    [new ApiRequestError(409, "payment_not_available"), "failed"],
+  ] as const)("classifies create exception %s as %s", (error, expected) => {
+    expect(classifyCreateOrderError(error)).toBe(expected);
   });
 });

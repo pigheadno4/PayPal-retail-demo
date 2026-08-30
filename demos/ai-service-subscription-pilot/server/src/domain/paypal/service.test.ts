@@ -253,6 +253,33 @@ describe("TC-0005 user token and create ownership", () => {
     expect(repository.failed).toEqual(["create"]);
   });
 
+  it("uses a fresh operation and request ID after the prior operation is definitively failed", async () => {
+    const repository = new MemoryPayPalRepository();
+    const original = operation({ fundingStatus: "failed", vaultStatus: "failed" });
+    const replacement = operation({
+      internalId: 2n,
+      operationId: "55555555-5555-4555-8555-555555555555",
+      createRequestId: "create-55555555-5555-4555-8555-555555555555",
+      captureRequestId: "capture-55555555-5555-4555-8555-555555555555",
+    });
+    repository.claimCreateResult = { kind: "owner", operation: replacement };
+    const gateway = new FakePayPalGateway();
+
+    const result = await createPayPalOrder({
+      accountId: 2n,
+      intentId: review.intentId,
+      quoteId: review.quoteId,
+      operationId: replacement.operationId,
+      clientMetadataId: "1234567890abcdef1234567890abcdef",
+    }, dependencies(repository, gateway));
+
+    expect(result).toMatchObject({ status: "ready", operationId: replacement.operationId });
+    expect(repository.createInputs).toEqual([expect.objectContaining({ operationId: replacement.operationId })]);
+    expect(gateway.createInputs).toEqual([expect.objectContaining({ requestId: replacement.createRequestId })]);
+    expect(replacement.operationId).not.toBe(original.operationId);
+    expect(replacement.createRequestId).not.toBe(original.createRequestId);
+  });
+
   it.each([
     [409, "RESOURCE_CONFLICT", "PREVIOUS_REQUEST_IN_PROGRESS"],
     [422, "UNPROCESSABLE_ENTITY", "UNRECOGNIZED_CREATE_ISSUE"],

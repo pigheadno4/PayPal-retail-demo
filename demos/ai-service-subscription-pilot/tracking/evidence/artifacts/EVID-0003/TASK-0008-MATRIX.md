@@ -6,7 +6,7 @@
 - provider_level: labeled simulated-provider interception
 - viewports: desktop Chrome and exact 390px mobile
 - themes: light and dark
-- evidence_run: 18/18 Playwright cases passed
+- evidence_run: 28/28 Playwright cases passed
 
 | State | Customer-visible result | Desktop artifacts | Exact 390px artifacts |
 | --- | --- | --- | --- |
@@ -18,5 +18,7 @@
 | Vault ready | Funding and reusable readiness are verified while access remains not granted | `chromium-task-0008-vault-ready-light.png`, `chromium-task-0008-vault-ready-dark.png` | `mobile-chromium-task-0008-vault-ready-light.png`, `mobile-chromium-task-0008-vault-ready-dark.png` |
 
 Each captured state passed keyboard focus, visible focus, 44px target, horizontal-overflow, theme, and page-error checks. Expected intercepted HTTP 409/503 or aborted-request browser network messages were allowlisted only in the failure/uncertainty behavior tests; no application console error was accepted. The Go-active comparison panel is excluded because it remains TASK-0004-owned.
+
+Ten additional non-screenshot behavior cases ran in the same production-browser matrix: create-order abort, HTTP 5xx, malformed JSON, unknown response shape, and definitive-failure fresh retry on both desktop and exact 390px mobile. Uncertainty retained one operation and never reached capture; the definitive retry used a different operation identifier.
 
 These artifacts contain sanitized demo copy only. They do not retain bearer/cookie values, emails, raw FraudNet attempt IDs, merchant identity, provider tokens, signatures, or full provider customer/order/vault/event identifiers. They are not PayPal sandbox or hosted proof.

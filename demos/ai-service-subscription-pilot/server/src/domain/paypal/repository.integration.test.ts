@@ -72,8 +72,26 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       if (!firstOwner || firstOwner.kind !== "owner" || !firstFollower) throw new Error("unexpected create claims");
       expect(firstFollower.operation.operationId).toBe(firstOwner.operation.operationId);
 
+      await repository.markCreateFailed(firstOwner.operation.operationId);
+      const retryOperationId = randomUUID();
+      const retryOwner = await repository.claimCreateOperation({
+        accountId: bound.accountId,
+        intentId,
+        quoteId: bound.quote.quoteId,
+        operationId: retryOperationId,
+        merchantId: "MERCHANT123",
+        environment: "sandbox",
+      });
+      if (retryOwner.kind !== "owner") throw new Error("unexpected retry claim");
+      expect(retryOwner.operation.operationId).toBe(retryOperationId);
+      expect(retryOwner.operation.createRequestId).not.toBe(firstOwner.operation.createRequestId);
+      await expect(fixtureSql<{ public_id: string; funding_status: string }[]>`
+        select public_id, funding_status from app_private.payment_operations
+        where public_id = ${firstOwner.operation.operationId}
+      `).resolves.toEqual([{ public_id: firstOwner.operation.operationId, funding_status: "failed" }]);
+
       const firstOrderId = "ORDER-TASK0003-FIRST";
-      await repository.storeCreatedOrder(firstOwner.operation.operationId, firstOrderId);
+      await repository.storeCreatedOrder(retryOwner.operation.operationId, firstOrderId);
       const reentry = await repository.claimCreateOperation({
         accountId: bound.accountId,
         intentId,
@@ -82,12 +100,12 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         merchantId: "MERCHANT123",
         environment: "sandbox",
       });
-      expect(reentry).toMatchObject({ kind: "ready", operation: { operationId: firstOwner.operation.operationId }, orderId: firstOrderId });
+      expect(reentry).toMatchObject({ kind: "ready", operation: { operationId: retryOwner.operation.operationId }, orderId: firstOrderId });
       const firstCapture = await repository.claimCaptureOperation({
         accountId: bound.accountId,
         intentId,
         quoteId: bound.quote.quoteId,
-        operationId: firstOwner.operation.operationId,
+        operationId: retryOwner.operation.operationId,
         orderId: firstOrderId,
         merchantId: "MERCHANT123",
         environment: "sandbox",
@@ -110,7 +128,7 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         operationId: randomUUID(),
         merchantId: "MERCHANT123",
         environment: "sandbox",
-      })).resolves.toMatchObject({ kind: "failed", operation: { operationId: firstOwner.operation.operationId } });
+      })).resolves.toMatchObject({ kind: "failed", operation: { operationId: retryOwner.operation.operationId } });
 
       const webhookRepository = new PostgresPayPalWebhookRepository(fixtureSql);
       const webhookDependencies = (signatureValid: boolean) => ({
@@ -131,7 +149,8 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       const malformedId = `TASK0003-MALFORMED-${randomUUID()}`;
       const unmatchedId = `TASK0003-UNMATCHED-${randomUUID()}`;
       eventIds.push(invalidId, malformedId, unmatchedId);
-      await expect(reconcilePayPalWebhook(event(invalidId, "CUSTOMER-UNKNOWN", "VAULT-INVALID"), {}, webhookDependencies(false))).resolves.toEqual({ accepted: false, disposition: "rejected" });
+      const matchedBody = event(invalidId, "CUSTOMER-TASK0003-SHARED", "VAULT-TASK0003-MATCHED");
+      await expect(reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(false))).resolves.toEqual({ accepted: false, disposition: "rejected" });
       await expect(reconcilePayPalWebhook(event(malformedId, "CUSTOMER-TASK0003-SHARED", "VAULT-MALFORMED", "CHECKOUT.ORDER.APPROVED"), {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "rejected" });
       await expect(reconcilePayPalWebhook(event(unmatchedId, "CUSTOMER-UNKNOWN", "VAULT-UNMATCHED"), {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "unmatched" });
 
@@ -147,9 +166,6 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         environment: "sandbox",
       });
 
-      const matchedId = `TASK0003-MATCHED-${randomUUID()}`;
-      eventIds.push(matchedId);
-      const matchedBody = event(matchedId, "CUSTOMER-TASK0003-SHARED", "VAULT-TASK0003-MATCHED");
       const concurrentResults = await Promise.all([
         reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true)),
         reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true)),
@@ -163,26 +179,43 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       `;
       expect(dispositions.map((row) => ({ ...row })).sort((left, right) => left.provider_event_id.localeCompare(right.provider_event_id))).toEqual([
         { provider_event_id: ambiguousId, correlation_result: "ambiguous", signature_valid: true, complete_timestamps: true },
-        { provider_event_id: invalidId, correlation_result: "rejected", signature_valid: false, complete_timestamps: true },
+        { provider_event_id: invalidId, correlation_result: "matched", signature_valid: true, complete_timestamps: true },
         { provider_event_id: malformedId, correlation_result: "rejected", signature_valid: true, complete_timestamps: true },
-        { provider_event_id: matchedId, correlation_result: "matched", signature_valid: true, complete_timestamps: true },
         { provider_event_id: unmatchedId, correlation_result: "unmatched", signature_valid: true, complete_timestamps: true },
       ].sort((left, right) => left.provider_event_id.localeCompare(right.provider_event_id)));
+
+      const invalidEvidence = await fixtureSql<{ provider_event_id: string; source_event_id: string; correlation_result: string; signature_valid: boolean }[]>`
+        select provider_event_id, raw_payload->>'id' as source_event_id, correlation_result, signature_valid
+        from app_private.provider_events
+        where raw_payload->>'id' = ${invalidId} and not signature_valid
+      `;
+      expect(invalidEvidence).toHaveLength(1);
+      expect(invalidEvidence[0]).toMatchObject({ source_event_id: invalidId, correlation_result: "rejected", signature_valid: false });
+      expect(invalidEvidence[0]?.provider_event_id).not.toBe(invalidId);
+
+      const duplicateEvidence = await fixtureSql<{ duplicate_delivery_count: number; last_duplicate_received_at: Date | null }[]>`
+        select duplicate_delivery_count, last_duplicate_received_at
+        from app_private.provider_events where provider_event_id = ${invalidId}
+      `;
+      expect(duplicateEvidence).toEqual([{
+        duplicate_delivery_count: 1,
+        last_duplicate_received_at: new Date(NOW.getTime() + 120_000),
+      }]);
 
       const state = await fixtureSql<{ first_operations: number; first_arrangements: number; matched_events: number; payment_methods: number; method_account_id: string; operation_account_id: string; first_readiness: string; allowances: number; usage: number }[]>`
         select
           (select count(*)::int from app_private.payment_operations o join app_private.checkout_intents i on i.id = o.checkout_intent_id where i.public_id = ${intentId}) as first_operations,
           (select count(*)::int from app_private.billing_arrangements b join app_private.checkout_intents i on i.id = b.checkout_intent_id where i.public_id = ${intentId}) as first_arrangements,
-          (select count(*)::int from app_private.provider_events where provider_event_id = ${matchedId}) as matched_events,
+          (select count(*)::int from app_private.provider_events where provider_event_id = ${invalidId}) as matched_events,
           (select count(*)::int from app_private.payment_methods m join app_private.provider_customers c on c.id = m.provider_customer_id where c.account_id = ${bound.accountId.toString()}) as payment_methods,
           (select c.account_id::text from app_private.payment_methods m join app_private.provider_customers c on c.id = m.provider_customer_id where c.account_id = ${bound.accountId.toString()} limit 1) as method_account_id,
-          (select o.account_id::text from app_private.payment_operations o where o.public_id = ${firstOwner.operation.operationId}) as operation_account_id,
+          (select o.account_id::text from app_private.payment_operations o where o.public_id = ${retryOwner.operation.operationId}) as operation_account_id,
           (select b.reusable_readiness from app_private.billing_arrangements b join app_private.checkout_intents i on i.id = b.checkout_intent_id where i.public_id = ${intentId}) as first_readiness,
           (select count(*)::int from app_private.allowance_windows a join app_private.billing_arrangements b on b.id = a.billing_arrangement_id where b.account_id = ${bound.accountId.toString()}) as allowances,
           (select count(*)::int from app_private.usage_operations u join app_private.allowance_windows a on a.id = u.allowance_window_id join app_private.billing_arrangements b on b.id = a.billing_arrangement_id where b.account_id = ${bound.accountId.toString()}) as usage
       `;
       expect(state[0]).toEqual({
-        first_operations: 1,
+        first_operations: 2,
         first_arrangements: 1,
         matched_events: 1,
         payment_methods: 1,
@@ -196,7 +229,7 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       if (intentIds.length) await fixtureSql.begin(async (tx) => {
         const accountRows = await tx<{ id: string }[]>`select id from app_private.accounts where auth_user_id = ${authUserId}`;
         const accountId = accountRows[0]?.id;
-        if (eventIds.length) await tx`delete from app_private.provider_events where provider_event_id = any(${eventIds})`;
+        if (eventIds.length) await tx`delete from app_private.provider_events where provider_event_id = any(${eventIds}) or raw_payload->>'id' = any(${eventIds})`;
         if (accountId) {
           await tx`delete from app_private.provider_events where payment_operation_id in (select id from app_private.payment_operations where account_id = ${accountId})`;
           await tx`delete from app_private.billing_arrangements where account_id = ${accountId}`;

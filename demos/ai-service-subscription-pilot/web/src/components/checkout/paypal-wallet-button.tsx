@@ -47,6 +47,12 @@ export function classifyCaptureError(error: unknown) {
     : "pending" as const;
 }
 
+export function classifyCreateOrderError(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 409 && error.code === "payment_not_available"
+    ? "failed" as const
+    : "pending" as const;
+}
+
 function uncertainCaptureStatus(operationId: string): PayPalCheckoutStatus {
   return Object.freeze({
     operationId,
@@ -134,14 +140,26 @@ export function PayPalWalletButton(props: Props) {
             createOrder={async () => {
               setError("");
               createPending.current = false;
-              const result = await demoApi.createPayPalOrder({
-                intentId: props.intentId,
-                quoteId: props.quoteId,
-                operationId: operationId.current,
-                clientMetadataId: props.clientMetadataId,
-              }, props.accessToken);
+              let result: CreatePayPalOrderResponse;
+              try {
+                result = await demoApi.createPayPalOrder({
+                  intentId: props.intentId,
+                  quoteId: props.quoteId,
+                  operationId: operationId.current,
+                  clientMetadataId: props.clientMetadataId,
+                }, props.accessToken);
+              } catch (error) {
+                if (classifyCreateOrderError(error) === "failed") throw error;
+                createPending.current = true;
+                props.onPending(uncertainCaptureStatus(operationId.current));
+                throw new Error("payment_in_progress");
+              }
               const outcome = classifyCreateOrderResponse(result);
-              if (outcome.kind === "failed") throw new Error("payment_not_available");
+              if (outcome.kind === "failed") {
+                createPending.current = true;
+                props.onPending(uncertainCaptureStatus(operationId.current));
+                throw new Error("payment_in_progress");
+              }
               operationId.current = outcome.kind === "ready" ? outcome.operationId : outcome.status.operationId;
               props.onOperationResolved(operationId.current);
               if (outcome.kind === "pending") {

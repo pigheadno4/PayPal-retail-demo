@@ -21,13 +21,19 @@ class MemoryWebhookRepository implements PayPalWebhookRepository {
   existing = false;
   vaultOwned = false;
   dispositions: string[] = [];
+  dispositionInputs: Array<{ eventId: string; rawPayload: unknown; signatureValid: boolean; disposition: string }> = [];
+  duplicateDeliveries: string[] = [];
   promotions = 0;
   promotionResult: "matched" | "duplicate" | "rejected" = "matched";
 
   async hasProviderEvent() { return this.existing; }
   async findPendingOperations() { return this.candidates; }
   async isVaultOwned() { return this.vaultOwned; }
-  async recordDisposition(input: { disposition: string }) { this.dispositions.push(input.disposition); }
+  async recordDisposition(input: { eventId: string; rawPayload: unknown; signatureValid: boolean; disposition: string }) {
+    this.dispositions.push(input.disposition);
+    this.dispositionInputs.push(input);
+  }
+  async recordDuplicateDelivery(input: { eventId: string }) { this.duplicateDeliveries.push(input.eventId); return true; }
   async promoteReadiness() { this.promotions += 1; return this.promotionResult; }
 }
 
@@ -57,6 +63,24 @@ describe("TC-0007 delayed vault reconciliation", () => {
     const result = await reconcilePayPalWebhook(JSON.stringify(event), {}, dependencies(repository));
     expect(result).toEqual({ accepted: true, disposition: "duplicate" });
     expect(repository.dispositions).toEqual([]);
+    expect(repository.duplicateDeliveries).toEqual([event.id]);
+  });
+
+  it("does not let invalid-signature evidence claim the authoritative verified event ID", async () => {
+    const repository = new MemoryWebhookRepository();
+
+    await expect(reconcilePayPalWebhook(JSON.stringify(event), {}, dependencies(repository, false)))
+      .resolves.toEqual({ accepted: false, disposition: "rejected" });
+    await expect(reconcilePayPalWebhook(JSON.stringify(event), {}, dependencies(repository, true)))
+      .resolves.toEqual({ accepted: true, disposition: "matched" });
+
+    expect(repository.dispositionInputs[0]).toMatchObject({
+      rawPayload: { id: event.id },
+      signatureValid: false,
+      disposition: "rejected",
+    });
+    expect(repository.dispositionInputs[0]?.eventId).not.toBe(event.id);
+    expect(repository.promotions).toBe(1);
   });
 
   it.each([
@@ -71,6 +95,7 @@ describe("TC-0007 delayed vault reconciliation", () => {
     expect(result.disposition).toBe(disposition);
     expect(repository.promotions).toBe(0);
     expect(repository.dispositions).toEqual(recorded);
+    if (_name === "duplicate event") expect(repository.duplicateDeliveries).toEqual([event.id]);
   });
 
   it.each([

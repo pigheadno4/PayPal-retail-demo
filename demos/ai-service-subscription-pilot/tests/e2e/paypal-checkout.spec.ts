@@ -189,6 +189,75 @@ test("TC-0006 capture failure returns to retryable review and grants nothing", a
   expectOnlyNetworkErrors(consoleErrors, 1);
 });
 
+test("TC-0005 definitive create failure retries with a fresh application operation", async ({ page }) => {
+  const consoleErrors = collectConsoleErrors(page);
+  await stubProvider(page, "ready");
+  const operationIds: string[] = [];
+  let createRequests = 0;
+  await page.unroute("**/api/v1/paypal/orders");
+  await page.route("**/api/v1/paypal/orders", async (route) => {
+    createRequests += 1;
+    const input = await route.request().postDataJSON();
+    operationIds.push(input.operationId);
+    if (createRequests === 1) {
+      return route.fulfill({ status: 409, contentType: "application/json", body: '{"error":{"code":"payment_not_available"}}' });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", operationId: input.operationId, orderId: "ORDER-RETRY-REDACTED" }) });
+  });
+
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await loadProviderControl(page);
+  await page.getByRole("button", { name: "Pay with PayPal" }).click();
+  await expect(page.getByRole("heading", { name: "Payment was not completed" })).toBeVisible();
+  await page.getByRole("button", { name: "Try PayPal again" }).click();
+  await page.getByRole("button", { name: "Pay with PayPal" }).click();
+  await expect(page.getByRole("heading", { name: "Preparing your Go workspace" })).toBeVisible();
+
+  expect(operationIds).toHaveLength(2);
+  expect(operationIds[1]).not.toBe(operationIds[0]);
+  expectOnlyNetworkErrors(consoleErrors, 1);
+});
+
+for (const uncertainty of ["aborted", "server-5xx", "malformed", "unknown"] as const) {
+  test(`TC-0005 ${uncertainty} create keeps the same operation pending`, async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await stubProvider(page, "ready");
+    const operationIds = new Set<string>();
+    let createRequests = 0;
+    let captureRequests = 0;
+    await page.unroute("**/api/v1/paypal/orders");
+    await page.route("**/api/v1/paypal/orders", async (route) => {
+      createRequests += 1;
+      const input = await route.request().postDataJSON();
+      operationIds.add(input.operationId);
+      if (uncertainty === "aborted") return route.abort();
+      if (uncertainty === "server-5xx") return route.fulfill({ status: 503, contentType: "application/json", body: '{"error":{"code":"internal_error"}}' });
+      if (uncertainty === "malformed") return route.fulfill({ status: 200, contentType: "application/json", body: "not-json" });
+      return route.fulfill({ status: 200, contentType: "application/json", body: '{"status":"unknown"}' });
+    });
+    await page.unroute("**/api/v1/paypal/orders/*/capture");
+    await page.route("**/api/v1/paypal/orders/*/capture", (route) => {
+      captureRequests += 1;
+      return route.abort();
+    });
+
+    await page.goto(`/checkout/${INTENT_ID}`);
+    await loadProviderControl(page);
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Payment was not completed" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Check payment status" }).click();
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+
+    expect(createRequests).toBe(2);
+    expect(operationIds.size).toBe(1);
+    expect(captureRequests).toBe(0);
+    if (uncertainty === "aborted" || uncertainty === "server-5xx") expectOnlyNetworkErrors(consoleErrors, 2);
+    else expect(consoleErrors).toEqual([]);
+  });
+}
+
 for (const uncertainty of ["aborted", "server-5xx"] as const) {
   test(`TC-0006 ${uncertainty} capture keeps the same operation pending`, async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
