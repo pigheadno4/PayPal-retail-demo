@@ -1,20 +1,20 @@
-# TASK-0008 Execution — Round 4
+# TASK-0008 Execution — Round 5
 
 - status: needs_review
-- implementation_round: 4
+- implementation_round: 5
 - approved_plan_sha256: `856dad9effdede84a41264c043ca2293d33dd43f955e893dfb91e80926f18843`
 - user_approval: `user:TASK-0008:2026-08-30:plan-approved`
 - focused_mockup_sha256: `9a7e8650227bd3b2a8689426a0b2cad49b2b05627a299d244bcfd7c05fa03def`
 - focused_mockup_approval: `user:TASK-0008:2026-08-30:focused-mockup-approved`
 - schema_override_approval: `user:TASK-0008:2026-08-30:duplicate-disposition-schema-extension-approved`
-- base_candidate: `5d395df7244b963c8631afdaf67876c65c35b130`
+- base_candidate: `2b7b4f606c5ebce89bb6bb4a34c180d99fc95b2a`
 - replacement_candidate: see executor handoff
 
 ## Closed Final Quality Findings
 
 - FINDING-007: Create-order abort, transport failure, HTTP 5xx, malformed JSON, and unknown response shape now enter sanitized pending state before the PayPal SDK error callback can terminalize the customer flow. The same operation remains the only application owner; no capture or speculative second provider order is initiated.
 - FINDING-008: Invalid-signature evidence is retained under a generated non-authoritative claim key. Its untouched payload still contains the supplied event ID, but it cannot claim or poison that authoritative ID. The later verified delivery with the same ID correlates and promotes once.
-- FINDING-009: The approved additive schema records `duplicate_delivery_count` and `last_duplicate_received_at`. A verified duplicate atomically increments both on the one canonical verified event without changing `correlation_result` or duplicating raw payload.
+- FINDING-009: The approved additive schema records `duplicate_delivery_count` and `last_duplicate_received_at`. Both matched-promotion and quarantined verified-event insert races now atomically report a losing claim as `duplicate`, increment both fields on the one canonical event, preserve its original `correlation_result` and raw payload, and perform no extra normalized promotion.
 - FINDING-010: Only a verified terminal failure exposes `Try PayPal again`; that action creates a fresh application operation and fresh request-ID pair while preserving the failed original. Pending status checks retain the existing operation.
 - FINDING-006: The stale round-2 focused count is corrected below to 66/66.
 - FINDING-011: Malformed JSON for PayPal ID-token, order-create, and order-capture requests is now rejected before authentication, domain, provider, or use-case handlers run. All three paths return only HTTP 400 `{error:{code:"invalid_request"}}` with exact `Cache-Control: private, no-store`; unrelated API parsing behavior is unchanged.
@@ -41,10 +41,15 @@
    - Focused RED: the three `createApp` regressions failed with HTTP 500 instead of HTTP 400 before the correction; the remaining 21 app tests passed.
    - Focused GREEN: `npm test -- server/src/app.test.ts` passed 24/24. Each required PayPal endpoint returned exact sanitized status/body/cache policy and proved zero injected application-handler invocations.
    - Full regression passed 197 tests with 4 environment-gated tests skipped. Typecheck, lint, Node/Vite build (127 modules), production dependency audit, workflow/delivery-loop/agent-system validators, and the unchanged 28/28 desktop/exact-390px browser regression passed.
+6. Round-5 verified-quarantine concurrency:
+   - Focused RED: the unit regression returned `unmatched` instead of `duplicate`, and the barrier-controlled configured-PostgreSQL race returned two `unmatched` acknowledgements instead of one `unmatched` plus one `duplicate`.
+   - Focused GREEN: webhook unit coverage passed 13/13. The focused webhook plus configured-repository suite passed 15/15, including both repository scenarios and fixture cleanup.
+   - Configured PostgreSQL proved one quarantined `unmatched` result, one duplicate acknowledgement, one canonical event row and raw payload, duplicate count/timestamp `1`, null payment-operation correlation, zero payment methods, and unchanged `pending` reusable readiness.
+   - Full regression passed 198 tests with 4 environment-gated tests skipped. Typecheck, lint, Node/Vite build (127 modules), production dependency audit, workflow/delivery-loop/agent-system validators, and diff checks passed. The prior 28/28 browser matrix remains the current UI evidence; round 5 changed no route or UI behavior, so no new browser artifact or provider claim was produced.
 
 ## Remaining Verification And Evidence Limits
 
-- Full regression: 197 passed and 4 environment-gated tests skipped.
+- Full regression: 198 passed and 4 environment-gated tests skipped.
 - Typecheck and lint passed; the production Node/Vite build passed with 127 transformed modules.
 - Production dependency audit found 0 vulnerabilities. Workflow, delivery-loop, and agent-system validators passed.
 - `supabase test db --linked supabase/tests/slice001_core_test.sql` is blocked because CLI `2.114.0` attempts to invoke Docker even with `--linked`; Docker Desktop is unavailable. The exact linked migration history and configured-PostgreSQL integration proof verify the added columns and behavior, but no pgTAP pass is claimed.
@@ -53,4 +58,4 @@
 
 ## Rollback
 
-Revert the round-3 application commit for runtime behavior. The linked database contains the approved additive migration; removing its two evidence columns would require a separately reviewed forward migration and is not performed by reverting application code.
+Revert the round-5 application commit to restore the earlier verified-quarantine acknowledgement behavior. The linked database contains the separately approved additive round-3 migration; removing its two evidence columns would require a separately reviewed forward migration and is not performed by reverting application code.

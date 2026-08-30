@@ -148,11 +148,78 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       const invalidId = `TASK0003-INVALID-${randomUUID()}`;
       const malformedId = `TASK0003-MALFORMED-${randomUUID()}`;
       const unmatchedId = `TASK0003-UNMATCHED-${randomUUID()}`;
-      eventIds.push(invalidId, malformedId, unmatchedId);
+      const concurrentUnmatchedId = `TASK0008-CONCURRENT-UNMATCHED-${randomUUID()}`;
+      eventIds.push(invalidId, malformedId, unmatchedId, concurrentUnmatchedId);
       const matchedBody = event(invalidId, "CUSTOMER-TASK0003-SHARED", "VAULT-TASK0003-MATCHED");
       await expect(reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(false))).resolves.toEqual({ accepted: false, disposition: "rejected" });
       await expect(reconcilePayPalWebhook(event(malformedId, "CUSTOMER-TASK0003-SHARED", "VAULT-MALFORMED", "CHECKOUT.ORDER.APPROVED"), {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "rejected" });
       await expect(reconcilePayPalWebhook(event(unmatchedId, "CUSTOMER-UNKNOWN", "VAULT-UNMATCHED"), {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "unmatched" });
+
+      let quarantineArrivals = 0;
+      let releaseQuarantineChecks!: () => void;
+      const quarantineChecksReady = new Promise<void>((resolve) => {
+        releaseQuarantineChecks = resolve;
+      });
+      const concurrentQuarantineRepository = new PostgresPayPalWebhookRepository(fixtureSql);
+      concurrentQuarantineRepository.hasProviderEvent = async () => {
+        quarantineArrivals += 1;
+        if (quarantineArrivals === 2) releaseQuarantineChecks();
+        await quarantineChecksReady;
+        return false;
+      };
+      const concurrentQuarantineDependencies = {
+        ...webhookDependencies(true),
+        repository: concurrentQuarantineRepository,
+      };
+      const concurrentUnmatchedBody = event(
+        concurrentUnmatchedId,
+        "CUSTOMER-CONCURRENT-UNKNOWN",
+        "VAULT-CONCURRENT-UNMATCHED",
+      );
+      const concurrentQuarantineResults = await Promise.all([
+        reconcilePayPalWebhook(concurrentUnmatchedBody, {}, concurrentQuarantineDependencies),
+        reconcilePayPalWebhook(concurrentUnmatchedBody, {}, concurrentQuarantineDependencies),
+      ]);
+      expect(concurrentQuarantineResults.map((result) => result.disposition).sort()).toEqual([
+        "duplicate",
+        "unmatched",
+      ]);
+
+      const quarantineEvidence = await fixtureSql<{
+        canonical_events: number;
+        raw_payloads: number;
+        correlation_result: string;
+        duplicate_delivery_count: number;
+        last_duplicate_received_at: Date | null;
+        payment_operation_id: string | null;
+        payment_methods: number;
+        reusable_readiness: string;
+      }[]>`
+        select
+          count(*)::int as canonical_events,
+          count(raw_payload)::int as raw_payloads,
+          min(correlation_result) as correlation_result,
+          max(duplicate_delivery_count)::int as duplicate_delivery_count,
+          max(last_duplicate_received_at) as last_duplicate_received_at,
+          max(payment_operation_id)::text as payment_operation_id,
+          (select count(*)::int from app_private.payment_methods m
+             join app_private.provider_customers c on c.id = m.provider_customer_id
+             where c.account_id = ${bound.accountId.toString()}) as payment_methods,
+          (select reusable_readiness from app_private.billing_arrangements
+             where payment_operation_id = ${retryOwner.operation.internalId.toString()}) as reusable_readiness
+        from app_private.provider_events
+        where provider_event_id = ${concurrentUnmatchedId}
+      `;
+      expect(quarantineEvidence).toEqual([{
+        canonical_events: 1,
+        raw_payloads: 1,
+        correlation_result: "unmatched",
+        duplicate_delivery_count: 1,
+        last_duplicate_received_at: new Date(NOW.getTime() + 120_000),
+        payment_operation_id: null,
+        payment_methods: 0,
+        reusable_readiness: "pending",
+      }]);
 
       const ambiguousId = `TASK0003-AMBIGUOUS-${randomUUID()}`;
       eventIds.push(ambiguousId);
@@ -181,6 +248,7 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         { provider_event_id: ambiguousId, correlation_result: "ambiguous", signature_valid: true, complete_timestamps: true },
         { provider_event_id: invalidId, correlation_result: "matched", signature_valid: true, complete_timestamps: true },
         { provider_event_id: malformedId, correlation_result: "rejected", signature_valid: true, complete_timestamps: true },
+        { provider_event_id: concurrentUnmatchedId, correlation_result: "unmatched", signature_valid: true, complete_timestamps: true },
         { provider_event_id: unmatchedId, correlation_result: "unmatched", signature_valid: true, complete_timestamps: true },
       ].sort((left, right) => left.provider_event_id.localeCompare(right.provider_event_id)));
 

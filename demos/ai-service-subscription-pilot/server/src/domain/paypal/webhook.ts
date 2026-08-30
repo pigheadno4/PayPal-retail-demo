@@ -11,7 +11,7 @@ export interface PayPalWebhookRepository {
   hasProviderEvent(eventId: string): Promise<boolean>;
   findPendingOperations(input: Readonly<{ merchantId: string; environment: PayPalEnvironment; customerId: string }>): Promise<readonly Candidate[]>;
   isVaultOwned(input: Readonly<{ merchantId: string; environment: PayPalEnvironment; vaultId: string; operationInternalId: bigint }>): Promise<boolean>;
-  recordDisposition(input: Readonly<{ eventId: string; eventType: string; rawPayload: unknown; signatureValid: boolean; disposition: Disposition; merchantId: string; environment: PayPalEnvironment; operationInternalId?: bigint }>): Promise<void>;
+  recordDisposition(input: Readonly<{ eventId: string; eventType: string; rawPayload: unknown; signatureValid: boolean; disposition: Disposition; merchantId: string; environment: PayPalEnvironment; operationInternalId?: bigint }>): Promise<boolean>;
   recordDuplicateDelivery(input: Readonly<{ eventId: string; receivedAt: string }>): Promise<boolean>;
   promoteReadiness(input: Readonly<{ eventId: string; vaultId: string; customerId: string; merchantId: string; environment: PayPalEnvironment; operation: Candidate; occurredAt: string; rawPayload: unknown }>): Promise<PromotionResult>;
 }
@@ -37,15 +37,16 @@ export async function reconcilePayPalWebhook(rawBody: string, headers: PayPalTra
   const eventId = typeof root?.id === "string" && root.id ? root.id : `malformed-${randomUUID()}`;
   const eventType = typeof root?.event_type === "string" ? root.event_type : "MALFORMED";
   const receivedAt = (dependencies.clock?.() ?? new Date()).toISOString();
-  const record = async (disposition: Disposition, operationInternalId?: bigint, claimEventId = eventId) => {
-    await dependencies.repository.recordDisposition({ eventId: claimEventId, eventType, rawPayload: payload, signatureValid, disposition, merchantId: dependencies.merchantId, environment: dependencies.environment, ...(operationInternalId === undefined ? {} : { operationInternalId }) });
-    return Object.freeze({ accepted: signatureValid, disposition });
-  };
   const recordDuplicate = async () => {
     if (!await dependencies.repository.recordDuplicateDelivery({ eventId, receivedAt })) {
       throw new Error("paypal_duplicate_event_missing");
     }
     return Object.freeze({ accepted: true, disposition: "duplicate" as const });
+  };
+  const record = async (disposition: Disposition, operationInternalId?: bigint, claimEventId = eventId) => {
+    const claimed = await dependencies.repository.recordDisposition({ eventId: claimEventId, eventType, rawPayload: payload, signatureValid, disposition, merchantId: dependencies.merchantId, environment: dependencies.environment, ...(operationInternalId === undefined ? {} : { operationInternalId }) });
+    if (signatureValid && !claimed) return recordDuplicate();
+    return Object.freeze({ accepted: signatureValid, disposition });
   };
 
   if (!signatureValid) return record("rejected", undefined, `unverified-${randomUUID()}`);
@@ -101,12 +102,13 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
   }
   async recordDisposition(input: { eventId: string; eventType: string; rawPayload: unknown; signatureValid: boolean; disposition: Disposition; merchantId: string; environment: PayPalEnvironment; operationInternalId?: bigint }) {
     const sql = this.sql;
-    await sql`
+    const rows = await sql<{ provider_event_id: string }[]>`
       insert into app_private.provider_events
         (public_id, provider, merchant_id, environment, provider_event_id, event_type, raw_payload, signature_valid, correlation_result, payment_operation_id, received_at, processed_at)
       values (${randomUUID()}, 'paypal', ${input.merchantId}, ${input.environment}, ${input.eventId}, ${input.eventType}, ${sql.json(input.rawPayload as never)}, ${input.signatureValid}, ${input.disposition}, ${input.operationInternalId?.toString() ?? null}, now(), now())
-      on conflict (provider_event_id) do nothing
+      on conflict (provider_event_id) do nothing returning provider_event_id
     `;
+    return rows.length === 1;
   }
   async recordDuplicateDelivery(input: { eventId: string; receivedAt: string }) {
     const sql = this.sql;
