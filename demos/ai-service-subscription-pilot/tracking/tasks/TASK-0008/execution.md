@@ -1,13 +1,13 @@
-# TASK-0008 Execution — Round 3
+# TASK-0008 Execution — Round 4
 
 - status: needs_review
-- implementation_round: 3
+- implementation_round: 4
 - approved_plan_sha256: `856dad9effdede84a41264c043ca2293d33dd43f955e893dfb91e80926f18843`
 - user_approval: `user:TASK-0008:2026-08-30:plan-approved`
 - focused_mockup_sha256: `9a7e8650227bd3b2a8689426a0b2cad49b2b05627a299d244bcfd7c05fa03def`
 - focused_mockup_approval: `user:TASK-0008:2026-08-30:focused-mockup-approved`
 - schema_override_approval: `user:TASK-0008:2026-08-30:duplicate-disposition-schema-extension-approved`
-- base_candidate: `acf4fc191505e6e975771bd93d9339ab43941525`
+- base_candidate: `5d395df7244b963c8631afdaf67876c65c35b130`
 - replacement_candidate: see executor handoff
 
 ## Closed Final Quality Findings
@@ -17,6 +17,7 @@
 - FINDING-009: The approved additive schema records `duplicate_delivery_count` and `last_duplicate_received_at`. A verified duplicate atomically increments both on the one canonical verified event without changing `correlation_result` or duplicating raw payload.
 - FINDING-010: Only a verified terminal failure exposes `Try PayPal again`; that action creates a fresh application operation and fresh request-ID pair while preserving the failed original. Pending status checks retain the existing operation.
 - FINDING-006: The stale round-2 focused count is corrected below to 66/66.
+- FINDING-011: Malformed JSON for PayPal ID-token, order-create, and order-capture requests is now rejected before authentication, domain, provider, or use-case handlers run. All three paths return only HTTP 400 `{error:{code:"invalid_request"}}` with exact `Cache-Control: private, no-store`; unrelated API parsing behavior is unchanged.
 
 ## Test-First Evidence
 
@@ -36,10 +37,14 @@
    - `TASK0008_CAPTURE_EVIDENCE=1 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:e2e -- tests/e2e/paypal-checkout.spec.ts --grep-invert "@sandbox|@hosted"`
    - 28/28 passed across desktop and exact 390px mobile. The 10 new focused cases cover the four uncertain create outcomes and fresh terminal retry in both viewports.
    - Matrix: `tracking/evidence/artifacts/EVID-0003/TASK-0008-MATRIX.md` plus 24 sanitized PNGs.
+5. Round-4 malformed-JSON boundary:
+   - Focused RED: the three `createApp` regressions failed with HTTP 500 instead of HTTP 400 before the correction; the remaining 21 app tests passed.
+   - Focused GREEN: `npm test -- server/src/app.test.ts` passed 24/24. Each required PayPal endpoint returned exact sanitized status/body/cache policy and proved zero injected application-handler invocations.
+   - Full regression passed 197 tests with 4 environment-gated tests skipped. Typecheck, lint, Node/Vite build (127 modules), production dependency audit, workflow/delivery-loop/agent-system validators, and the unchanged 28/28 desktop/exact-390px browser regression passed.
 
 ## Remaining Verification And Evidence Limits
 
-- Full regression: 194 passed and 4 environment-gated tests skipped.
+- Full regression: 197 passed and 4 environment-gated tests skipped.
 - Typecheck and lint passed; the production Node/Vite build passed with 127 transformed modules.
 - Production dependency audit found 0 vulnerabilities. Workflow, delivery-loop, and agent-system validators passed.
 - `supabase test db --linked supabase/tests/slice001_core_test.sql` is blocked because CLI `2.114.0` attempts to invoke Docker even with `--linked`; Docker Desktop is unavailable. The exact linked migration history and configured-PostgreSQL integration proof verify the added columns and behavior, but no pgTAP pass is claimed.

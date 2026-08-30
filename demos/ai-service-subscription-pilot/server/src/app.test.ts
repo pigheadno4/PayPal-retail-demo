@@ -165,6 +165,43 @@ describe("createApp", () => {
     expect(response.body).toEqual({ received: { enabled: true } });
   });
 
+  it.each([
+    "/api/v1/paypal/id-token",
+    "/api/v1/paypal/orders",
+    "/api/v1/paypal/orders/ORDER-TEST-123/capture",
+  ])(
+    "rejects malformed PayPal JSON at %s before application handlers run",
+    async (path) => {
+      let applicationHandlerInvocations = 0;
+      const apiRouter = express.Router();
+      apiRouter.use("/paypal", (_request, _response, next) => {
+        applicationHandlerInvocations += 1;
+        next();
+      });
+      apiRouter.post("/paypal/id-token", (_request, response) => {
+        response.sendStatus(204);
+      });
+      apiRouter.post("/paypal/orders", (_request, response) => {
+        response.sendStatus(204);
+      });
+      apiRouter.post("/paypal/orders/:orderId/capture", (_request, response) => {
+        response.sendStatus(204);
+      });
+
+      const response = await request(
+        createApp({ config, webDistPath, apiRouter }),
+      )
+        .post(path)
+        .set("Content-Type", "application/json")
+        .send('{"malformed":');
+
+      expect(response.status).toBe(400);
+      expect(response.headers["cache-control"]).toBe("private, no-store");
+      expect(response.body).toEqual({ error: { code: "invalid_request" } });
+      expect(applicationHandlerInvocations).toBe(0);
+    },
+  );
+
   it("does not parse webhook JSON before an injected webhook router", async () => {
     const webhookRouter = express.Router();
     webhookRouter.post("/fixture", (request, response) => {

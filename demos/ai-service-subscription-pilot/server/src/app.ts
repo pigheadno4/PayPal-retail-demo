@@ -29,6 +29,15 @@ const notFound: RequestHandler = (_request, response) => {
   response.status(404).json(errorBody("not_found"));
 };
 
+function isPayPalJsonParseError(error: unknown, requestPath: string): boolean {
+  return (
+    (requestPath === "/api/v1/paypal" ||
+      requestPath.startsWith("/api/v1/paypal/")) &&
+    error instanceof SyntaxError &&
+    (error as { type?: unknown }).type === "entity.parse.failed"
+  );
+}
+
 function isBrowserHistoryRequest(
   method: string,
   path: string,
@@ -60,6 +69,10 @@ export function createApp(options: CreateAppOptions): Express {
   const indexPath = join(options.webDistPath, "index.html");
 
   // API JSON parsing is intentionally scoped away from raw provider webhooks.
+  app.use("/api/v1/paypal", (_request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    next();
+  });
   app.use("/api/v1", express.json(), createApiRouter());
   if (options.apiRouter) {
     app.use("/api/v1", options.apiRouter);
@@ -112,9 +125,14 @@ export function createApp(options: CreateAppOptions): Express {
 
   app.use(notFound);
 
-  const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
+  const errorHandler: ErrorRequestHandler = (error, request, response, next) => {
     if (response.headersSent) {
       next(error);
+      return;
+    }
+
+    if (isPayPalJsonParseError(error, request.path)) {
+      response.status(400).json(errorBody("invalid_request"));
       return;
     }
 
