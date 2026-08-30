@@ -94,7 +94,7 @@ export function createApp(options: CreateAppOptions): Express {
         `script-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com`,
         `style-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com`,
         "img-src 'self' data: https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://b.stats.paypal.com",
-        "frame-src https://www.paypal.com",
+        "frame-src https://www.paypal.com https://c.paypal.com",
         "connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com",
         "object-src 'none'",
         "base-uri 'self'",

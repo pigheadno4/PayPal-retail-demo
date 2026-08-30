@@ -150,8 +150,11 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
       const matchedId = `TASK0003-MATCHED-${randomUUID()}`;
       eventIds.push(matchedId);
       const matchedBody = event(matchedId, "CUSTOMER-TASK0003-SHARED", "VAULT-TASK0003-MATCHED");
-      await expect(reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "matched" });
-      await expect(reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true))).resolves.toEqual({ accepted: true, disposition: "duplicate" });
+      const concurrentResults = await Promise.all([
+        reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true)),
+        reconcilePayPalWebhook(matchedBody, {}, webhookDependencies(true)),
+      ]);
+      expect(concurrentResults.map((result) => result.disposition).sort()).toEqual(["duplicate", "matched"]);
 
       const dispositions = await fixtureSql<{ provider_event_id: string; correlation_result: string; signature_valid: boolean; complete_timestamps: boolean }[]>`
         select provider_event_id, correlation_result, signature_valid,
@@ -166,16 +169,29 @@ describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
         { provider_event_id: unmatchedId, correlation_result: "unmatched", signature_valid: true, complete_timestamps: true },
       ].sort((left, right) => left.provider_event_id.localeCompare(right.provider_event_id)));
 
-      const state = await fixtureSql<{ first_operations: number; first_arrangements: number; matched_events: number; first_readiness: string; allowances: number; usage: number }[]>`
+      const state = await fixtureSql<{ first_operations: number; first_arrangements: number; matched_events: number; payment_methods: number; method_account_id: string; operation_account_id: string; first_readiness: string; allowances: number; usage: number }[]>`
         select
           (select count(*)::int from app_private.payment_operations o join app_private.checkout_intents i on i.id = o.checkout_intent_id where i.public_id = ${intentId}) as first_operations,
           (select count(*)::int from app_private.billing_arrangements b join app_private.checkout_intents i on i.id = b.checkout_intent_id where i.public_id = ${intentId}) as first_arrangements,
           (select count(*)::int from app_private.provider_events where provider_event_id = ${matchedId}) as matched_events,
+          (select count(*)::int from app_private.payment_methods m join app_private.provider_customers c on c.id = m.provider_customer_id where c.account_id = ${bound.accountId.toString()}) as payment_methods,
+          (select c.account_id::text from app_private.payment_methods m join app_private.provider_customers c on c.id = m.provider_customer_id where c.account_id = ${bound.accountId.toString()} limit 1) as method_account_id,
+          (select o.account_id::text from app_private.payment_operations o where o.public_id = ${firstOwner.operation.operationId}) as operation_account_id,
           (select b.reusable_readiness from app_private.billing_arrangements b join app_private.checkout_intents i on i.id = b.checkout_intent_id where i.public_id = ${intentId}) as first_readiness,
           (select count(*)::int from app_private.allowance_windows a join app_private.billing_arrangements b on b.id = a.billing_arrangement_id where b.account_id = ${bound.accountId.toString()}) as allowances,
           (select count(*)::int from app_private.usage_operations u join app_private.allowance_windows a on a.id = u.allowance_window_id join app_private.billing_arrangements b on b.id = a.billing_arrangement_id where b.account_id = ${bound.accountId.toString()}) as usage
       `;
-      expect(state[0]).toEqual({ first_operations: 1, first_arrangements: 1, matched_events: 1, first_readiness: "ready", allowances: 0, usage: 0 });
+      expect(state[0]).toEqual({
+        first_operations: 1,
+        first_arrangements: 1,
+        matched_events: 1,
+        payment_methods: 1,
+        method_account_id: bound.accountId.toString(),
+        operation_account_id: bound.accountId.toString(),
+        first_readiness: "ready",
+        allowances: 0,
+        usage: 0,
+      });
     } finally {
       if (intentIds.length) await fixtureSql.begin(async (tx) => {
         const accountRows = await tx<{ id: string }[]>`select id from app_private.accounts where auth_user_id = ${authUserId}`;

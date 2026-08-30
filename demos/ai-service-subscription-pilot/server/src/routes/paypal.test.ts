@@ -46,6 +46,8 @@ describe("PayPal API routes", () => {
 
     expect(unauthenticated.status).toBe(401);
     expect(malformed.status).toBe(400);
+    expect(unauthenticated.headers["cache-control"]).toBe("private, no-store");
+    expect(malformed.headers["cache-control"]).toBe("private, no-store");
     expect(dependencies.issueIdToken).not.toHaveBeenCalled();
     expect(dependencies.createOrder).not.toHaveBeenCalled();
   });
@@ -125,11 +127,17 @@ describe("PayPal API routes", () => {
       .post("/paypal/orders").set("Authorization", authorization).send(input);
     const unconfigured = await request(app({ createOrder: vi.fn().mockRejectedValue(new IntegrationNotConfiguredError()) }).server)
       .post("/paypal/orders").set("Authorization", authorization).send(input);
+    const internal = await request(app({ createOrder: vi.fn().mockRejectedValue(new Error("unexpected")) }).server)
+      .post("/paypal/orders").set("Authorization", authorization).send(input);
 
     expect(missing.status).toBe(404);
     expect(missing.body).toEqual({ error: { code: "not_found" } });
     expect(stale.status).toBe(409);
     expect(failed.status).toBe(409);
     expect(unconfigured.status).toBe(503);
+    expect(internal.status).toBe(500);
+    for (const response of [missing, stale, failed, unconfigured, internal]) {
+      expect(response.headers["cache-control"]).toBe("private, no-store");
+    }
   });
 });

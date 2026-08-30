@@ -6,7 +6,7 @@ import type {
   PayPalCheckoutStatus,
   PayPalIdTokenResponse,
 } from "../../../../shared/src/paypal.js";
-import { demoApi } from "../../lib/api.js";
+import { ApiRequestError, demoApi } from "../../lib/api.js";
 
 type Props = Readonly<{
   intentId: string;
@@ -39,6 +39,21 @@ export function classifyCaptureStatus(status: PayPalCheckoutStatus) {
   if (status.funding === "verified") return "complete" as const;
   if (status.funding === "pending") return "pending" as const;
   return "failed" as const;
+}
+
+export function classifyCaptureError(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 409 && error.code === "payment_not_available"
+    ? "failed" as const
+    : "pending" as const;
+}
+
+function uncertainCaptureStatus(operationId: string): PayPalCheckoutStatus {
+  return Object.freeze({
+    operationId,
+    funding: "pending",
+    reusableReadiness: "pending",
+    customerMessage: "Payment verification is still in progress.",
+  });
 }
 
 export function classifyCreateOrderResponse(result: Partial<CreatePayPalOrderResponse>) {
@@ -148,8 +163,12 @@ export function PayPalWalletButton(props: Props) {
                 if (outcome === "complete") props.onComplete(status);
                 else if (outcome === "pending") props.onPending(status);
                 else props.onFailure(operationId.current);
-              } catch {
-                props.onFailure(operationId.current);
+              } catch (error) {
+                if (classifyCaptureError(error) === "failed") {
+                  props.onFailure(operationId.current);
+                } else {
+                  props.onPending(uncertainCaptureStatus(operationId.current));
+                }
               }
             }}
             onCancel={props.onCancel}

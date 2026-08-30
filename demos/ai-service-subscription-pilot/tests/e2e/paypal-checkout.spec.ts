@@ -20,6 +20,13 @@ function collectConsoleErrors(page: Page) {
   return errors;
 }
 
+function expectOnlyNetworkErrors(errors: readonly string[], count: number) {
+  expect(errors).toHaveLength(count);
+  for (const error of errors) {
+    expect(error).toMatch(/Failed to load resource: (net::ERR_FAILED|the server responded with a status of (409|503))/);
+  }
+}
+
 async function setTheme(page: Page, theme: "light" | "dark") {
   const toggle = page.locator(".icon-button");
   const current = (await toggle.getAttribute("aria-label"))?.includes("light") ? "dark" : "light";
@@ -125,7 +132,7 @@ test("TC-0006 review surface is bounded and accessible in both themes", async ({
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await loadProviderControl(page);
   await expectNonceParity(page);
-  await captureThemes(page, testInfo, "review", page.getByRole("button", { name: "Pay with PayPal" }));
+  await captureThemes(page, testInfo, "task-0008-review", page.getByRole("button", { name: "Pay with PayPal" }));
   expect(consoleErrors).toEqual([]);
 });
 
@@ -144,15 +151,17 @@ for (const readiness of ["pending", "ready"] as const) {
     await expect(page.getByRole("button", { name: /workspace|continue/i })).toHaveCount(0);
     await expectInteractionQuality(page, page.locator(".icon-button"));
     expect(consoleErrors).toEqual([]);
-    if (readiness === "ready") {
-      await captureThemes(page, testInfo, "ready", page.locator(".icon-button"));
-    } else {
-      await page.screenshot({ path: screenshotPath(testInfo, "reusable-pending-light"), fullPage: true });
-    }
+    await captureThemes(
+      page,
+      testInfo,
+      readiness === "ready" ? "task-0008-vault-ready" : "task-0008-vault-pending",
+      page.locator(".icon-button"),
+    );
   });
 }
 
 test("TC-0006 cancellation returns to review and grants nothing", async ({ page }, testInfo) => {
+  const consoleErrors = collectConsoleErrors(page);
   await stubProvider(page, "ready");
   await page.unroute("https://www.paypal.com/sdk/js**");
   await page.route("https://www.paypal.com/sdk/js**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: `window.paypal={Buttons:(options)=>({isEligible:()=>true,render:async(container)=>{const label=document.createElement('small');label.textContent='Simulated provider control';container.appendChild(label);const cancel=document.createElement('button');cancel.textContent='Cancel PayPal';cancel.style.minHeight='44px';cancel.onclick=()=>options.onCancel();container.appendChild(cancel);},close:()=>Promise.resolve()})};` }));
@@ -162,20 +171,56 @@ test("TC-0006 cancellation returns to review and grants nothing", async ({ page 
   await page.getByRole("button", { name: "Cancel PayPal" }).click();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);
-  await page.screenshot({ path: screenshotPath(testInfo, "cancel"), fullPage: true });
+  await captureThemes(page, testInfo, "task-0008-cancel", page.getByRole("button", { name: "Cancel PayPal" }));
+  expect(consoleErrors).toEqual([]);
 });
 
 test("TC-0006 capture failure returns to retryable review and grants nothing", async ({ page }, testInfo) => {
+  const consoleErrors = collectConsoleErrors(page);
   await stubProvider(page, "ready");
   await page.unroute("**/api/v1/paypal/orders/*/capture");
-  await page.route("**/api/v1/paypal/orders/*/capture", (route) => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":{"code":"payment_not_available"}}' }));
+  await page.route("**/api/v1/paypal/orders/*/capture", (route) => route.fulfill({ status: 409, contentType: "application/json", body: '{"error":{"code":"payment_not_available"}}' }));
   await page.goto(`/checkout/${INTENT_ID}`);
   await loadProviderControl(page);
   await page.getByRole("button", { name: "Pay with PayPal" }).click();
   await expect(page.getByRole("heading", { name: "Payment was not completed" })).toBeVisible();
   await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);
-  await page.screenshot({ path: screenshotPath(testInfo, "capture-failure"), fullPage: true });
+  await captureThemes(page, testInfo, "task-0008-failure", page.getByRole("button", { name: "Try PayPal again" }));
+  expectOnlyNetworkErrors(consoleErrors, 1);
 });
+
+for (const uncertainty of ["aborted", "server-5xx"] as const) {
+  test(`TC-0006 ${uncertainty} capture keeps the same operation pending`, async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await stubProvider(page, "ready");
+    const operationIds = new Set<string>();
+    await page.unroute("**/api/v1/paypal/orders");
+    await page.route("**/api/v1/paypal/orders", async (route) => {
+      const input = await route.request().postDataJSON();
+      operationIds.add(input.operationId);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "ready", operationId: input.operationId, orderId: "ORDER-REDACTED" }),
+      });
+    });
+    await page.unroute("**/api/v1/paypal/orders/*/capture");
+    await page.route("**/api/v1/paypal/orders/*/capture", (route) => uncertainty === "aborted"
+      ? route.abort()
+      : route.fulfill({ status: 503, contentType: "application/json", body: '{"error":{"code":"internal_error"}}' }));
+
+    await page.goto(`/checkout/${INTENT_ID}`);
+    await loadProviderControl(page);
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+    await expect(page.getByText("Payment was not completed.")).toHaveCount(0);
+    await page.getByRole("button", { name: "Check payment status" }).click();
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+    expect(operationIds.size).toBe(1);
+    expectOnlyNetworkErrors(consoleErrors, 2);
+  });
+}
 
 test("TC-0005 unresolved create ownership stays pending without capture or terminal copy", async ({ page }) => {
   const consoleErrors = collectConsoleErrors(page);
@@ -246,7 +291,7 @@ test("TC-0006 in-progress capture stays pending and can return to a safe status 
   await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
   await expect(page.locator(".handoff-status").filter({ hasText: "Funding" })).toContainText("Pending");
   await expect(page.getByRole("heading", { name: "Preparing your Go workspace" })).toHaveCount(0);
-  await captureThemes(page, testInfo, "funding-pending", page.getByRole("button", { name: "Check payment status" }));
+  await captureThemes(page, testInfo, "task-0008-pending", page.getByRole("button", { name: "Check payment status" }));
   await page.getByRole("button", { name: "Check payment status" }).click();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);

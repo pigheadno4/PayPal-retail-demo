@@ -5,13 +5,14 @@ import type { PayPalEnvironment, PayPalGateway, PayPalTransmissionHeaders } from
 
 type Candidate = Readonly<{ operationInternalId: bigint; operationId: string }>;
 type Disposition = "matched" | "duplicate" | "unmatched" | "ambiguous" | "rejected";
+type PromotionResult = "matched" | "duplicate" | "rejected";
 
 export interface PayPalWebhookRepository {
   hasProviderEvent(eventId: string): Promise<boolean>;
   findPendingOperations(input: Readonly<{ merchantId: string; environment: PayPalEnvironment; customerId: string }>): Promise<readonly Candidate[]>;
   isVaultOwned(input: Readonly<{ merchantId: string; environment: PayPalEnvironment; vaultId: string; operationInternalId: bigint }>): Promise<boolean>;
   recordDisposition(input: Readonly<{ eventId: string; eventType: string; rawPayload: unknown; signatureValid: boolean; disposition: Disposition; merchantId: string; environment: PayPalEnvironment; operationInternalId?: bigint }>): Promise<void>;
-  promoteReadiness(input: Readonly<{ eventId: string; vaultId: string; customerId: string; merchantId: string; environment: PayPalEnvironment; operation: Candidate; occurredAt: string; rawPayload: unknown }>): Promise<boolean>;
+  promoteReadiness(input: Readonly<{ eventId: string; vaultId: string; customerId: string; merchantId: string; environment: PayPalEnvironment; operation: Candidate; occurredAt: string; rawPayload: unknown }>): Promise<PromotionResult>;
 }
 
 type Dependencies = Readonly<{
@@ -53,7 +54,8 @@ export async function reconcilePayPalWebhook(rawBody: string, headers: PayPalTra
   const operation = candidates[0]!;
   if (await dependencies.repository.isVaultOwned({ merchantId: dependencies.merchantId, environment: dependencies.environment, vaultId, operationInternalId: operation.operationInternalId })) return record("rejected", operation.operationInternalId);
   const promoted = await dependencies.repository.promoteReadiness({ eventId, vaultId, customerId, merchantId: dependencies.merchantId, environment: dependencies.environment, operation, occurredAt, rawPayload: payload });
-  if (!promoted) return record("rejected", operation.operationInternalId);
+  if (promoted === "duplicate") return Object.freeze({ accepted: true, disposition: "duplicate" as const });
+  if (promoted === "rejected") return record("rejected", operation.operationInternalId);
   return Object.freeze({ accepted: true, disposition: "matched" as const });
 }
 
@@ -102,39 +104,39 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
     const sql = this.sql;
     try {
       return await sql.begin(async (tx) => {
-      const rows = await tx<{ account_id: string; provider_customer_id: string }[]>`
-        select o.account_id, c.id as provider_customer_id from app_private.payment_operations o
-        join app_private.provider_customers c on c.account_id = o.account_id and c.provider = 'paypal'
-          and c.merchant_id = o.merchant_id and c.environment = o.environment and c.provider_customer_id = ${input.customerId}
-        where o.id = ${input.operation.operationInternalId.toString()} and o.vault_status = 'pending'
-        for update of o
-      `;
-      if (!rows[0]) return false;
-      const events = await tx<{ id: string }[]>`
-        insert into app_private.provider_events
-          (public_id, provider, merchant_id, environment, provider_event_id, event_type, raw_payload, signature_valid, correlation_result, payment_operation_id, received_at, processed_at)
-        values (${randomUUID()}, 'paypal', ${input.merchantId}, ${input.environment}, ${input.eventId}, 'VAULT.PAYMENT-TOKEN.CREATED', ${tx.json(input.rawPayload as never)}, true, 'matched', ${input.operation.operationInternalId.toString()}, ${new Date(input.occurredAt)}, now())
-        on conflict (provider_event_id) do nothing returning id
-      `;
-      if (!events[0]) return false;
-      await tx`update app_private.payment_methods set is_primary = false, updated_at = now() where provider_customer_id = ${rows[0].provider_customer_id} and is_primary`;
-      const methods = await tx<{ id: string }[]>`
-        insert into app_private.payment_methods (public_id, provider_customer_id, merchant_id, environment, provider_vault_id, display_brand, readiness, is_primary)
-        values (${randomUUID()}, ${rows[0].provider_customer_id}, ${input.merchantId}, ${input.environment}, ${input.vaultId}, 'PayPal Wallet', 'ready', true)
-        on conflict on constraint payment_methods_vault_owner_unique do update set readiness = 'ready', is_primary = true, updated_at = now()
-        where app_private.payment_methods.provider_customer_id = excluded.provider_customer_id returning id
-      `;
-      if (!methods[0]) throw new Error("paypal_promotion_conflict");
-      await tx`update app_private.payment_operations set vault_status = 'vaulted', vault_verified_at = ${new Date(input.occurredAt)}, updated_at = now() where id = ${input.operation.operationInternalId.toString()} and vault_status = 'pending'`;
-      const arrangements = await tx`
-        update app_private.billing_arrangements set payment_method_id = ${methods[0].id}, reusable_readiness = 'ready', updated_at = now()
-        where payment_operation_id = ${input.operation.operationInternalId.toString()} and reusable_readiness = 'pending' returning id
-      `;
-      if (arrangements.length !== 1) throw new Error("paypal_promotion_conflict");
-      return true;
+        const events = await tx<{ id: string }[]>`
+          insert into app_private.provider_events
+            (public_id, provider, merchant_id, environment, provider_event_id, event_type, raw_payload, signature_valid, correlation_result, payment_operation_id, received_at, processed_at)
+          values (${randomUUID()}, 'paypal', ${input.merchantId}, ${input.environment}, ${input.eventId}, 'VAULT.PAYMENT-TOKEN.CREATED', ${tx.json(input.rawPayload as never)}, true, 'matched', ${input.operation.operationInternalId.toString()}, ${new Date(input.occurredAt)}, now())
+          on conflict (provider_event_id) do nothing returning id
+        `;
+        if (!events[0]) return "duplicate" as const;
+        const rows = await tx<{ account_id: string; provider_customer_id: string }[]>`
+          select o.account_id, c.id as provider_customer_id from app_private.payment_operations o
+          join app_private.provider_customers c on c.account_id = o.account_id and c.provider = 'paypal'
+            and c.merchant_id = o.merchant_id and c.environment = o.environment and c.provider_customer_id = ${input.customerId}
+          where o.id = ${input.operation.operationInternalId.toString()} and o.vault_status = 'pending'
+          for update of o
+        `;
+        if (!rows[0]) throw new Error("paypal_promotion_conflict");
+        await tx`update app_private.payment_methods set is_primary = false, updated_at = now() where provider_customer_id = ${rows[0].provider_customer_id} and is_primary`;
+        const methods = await tx<{ id: string }[]>`
+          insert into app_private.payment_methods (public_id, provider_customer_id, merchant_id, environment, provider_vault_id, display_brand, readiness, is_primary)
+          values (${randomUUID()}, ${rows[0].provider_customer_id}, ${input.merchantId}, ${input.environment}, ${input.vaultId}, 'PayPal Wallet', 'ready', true)
+          on conflict on constraint payment_methods_vault_owner_unique do update set readiness = 'ready', is_primary = true, updated_at = now()
+          where app_private.payment_methods.provider_customer_id = excluded.provider_customer_id returning id
+        `;
+        if (!methods[0]) throw new Error("paypal_promotion_conflict");
+        await tx`update app_private.payment_operations set vault_status = 'vaulted', vault_verified_at = ${new Date(input.occurredAt)}, updated_at = now() where id = ${input.operation.operationInternalId.toString()} and vault_status = 'pending'`;
+        const arrangements = await tx`
+          update app_private.billing_arrangements set payment_method_id = ${methods[0].id}, reusable_readiness = 'ready', updated_at = now()
+          where payment_operation_id = ${input.operation.operationInternalId.toString()} and reusable_readiness = 'pending' returning id
+        `;
+        if (arrangements.length !== 1) throw new Error("paypal_promotion_conflict");
+        return "matched" as const;
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "paypal_promotion_conflict") return false;
+      if (error instanceof Error && error.message === "paypal_promotion_conflict") return "rejected";
       throw error;
     }
   }

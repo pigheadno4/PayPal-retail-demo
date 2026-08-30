@@ -22,12 +22,13 @@ class MemoryWebhookRepository implements PayPalWebhookRepository {
   vaultOwned = false;
   dispositions: string[] = [];
   promotions = 0;
+  promotionResult: "matched" | "duplicate" | "rejected" = "matched";
 
   async hasProviderEvent() { return this.existing; }
   async findPendingOperations() { return this.candidates; }
   async isVaultOwned() { return this.vaultOwned; }
   async recordDisposition(input: { disposition: string }) { this.dispositions.push(input.disposition); }
-  async promoteReadiness() { this.promotions += 1; return true; }
+  async promoteReadiness() { this.promotions += 1; return this.promotionResult; }
 }
 
 function dependencies(repository = new MemoryWebhookRepository(), signatureValid = true) {
@@ -47,6 +48,14 @@ describe("TC-0007 delayed vault reconciliation", () => {
     const result = await reconcilePayPalWebhook(JSON.stringify(event), { "paypal-transmission-id": "redacted" }, dependencies(repository));
     expect(result).toEqual({ accepted: true, disposition: "matched" });
     expect(repository.promotions).toBe(1);
+    expect(repository.dispositions).toEqual([]);
+  });
+
+  it("returns duplicate when the atomic event claim loses a concurrent race", async () => {
+    const repository = new MemoryWebhookRepository();
+    repository.promotionResult = "duplicate";
+    const result = await reconcilePayPalWebhook(JSON.stringify(event), {}, dependencies(repository));
+    expect(result).toEqual({ accepted: true, disposition: "duplicate" });
     expect(repository.dispositions).toEqual([]);
   });
 

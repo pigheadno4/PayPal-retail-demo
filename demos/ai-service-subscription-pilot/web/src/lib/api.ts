@@ -14,8 +14,20 @@ import type {
 } from "../../../shared/src/paypal.js";
 
 export class ApiRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly code: string | null = null) {
     super(`request_failed_${status}`);
+  }
+}
+
+async function readErrorCode(response: Response): Promise<string | null> {
+  try {
+    const body = await response.json() as unknown;
+    if (typeof body !== "object" || body === null || !("error" in body)) return null;
+    const error = body.error;
+    if (typeof error !== "object" || error === null || !("code" in error)) return null;
+    return typeof error.code === "string" ? error.code : null;
+  } catch {
+    return null;
   }
 }
 
@@ -25,7 +37,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "same-origin",
     headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
   });
-  if (!response.ok) throw new ApiRequestError(response.status);
+  if (!response.ok) throw new ApiRequestError(response.status, await readErrorCode(response));
   return response.json() as Promise<T>;
 }
 

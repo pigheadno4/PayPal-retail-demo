@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPayPalScriptOptions,
+  classifyCaptureError,
   classifyCaptureStatus,
   classifyCreateOrderResponse,
 } from "./paypal-wallet-button.js";
+import { ApiRequestError } from "../../lib/api.js";
 
 describe("PayPalWalletButton payment boundary", () => {
   it("passes the request nonce through the supported PayPal SDK data option", () => {
@@ -30,6 +32,16 @@ describe("PayPalWalletButton payment boundary", () => {
       reusableReadiness: funding === "verified" ? "ready" : funding,
       customerMessage: "sanitized",
     })).toBe(expected);
+  });
+
+  it.each([
+    [new TypeError("network interruption"), "pending"],
+    [new SyntaxError("malformed response"), "pending"],
+    [new ApiRequestError(503, "internal_error"), "pending"],
+    [new ApiRequestError(503, "payment_not_available"), "pending"],
+    [new ApiRequestError(409, "payment_not_available"), "failed"],
+  ] as const)("classifies capture exception %s as %s", (error, expected) => {
+    expect(classifyCaptureError(error)).toBe(expected);
   });
 
   it("maps unresolved create ownership to the existing non-terminal payment status", () => {

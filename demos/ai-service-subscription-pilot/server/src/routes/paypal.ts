@@ -46,6 +46,11 @@ export function createPayPalRouter(dependencies: PayPalRouterDependencies): Rout
   const router = Router();
   const authenticated = requireBearerAuth(dependencies.verifyToken);
 
+  router.use((_request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    next();
+  });
+
   const run = async <T>(
     response: Response,
     operation: () => Promise<T>,
@@ -53,7 +58,7 @@ export function createPayPalRouter(dependencies: PayPalRouterDependencies): Rout
   ) => {
     try {
       const result = await operation();
-      response.status(status(result)).set("Cache-Control", "private, no-store").json(result);
+      response.status(status(result)).json(result);
     } catch (error) {
       const mapped = errorStatus(error);
       response.status(mapped.status).json({ error: { code: mapped.code } });

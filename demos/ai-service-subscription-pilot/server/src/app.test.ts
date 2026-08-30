@@ -102,6 +102,12 @@ describe("createApp", () => {
     expect(Buffer.from(nonce!, "base64")).toHaveLength(16);
     expect(first.headers["content-security-policy"]).toContain(`script-src 'self' 'nonce-${nonce}'`);
     expect(first.headers["content-security-policy"]).toContain(`style-src 'self' 'nonce-${nonce}'`);
+    expect(first.headers["content-security-policy"]).toContain(
+      "frame-src https://www.paypal.com https://c.paypal.com",
+    );
+    expect(first.headers["content-security-policy"].match(/frame-src [^;]+/)?.[0]).toBe(
+      "frame-src https://www.paypal.com https://c.paypal.com",
+    );
     expect(first.headers["content-security-policy"]).not.toContain("unsafe-inline");
     expect(second.text).not.toContain(`content="${nonce}"`);
   });
