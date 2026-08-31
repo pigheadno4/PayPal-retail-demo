@@ -9,7 +9,7 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 | EVID-0001 | REQ-0034, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | static, backend | passing | tracking/evidence/EVID-0001.md |
 | EVID-0002 | REQ-0034, REQ-0035, REQ-0038 | SLICE-001 | backend, interaction, hosted, failure | blocked | tracking/evidence/EVID-0002.md |
 | EVID-0003 | REQ-0036, REQ-0038 | SLICE-001 | backend, provider, hosted, failure | blocked | tracking/evidence/EVID-0003.md |
-| EVID-0004 | REQ-0037, REQ-0038 | SLICE-001 | backend, interaction, hosted, failure | planned | pending |
+| EVID-0004 | REQ-0037, REQ-0038 | SLICE-001 | backend, interaction, responsive, failure | captured | tracking/evidence/EVID-0004.md |
 | EVID-0005 | REQ-0034, REQ-0035, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | static, backend, provider, interaction, responsive, accessibility, typography, hosted, failure | planned | pending |
 
 ### EVID-0001 — Runtime, schema, and authority-boundary proof
@@ -49,12 +49,12 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 
 - Requirements: REQ-0037, REQ-0038
 - Slice: SLICE-001
-- Type: backend, interaction, hosted, failure
-- Status: planned
-- Artifact: pending
-- Captured at: pending
+- Type: backend, interaction, responsive, failure
+- Status: captured
+- Artifact: tracking/evidence/EVID-0004.md
+- Captured at: 2026-08-31
 - Verified by: pending
-- Result: pending
+- Result: configured Supabase Postgres activation/reserve/commit/release/return proof, 17 focused assertions, 213 passed/5 skipped full local assertions, and 4/4 desktop/exact-390px real-API browser cases passed; hosted OTP and real PayPal proof remain unproved
 
 ### EVID-0005 — Hosted responsive merchant-safe end-to-end proof
 

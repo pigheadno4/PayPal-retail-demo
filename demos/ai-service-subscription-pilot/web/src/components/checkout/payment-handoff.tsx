@@ -16,8 +16,11 @@ export function PaymentHandoff({
       <h2>{heading}</h2>
       <div className="handoff-status"><span>Funding</span><strong>{funding}</strong></div>
       <div className="handoff-status"><span>Reusable payment readiness</span><strong>{readiness}</strong></div>
-      <div className="handoff-status"><span>Workspace access</span><strong>Not granted yet</strong></div>
+      <div className="handoff-status"><span>Workspace access</span><strong>{status.funding === "verified" ? "Ready to activate" : "Not granted yet"}</strong></div>
       <p className="status-note">{status.customerMessage}</p>
+      {status.funding === "verified" ? (
+        <a className="primary-button" href="/workspace">Open Go workspace</a>
+      ) : null}
       {status.funding !== "verified" && onRetry ? (
         <button className="secondary-button" type="button" onClick={onRetry}>
           {status.funding === "pending" ? "Check payment status" : "Try PayPal again"}

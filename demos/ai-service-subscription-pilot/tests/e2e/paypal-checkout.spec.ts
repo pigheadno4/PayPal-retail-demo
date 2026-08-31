@@ -146,9 +146,9 @@ for (const readiness of ["pending", "ready"] as const) {
     await page.getByRole("button", { name: "Pay with PayPal" }).click();
     await expect(page.getByRole("heading", { name: "Preparing your Go workspace" })).toBeVisible();
     await expect(page.locator(".handoff-status").filter({ hasText: "Funding" })).toContainText("Verified");
-    await expect(page.getByText("Not granted yet")).toBeVisible();
+    await expect(page.getByText("Ready to activate")).toBeVisible();
     await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /workspace|continue/i })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Open Go workspace" })).toBeVisible();
     await expectInteractionQuality(page, page.locator(".icon-button"));
     expect(consoleErrors).toEqual([]);
     await captureThemes(

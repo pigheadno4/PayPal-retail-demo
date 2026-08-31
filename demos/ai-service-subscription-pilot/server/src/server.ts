@@ -44,12 +44,23 @@ import { createQuotesRouter } from "./routes/quotes.js";
 import { createPayPalRouter } from "./routes/paypal.js";
 import { createPayPalWebhookRouter } from "./routes/paypal-webhook.js";
 import { createSupabaseHookRouter } from "./routes/supabase-hook.js";
+import { createDeterministicFixtureRunner } from "./domain/usage/fixtures.js";
+import { PostgresUsageRepository } from "./domain/usage/repository.js";
+import {
+  activateGo,
+  generateAnswer,
+  readUsageSummary,
+} from "./domain/usage/service.js";
+import { createUsageRouter } from "./routes/usage.js";
 
 const config = parseBaseServerConfig(process.env);
 const sql = createDatabaseClient(config.databaseUrl);
 const checkoutRepository = new PostgresCheckoutRepository(sql);
 const quoteRepository = new PostgresQuoteRepository(sql);
 const verifyToken = createSupabaseTokenVerifier(config);
+const usageRepository = new PostgresUsageRepository(sql);
+const usageDependencies = { repository: usageRepository, clock: () => new Date() };
+const runFixture = createDeterministicFixtureRunner();
 const otpClient = createClient(config.supabaseUrl, config.supabasePublishableKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
@@ -181,6 +192,15 @@ apiRouter.use(createPayPalRouter({
       },
     );
   },
+}));
+apiRouter.use(createUsageRouter({
+  verifyToken,
+  activate: (identity) => activateGo(identity.userId, usageDependencies),
+  readSummary: (identity) => readUsageSummary(identity.userId, usageDependencies),
+  generateAnswer: (identity, input) => generateAnswer(identity.userId, input, {
+    ...usageDependencies,
+    runFixture,
+  }),
 }));
 
 const webhookRouter = createSupabaseHookRouter({

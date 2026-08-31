@@ -74,4 +74,14 @@ describe("foundation stylesheet", () => {
     expect(stylesheet).toContain("prefers-reduced-motion: reduce");
     expect(stylesheet).toContain("overflow-x: hidden");
   });
+
+  it("reuses the approved responsive C3-G workspace hierarchy", () => {
+    const stylesheet = readFileSync(stylesheetPath, "utf8");
+    expect(stylesheet).toContain(".workspace-main");
+    expect(stylesheet).toContain(".workspace-conversation");
+    expect(stylesheet).toContain(".prompt-grid");
+    expect(stylesheet).toContain(".allowance-card");
+    expect(stylesheet).toMatch(/@media \(max-width: 720px\)[\s\S]*\.workspace-main/);
+    expect(stylesheet).toMatch(/\.payment-handoff \.primary-button[\s\S]*display: grid/);
+  });
 });

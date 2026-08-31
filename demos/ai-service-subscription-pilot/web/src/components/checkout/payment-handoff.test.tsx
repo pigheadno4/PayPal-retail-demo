@@ -22,7 +22,12 @@ describe("PaymentHandoff", () => {
 
     expect(html).toContain(`<h2>${heading}</h2>`);
     expect(html).toContain(`<strong>${label}</strong>`);
-    expect(html).toContain("Not granted yet");
+    if (funding === "verified") {
+      expect(html).toContain("Open Go workspace");
+      expect(html).not.toContain("Not granted yet");
+    } else {
+      expect(html).toContain("Not granted yet");
+    }
     if (funding !== "verified") expect(html).not.toContain("Preparing your Go workspace");
   });
 

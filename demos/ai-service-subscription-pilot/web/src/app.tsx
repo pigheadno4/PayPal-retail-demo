@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router";
 import { HeaderControls } from "./components/checkout/header-controls.js";
 import { CheckoutRoute } from "./routes/checkout.js";
 import { HomeRoute } from "./routes/home.js";
+import { WorkspaceRoute } from "./routes/workspace.js";
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/checkout/:intentId" element={<CheckoutRoute />} />
+        <Route path="/workspace" element={<WorkspaceRoute />} />
         <Route path="*" element={<main className="route-status"><h1>Page not found</h1><a href="/">Return home</a></main>} />
       </Routes>
     </div>

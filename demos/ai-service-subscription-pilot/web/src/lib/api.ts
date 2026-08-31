@@ -12,6 +12,11 @@ import type {
   PayPalCheckoutStatus,
   PayPalIdTokenResponse,
 } from "../../../shared/src/paypal.js";
+import type {
+  AccountUsageSummary,
+  GenerateAnswerOutcome,
+  GenerateAnswerRequest,
+} from "../../../shared/src/usage.js";
 
 export class ApiRequestError extends Error {
   constructor(readonly status: number, readonly code: string | null = null) {
@@ -85,6 +90,19 @@ export const demoApi = {
     }),
   capturePayPalOrder: (orderId: string, body: CapturePayPalOrderRequest, token: string) =>
     requestJson<PayPalCheckoutStatus>(`/api/v1/paypal/orders/${encodeURIComponent(orderId)}/capture`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify(body),
+    }),
+  activateGo: (token: string) => requestJson<AccountUsageSummary>("/api/v1/me/activation", {
+    method: "POST",
+    headers: bearer(token),
+  }),
+  readUsageSummary: (token: string) => requestJson<AccountUsageSummary>("/api/v1/me/summary", {
+    headers: bearer(token),
+  }),
+  generateAnswer: (body: GenerateAnswerRequest, token: string) =>
+    requestJson<GenerateAnswerOutcome>("/api/v1/usage/generate-answer", {
       method: "POST",
       headers: bearer(token),
       body: JSON.stringify(body),
