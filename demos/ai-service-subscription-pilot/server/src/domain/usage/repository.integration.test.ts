@@ -12,8 +12,54 @@ import {
   seedTask0004Fixture,
   task0004Identity,
 } from "../../../../tests/e2e/support/task0004-fixture.js";
+import type { AccountUsageSummary } from "../../../../shared/src/usage.js";
+import type { DatabaseClient } from "../../db/client.js";
 
 const databaseUrl = process.env.DATABASE_URL;
+
+function afterFirstAllowanceRead(
+  sql: DatabaseClient,
+  callback: () => Promise<unknown>,
+): DatabaseClient {
+  let handled = false;
+  const wrap = (client: DatabaseClient): DatabaseClient => new Proxy(client, {
+    apply(target, thisArg, argumentsList) {
+      const template = argumentsList[0] as TemplateStringsArray;
+      const query = Reflect.apply(target, thisArg, argumentsList) as Promise<unknown>;
+      if (handled || !template.raw.join(" ").includes("from app_private.allowance_windows w")) {
+        return query;
+      }
+      handled = true;
+      return Promise.resolve(query).then(async (rows) => {
+        await callback();
+        return rows;
+      });
+    },
+    get(target, property, receiver) {
+      if (property !== "begin") return Reflect.get(target, property, receiver);
+      return (optionsOrCallback: string | ((tx: DatabaseClient) => unknown), maybeCallback?: (tx: DatabaseClient) => unknown) => {
+        if (typeof optionsOrCallback === "string") {
+          return target.begin(optionsOrCallback, (tx) => maybeCallback!(wrap(tx as unknown as DatabaseClient)));
+        }
+        return target.begin((tx) => optionsOrCallback(wrap(tx as unknown as DatabaseClient)));
+      };
+    },
+  }) as DatabaseClient;
+  return wrap(sql);
+}
+
+function expectInternallyCoherent(summary: AccountUsageSummary) {
+  const observed = summary.operations.reduce((totals, operation) => {
+    if (operation.state === "reserved") totals.reserved += operation.units;
+    if (operation.state === "committed") totals.committed += operation.units;
+    return totals;
+  }, { reserved: 0, committed: 0 });
+  expect(summary.allowance.reserved).toBe(observed.reserved);
+  expect(summary.allowance.committed).toBe(observed.committed);
+  expect(summary.allowance.available).toBe(
+    summary.allowance.granted - observed.reserved - observed.committed,
+  );
+}
 
 describe.skipIf(!databaseUrl)("TASK-0004 usage repository on actual Postgres", () => {
   it("rejects authenticated activation without an owned verified-funded arrangement", async () => {
@@ -162,6 +208,67 @@ describe.skipIf(!databaseUrl)("TASK-0004 usage repository on actual Postgres", (
       `;
       await expect(repository.readSummary(task0004Identity.success.userId, now))
         .rejects.toThrow("usage_not_found");
+    } finally {
+      await sql.end();
+      await cleanupTask0004Fixture();
+    }
+  }, 60_000);
+
+  it("returns one coherent summary snapshot while reserve and commit change the ledger", async () => {
+    await cleanupTask0004Fixture();
+    await seedTask0004Fixture("success");
+    const sql = createDatabaseClient(databaseUrl!);
+    const writer = new PostgresUsageRepository(sql);
+    const now = new Date();
+    const clientOperationId = randomUUID();
+    const requestInput = {
+      clientOperationId,
+      promptKey: "renewal-recovery" as const,
+      confirmed: true as const,
+    };
+    const answer = {
+      label: "Simulated AI" as const,
+      title: "Renewal recovery playbook",
+      body: ["Fixture"],
+    };
+    try {
+      await writer.activate(task0004Identity.success.userId, now);
+
+      const duringReserve = await new PostgresUsageRepository(afterFirstAllowanceRead(
+        sql,
+        () => writer.reserve(task0004Identity.success.userId, requestInput, now),
+      )).readSummary(task0004Identity.success.userId, now);
+      expectInternallyCoherent(duringReserve);
+      expect(duringReserve.allowance).toEqual({
+        granted: 100,
+        reserved: 0,
+        committed: 0,
+        available: 100,
+      });
+      expect(duringReserve.operations).toEqual([]);
+
+      const duringCommit = await new PostgresUsageRepository(afterFirstAllowanceRead(
+        sql,
+        () => writer.commit(task0004Identity.success.userId, clientOperationId, answer, now),
+      )).readSummary(task0004Identity.success.userId, now);
+      expectInternallyCoherent(duringCommit);
+      expect(duringCommit.allowance).toEqual({
+        granted: 100,
+        reserved: 10,
+        committed: 0,
+        available: 90,
+      });
+      expect(duringCommit.operations).toHaveLength(1);
+      expect(duringCommit.operations[0]!.state).toBe("reserved");
+
+      const terminal = await writer.readSummary(task0004Identity.success.userId, now);
+      expectInternallyCoherent(terminal);
+      expect(terminal.allowance).toEqual({
+        granted: 100,
+        reserved: 0,
+        committed: 10,
+        available: 90,
+      });
     } finally {
       await sql.end();
       await cleanupTask0004Fixture();
