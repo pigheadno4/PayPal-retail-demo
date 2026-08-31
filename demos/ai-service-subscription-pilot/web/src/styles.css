@@ -638,6 +638,34 @@ button:disabled {
   font-size: clamp(2.5rem, 6vw, 4.8rem);
 }
 
+.service-marker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--secondary-foreground);
+}
+
+.service-marker::before,
+.service-marker::after {
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+  content: "";
+}
+
+.service-marker h1 {
+  flex: 0 0 auto;
+  font-family: var(--font-interface);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.mobile-allowance-strip {
+  display: none;
+}
+
 .prompt-grid {
   display: grid;
   gap: 12px;
@@ -730,6 +758,44 @@ button:disabled {
   margin: 0;
 }
 
+.mobile-usage-disclosure summary {
+  min-height: 44px;
+  align-content: center;
+  color: var(--secondary-foreground);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.mobile-usage-detail {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.mobile-usage-detail h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+.mobile-usage-detail dl,
+.mobile-usage-detail p {
+  margin: 0;
+}
+
+.mobile-usage-detail dl div,
+.mobile-usage-detail p {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-usage-detail dt,
+.mobile-usage-detail dd {
+  margin: 0;
+}
+
 @media (max-width: 720px) {
   .app-frame {
     width: min(100% - 24px, 560px);
@@ -755,14 +821,25 @@ button:disabled {
   }
 
   .workspace-conversation,
-  .allowance-card {
+  .mobile-allowance-strip {
     padding: 20px;
     border-radius: 20px;
   }
 
+  .mobile-allowance-strip {
+    display: grid;
+    gap: 4px;
+    padding: 12px 16px;
+  }
+
+  .mobile-allowance-value {
+    min-width: 0;
+    font-size: 0.95rem;
+    overflow-wrap: anywhere;
+  }
+
   .allowance-card {
-    position: static;
-    order: -1;
+    display: none;
   }
 
   .workspace-actions {

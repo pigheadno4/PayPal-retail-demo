@@ -81,6 +81,15 @@ describe("foundation stylesheet", () => {
     expect(stylesheet).toContain(".workspace-conversation");
     expect(stylesheet).toContain(".prompt-grid");
     expect(stylesheet).toContain(".allowance-card");
+    expect(stylesheet).toContain(".mobile-allowance-strip");
+    expect(stylesheet).toContain(".service-marker");
+    expect(stylesheet).not.toMatch(/\.allowance-card\s*\{[^}]*order:\s*-1/);
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*\.mobile-allowance-strip\s*\{[\s\S]*display:\s*grid/,
+    );
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*\.allowance-card\s*\{[\s\S]*display:\s*none/,
+    );
     expect(stylesheet).toMatch(/@media \(max-width: 720px\)[\s\S]*\.workspace-main/);
     expect(stylesheet).toMatch(/\.payment-handoff \.primary-button[\s\S]*display: grid/);
   });

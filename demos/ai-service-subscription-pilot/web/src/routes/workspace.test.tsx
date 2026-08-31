@@ -19,6 +19,10 @@ const props = {
 describe("WorkspaceView", () => {
   it("shows the approved Go prompts without changing the 100-unit allowance", () => {
     const html = renderToStaticMarkup(<WorkspaceView {...props} />);
+    expect(html).toContain("mobile-allowance-strip");
+    expect(html).toContain("Go · 100 units left");
+    expect(html).toContain("View usage");
+    expect(html).toContain('role="separator"');
     expect(html).toContain("#Generate Answer");
     expect(html).toContain("How can an AI SaaS reduce failed-renewal churn?");
     expect(html).toContain("Explain usage-based AI credits to a new customer.");
@@ -36,6 +40,7 @@ describe("WorkspaceView", () => {
     />);
     expect(html).toContain("Generate · 10 units");
     expect(html).toContain("90 units after success");
+    expect(html).toContain("90 available · 10 reserved");
     expect(html).toContain("Drafting answer…");
     expect(html).toContain("disabled");
   });
@@ -55,8 +60,10 @@ describe("WorkspaceView", () => {
     />);
     expect(success).toContain("Simulated AI");
     expect(success).toContain("Renewal recovery playbook");
+    expect(success).toContain("Go · 90 units left");
     expect(success).toContain("90 units available");
     expect(released).toContain("reservation was released");
+    expect(released).toContain("Reservation released · 100 units available");
     expect(released).toContain("100 units available");
     expect(released).not.toContain("Renewal recovery playbook");
   });

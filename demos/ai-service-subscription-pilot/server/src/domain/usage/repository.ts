@@ -32,6 +32,10 @@ type OperationRow = {
   completed_at: Date | string | null;
 };
 
+type OperationHistoryRow = OperationRow & {
+  funding_source: "PayPal Wallet" | null;
+};
+
 function totals(row: AllowanceRow) {
   const granted = Number(row.granted_units);
   const reserved = Number(row.reserved_units);
@@ -39,7 +43,8 @@ function totals(row: AllowanceRow) {
   return { granted, reserved, committed, available: granted - reserved - committed };
 }
 
-function operationDto(row: OperationRow) {
+function operationDto(row: OperationHistoryRow) {
+  if (row.funding_source !== "PayPal Wallet") throw new UsageNotFoundError();
   return {
     clientOperationId: row.client_operation_id,
     allowanceWindowId: row.allowance_window_public_id,
@@ -47,7 +52,7 @@ function operationDto(row: OperationRow) {
     fixtureKey: row.fixture_key,
     units: 10 as const,
     state: row.state,
-    fundingSource: "PayPal Wallet" as const,
+    fundingSource: row.funding_source,
     reservedAt: new Date(row.reserved_at).toISOString(),
     completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
   };
@@ -110,13 +115,27 @@ export class PostgresUsageRepository implements UsageRepository {
     `;
     const allowance = allowances[0];
     if (!allowance) throw new UsageNotFoundError();
-    const operations = await this.sql<OperationRow[]>`
+    const operations = await this.sql<OperationHistoryRow[]>`
       select u.client_operation_id, w.public_id as allowance_window_public_id,
              u.fixture_key, u.units, u.state,
-             u.reserved_at, u.completed_at
+             u.reserved_at, u.completed_at,
+             case
+               when b.funding_status = 'verified'
+                and p.funding_status = 'completed'
+                and p.funding_verified_at is not null
+                and p.account_id = b.account_id
+                and p.checkout_intent_id = b.checkout_intent_id
+                and p.quote_id = b.quote_id
+               then 'PayPal Wallet'
+               else null
+             end as funding_source
       from app_private.usage_operations u
       join app_private.allowance_windows w on w.id = u.allowance_window_id
+      join app_private.billing_arrangements b on b.id = w.billing_arrangement_id
+      join app_private.accounts a on a.id = b.account_id and a.id = u.account_id
+      left join app_private.payment_operations p on p.id = b.payment_operation_id
       where u.allowance_window_id = ${allowance.id}
+        and a.auth_user_id = ${authUserId}
       order by u.created_at desc, u.id desc limit 20
     `;
     return {

@@ -6,7 +6,10 @@ import type {
   PromptKey,
 } from "../../../shared/src/usage.js";
 import { ActionConfirmation } from "../components/workspace/action-confirmation.js";
-import { AllowanceCard } from "../components/workspace/allowance-card.js";
+import {
+  AllowanceCard,
+  MobileAllowanceStrip,
+} from "../components/workspace/allowance-card.js";
 import { CompletionStatus } from "../components/workspace/completion-status.js";
 import { GenerateAnswerPrompts } from "../components/workspace/generate-answer.js";
 import { SimulatedMessage } from "../components/workspace/simulated-message.js";
@@ -43,9 +46,12 @@ export function WorkspaceView(props: Readonly<{
 }>) {
   return (
     <main className="workspace-main">
+      <MobileAllowanceStrip summary={props.summary} operationState={props.outcome?.state ?? null} />
       <section className="workspace-conversation glass-surface" aria-labelledby="workspace-heading">
         <p className="eyebrow">Simulated AI workspace</p>
-        <h1 id="workspace-heading">#Generate Answer</h1>
+        <div className="service-marker" role="separator" aria-label="Generate Answer service">
+          <h1 id="workspace-heading">#Generate Answer</h1>
+        </div>
         <p className="section-copy">Choose one curated fixture prompt. Selection is free; the server reserves exactly 10 units only after confirmation.</p>
         <GenerateAnswerPrompts
           selected={props.selectedPrompt}
