@@ -26,7 +26,7 @@ export function createSupabaseHookRouter(
           typeof request.body === "string" ? request.body : "",
           headers,
         );
-        response.status(200).end();
+        response.status(200).json({});
       } catch (error) {
         if (error instanceof HookRejectedError) {
           response.status(401).json({ error: { code: "hook_rejected" } });

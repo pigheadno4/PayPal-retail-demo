@@ -6,6 +6,31 @@ import { createSupabaseHookRouter } from "./supabase-hook";
 import { HookRejectedError } from "../domain/auth/send-email-hook";
 
 describe("Supabase Send Email Hook route", () => {
+  it("returns empty JSON only after hook processing completes", async () => {
+    let processed = false;
+    let processedWhenHeadersSent = false;
+    const app = express();
+    app.use((_request, response, next) => {
+      const originalWriteHead = response.writeHead;
+      response.writeHead = function (...args: Parameters<typeof originalWriteHead>) {
+        processedWhenHeadersSent = processed;
+        return originalWriteHead.apply(this, args);
+      };
+      next();
+    });
+    app.use(createSupabaseHookRouter({ processHook: async () => {
+      await Promise.resolve();
+      processed = true;
+    } }));
+    const response = await request(app).post("/supabase/send-email")
+      .set("Content-Type", "application/json").send("{}");
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"] ?? "").toMatch(/^application\/json(?:;|$)/);
+    expect(response.text).toBe("{}");
+    expect(response.body).toEqual({});
+    expect(processedWhenHeadersSent).toBe(true);
+  });
+
   it("catches JSON parsing before signature verification", async () => {
     const processHook = vi.fn().mockResolvedValue(undefined);
     const app = express();
