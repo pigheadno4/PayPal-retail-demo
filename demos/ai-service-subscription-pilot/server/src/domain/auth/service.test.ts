@@ -7,6 +7,7 @@ import {
 } from "./demo-session";
 import {
   DemoOtpUnavailableError,
+  HookRejectedError,
   processSendEmailHook,
   retrieveDemoOtp,
   type DemoSessionRecord,
@@ -23,6 +24,44 @@ import { createGoMonthlyQuote } from "../quote/go-monthly-seattle";
 const SESSION_SECRET = "session-signing-secret-with-at-least-thirty-two-bytes";
 const HOOK_SECRET = Buffer.from("hook-secret-with-at-least-thirty-two-bytes").toString("base64");
 const NOW = new Date("2026-07-15T19:00:00.000Z");
+
+describe("TC-0014 verified hook delivery boundary", () => {
+  it.each(["12345", "1234567", "12345x", "https://example.test/magic", 123456, null])(
+    "rejects an invalid six-digit token before delivery", async (token) => {
+      const sendPersistentEmail = vi.fn();
+      const rawBody = JSON.stringify({ user: { email: "fixture@example.test" }, email_data: { token } });
+      await expect(processSendEmailHook({
+        rawBody, headers: signedHeaders(new Webhook(HOOK_SECRET), rawBody),
+        clock: () => NOW, hookSecret: HOOK_SECRET, encryptionSecret: SESSION_SECRET,
+        repository: new MemorySessionRepository(), sendPersistentEmail,
+      })).rejects.toBeInstanceOf(HookRejectedError);
+      expect(sendPersistentEmail).not.toHaveBeenCalled();
+    },
+  );
+
+  it("routes only the verified persistent email and six-digit code to delivery", async () => {
+    const delivered: unknown[] = [];
+    const rawBody = '{ "user": {"email":"fixture@example.test"}, "email_data":{"token":"012345"}}';
+    await processSendEmailHook({
+      rawBody, headers: signedHeaders(new Webhook(HOOK_SECRET), rawBody),
+      clock: () => NOW, hookSecret: HOOK_SECRET, encryptionSecret: SESSION_SECRET,
+      repository: new MemorySessionRepository(),
+      sendPersistentEmail: async (...payload) => { delivered.push(payload); },
+    });
+    expect(delivered).toEqual([["fixture@example.test", "012345"]]);
+  });
+
+  it("propagates provider failures without relabeling them signature rejections", async () => {
+    const rawBody = JSON.stringify({ user: { email: "fixture@example.test" }, email_data: { token: "012345" } });
+    const failure = new Error("private-provider-payload");
+    await expect(processSendEmailHook({
+      rawBody, headers: signedHeaders(new Webhook(HOOK_SECRET), rawBody),
+      clock: () => NOW, hookSecret: HOOK_SECRET, encryptionSecret: SESSION_SECRET,
+      repository: new MemorySessionRepository(),
+      sendPersistentEmail: async () => { throw failure; },
+    })).rejects.toBe(failure);
+  });
+});
 
 class MemorySessionRepository implements DemoSessionRepository {
   readonly sessions: DemoSessionRecord[] = [];

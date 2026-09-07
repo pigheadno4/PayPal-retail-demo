@@ -3,6 +3,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
 import { createSupabaseHookRouter } from "./supabase-hook";
+import { HookRejectedError } from "../domain/auth/send-email-hook";
 
 describe("Supabase Send Email Hook route", () => {
   it("catches JSON parsing before signature verification", async () => {
@@ -30,7 +31,7 @@ describe("Supabase Send Email Hook route", () => {
   it("returns one generic rejection without the raw failure", async () => {
     const app = express();
     app.use(createSupabaseHookRouter({
-      processHook: vi.fn().mockRejectedValue(new Error("private-hook-detail")),
+      processHook: vi.fn().mockRejectedValue(new HookRejectedError()),
     }));
 
     const response = await request(app)

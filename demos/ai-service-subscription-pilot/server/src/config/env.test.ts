@@ -136,6 +136,23 @@ describe("requirePayPalConfig", () => {
 });
 
 describe("requireEmailHookConfig", () => {
+  it.each(["SUPABASE_SEND_EMAIL_HOOK_SECRET", "RESEND_API_KEY", "EMAIL_FROM_ADDRESS"])(
+    "isolates a missing %s and redacts the complete supplied configuration", (key) => {
+      const environment = { ...completeBaseEnvironment(),
+        SUPABASE_SEND_EMAIL_HOOK_SECRET: "private-hook-fixture",
+        RESEND_API_KEY: "private-resend-fixture", EMAIL_FROM_ADDRESS: "fixture@example.test",
+      } as NodeJS.ProcessEnv;
+      delete environment[key];
+      expect(() => parseBaseServerConfig(environment)).not.toThrow();
+      try {
+        requireEmailHookConfig(environment);
+        expect.fail("partial email capability accepted");
+      } catch (error) {
+        expect(error).toBeInstanceOf(IntegrationNotConfiguredError);
+        expect(JSON.stringify(error)).not.toMatch(/private-|example|SUPABASE|RESEND|EMAIL_FROM/);
+      }
+    },
+  );
   it("rejects absent and partial email capabilities only when requested", () => {
     expect(() => requireEmailHookConfig(testEnvironment())).toThrowError(
       new IntegrationNotConfiguredError(),

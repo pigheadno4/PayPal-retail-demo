@@ -67,6 +67,7 @@ const otpClient = createClient(config.supabaseUrl, config.supabasePublishableKey
 
 const apiRouter = Router();
 apiRouter.use(createIdentityRouter({
+  secureCookies: new URL(config.appUrl).protocol === "https:",
   createIntent: () => createPendingGoMonthlyIntent({
     signingSecret: config.demoSessionSigningSecret,
     insertPendingIntent: (tokenHash, now) => checkoutRepository.insertPendingIntent(tokenHash, now),

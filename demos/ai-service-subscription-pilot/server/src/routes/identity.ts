@@ -17,6 +17,7 @@ import {
 export const DEMO_SESSION_COOKIE = "ai_demo_session";
 
 type IdentityRouterDependencies = Readonly<{
+  secureCookies?: boolean;
   createIntent: () => Promise<{
     response: CreateCheckoutIntentResponse;
     cookieValue: string;
@@ -59,6 +60,7 @@ export function createIdentityRouter(dependencies: IdentityRouterDependencies): 
       response.cookie(DEMO_SESSION_COOKIE, result.cookieValue, {
         expires: result.cookieExpiresAt,
         httpOnly: true,
+        secure: dependencies.secureCookies ?? false,
         sameSite: "lax",
         path: "/",
       });

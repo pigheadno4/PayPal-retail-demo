@@ -1,4 +1,5 @@
 import express, { Router } from "express";
+import { HookRejectedError } from "../domain/auth/send-email-hook.js";
 
 type SupabaseHookDependencies = Readonly<{
   processHook: (
@@ -14,7 +15,7 @@ export function createSupabaseHookRouter(
   router.post(
     "/supabase/send-email",
     express.text({ type: "application/json", limit: "64kb" }),
-    async (request, response) => {
+    async (request, response, next) => {
       const headers = {
         "webhook-id": request.header("webhook-id") ?? "",
         "webhook-timestamp": request.header("webhook-timestamp") ?? "",
@@ -26,8 +27,12 @@ export function createSupabaseHookRouter(
           headers,
         );
         response.status(200).end();
-      } catch {
-        response.status(401).json({ error: { code: "hook_rejected" } });
+      } catch (error) {
+        if (error instanceof HookRejectedError) {
+          response.status(401).json({ error: { code: "hook_rejected" } });
+          return;
+        }
+        next(error);
       }
     },
   );

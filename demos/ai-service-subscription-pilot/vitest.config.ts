@@ -14,6 +14,7 @@ export default defineConfig({
       "server/src/**/*.test.ts",
       "shared/src/**/*.test.ts",
       "web/src/**/*.test.{ts,tsx}",
+      "tests/evidence/**/*.test.ts",
     ],
   },
 });

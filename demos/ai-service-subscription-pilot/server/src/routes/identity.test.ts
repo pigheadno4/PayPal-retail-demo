@@ -53,6 +53,20 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("identity routes", () => {
+  it.each([true, false])("enforces the server cookie policy, secure=%s", async (secureCookies) => {
+    const { server } = app({ secureCookies });
+    const response = await request(server).post("/checkout-intents")
+      .set("X-Forwarded-Proto", secureCookies ? "http" : "https")
+      .send({ secureCookies: !secureCookies });
+    const cookie = response.headers["set-cookie"]?.[0] ?? "";
+    expect(cookie.includes("; Secure")).toBe(secureCookies);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Path=/");
+    expect(cookie).toContain("Expires=");
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+  });
+
   it("catches exposing anything beyond one selection and exact cookie attributes", async () => {
     const { server } = app();
     const response = await request(server).post("/checkout-intents");

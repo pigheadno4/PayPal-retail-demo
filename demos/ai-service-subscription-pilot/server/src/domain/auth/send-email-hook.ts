@@ -51,7 +51,8 @@ export async function processSendEmailHook(input: Readonly<{
   } catch {
     throw new HookRejectedError();
   }
-  if (!payload?.user?.email || !/^\d{6}$/.test(payload?.email_data?.token ?? "")) {
+  if (!payload?.user?.email || typeof payload?.email_data?.token !== "string"
+    || !/^\d{6}$/.test(payload.email_data.token)) {
     throw new HookRejectedError();
   }
 

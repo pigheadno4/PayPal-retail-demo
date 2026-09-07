@@ -19,6 +19,7 @@ import request from "supertest";
 import { createApp } from "./app";
 import type { BaseServerConfig } from "./config/env";
 import { IntegrationNotConfiguredError } from "./http/errors";
+import { createSupabaseHookRouter } from "./routes/supabase-hook";
 
 const config: BaseServerConfig = {
   appUrl: "https://app-secret.example.test",
@@ -32,6 +33,25 @@ const config: BaseServerConfig = {
 
 describe("createApp", () => {
   let webDistPath: string;
+
+  it.each([
+    [new IntegrationNotConfiguredError(), 503, "integration_not_configured"],
+    [new Error("private-provider-payload"), 500, "internal_error"],
+  ] as const)("contains email failure without disabling unrelated routes", async (error, status, code) => {
+    const app = createApp({ config, webDistPath, webhookRouter: createSupabaseHookRouter({
+      processHook: async () => { throw error; },
+    }) });
+    const hook = await request(app).post("/webhooks/supabase/send-email")
+      .set("Content-Type", "application/json").send("{}");
+    expect(hook.status).toBe(status);
+    expect(hook.body).toEqual({ error: { code } });
+    expect(hook.text).not.toContain("private-provider-payload");
+    const health = await request(app).get("/api/v1/health");
+    expect(health.status).toBe(200);
+    expect(health.body).toEqual({ status: "ready" });
+    expect((await request(app).get("/checkout/history").set("Accept", "text/html")).status).toBe(200);
+    expect((await request(app).get("/api/v1/missing")).body).toEqual({ error: { code: "not_found" } });
+  });
 
   beforeAll(() => {
     webDistPath = mkdtempSync(join(tmpdir(), "task0006-web-"));
