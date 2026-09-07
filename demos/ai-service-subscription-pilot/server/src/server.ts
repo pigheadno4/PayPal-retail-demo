@@ -15,6 +15,7 @@ import {
   retrieveDemoOtp,
 } from "./domain/auth/send-email-hook.js";
 import { requestOtp, resumeVerifiedIdentity } from "./domain/auth/service.js";
+import { createAuthDiagnostic, observeResend } from "./domain/auth/diagnostics.js";
 import { PostgresCheckoutRepository } from "./domain/checkout/repository.js";
 import {
   createPendingGoMonthlyIntent,
@@ -206,9 +207,11 @@ apiRouter.use(createUsageRouter({
 
 const webhookRouter = createSupabaseHookRouter({
   processHook: async (rawBody, headers) => {
+    const diagnostic = createAuthDiagnostic();
     const emailConfig = requireEmailHookConfig(process.env);
     const resend = new Resend(emailConfig.resendApiKey);
     await processSendEmailHook({
+      diagnostic,
       rawBody,
       headers,
       clock: () => new Date(),
@@ -216,13 +219,12 @@ const webhookRouter = createSupabaseHookRouter({
       encryptionSecret: config.demoSessionSigningSecret,
       repository: checkoutRepository,
       sendPersistentEmail: async (email, otp) => {
-        const result = await resend.emails.send({
+        await observeResend(() => resend.emails.send({
           from: emailConfig.fromAddress,
           to: email,
           subject: "Your AI Service Studio verification code",
           text: `Your verification code is ${otp}. It expires shortly.`,
-        });
-        if (result.error) throw new Error("email_unavailable");
+        }), diagnostic);
       },
     });
   },

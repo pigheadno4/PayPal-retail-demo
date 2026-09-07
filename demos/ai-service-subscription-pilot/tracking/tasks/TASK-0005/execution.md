@@ -109,6 +109,16 @@ Independent specification and quality review must inspect the same eventual cand
 
 ## Out-Of-Scope Observations And Rollback
 
+### Diagnostic-Only Local Patch — 2026-09-07
+
+- User approved the narrow local diagnostic patch described in the main working tree's `tracking/tasks/TASK-0005/diagnostic-patch.md`; publication remains a separate approval. This patch is uncommitted on top of deployment-source commit `742450f8d628959fade0c06c515df2bb3809e5d9` in the isolated worktree.
+- Files: add `server/src/domain/auth/diagnostics.ts` and its test; modify `server/src/domain/auth/send-email-hook.ts`, `server/src/routes/identity.ts`, `server/src/routes/identity.test.ts`, `server/src/server.ts`, and this report. No frontend, PSP, schema, quote, usage or other protected changes.
+- Failure diagnostics project only a freshly generated correlation ID, fixed stage, fixed application status and fixed allowlisted code. Codes distinguish swallowed OTP request failure, signature rejection, payload rejection, database lookup exception, Resend returned rejection and Resend thrown exception. No error object, field, message, body, header, address, OTP or provider identifier is serialized. Correlation is local to one hook execution; separate Supabase HTTP requests are not linked through provider identifiers.
+- Diagnostic limitation: Resend classification is deliberately limited to returned rejection versus thrown exception; it does not identify quota, sender-domain or credential subcategories or expose upstream HTTP status. The fixed status is our application disposition, not a provider status. No root cause or fix is claimed.
+- RED: diagnostic and identity-route tests initially produced four missing-log assertion failures; Resend returned/throw tests then produced two additional missing-log failures before their implementation. GREEN: the focused diagnostic/route tests are covered by the final full run, 265 passing tests and 8 unchanged DB-gated skips. Typecheck, lint, production build and diff whitespace checks pass. Logger failure cannot change OTP acceptance, hook success or error propagation.
+- The original protected tree still matches the durable recovery baseline byte-for-byte (`diagnostic-after.json`); this preserves only the recovery-forward window, not the earlier missing historical baseline. No protected branch path is changed by this patch.
+- No OTP request, remote configuration change, commit, push, deploy, PR or merge was made for this patch. Publishing approval, hosted root-cause verification and both independent reviews remain pending. Rollback discards only these diagnostic hunks/new files, preserving the prior deployment-source commit and unrelated work.
+
 - The moderate qs production dependency finding is recorded for a separate authorized dependency task. No automatic audit fix was run.
 - The local test runtime differs from the declared hosted Node version; local results do not prove the Render runtime.
 - No hosted manifest, EVID-0006 capture, successful delivery, provider claim, or full-slice claim has been manufactured.

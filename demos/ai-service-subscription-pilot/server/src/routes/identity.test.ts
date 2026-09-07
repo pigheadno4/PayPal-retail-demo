@@ -53,6 +53,32 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("identity routes", () => {
+  it("retains OTP acceptance even when diagnostic output throws", async () => {
+    const output = vi.spyOn(console, "info").mockImplementation(() => { throw new Error("logger unavailable"); });
+    try {
+      const { server } = app({ requestOtp: async () => { throw new Error("provider unavailable"); } });
+      const response = await request(server).post("/auth/request-otp")
+        .set("Cookie", `${DEMO_SESSION_COOKIE}=signed-origin`)
+        .send({ intentId, identityRoute: "persistent", email: "customer@example.com" });
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ accepted: true });
+    } finally { output.mockRestore(); }
+  });
+  it("logs swallowed OTP failure without changing constant acceptance or leaking data", async () => {
+    const output = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    try {
+      const { server } = app({ requestOtp: async () => { throw new Error("secret@example.test OTP=123456"); } });
+      const response = await request(server).post("/auth/request-otp")
+        .set("Cookie", `${DEMO_SESSION_COOKIE}=signed-origin`)
+        .send({ intentId, identityRoute: "persistent", email: "customer@example.com" });
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ accepted: true });
+      expect(output.mock.calls.map(([line]) => JSON.parse(line as string))).toContainEqual({
+        correlationId: expect.any(String), stage: "otp_request", status: 202, code: "otp_request_failed",
+      });
+      expect(JSON.stringify(output.mock.calls)).not.toMatch(/secret@example|123456|signed-origin/);
+    } finally { output.mockRestore(); }
+  });
   it.each([true, false])("enforces the server cookie policy, secure=%s", async (secureCookies) => {
     const { server } = app({ secureCookies });
     const response = await request(server).post("/checkout-intents")

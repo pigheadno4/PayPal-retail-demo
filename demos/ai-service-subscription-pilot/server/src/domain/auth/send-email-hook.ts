@@ -1,4 +1,5 @@
 import { Webhook } from "standardwebhooks";
+import { createAuthDiagnostic } from "./diagnostics.js";
 
 import {
   decryptDemoOtp,
@@ -43,20 +44,28 @@ export async function processSendEmailHook(input: Readonly<{
   encryptionSecret: string;
   repository: DemoSessionRepository;
   sendPersistentEmail: (email: string, otp: string) => Promise<void>;
+  diagnostic?: ReturnType<typeof createAuthDiagnostic>;
 }>): Promise<void> {
+  const diagnostic = input.diagnostic ?? createAuthDiagnostic();
   let payload: HookPayload;
   try {
     payload = new Webhook(input.hookSecret.replace(/^v1,whsec_/, ""))
       .verify(input.rawBody, input.headers) as HookPayload;
   } catch {
+    diagnostic("signature_failed");
     throw new HookRejectedError();
   }
   if (!payload?.user?.email || typeof payload?.email_data?.token !== "string"
     || !/^\d{6}$/.test(payload.email_data.token)) {
+    diagnostic("payload_failed");
     throw new HookRejectedError();
   }
 
-  const session = await input.repository.findByAlias(payload.user.email);
+  let session: DemoSessionRecord | null;
+  try { session = await input.repository.findByAlias(payload.user.email); } catch (error) {
+    diagnostic("database_failed");
+    throw error;
+  }
   if (session && session.testAlias === payload.user.email) {
     const now = input.clock();
     if (session.expiresAt.getTime() <= now.getTime() || session.consumedAt) {

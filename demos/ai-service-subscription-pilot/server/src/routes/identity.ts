@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { createAuthDiagnostic } from "../domain/auth/diagnostics.js";
 
 import type { CheckoutReview } from "../../../shared/src/checkout.js";
 import {
@@ -111,7 +112,9 @@ export function createIdentityRouter(dependencies: IdentityRouterDependencies): 
     }
     const origin = cookieValue(request.header("cookie"));
     if (origin) {
-      await dependencies.requestOtp(input, origin).catch(() => undefined);
+      await dependencies.requestOtp(input, origin).catch(() => {
+        createAuthDiagnostic()("otp_request_failed");
+      });
     }
     privateNoStore(response);
     response.status(202).json({ accepted: true });
