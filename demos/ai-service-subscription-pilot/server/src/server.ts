@@ -95,7 +95,8 @@ apiRouter.use(createIdentityRouter({
       },
     },
   ),
-  retrieveOtp: (cookieValue) => retrieveDemoOtp({
+  retrieveOtp: (cookieValue, timing) => retrieveDemoOtp({
+    timing,
     cookieValue,
     clock: () => new Date(),
     signingSecret: config.demoSessionSigningSecret,

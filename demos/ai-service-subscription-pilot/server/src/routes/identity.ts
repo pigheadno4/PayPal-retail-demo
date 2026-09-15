@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { createOtpTiming, type OtpTiming, type OtpTimingSink } from "../domain/auth/otp-timing.js";
 import { createAuthDiagnostic } from "../domain/auth/diagnostics.js";
 
 import type { CheckoutReview } from "../../../shared/src/checkout.js";
@@ -19,6 +20,7 @@ export const DEMO_SESSION_COOKIE = "ai_demo_session";
 
 type IdentityRouterDependencies = Readonly<{
   secureCookies?: boolean;
+  otpTimingSink?: OtpTimingSink;
   createIntent: () => Promise<{
     response: CreateCheckoutIntentResponse;
     cookieValue: string;
@@ -26,7 +28,7 @@ type IdentityRouterDependencies = Readonly<{
   }>;
   createDemoSession: (cookieValue: string) => Promise<DemoSessionResponse>;
   requestOtp: (input: ReturnType<typeof parseRequestOtpRequest>, cookieValue: string) => Promise<{ accepted: true }>;
-  retrieveOtp: (cookieValue: string) => Promise<DemoOtpResponse>;
+  retrieveOtp: (cookieValue: string, timing: OtpTiming) => Promise<DemoOtpResponse>;
   resume: (input: Readonly<{
     intentId: string;
     verifiedUser: VerifiedIdentity;
@@ -88,13 +90,17 @@ export function createIdentityRouter(dependencies: IdentityRouterDependencies): 
   });
 
   router.get("/demo-sessions/otp", async (request, response) => {
+    const timing = createOtpTiming(dependencies.otpTimingSink);
+    timing("request_entry");
+    response.once("finish", () => timing("response_finish"));
+    response.once("close", () => timing("response_close"));
     const origin = cookieValue(request.header("cookie"));
     if (!origin) {
       response.status(404).json({ error: { code: "not_found" } });
       return;
     }
     try {
-      const result = await dependencies.retrieveOtp(origin);
+      const result = await dependencies.retrieveOtp(origin, timing);
       privateNoStore(response);
       response.json(result);
     } catch {

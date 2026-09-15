@@ -20,10 +20,74 @@ import {
 } from "./service";
 import type { StoredQuote } from "../quote/service";
 import { createGoMonthlyQuote } from "../quote/go-monthly-seattle";
+import { createOtpTiming } from "./otp-timing";
 
 const SESSION_SECRET = "session-signing-secret-with-at-least-thirty-two-bytes";
 const HOOK_SECRET = Buffer.from("hook-secret-with-at-least-thirty-two-bytes").toString("base64");
 const NOW = new Date("2026-07-15T19:00:00.000Z");
+
+describe("OTP retrieval pending-boundary timing", () => {
+  it.each(["lookup", "cleanup"] as const)("distinguishes pending %s without changing awaited denial", async (boundary) => {
+    const browser = createSignedDemoSession(SESSION_SECRET, () => NOW);
+    const repository = new MemorySessionRepository();
+    const record: DemoSessionRecord = {
+      publicId: browser.publicId, tokenHash: browser.tokenHash, testAlias: "fixture@test",
+      expiresAt: browser.expiresAt, otpCiphertext: "expired", otpIssuedAt: NOW,
+      otpExpiresAt: NOW, consumedAt: null,
+    };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    let cleanupCalls = 0;
+    repository.findByPublicId = async () => {
+      if (boundary === "lookup") { entered(); await gate; }
+      return record;
+    };
+    repository.clearOtp = async () => {
+      cleanupCalls += 1;
+      if (boundary === "cleanup") { entered(); await gate; }
+    };
+    const stages: string[] = [];
+    let settled = false;
+    const result = retrieveDemoOtp({
+      cookieValue: browser.cookieValue, clock: () => NOW,
+      signingSecret: SESSION_SECRET, encryptionSecret: SESSION_SECRET, repository,
+      timing: createOtpTiming((row) => { stages.push(row.stage); }),
+    }).catch((error: unknown) => { settled = true; return error; });
+    await started;
+    try {
+      expect(settled).toBe(false);
+      expect(cleanupCalls).toBe(boundary === "lookup" ? 0 : 1);
+      expect(stages).toEqual(boundary === "lookup" ? ["lookup_start"]
+        : ["lookup_start", "lookup_end", "expiry_branch", "cleanup_start"]);
+    } finally { release(); }
+    expect(await result).toBeInstanceOf(DemoOtpUnavailableError);
+    expect(stages).toEqual(["lookup_start", "lookup_end", "expiry_branch", "cleanup_start", "cleanup_end"]);
+    expect(cleanupCalls).toBe(1);
+  });
+
+  it.each(["lookup", "cleanup"] as const)("records rejected %s completion without logging or replacing errors", async (boundary) => {
+    const browser = createSignedDemoSession(SESSION_SECRET, () => NOW);
+    const failure = new Error("private-database-error");
+    const repository = new MemorySessionRepository();
+    repository.findByPublicId = async () => {
+      if (boundary === "lookup") throw failure;
+      return { publicId: browser.publicId, tokenHash: browser.tokenHash, testAlias: null,
+        expiresAt: browser.expiresAt, otpCiphertext: "expired", otpIssuedAt: NOW,
+        otpExpiresAt: NOW, consumedAt: null };
+    };
+    repository.clearOtp = async () => { throw failure; };
+    const rows: unknown[] = [];
+    await expect(retrieveDemoOtp({
+      cookieValue: browser.cookieValue, clock: () => NOW, signingSecret: SESSION_SECRET,
+      encryptionSecret: SESSION_SECRET, repository,
+      timing: createOtpTiming((row) => { rows.push(row); }),
+    })).rejects.toBe(failure);
+    expect(rows).toHaveLength(boundary === "lookup" ? 2 : 5);
+    expect(JSON.stringify(rows)).not.toContain(failure.message);
+  });
+});
 
 describe("TC-0014 verified hook delivery boundary", () => {
   it.each(["12345", "1234567", "12345x", "https://example.test/magic", 123456, null])(

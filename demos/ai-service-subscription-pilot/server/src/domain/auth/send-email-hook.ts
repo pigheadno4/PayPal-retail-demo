@@ -1,4 +1,5 @@
 import { Webhook } from "standardwebhooks";
+import type { OtpTiming } from "./otp-timing.js";
 import { createAuthDiagnostic } from "./diagnostics.js";
 
 import {
@@ -84,6 +85,7 @@ export async function processSendEmailHook(input: Readonly<{
 }
 
 export async function retrieveDemoOtp(input: Readonly<{
+  timing?: OtpTiming;
   cookieValue: string;
   clock: () => Date;
   signingSecret: string;
@@ -97,7 +99,13 @@ export async function retrieveDemoOtp(input: Readonly<{
   } catch {
     throw new DemoOtpUnavailableError();
   }
-  const session = await input.repository.findByPublicId(proof.publicId);
+  input.timing?.("lookup_start");
+  let session: DemoSessionRecord | null;
+  try {
+    session = await input.repository.findByPublicId(proof.publicId);
+  } finally {
+    input.timing?.("lookup_end");
+  }
   if (
     !session ||
     !sessionHashesMatch(session.tokenHash, proof.tokenHash) ||
@@ -109,7 +117,13 @@ export async function retrieveDemoOtp(input: Readonly<{
     throw new DemoOtpUnavailableError();
   }
   if (session.otpExpiresAt.getTime() <= now.getTime()) {
-    await input.repository.clearOtp(session.publicId);
+    input.timing?.("expiry_branch");
+    input.timing?.("cleanup_start");
+    try {
+      await input.repository.clearOtp(session.publicId);
+    } finally {
+      input.timing?.("cleanup_end");
+    }
     throw new DemoOtpUnavailableError();
   }
   return {

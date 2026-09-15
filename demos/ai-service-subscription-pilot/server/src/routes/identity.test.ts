@@ -3,6 +3,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
 import { createIdentityRouter, DEMO_SESSION_COOKIE } from "./identity";
+import type { OtpTiming } from "../domain/auth/otp-timing";
 
 const intentId = "11111111-1111-4111-8111-111111111111";
 const review = {
@@ -53,6 +54,45 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("identity routes", () => {
+  it.each(["normal", "unavailable", "missing"])("reports request finish and close for %s without private data", async (mode) => {
+    const rows: Record<string, unknown>[] = [];
+    const { server } = app({
+      otpTimingSink: (row: Record<string, unknown>) => { rows.push(row); },
+      retrieveOtp: async (_cookie: string, timing: OtpTiming) => {
+        timing("lookup_start");
+        timing("lookup_end");
+        if (mode === "unavailable") throw new Error("private-error-fixture");
+        return { otp: "385104", expiresAt: "2026-07-15T19:05:00.000Z" };
+      },
+    });
+    const call = request(server).get("/demo-sessions/otp?private=fixture")
+      .set("X-Request-Id", "client-marker-fixture");
+    if (mode !== "missing") call.set("Cookie", `${DEMO_SESSION_COOKIE}=private-cookie-fixture`);
+    const response = await call;
+    expect(response.status).toBe(mode === "normal" ? 200 : 404);
+    expect(response.body).toEqual(mode === "normal"
+      ? { otp: "385104", expiresAt: "2026-07-15T19:05:00.000Z" }
+      : { error: { code: "not_found" } });
+    expect(rows.map((row) => row.stage)).toEqual(mode === "missing"
+      ? ["request_entry", "response_finish", "response_close"]
+      : ["request_entry", "lookup_start", "lookup_end", "response_finish", "response_close"]);
+    expect(new Set(rows.map((row) => row.requestMarker)).size).toBe(1);
+    expect(JSON.stringify(rows)).not.toMatch(/fixture|385104|2026-07|not_found/);
+  });
+
+  it.each([false, true])("keeps response behavior when logging rejects, unavailable=%s", async (unavailable) => {
+    const { server } = app({
+      otpTimingSink: async () => { throw new Error("private-logger-error"); },
+      retrieveOtp: async () => {
+        if (unavailable) throw new Error("private-service-error");
+        return { otp: "385104", expiresAt: "2026-07-15T19:05:00.000Z" };
+      },
+    });
+    const response = await request(server).get("/demo-sessions/otp")
+      .set("Cookie", `${DEMO_SESSION_COOKIE}=signed-origin`);
+    expect(response.status).toBe(unavailable ? 404 : 200);
+  });
+
   it("retains OTP acceptance even when diagnostic output throws", async () => {
     const output = vi.spyOn(console, "info").mockImplementation(() => { throw new Error("logger unavailable"); });
     try {
@@ -117,7 +157,7 @@ describe("identity routes", () => {
     expect(otp.status).toBe(200);
     expect(otp.headers["cache-control"]).toBe("private, no-store");
     expect(dependencies.createDemoSession).toHaveBeenCalledWith("signed-origin");
-    expect(dependencies.retrieveOtp).toHaveBeenCalledWith("signed-origin");
+    expect(dependencies.retrieveOtp).toHaveBeenCalledWith("signed-origin", expect.any(Function));
   });
 
   it("returns constant OTP acceptance and requires both bearer and origin to resume", async () => {
