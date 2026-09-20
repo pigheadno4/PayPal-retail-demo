@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <title>SLICE-001 — Go Monthly + PayPal Wallet E2E State Board</title>
+  <style>
+    *{box-sizing:border-box}
+    :root{
+      color-scheme:light;
+      --page:light-dark(#f4ede7,#171314);
+      --ink:light-dark(#352721,#fff5ee);
+      --muted:light-dark(#725f56,#cdbbb2);
+      --line:light-dark(#decfc6,#4b393b);
+      --line-strong:light-dark(#c9b5aa,#70565a);
+      --glass:light-dark(rgba(255,249,244,.82),rgba(37,28,31,.86));
+      --card:light-dark(rgba(255,252,248,.97),rgba(47,36,39,.97));
+      --soft:light-dark(#f4e5dc,#392a2d);
+      --primary:light-dark(#c86240,#f0916f);
+      --primary-ink:light-dark(#fffaf6,#2b1611);
+      --good:light-dark(#247452,#82d9b3);
+      --good-soft:light-dark(#e7f4ee,#203a31);
+      --warn:light-dark(#8a5b14,#f2c36f);
+      --warn-soft:light-dark(#fff0d4,#44351f);
+      --danger:light-dark(#a13a2f,#ff9187);
+      --danger-soft:light-dark(#fae7e4,#472825);
+      --paypal:#ffc439;
+      --paypal-ink:#162c4c;
+    }
+    .night{color-scheme:dark}
+    html{min-width:320px;background:var(--page)}
+    body{
+      min-height:100vh;margin:0;padding:20px;
+      background:
+        radial-gradient(circle at 7% 3%,light-dark(rgba(232,145,103,.24),rgba(157,68,52,.3)),transparent 28%),
+        radial-gradient(circle at 94% 10%,light-dark(rgba(225,175,76,.18),rgba(167,111,38,.18)),transparent 25%),
+        var(--page);
+      color:var(--ink);
+      font-family:"Source Sans 3",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    button,input{font:inherit}
+    button{cursor:pointer;touch-action:manipulation}
+    button:focus-visible{outline:3px solid light-dark(rgba(200,98,64,.28),rgba(240,145,111,.34));outline-offset:2px}
+    .study{width:min(1540px,100%);margin:0 auto 44px}
+    .study-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:14px}
+    .study-head h1{margin:0;font:600 clamp(28px,3vw,44px)/1.04 "Fraunces",Georgia,serif;letter-spacing:-.025em}
+    .study-head p{max-width:980px;margin:9px 0 0;color:var(--muted);font-size:14px;line-height:1.55}
+    .study-chip{flex:none;padding:8px 11px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--primary);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;margin-bottom:12px;padding:8px;border:1px solid var(--line);border-radius:16px;background:var(--glass);backdrop-filter:blur(18px)}
+    .state-group{display:flex;gap:5px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+    .state-button,.theme-button{min-height:44px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);font-size:10px;font-weight:700;white-space:nowrap;transition:background .18s,border-color .18s,color .18s}
+    .state-button{padding:8px 11px}
+    .theme-button{display:grid;width:44px;place-items:center}
+    .state-button:hover,.theme-button:hover{border-color:var(--line);background:var(--soft);color:var(--ink)}
+    .state-button.active{border-color:var(--primary);background:var(--primary);color:var(--primary-ink)}
+    .devices{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,.4fr);gap:14px;align-items:start}
+    .device-column{display:grid;gap:7px;min-width:0}
+    .device-label{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:700}
+    .device-label i{width:7px;height:7px;border-radius:50%;background:var(--primary)}
+    .app{
+      overflow:hidden;color:var(--ink);
+      background:
+        radial-gradient(circle at 7% 7%,light-dark(rgba(235,146,103,.4),rgba(163,68,50,.5)),transparent 29%),
+        radial-gradient(circle at 91% 13%,light-dark(rgba(229,181,78,.34),rgba(167,111,38,.33)),transparent 27%),
+        linear-gradient(145deg,light-dark(#f8e8df,#21181b),light-dark(#f7efdb,#2e2024));
+      border:1px solid light-dark(rgba(255,255,255,.82),rgba(255,228,218,.16));
+      box-shadow:0 26px 70px light-dark(rgba(76,45,33,.16),rgba(0,0,0,.33));
+    }
+    .app.laptop{min-height:790px;border-radius:24px}
+    .app.mobile{width:min(390px,100%);min-height:790px;margin:0 auto;border-radius:30px}
+    .app-header{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;min-height:66px;margin:12px;padding:9px 12px;border:1px solid light-dark(rgba(255,255,255,.76),rgba(255,224,211,.15));border-radius:16px;background:var(--glass);backdrop-filter:blur(18px)}
+    .mobile .app-header{grid-template-columns:1fr auto;min-height:60px;margin:10px;padding:8px 10px;border-color:var(--line)}
+    .brand{display:flex;align-items:center;gap:8px;font:600 16px "Fraunces",Georgia,serif}
+    .brand-mark{display:grid;width:29px;height:29px;place-items:center;border-radius:50% 50% 9px 50%;background:var(--primary);color:var(--primary-ink);font:600 12px "Fraunces",Georgia,serif}
+    .nav{display:flex;justify-content:center;gap:4px}
+    .nav span{display:grid;min-height:40px;padding:0 10px;place-items:center;border-radius:9px;color:var(--muted);font-size:10px;font-weight:700}
+    .nav .current{background:var(--card);color:var(--ink)}
+    .header-actions{display:flex;align-items:center;gap:8px}
+    .icon-button{display:grid;width:44px;height:44px;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--ink)}
+    .icon-button:hover{background:var(--soft)}
+    .icon-button svg{width:19px;height:19px}
+    .separator{width:1px;height:24px;background:var(--line)}
+    .avatar{display:grid;width:36px;height:36px;place-items:center;border:1px solid var(--line);border-radius:50%;background:var(--card);font-size:10px;font-weight:700}
+    .screen{min-height:692px;margin:0 12px 12px;padding:18px;border:1px solid light-dark(rgba(255,255,255,.7),rgba(255,226,214,.14));border-radius:19px;background:var(--glass);backdrop-filter:blur(18px)}
+    .mobile .screen{min-height:704px;margin:0 10px 10px;padding:13px}
+    .eyebrow{display:block;color:var(--primary);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .screen-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+    .screen-head h2{margin:5px 0 0;font:600 clamp(24px,3vw,34px)/1.05 "Fraunces",Georgia,serif;letter-spacing:-.02em}
+    .screen-head p{max-width:680px;margin:7px 0 0;color:var(--muted);font-size:11px;line-height:1.55}
+    .intent{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--primary);font-size:9px;font-weight:700;white-space:nowrap}
+    .intent i{width:7px;height:7px;border-radius:50%;background:currentColor}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,.68fr);gap:12px;margin-top:14px}
+    .layout.equal{grid-template-columns:1fr 1fr}
+    .card{border:1px solid var(--line);border-radius:15px;background:var(--card)}
+    .panel{padding:16px}
+    .panel h3{margin:0;font:600 20px/1.1 "Fraunces",Georgia,serif}
+    .panel>p{margin:7px 0 0;color:var(--muted);font-size:10px;line-height:1.5}
+    .button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 15px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);font-size:11px;font-weight:700}
+    .button.primary{border-color:var(--primary);background:var(--primary);color:var(--primary-ink)}
+    .button.full{width:100%}
+    .button.top-12{margin-top:12px}
+    .button:disabled{cursor:not-allowed;opacity:.55}
+    .choice-list{display:grid;gap:8px;margin-top:13px}
+    .choice{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:11px;min-height:75px;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+    .choice.selected{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+    .choice-icon{display:grid;width:40px;height:40px;place-items:center;border-radius:11px;background:var(--soft);color:var(--primary)}
+    .choice-icon svg{width:18px;height:18px}
+    .choice strong{display:block;font-size:11px}
+    .choice span{display:block;margin-top:3px;color:var(--muted);font-size:9px;line-height:1.4}
+    .choice b{color:var(--primary);font-size:10px}
+    .plan{position:relative;display:flex;min-height:402px;padding:18px;flex-direction:column;border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+    .plan-badge{align-self:flex-start;padding:5px 8px;border-radius:999px;background:var(--soft);color:var(--primary);font-size:8px;font-weight:700;text-transform:uppercase}
+    .plan h3{margin-top:18px;font-size:30px}
+    .price{margin-top:9px;font-size:38px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+    .price small{color:var(--muted);font-size:11px;font-weight:600}
+    .promo{margin-top:5px;color:var(--primary);font-size:10px;font-weight:700}
+    .plan ul{display:grid;gap:8px;margin:17px 0 20px;padding:15px 0 0;border-top:1px solid var(--line);list-style:none}
+    .plan li{display:flex;gap:8px;color:var(--muted);font-size:11px;line-height:1.4}
+    .plan li::before{content:"✓";color:var(--good);font-weight:700}
+    .plan .button{margin-top:auto}
+    .roadmap-note{padding:13px;color:var(--muted);font-size:9px;line-height:1.5}
+    .roadmap-note strong{display:block;margin-bottom:5px;color:var(--ink)}
+    .form{display:grid;gap:6px;margin-top:14px}
+    label{color:var(--muted);font-size:10px;font-weight:700}
+    input{min-height:46px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);outline:0}
+    input:focus{border-color:var(--primary);box-shadow:0 0 0 3px light-dark(rgba(200,98,64,.15),rgba(240,145,111,.18))}
+    .otp{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:12px}
+    .otp span{display:grid;min-height:48px;place-items:center;border:1px solid var(--line);border-radius:9px;background:var(--card);font-size:16px;font-weight:700}
+    .meta{display:flex;justify-content:space-between;gap:10px;margin-top:8px;color:var(--muted);font-size:8px}
+    .summary{padding:16px}
+    .summary h3{margin:0;font:600 21px "Fraunces",Georgia,serif}
+    .summary-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);color:var(--muted);font-size:10px}
+    .summary-row.first{margin-top:11px}
+    .summary-row strong{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+    .summary-row.total{color:var(--ink);font-size:12px}
+    .summary-row.total strong{color:var(--primary);font-size:19px}
+    .summary-row.next{align-items:flex-start}
+    .summary-row.next strong{max-width:190px;font-size:9px;line-height:1.4}
+    .note,.alert{display:flex;gap:9px;margin-top:11px;padding:11px;border-radius:11px;font-size:9px;line-height:1.5}
+    .note{background:var(--soft);color:var(--muted)}
+    .alert.good{background:var(--good-soft);color:var(--good)}
+    .alert.warn{background:var(--warn-soft);color:var(--warn)}
+    .alert.danger{background:var(--danger-soft);color:var(--danger)}
+    .note b,.alert b{white-space:nowrap}
+    .provider-region{margin-top:13px;padding:13px;border:1px solid var(--line);border-radius:13px;background:var(--soft)}
+    .provider-label{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:8px}
+    .paypal-button{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;margin-top:9px;border:0;border-radius:8px;background:var(--paypal);color:var(--paypal-ink);font-size:15px;font-weight:700;font-style:italic;letter-spacing:-.02em}
+    .paypal-button small{margin-left:6px;font-size:10px;font-style:normal;font-weight:600}
+    .provider-note{margin-top:7px;color:var(--muted);font-size:8px;line-height:1.45}
+    .modal-backdrop{display:grid;min-height:520px;padding:24px;place-items:center;border-radius:15px;background:light-dark(rgba(53,39,33,.18),rgba(5,4,4,.44))}
+    .provider-modal{width:min(420px,100%);overflow:hidden;border-radius:16px;background:#fff;color:#172c4b;box-shadow:0 25px 70px rgba(0,0,0,.28)}
+    .provider-modal-head{display:flex;justify-content:space-between;padding:15px 17px;border-bottom:1px solid #dde3ea;font-weight:700}
+    .provider-modal-body{padding:20px}
+    .provider-modal-body h3{margin:0;font:600 23px "Source Sans 3",sans-serif}
+    .provider-modal-body p{margin:7px 0 0;color:#536274;font-size:11px;line-height:1.5}
+    .provider-fact{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #edf0f4;font-size:11px}
+    .provider-fact span{color:#647184}
+    .provider-consent{margin-top:14px;padding:11px;border-radius:10px;background:#f3f6f9;color:#425268;font-size:10px;line-height:1.45}
+    .provider-approve{width:100%;min-height:46px;margin-top:14px;border:0;border-radius:8px;background:#0070ba;color:#fff;font-weight:700}
+    .progress-shell{display:grid;min-height:520px;place-items:center;text-align:center}
+    .progress-inner{width:min(540px,100%)}
+    .spinner{width:46px;height:46px;margin:0 auto;border:4px solid var(--soft);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
+    .progress-shell h3{margin:17px 0 0;font:600 26px "Fraunces",Georgia,serif}
+    .progress-shell p{margin:7px auto 0;color:var(--muted);font-size:10px;line-height:1.5}
+    .progress-steps{display:grid;gap:8px;margin-top:17px;text-align:left}
+    .progress-step{display:flex;align-items:center;gap:9px;padding:11px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--muted);font-size:9px}
+    .progress-step.done{color:var(--good)}
+    .progress-step.current{border-color:var(--primary);color:var(--ink)}
+    .dot{width:9px;height:9px;flex:none;border-radius:50%;background:var(--line)}
+    .done .dot{background:var(--good)}
+    .current .dot{background:var(--primary)}
+    .progress-lock{margin-top:12px}
+    .activation{width:min(740px,100%);margin:24px auto;padding:22px}
+    .activation h3{margin:13px 0 0;font:600 30px "Fraunces",Georgia,serif}
+    .activation>p{margin:8px 0 0;color:var(--muted);font-size:10px;line-height:1.55}
+    .status-icon{display:grid;width:38px;height:38px;place-items:center;border-radius:50%;background:var(--good);color:#fff;font-size:19px;font-weight:700}
+    .activation-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:17px}
+    .activation-item{padding:11px;border:1px solid var(--line);border-radius:11px;background:var(--soft)}
+    .activation-item small{display:block;color:var(--muted);font-size:8px}
+    .activation-item strong{display:block;margin-top:5px;font-size:11px}
+    .workspace{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px;min-height:560px}
+    .usage{padding:15px}
+    .usage h3{margin:0;font:600 20px "Fraunces",Georgia,serif}
+    .balance{margin-top:14px;font-size:34px;font-weight:700;letter-spacing:-.04em}
+    .balance small{color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
+    .bar{height:8px;margin-top:8px;overflow:hidden;border-radius:999px;background:var(--soft)}
+    .bar span{display:block;width:100%;height:100%;border-radius:inherit;background:var(--primary)}
+    .answer-state .bar span{width:90%}
+    .usage-list{display:grid;gap:8px;margin-top:16px}
+    .usage-fact{padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}
+    .usage-fact strong{display:block;margin-top:2px;color:var(--ink);font-size:10px}
+    .conversation{display:flex;min-width:0;padding:15px;flex-direction:column}
+    .marker{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:9px;font-weight:700}
+    .marker::before,.marker::after{content:"";height:1px;background:var(--line);flex:1}
+    .marker span{color:var(--primary)}
+    .welcome{margin:auto;text-align:center}
+    .welcome h3{margin:0;font:600 28px "Fraunces",Georgia,serif}
+    .welcome p{max-width:460px;margin:7px auto 0;color:var(--muted);font-size:10px;line-height:1.5}
+    .prompt-list{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:15px}
+    .prompt{min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:9px}
+    .prompt.selected{border-color:var(--primary);background:var(--soft);color:var(--primary);font-weight:700}
+    .action-confirmation{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;margin-top:12px;padding:11px;border:1px solid var(--primary);border-radius:12px;background:var(--card);text-align:left}
+    .action-confirmation>div>span{display:block;color:var(--muted);font-size:8px}
+    .action-confirmation>div>strong{display:block;margin-top:2px;font-size:11px}
+    .action-confirmation .button{grid-column:1/-1}
+    .action-confirmation small{grid-column:1/-1;color:var(--muted);font-size:8px;line-height:1.4}
+    .message{max-width:78%;margin-top:13px;padding:12px 13px;border-radius:14px;background:var(--soft);font-size:10px;line-height:1.5}
+    .message.user{align-self:flex-end;background:var(--primary);color:var(--primary-ink)}
+    .message.ai{align-self:flex-start;border:1px solid var(--line);background:var(--card)}
+    .message small{display:block;margin-top:7px;color:inherit;opacity:.7;font-size:8px}
+    .composer{display:flex;gap:8px;margin-top:auto;padding-top:13px}
+    .composer input{min-width:0;flex:1}
+    .send{display:grid;width:46px;height:46px;place-items:center;border:0;border-radius:11px;background:var(--primary);color:var(--primary-ink)}
+    .toast{display:flex;align-items:center;gap:9px;margin:12px 0 0 auto;padding:10px 12px;border:1px solid light-dark(rgba(36,116,82,.24),rgba(130,217,179,.24));border-radius:11px;background:var(--good-soft);color:var(--good);font-size:9px;font-weight:700}
+    .exceptions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .exception{padding:14px}
+    .exception-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .exception h3{margin:0;font-size:13px}
+    .status-pill{padding:5px 7px;border-radius:999px;font-size:8px;font-weight:700}
+    .status-pill.warn{background:var(--warn-soft);color:var(--warn)}
+    .status-pill.danger{background:var(--danger-soft);color:var(--danger)}
+    .exception p{min-height:42px;margin:8px 0 0;color:var(--muted);font-size:9px;line-height:1.45}
+    .exception-action{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:8px}
+    .exception-action b{color:var(--primary)}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;color:var(--muted);font-size:8px}
+    .legend span{display:inline-flex;align-items:center;gap:5px}
+    .legend i{width:7px;height:7px;border-radius:50%}
+    .legend .customer i{background:var(--primary)}
+    .legend .provider i{background:#0070ba}
+    .legend .backend i{background:var(--good)}
+    .mobile .nav{display:none}
+    .mobile .screen-head{display:grid}
+    .mobile .screen-head h2{font-size:25px}
+    .mobile .intent{justify-self:start}
+    .mobile .layout,.mobile .layout.equal{grid-template-columns:1fr}
+    .mobile .layout>*{min-width:0}
+    .mobile .plan{min-height:440px;padding:17px}
+    .mobile .price{font-size:35px}
+    .mobile .roadmap-note{display:none}
+    .mobile .choice{grid-template-columns:38px 1fr auto;min-height:82px}
+    .mobile .summary-row{font-size:11px}
+    .mobile .summary-row.next strong{max-width:150px}
+    .mobile .provider-region{position:sticky;bottom:0}
+    .mobile .modal-backdrop{min-height:590px;padding:10px;align-items:end}
+    .mobile .provider-modal{border-radius:18px 18px 12px 12px}
+    .mobile .progress-shell{min-height:590px}
+    .mobile .activation{margin:8px auto;padding:18px}
+    .mobile .activation-grid{grid-template-columns:1fr}
+    .mobile .workspace{display:flex;min-height:610px;flex-direction:column}
+    .mobile .usage{padding:12px}
+    .mobile .usage h3,.mobile .usage-list{display:none}
+    .mobile .balance{display:flex;justify-content:space-between;align-items:baseline;margin:0;font-size:25px}
+    .mobile .bar{margin-top:7px}
+    .mobile .conversation{min-height:490px;padding:12px}
+    .mobile .welcome h3{font-size:24px}
+    .mobile .prompt-list{display:grid}
+    .mobile .prompt{width:100%;font-size:12px}
+    .mobile .action-confirmation{grid-template-columns:1fr 1fr}
+    .mobile .action-confirmation>div:first-child{grid-column:1/-1}
+    .mobile .action-confirmation>div>span,.mobile .action-confirmation small{font-size:11px}
+    .mobile .action-confirmation>div>strong{font-size:13px}
+    .mobile .message{max-width:88%;font-size:13px}
+    .mobile .exceptions{grid-template-columns:1fr}
+    .mobile .exception p{min-height:0}
+    .mobile .legend{display:none}
+    .mobile .eyebrow,.mobile .intent,.mobile .choice b,.mobile .meta,.mobile .provider-label,.mobile .provider-note,.mobile .activation-item small,.mobile .usage-fact,.mobile .marker,.mobile .message small,.mobile .toast,.mobile .status-pill,.mobile .exception-action{font-size:11px}
+    .mobile .screen-head p,.mobile .panel>p,.mobile .choice span,.mobile .plan li,.mobile .note,.mobile .alert,.mobile .provider-modal-body p,.mobile .provider-fact,.mobile .provider-consent,.mobile .progress-shell p,.mobile .progress-step,.mobile .activation>p,.mobile .usage-fact strong,.mobile .welcome p,.mobile .exception p{font-size:12px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media (max-width:980px){.devices{grid-template-columns:1fr}.app.laptop{min-height:760px}}
+    @media (max-width:620px){body{padding:12px}.study-head{display:grid}.study-chip{justify-self:start}.toolbar{grid-template-columns:minmax(0,1fr) auto}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+    @media (prefers-reduced-transparency:reduce){.toolbar,.app-header,.screen{backdrop-filter:none;background:var(--card)}}
+  </style>
+</head>
+<body>
+  <main class="study">
+    <header class="study-head">
+      <div>
+        <h1>Go Monthly + PayPal Wallet</h1>
+        <p>One bounded E2E state board for SLICE-001. It replaces conflicting Pro and 40-unit fixtures with the approved Go $5.53 acquisition, verified PayPal funding and vault readiness, and a persistent 100 → 90 unit usage story.</p>
+      </div>
+      <span class="study-chip">Design fixture · no live PSP</span>
+    </header>
+
+    <nav class="toolbar" aria-label="State board controls">
+      <div class="state-group">
+        <button class="state-button active" data-state="plan">01 Choose Go</button>
+        <button class="state-button" data-state="identity">02 Identity</button>
+        <button class="state-button" data-state="review">03 Review $5.53</button>
+        <button class="state-button" data-state="paypal">04 PayPal approval</button>
+        <button class="state-button" data-state="verifying">05 Verify</button>
+        <button class="state-button" data-state="finishing">06 Setup finishing</button>
+        <button class="state-button" data-state="active">07 Active · 100</button>
+        <button class="state-button" data-state="answer">08 Return · 90</button>
+        <button class="state-button" data-state="exceptions">09 Exceptions</button>
+      </div>
+      <button class="theme-button" id="theme" aria-label="Switch to dark theme" title="Switch theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a6.5 6.5 0 1 0 6.5 6.5A7.5 7.5 0 1 1 12 3Z"/></svg>
+      </button>
+    </nav>
+
+    <section class="devices">
+      <div class="device-column">
+        <div class="device-label"><i></i>Laptop · 1440px reference</div>
+        <div class="app laptop"></div>
+      </div>
+      <div class="device-column">
+        <div class="device-label"><i></i>Mobile · 390px reference</div>
+        <div class="app mobile"></div>
+      </div>
+    </section>
+  </main>
+
+  <template id="app-header">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark">M</span>Mira</div>
+      <nav class="nav" aria-label="Product navigation"><span class="current">AI workspace</span><span>Plans</span><span>Account</span></nav>
+      <div class="header-actions">
+        <button class="icon-button app-theme" aria-label="Switch theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M19.07 4.93l-1.42 1.42M6.35 17.65l-1.42 1.42"/></svg>
+        </button>
+        <span class="separator" aria-hidden="true"></span>
+        <span class="avatar" aria-label="Account">TT</span>
+      </div>
+    </header>
+  </template>
+
+  <template id="plan">
+    <section class="screen">
+      <div class="screen-head">
+        <div><span class="eyebrow">Customer story · step 1</span><h2>Start with Go</h2><p>The first delivery slice keeps one executable subscription choice while preserving the approved product direction.</p></div>
+        <span class="intent"><i></i>Monthly selected</span>
+      </div>
+      <div class="layout">
+        <article class="card plan">
+          <span class="plan-badge">First slice</span>
+          <h3>Go</h3>
+          <div class="price">$10 <small>/ month</small></div>
+          <div class="promo">First month 50% off</div>
+          <ul><li>100 included units each monthly window</li><li>Generate Answer · 10 units per completed result</li><li>Monthly renewal with merchant-controlled billing</li><li>Usage and balance persist across return visits</li></ul>
+          <button class="button primary">Choose Go Monthly</button>
+        </article>
+        <aside>
+          <div class="card roadmap-note"><strong>Bounded delivery</strong>Plus, Pro, Pro Max, annual checkout, credits, tier changes, and alternate payment lanes remain visible in the product roadmap but are not executable in SLICE-001.</div>
+          <div class="note"><b>Why this slice?</b><span>It proves one complete customer, payment, entitlement, and usage chain before provider breadth.</span></div>
+        </aside>
+      </div>
+    </section>
+  </template>
+
+  <template id="identity">
+    <section class="screen">
+      <div class="screen-head">
+        <div><span class="eyebrow">Customer story · step 2</span><h2>Keep the Go intent while signing in</h2><p>Both routes map to the same Supabase application-account model. Authentication returns only to review.</p></div>
+        <span class="intent"><i></i>Go Monthly preserved</span>
+      </div>
+      <div class="layout">
+        <article class="card panel">
+          <h3>Choose an account route</h3>
+          <div class="choice-list">
+            <div class="choice selected"><span class="choice-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg></span><span><strong>Use my real email</strong><span>Persistent account for future visits. Email code is the default sign-in and recovery route.</span></span><b>Selected</b></div>
+            <div class="choice"><span class="choice-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><strong>Start a 24-hour demo</strong><span>High-entropy .test alias. OTP stays in this signed originating browser session.</span></span><b>Demo</b></div>
+          </div>
+        </article>
+        <aside class="card panel">
+          <span class="eyebrow">Email code</span>
+          <h3>Verify tengtao@example.com</h3>
+          <div class="form"><label for="email">Email address</label><input id="email" value="tengtao@example.com" readonly></div>
+          <div class="otp" aria-label="Example six digit email code"><span>3</span><span>8</span><span>1</span><span>4</span><span>9</span><span>2</span></div>
+          <div class="meta"><span>Code expires in 04:18</span><span>Resend available</span></div>
+          <button class="button primary full top-12">Verify and review order</button>
+          <div class="note"><b>No automatic payment</b><span>The quote is recalculated after verification.</span></div>
+        </aside>
+      </div>
+    </section>
+  </template>
+
+  <template id="review">
+    <section class="screen">
+      <div class="screen-head">
+        <div><span class="eyebrow">Customer story · step 3</span><h2>Review the newly calculated order</h2><p>Identity is verified. Commercial state is fresh and still requires one explicit PayPal approval.</p></div>
+        <span class="intent"><i></i>Quote expires in 14:32</span>
+      </div>
+      <div class="layout">
+        <article class="card summary">
+          <h3>Go Monthly</h3>
+          <div class="summary-row first"><span>Monthly base price</span><strong>$10.00</strong></div>
+          <div class="summary-row"><span>First-period promotion</span><strong>−$5.00</strong></div>
+          <div class="summary-row"><span>Taxable subtotal</span><strong>$5.00</strong></div>
+          <div class="summary-row"><span>Seattle, WA · Q3 2026 · 10.55%</span><strong>$0.53</strong></div>
+          <div class="summary-row total"><span>Due today</span><strong>$5.53</strong></div>
+          <div class="summary-row next"><span>Quote expires</span><strong>Aug 13, 2026 · 10:45 AM PDT</strong></div>
+          <div class="summary-row next"><span>Next normal renewal</span><strong>$10.00 + then-applicable tax<br>Sep 13, 2026 · 10:30 AM PDT</strong></div>
+          <div class="summary-row next"><span>Allowance resets</span><strong>Sep 13, 2026 · 10:30 AM PDT</strong></div>
+          <div class="note"><b>Versioned quote</b><span>Pricing, promotion, tax mapping, location, timezone, and effective time are locked to this review.</span></div>
+        </article>
+        <aside class="card panel">
+          <span class="eyebrow">Recurring primary</span>
+          <h3>PayPal Wallet</h3>
+          <p>Approve today’s $5.53 purchase and permit this merchant to use the resulting eligible PayPal payment method for future recurring charges.</p>
+          <div class="provider-region">
+            <div class="provider-label"><span>PayPal JS SDK region</span><span>Provider owned</span></div>
+            <button class="paypal-button">PayPal <small>Subscribe with wallet</small></button>
+            <div class="provider-note">Design fixture only. The hydrated SDK owns the official button, approval window, and buyer authentication.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </template>
+
+  <template id="paypal">
+    <section class="screen">
+      <div class="screen-head">
+        <div><span class="eyebrow">Provider boundary · step 4</span><h2>PayPal owns approval</h2><p>The application supplies the exact order; PayPal owns buyer authentication and consent presentation.</p></div>
+        <span class="intent"><i></i>No entitlement yet</span>
+      </div>
+      <div class="modal-backdrop">
+        <article class="provider-modal" aria-label="Illustrative PayPal-owned approval window">
+          <div class="provider-modal-head"><span>PayPal</span><span>Provider-owned fixture</span></div>
+          <div class="provider-modal-body">
+            <h3>Approve your Go subscription</h3>
+            <p>Sign in to PayPal and choose an eligible wallet funding source.</p>
+            <div class="provider-fact"><span>Due today</span><strong>$5.53 USD</strong></div>
+            <div class="provider-fact"><span>Merchant</span><strong>Mira AI Demo</strong></div>
+            <div class="provider-fact"><span>Next billing</span><strong>Sep 13, 2026</strong></div>
+            <div class="provider-consent">You authorize this purchase and eligible future merchant-initiated recurring charges under the displayed terms.</div>
+            <button class="provider-approve">Agree and continue</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </template>
+
+  <template id="verifying">
+    <section class="screen">
+      <div class="progress-shell">
+        <div class="progress-inner">
+          <div class="spinner" aria-hidden="true"></div>
+          <h3>Verifying your payment</h3>
+          <p>The PayPal return is not proof. Mira is waiting for authoritative funding and reusable-credential evidence.</p>
+          <div class="progress-steps">
+            <div class="progress-step done"><span class="dot"></span><strong>PayPal approval returned</strong><span>Browser signal only</span></div>
+            <div class="progress-step current"><span class="dot"></span><strong>Verify capture</strong><span>Funding must be COMPLETED</span></div>
+            <div class="progress-step"><span class="dot"></span><strong>Verify vault readiness</strong><span>VAULTED or matching webhook</span></div>
+            <div class="progress-step"><span class="dot"></span><strong>Grant entitlement</strong><span>Exactly once after funding</span></div>
+          </div>
+          <button class="button full progress-lock" disabled>Payment controls locked while verifying</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <template id="finishing">
+    <section class="screen">
+      <article class="card activation">
+        <div class="status-icon">✓</div>
+        <h3>Your Go access is active</h3>
+        <p>Funding for $5.53 is verified. Your included allowance is available while PayPal finishes reusable-method setup.</p>
+        <div class="activation-grid">
+          <div class="activation-item"><small>Payment</small><strong>$5.53 funded</strong></div>
+          <div class="activation-item"><small>Included allowance</small><strong>100 units available</strong></div>
+          <div class="activation-item"><small>Automatic renewal</small><strong>Setup finishing</strong></div>
+        </div>
+        <div class="alert warn"><b>Vault pending</b><span>Service is active, but automatic renewal remains suppressed until a matching verified vault token is ready.</span></div>
+        <button class="button primary full">Open AI workspace</button>
+        <div class="note"><b>Merchant truth</b><span>Funded and reusable-ready are two independently evidenced states.</span></div>
+      </article>
+    </section>
+  </template>
+
+  <template id="active">
+    <section class="screen">
+      <div class="workspace">
+        <aside class="card usage">
+          <h3>Go allowance</h3>
+          <div class="balance">100 <small>/ 100 units</small></div>
+          <div class="bar" aria-label="100 of 100 units available"><span></span></div>
+          <div class="usage-list"><div class="usage-fact">Allowance window<strong>Aug 13 → Sep 13</strong></div><div class="usage-fact">Recurring primary<strong>PayPal Wallet · verified</strong></div><div class="usage-fact">Next reset<strong>Sep 13 · 10:30 AM PDT</strong></div></div>
+        </aside>
+        <article class="card conversation">
+          <div class="marker"><span>#Generate Answer</span></div>
+          <div class="welcome">
+            <span class="eyebrow">Simulated AI service</span>
+            <h3>What should we explore?</h3>
+            <p>Choose a curated prompt. The exact 10-unit cost appears before any reservation.</p>
+            <div class="prompt-list"><button class="prompt">Explain payment recovery</button><button class="prompt">Summarize vault readiness</button><button class="prompt selected">Compare funding and entitlement</button></div>
+            <div class="action-confirmation">
+              <div><span>Selected action</span><strong>Generate Answer</strong></div>
+              <div><span>Exact cost</span><strong>10 units</strong></div>
+              <div><span>After success</span><strong>90 units</strong></div>
+              <button class="button primary full">Confirm and run</button>
+              <small>No units are committed before confirmation. A 10-unit reservation is released in full if the action fails or is canceled.</small>
+            </div>
+          </div>
+          <div class="composer"><input value="Explain why funding and vault readiness are separate." readonly><button class="send" aria-label="Send message">→</button></div>
+        </article>
+      </div>
+    </section>
+  </template>
+
+  <template id="answer">
+    <section class="screen answer-state">
+      <div class="workspace">
+        <aside class="card usage">
+          <h3>Go allowance</h3>
+          <div class="balance">90 <small>/ 100 units</small></div>
+          <div class="bar" aria-label="90 of 100 units available"><span></span></div>
+          <div class="usage-list"><div class="usage-fact">Latest committed usage<strong>Generate Answer · −10</strong></div><div class="usage-fact">Return visit<strong>Balance restored, not reset</strong></div><div class="usage-fact">Output source<strong>Deterministic fixture</strong></div></div>
+        </aside>
+        <article class="card conversation">
+          <div class="marker"><span>#Generate Answer</span></div>
+          <div class="message user">Explain why funding and vault readiness are separate.<small>10-unit action confirmed</small></div>
+          <div class="message ai"><strong>Funding proves the current purchase completed.</strong><br>Vault readiness separately proves that an eligible reusable credential is available for a future merchant-initiated charge. Access may begin after verified funding, while automatic renewal stays suppressed until the vault fact is verified.<small>Simulated answer · deterministic fixture</small></div>
+          <div class="toast">✓ 10 units committed once · 90 remaining</div>
+          <div class="composer"><input value="Ask another Go question" readonly><button class="send" aria-label="Send message">→</button></div>
+        </article>
+      </div>
+    </section>
+  </template>
+
+  <template id="exceptions">
+    <section class="screen">
+      <div class="screen-head">
+        <div><span class="eyebrow">Contained states · no extra pages</span><h2>Fail closed without losing the customer’s place</h2><p>Every exception preserves authoritative boundaries and offers only the next safe action.</p></div>
+        <span class="intent"><i></i>Evidence-led recovery</span>
+      </div>
+      <div class="exceptions">
+        <article class="card exception"><div class="exception-head"><h3>Stale quote after OTP</h3><span class="status-pill warn">Review again</span></div><p>The prior price or tax version changed. A replacement $5.53 quote is shown before payment selection.</p><div class="exception-action"><span>No PSP call</span><b>Review updated quote</b></div></article>
+        <article class="card exception"><div class="exception-head"><h3>PayPal canceled</h3><span class="status-pill warn">Not charged</span></div><p>The customer returns to the current review. The Go intent and valid quote remain; entitlement is unchanged.</p><div class="exception-action"><span>No retry loop</span><b>Continue with PayPal</b></div></article>
+        <article class="card exception"><div class="exception-head"><h3>Capture failed</h3><span class="status-pill danger">Payment failed</span></div><p>Approval alone does not activate access. The terminal provider result is retained and no allowance is granted.</p><div class="exception-action"><span>0 units granted</span><b>Return to review</b></div></article>
+        <article class="card exception"><div class="exception-head"><h3>Invalid webhook signature</h3><span class="status-pill danger">Ignored</span></div><p>The event is retained as rejected evidence and cannot promote funding, vault readiness, or entitlement.</p><div class="exception-action"><span>Merchant evidence</span><b>No customer action</b></div></article>
+        <article class="card exception"><div class="exception-head"><h3>Vault still pending</h3><span class="status-pill warn">Setup finishing</span></div><p>Verified funding keeps Go active with 100 units; automatic renewal stays suppressed until matched vault evidence arrives.</p><div class="exception-action"><span>Access active</span><b>Reconcile safely</b></div></article>
+        <article class="card exception"><div class="exception-head"><h3>AI action failed</h3><span class="status-pill warn">Reservation released</span></div><p>No result is delivered. The entire 10-unit reservation returns and the displayed balance remains 100.</p><div class="exception-action"><span>0 units committed</span><b>Try again</b></div></article>
+      </div>
+      <div class="legend"><span class="customer"><i></i>Customer decision</span><span class="provider"><i></i>Provider boundary</span><span class="backend"><i></i>Verified backend effect</span></div>
+    </section>
+  </template>
+
+  <script>
+    const stateButtons=[...document.querySelectorAll(".state-button")];
+    const apps=[...document.querySelectorAll(".app")];
+    const header=document.getElementById("app-header");
+    let current="plan";
+    function render(){
+      const content=document.getElementById(current);
+      apps.forEach(app=>{
+        app.innerHTML=header.innerHTML+content.innerHTML;
+        app.querySelectorAll(".app-theme").forEach(button=>button.addEventListener("click",toggleTheme));
+      });
+      stateButtons.forEach(button=>button.classList.toggle("active",button.dataset.state===current));
+    }
+    function toggleTheme(){
+      document.documentElement.classList.toggle("night");
+      const dark=document.documentElement.classList.contains("night");
+      document.getElementById("theme").setAttribute("aria-label",dark?"Switch to light theme":"Switch to dark theme");
+    }
+    stateButtons.forEach(button=>button.addEventListener("click",()=>{current=button.dataset.state;render()}));
+    document.getElementById("theme").addEventListener("click",toggleTheme);
+    render();
+  </script>
+</body>
+</html>

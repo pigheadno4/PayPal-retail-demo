@@ -63,11 +63,14 @@ export function sanitizeTask0005Record(input: unknown): Task0005Record {
   };
 }
 
-export function validateTask0005Manifest(input: unknown): Task0005Record[] {
-  if (!Array.isArray(input)) return invalid();
+export function validateTask0005Manifest(input: unknown, scope: "legacy_full" | "persistent_email" = "legacy_full"): Task0005Record[] {
+  if ((scope !== "legacy_full" && scope !== "persistent_email") || !Array.isArray(input)) return invalid();
   const records = input.map(sanitizeTask0005Record);
   const labels = new Set(records.map((record) => record.case));
-  const required = Object.keys(cases).filter((name) => name !== "email_capability_absent" && name !== "email_provider_unavailable");
+  const required = scope === "persistent_email"
+    ? ["health", "history_route", "api_isolation", "webhook_isolation", "legacy_api_isolation", "invalid_hook",
+      "persistent_inbox", "persistent_resume", "persistent_refresh", "authentication_only"]
+    : Object.keys(cases).filter((name) => name !== "email_capability_absent" && name !== "email_provider_unavailable");
   if (labels.size !== records.length || records.length !== required.length + 1
     || required.some((name) => !labels.has(name as Task0005Case))
     || Number(labels.has("email_capability_absent")) + Number(labels.has("email_provider_unavailable")) !== 1) return invalid();

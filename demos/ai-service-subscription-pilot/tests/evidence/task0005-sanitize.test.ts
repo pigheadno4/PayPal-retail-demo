@@ -10,6 +10,30 @@ const row = () => ({
 });
 
 describe("TASK-0005 allowlisted evidence", () => {
+  const persistentRows = [
+    ["health", 200, "ready"], ["history_route", 200, "compiled_customer_route"],
+    ["api_isolation", 404, "not_found"], ["webhook_isolation", 404, "not_found"],
+    ["legacy_api_isolation", 404, "not_found"], ["invalid_hook", 401, "hook_rejected"],
+    ["persistent_inbox", null, "six_digit_otp_received"], ["persistent_resume", 200, "same_intent_new_review"],
+    ["persistent_refresh", 200, "same_account_review_retained"], ["authentication_only", 200, "no_payment_or_allowance"],
+    ["email_capability_absent", 503, "integration_not_configured"],
+  ].map(([caseLabel, httpStatus, outcome]) => ({ ...row(), case: caseLabel, httpStatus, outcome,
+    proofLevel: caseLabel === "persistent_inbox" ? "manual_inbox" : "hosted" }));
+
+  it("requires explicit persistent scope for exactly eleven email-only records", () => {
+    expect(validateTask0005Manifest(persistentRows, "persistent_email")).toEqual(persistentRows);
+    expect(() => validateTask0005Manifest(persistentRows)).toThrow("invalid_task0005_evidence");
+    const fallback = { ...row(), case: "email_provider_unavailable", httpStatus: 500, outcome: "internal_error" };
+    expect(validateTask0005Manifest([...persistentRows.slice(0, -1), fallback], "persistent_email")).toHaveLength(11);
+    for (const input of [persistentRows.slice(1), persistentRows.slice(0, -1), [...persistentRows, fallback],
+      [...persistentRows, persistentRows[0]], [...persistentRows, { ...row(), case: "expired_otp", httpStatus: 404, outcome: "not_found" }],
+      [...persistentRows.slice(1), { ...row(), case: "expired_otp", httpStatus: 404, outcome: "not_found" }],
+      persistentRows.map((value, index) => index === 0 ? { ...value, detail: "private@example.test" } : value)]) {
+      expect(() => validateTask0005Manifest(input, "persistent_email")).toThrow("invalid_task0005_evidence");
+    }
+    expect(() => validateTask0005Manifest(persistentRows, "unknown" as "persistent_email")).toThrow("invalid_task0005_evidence");
+  });
+
   it("projects only the complete fixed evidence contract", () => {
     expect(sanitizeTask0005Record(row())).toEqual(row());
     const input = row();
@@ -69,6 +93,13 @@ describe("TASK-0005 allowlisted evidence", () => {
     const path = "tracking/evidence/artifacts/EVID-0006/manifest.json";
     if (existsSync(path)) {
       expect(() => validateTask0005Manifest(JSON.parse(readFileSync(path, "utf8")))).not.toThrow();
+    }
+  });
+
+  it("validates a separate email-only capture with explicit scope when present", () => {
+    const path = "tracking/evidence/artifacts/EVID-0006/manifest-email-otp-only.json";
+    if (existsSync(path)) {
+      expect(() => validateTask0005Manifest(JSON.parse(readFileSync(path, "utf8")), "persistent_email")).not.toThrow();
     }
   });
 });

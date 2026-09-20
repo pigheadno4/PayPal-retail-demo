@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
 import type { CheckoutReview } from "../../../shared/src/checkout.js";
-import { IdentityPanel, type IdentityRoute } from "../components/checkout/identity-panel.js";
+import { IdentityPanel } from "../components/checkout/identity-panel.js";
 import { QuoteReview } from "../components/checkout/quote-review.js";
 import { ApiRequestError, demoApi } from "../lib/api.js";
 import { currentAccessToken, verifyEmailOtp } from "../lib/supabase.js";
@@ -11,21 +11,17 @@ type CheckoutState =
   | Readonly<{ phase: "loading" }>
   | Readonly<{
       phase: "identity";
-      route: IdentityRoute;
       busy: boolean;
       requested?: boolean;
       email?: string;
-      temporaryEmail?: string;
       error?: string;
     }>
   | Readonly<{ phase: "review"; review: CheckoutReview; stale: boolean; busy: boolean; accessToken: string; error?: string }>;
 
 type CheckoutRouteViewProps = Readonly<{
   state: CheckoutState;
-  onIdentityRoute: (route: IdentityRoute) => void;
   onRequestOtp: (email: string) => void;
   onVerifyOtp: (otp: string) => void;
-  onRevealDemoOtp: () => void;
   onReplaceQuote: () => void;
 }>;
 
@@ -36,7 +32,7 @@ async function restoreCheckout(intentId: string): Promise<Readonly<{
   try {
     const token = await currentAccessToken();
     if (!token) {
-      return { state: { phase: "identity", route: "persistent", busy: false }, accessToken: null };
+      return { state: { phase: "identity", busy: false }, accessToken: null };
     }
     const review = await demoApi.readQuote(intentId, token);
     return {
@@ -55,7 +51,6 @@ async function restoreCheckout(intentId: string): Promise<Readonly<{
     return {
       state: {
         phase: "identity",
-        route: "persistent",
         busy: false,
         ...(expectedIdentityState ? {} : { error: "Identity service is unavailable." }),
       },
@@ -72,15 +67,11 @@ export function CheckoutRouteView(props: CheckoutRouteViewProps) {
     return (
       <main className="checkout-main">
         <IdentityPanel
-          route={props.state.route}
           busy={props.state.busy}
           requested={props.state.requested}
-          temporaryEmail={props.state.temporaryEmail}
           error={props.state.error}
-          onRoute={props.onIdentityRoute}
           onRequestOtp={props.onRequestOtp}
           onVerifyOtp={props.onVerifyOtp}
-          onRevealDemoOtp={props.onRevealDemoOtp}
         />
         <aside className="selection-summary glass-surface">
           <p className="eyebrow">Your selection</p><h2>Go Monthly</h2>
@@ -120,43 +111,14 @@ export function CheckoutRoute() {
     return () => { active = false; };
   }, [intentId]);
 
-  function selectIdentityRoute(route: IdentityRoute) {
-    setState({ phase: "identity", route, busy: false });
-  }
-
   async function requestOtp(email: string) {
     if (state.phase !== "identity") return;
-    const route = state.route;
     setState({ ...state, busy: true, error: undefined });
     try {
-      let temporaryEmail: string | undefined;
-      if (route === "temporary") {
-        temporaryEmail = (await demoApi.createDemoSession()).email;
-      }
-      await demoApi.requestOtp(route === "persistent"
-        ? { intentId, identityRoute: route, email }
-        : { intentId, identityRoute: route });
-      setState({
-        phase: "identity",
-        route,
-        busy: false,
-        requested: true,
-        email: route === "persistent" ? email : temporaryEmail,
-        temporaryEmail,
-      });
+      await demoApi.requestOtp({ intentId, identityRoute: "persistent", email });
+      setState({ phase: "identity", busy: false, requested: true, email });
     } catch {
-      setState({ phase: "identity", route, busy: false, error: "The code could not be requested." });
-    }
-  }
-
-  async function revealDemoOtp() {
-    if (state.phase !== "identity") return;
-    setState({ ...state, busy: true, error: undefined });
-    try {
-      const result = await demoApi.retrieveDemoOtp();
-      await verifyOtp(result.otp);
-    } catch {
-      setState({ ...state, busy: false, error: "The demo code is not ready yet. Try again shortly." });
+      setState({ phase: "identity", busy: false, error: "The code could not be requested." });
     }
   }
 
@@ -201,10 +163,8 @@ export function CheckoutRoute() {
   return (
     <CheckoutRouteView
       state={state}
-      onIdentityRoute={selectIdentityRoute}
       onRequestOtp={(email) => void requestOtp(email)}
       onVerifyOtp={(otp) => void verifyOtp(otp)}
-      onRevealDemoOtp={() => void revealDemoOtp()}
       onReplaceQuote={() => void replaceQuote()}
     />
   );

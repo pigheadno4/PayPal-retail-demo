@@ -1,5 +1,14 @@
 # Evidence Register
 
+## Current scope override — 2026-09-19
+
+The approved REQUIREMENTS email-OTP-only amendment supersedes temporary-account promises in the historical material below. The current customer demo uses persistent real-email OTP only, reusing the approved email form and C3-G light/dark styling; no temporary selector, alias or reveal-code action is supported. TC-0003 current UI execution and TC-0015 temporary acceptance are **deferred, not passed**. Persistent same-intent resume, refresh and non-mutation obligations are now explicitly part of TC-0014. Retained backend temporary-session/security tests and account data remain unchanged.
+
+Temporary expiry remains unresolved; prior failures and evidence remain historical, not fixed or relabeled. This does not defer unrelated subscription temporary-recovery concepts. Local fixture results do not prove hosted OTP delivery/login, allowance database invariance or payment. EVID-0006 remains partial; EVID-0003/EVID-0005 and TASK-0009 payment/full-slice gates remain separate. Implementation detail and pending candidate/review gates: `tracking/tasks/TASK-0005/email-otp-only-plan.md` and `tracking/tasks/TASK-0005/email-otp-only-execution.md` (demo-relative paths).
+
+Future EVID-0006 `manifest-email-otp-only.json` uses explicit `persistent_email` validation (11 records, including exactly one observed contained failure); `persistent-review-email-otp-only.png` is its separate screenshot name. Existing `manifest.json` keeps default `legacy_full` validation (19 records), and historical captures are immutable. No new hosted manifest is produced by this implementation.
+
+
 Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never reused.
 
 ## Evidence Index
@@ -11,6 +20,7 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 | EVID-0003 | REQ-0036, REQ-0038 | SLICE-001 | backend, provider, hosted, failure | blocked | tracking/evidence/EVID-0003.md |
 | EVID-0004 | REQ-0037, REQ-0038 | SLICE-001 | backend, interaction, responsive, failure | captured | tracking/evidence/EVID-0004.md |
 | EVID-0005 | REQ-0034, REQ-0035, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | static, backend, provider, interaction, responsive, accessibility, typography, hosted, failure | planned | pending |
+| EVID-0006 | REQ-0034, REQ-0038 | SLICE-001 | backend, interaction, hosted, security, failure | planned | pending |
 
 ### EVID-0001 — Runtime, schema, and authority-boundary proof
 
@@ -41,9 +51,9 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 - Type: backend, provider, hosted, failure
 - Status: blocked
 - Artifact: tracking/evidence/EVID-0003.md
-- Captured at: 2026-08-30
+- Captured at: 2026-09-01
 - Verified by: pending
-- Result: TASK-0008 Vite/Express parity passes 90 focused assertions, 180 passed/4 skipped full regression, 2/2 actual Supabase PostgreSQL proofs, Node/Vite production build, and 14/14 desktop/exact-390px labeled simulated-provider interactions; real PayPal sandbox and hosted proof remain blocked
+- Result: TASK-0008 local parity remains passing; a direct PayPal sandbox run now proves the corrected order payload, real SDK approval, capture, and immediate reusable-ready handoff. Hosted webhook delivery and delayed APPROVED reconciliation remain blocked.
 
 ### EVID-0004 — Allowance and Generate Answer ledger proof
 
@@ -66,3 +76,14 @@ Evidence IDs use `EVID-0001` through `EVID-9999`, are permanent, and are never r
 - Captured at: pending
 - Verified by: pending
 - Result: pending
+
+### EVID-0006 — Hosted identity and sanitized identity proof
+
+- Requirements: REQ-0034, REQ-0038
+- Slice: SLICE-001
+- Type: backend, interaction, hosted, security, failure
+- Status: planned
+- Artifact: pending
+- Captured at: pending
+- Verified by: pending
+- Result: pending; this evidence is limited to the existing Render service plus Supabase/Resend six-digit persistent OTP and originating-browser `.test` isolation. It cannot complete TC-0011, TC-0012, EVID-0003, or final EVID-0005 provider/slice proof.

@@ -24,21 +24,26 @@ const review: CheckoutReview = {
 };
 
 describe("CheckoutRouteView", () => {
-  it("offers persistent and originating-browser temporary identity without provider UI", () => {
+  it.each([
+    { busy: false }, { busy: true }, { busy: false, error: "The code could not be requested." },
+    { busy: false, requested: true }, { busy: true, requested: true },
+    { busy: false, requested: true, error: "That code could not be verified." },
+  ])("offers only email OTP while preserving identity state %#", (identity) => {
     const html = renderToStaticMarkup(
       <CheckoutRouteView
-        state={{ phase: "identity", route: "persistent", busy: false }}
-        onIdentityRoute={vi.fn()}
+        state={{ phase: "identity", ...identity }}
         onRequestOtp={vi.fn()}
         onVerifyOtp={vi.fn()}
-        onRevealDemoOtp={vi.fn()}
         onReplaceQuote={vi.fn()}
       />,
     );
 
-    expect(html).toContain("Use my email");
-    expect(html).toContain("24-hour demo address");
-    expect(html).toContain("Send verification code");
+    expect(html).toContain(identity.requested ? "Verification code" : "Email address");
+    expect(html).toContain(identity.busy ? (identity.requested ? "Verifying…" : "Requesting…")
+      : (identity.requested ? "Verify and review" : "Send verification code"));
+    expect(html).not.toMatch(/24-hour demo address|Retrieve this browser|identity-route|type="radio"|high-entropy/);
+    if (identity.busy) expect(html).toContain('disabled=""');
+    if (identity.error) expect(html).toContain(identity.error);
     expect(html).not.toMatch(/paypal|stripe|activate|allowance balance/i);
   });
 
@@ -46,10 +51,8 @@ describe("CheckoutRouteView", () => {
     const html = renderToStaticMarkup(
       <CheckoutRouteView
         state={{ phase: "review", review, stale: false, busy: false, accessToken: "TOKEN-REDACTED" }}
-        onIdentityRoute={vi.fn()}
         onRequestOtp={vi.fn()}
         onVerifyOtp={vi.fn()}
-        onRevealDemoOtp={vi.fn()}
         onReplaceQuote={vi.fn()}
       />,
     );
@@ -67,10 +70,8 @@ describe("CheckoutRouteView", () => {
     const html = renderToStaticMarkup(
       <CheckoutRouteView
         state={{ phase: "review", review, stale: true, busy: false, accessToken: "TOKEN-REDACTED" }}
-        onIdentityRoute={vi.fn()}
         onRequestOtp={vi.fn()}
         onVerifyOtp={vi.fn()}
-        onRevealDemoOtp={vi.fn()}
         onReplaceQuote={vi.fn()}
       />,
     );

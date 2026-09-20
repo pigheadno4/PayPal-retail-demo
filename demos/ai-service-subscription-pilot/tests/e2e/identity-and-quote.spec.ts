@@ -9,8 +9,32 @@ const PERSISTENT_EMAIL = "persistent-fixture@example.test";
 const TEMPORARY_EMAIL = "demo-redacted@test";
 const OTP_FIXTURE = "000000";
 const SESSION_COOKIE_FIXTURE = "redacted-origin-proof";
-const evidenceDirectory = resolve("tracking/evidence/artifacts/EVID-0002");
+const evidenceDirectory = resolve("/private/tmp/task0005-email-only-local");
 mkdirSync(evidenceDirectory, { recursive: true });
+
+const forbiddenRequests = new WeakMap<Page, string[]>();
+test.beforeEach(async ({ page, context }) => {
+  const forbidden: string[] = [];
+  forbiddenRequests.set(page, forbidden);
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (/^\/api\/v1\/(demo-sessions|paypal|usage|me\/activation)(?:\/|$)/.test(url.pathname)) {
+      forbidden.push("forbidden_identity_operation");
+    }
+  });
+  // Page-specific fixtures take precedence. Any unmatched API or external call
+  // stops here rather than reaching a real provider or the local database.
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== "http://127.0.0.1:3000" || /^\/(api|webhooks)(?:\/|$)/.test(url.pathname)) {
+      forbidden.push("unmocked_request");
+      await route.abort();
+    } else await route.continue();
+  });
+});
+test.afterEach(async ({ page }) => {
+  expect(forbiddenRequests.get(page)).toEqual([]);
+});
 
 const review = (overrides: Record<string, unknown> = {}) => ({
   intentId: INTENT_ID,
@@ -46,6 +70,7 @@ async function installSupabaseVerification(page: Page) {
     const body = route.request().postDataJSON() as Record<string, string>;
     expect(body.type).toBe("email");
     expect(body.token).toBe(OTP_FIXTURE);
+    expect(body.email).toBe(PERSISTENT_EMAIL);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -72,7 +97,7 @@ async function installSupabaseVerification(page: Page) {
 async function expectResponsiveBoundary(page: Page) {
   const metrics = await page.evaluate(() => ({
     overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    undersized: [...document.querySelectorAll("button,input:not([type=radio])")]
+    undersized: [...document.querySelectorAll("button,input:not([type=radio]):not([type=checkbox]),label.consent-control")]
       .filter((element) => element.getBoundingClientRect().height < 44).length,
   }));
   expect(metrics).toEqual({ overflow: false, undersized: 0 });
@@ -145,6 +170,7 @@ test("TC-0002 selection and persistent Supabase identity resume the same intent"
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await expect(page.getByText("$5.53", { exact: true })).toBeVisible();
   await expect(page.getByText("Save my PayPal Wallet for future recurring Go payments.")).toBeVisible();
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   if (testInfo.project.name === "chromium") {
@@ -154,7 +180,8 @@ test("TC-0002 selection and persistent Supabase identity resume the same intent"
   expect(consoleErrors).toEqual([]);
 });
 
-test("TC-0003 temporary alias reveals and consumes OTP only in browser A", async ({ page, browser, baseURL }) => {
+// Deferred by the 2026-09-19 email-only amendment; historical body retained, not passed.
+test.skip("TC-0003 temporary alias reveals and consumes OTP only in browser A", async ({ page, browser, baseURL }) => {
   await installSelection(page);
   await installSupabaseVerification(page);
   await page.route("**/api/v1/demo-sessions", (route) => route.fulfill({
@@ -217,11 +244,10 @@ test("TC-0004 stale review exposes one replacement and no payment action", async
   const stale = review({ expiresAt: "2026-08-28T04:15:00.000Z" });
   await installSelection(page);
   await installSupabaseVerification(page);
-  await page.route("**/api/v1/auth/request-otp", (route) => route.fulfill({
-    status: 202,
-    contentType: "application/json",
-    body: '{"accepted":true}',
-  }));
+  await page.route("**/api/v1/auth/request-otp", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ intentId: INTENT_ID, identityRoute: "persistent", email: PERSISTENT_EMAIL });
+    await route.fulfill({ status: 202, contentType: "application/json", body: '{"accepted":true}' });
+  });
   await page.route(`**/api/v1/checkout-intents/${INTENT_ID}/resume`, (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -247,6 +273,72 @@ test("TC-0004 stale review exposes one replacement and no payment action", async
   await expect(page.getByText("Current review", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: /pay|paypal|card/i })).toHaveCount(0);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`email-only ${theme} request/verify busy, errors and review remain accessible`, async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    let releaseRequest!: () => void;
+    let releaseVerify!: () => void;
+    const requestGate = new Promise<void>((resolveGate) => { releaseRequest = resolveGate; });
+    const verifyGate = new Promise<void>((resolveGate) => { releaseVerify = resolveGate; });
+    let requests = 0;
+    await page.route("**/api/v1/auth/request-otp", async (route) => {
+      expect(route.request().postDataJSON()).toEqual({ intentId: INTENT_ID, identityRoute: "persistent", email: PERSISTENT_EMAIL });
+      requests += 1;
+      if (requests === 1) await requestGate;
+      await route.fulfill({ status: requests === 1 ? 503 : 202, contentType: "application/json",
+        body: requests === 1 ? '{"error":{"code":"integration_not_configured"}}' : '{"accepted":true}' });
+    });
+    await page.route("**/auth/v1/verify**", async (route) => {
+      expect(route.request().postDataJSON()).toMatchObject({ email: PERSISTENT_EMAIL, token: OTP_FIXTURE, type: "email" });
+      await verifyGate;
+      await route.fulfill({ status: 400, contentType: "application/json", body: '{"msg":"Invalid code","error_code":"otp_expired"}' });
+    });
+    await page.route(`**/api/v1/checkout-intents/${INTENT_ID}/resume`, (route) => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify(review()),
+    }));
+    const capture = async (state: string) => {
+      await expectResponsiveBoundary(page);
+      await expect(page.getByRole("radio")).toHaveCount(0);
+      await expect(page.getByText(/24-hour demo address|Retrieve this browser|high-entropy/)).toHaveCount(0);
+      await page.screenshot({ path: resolve(evidenceDirectory, `${testInfo.project.name}-${theme}-${state}.png`), fullPage: true });
+    };
+    await page.goto(`/checkout/${INTENT_ID}`);
+    await expect(page.getByLabel("Email address")).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.getByLabel("Email address").focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Send verification code" })).toBeFocused();
+    await capture("entry");
+    await page.getByLabel("Email address").fill(PERSISTENT_EMAIL);
+    await page.getByRole("button", { name: "Send verification code" }).click();
+    await expect(page.getByRole("button", { name: "Requesting…" })).toBeDisabled();
+    await capture("request-busy");
+    releaseRequest();
+    await expect(page.getByRole("alert")).toHaveText("The code could not be requested.");
+    await capture("request-error");
+    await page.getByRole("button", { name: "Send verification code" }).click();
+    await expect(page.getByRole("status")).toHaveText("Code requested.");
+    await page.getByLabel("Verification code").focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Verify and review" })).toBeFocused();
+    await capture("code");
+    await page.getByLabel("Verification code").fill(OTP_FIXTURE);
+    await page.getByRole("button", { name: "Verify and review" }).click();
+    await expect(page.getByRole("button", { name: "Verifying…" })).toBeDisabled();
+    await capture("verify-busy");
+    releaseVerify();
+    await expect(page.getByRole("alert")).toHaveText("That code could not be verified.");
+    await capture("verify-error");
+    await installSupabaseVerification(page);
+    await page.getByRole("button", { name: "Verify and review" }).click();
+    await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
+    await expect(page.getByText("$5.53", { exact: true })).toBeVisible();
+    await expect(page.getByRole("checkbox")).not.toBeChecked();
+    await capture("review");
+    expect(requests).toBe(2);
+  });
+}
 
 test("mobile light and dark identity/review surfaces remain usable", async ({ page }, testInfo) => {
   const consoleErrors: string[] = [];

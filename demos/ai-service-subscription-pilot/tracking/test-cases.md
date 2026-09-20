@@ -1,5 +1,12 @@
 # Test Cases
 
+## Current scope override — 2026-09-19
+
+The approved REQUIREMENTS email-OTP-only amendment supersedes temporary-account promises in the historical material below. The current customer demo uses persistent real-email OTP only, reusing the approved email form and C3-G light/dark styling; no temporary selector, alias or reveal-code action is supported. TC-0003 current UI execution and TC-0015 temporary acceptance are **deferred, not passed**. Persistent same-intent resume, refresh and non-mutation obligations are now explicitly part of TC-0014. Retained backend temporary-session/security tests and account data remain unchanged.
+
+Temporary expiry remains unresolved; prior failures and evidence remain historical, not fixed or relabeled. This does not defer unrelated subscription temporary-recovery concepts. Local fixture results do not prove hosted OTP delivery/login, allowance database invariance or payment. EVID-0006 remains partial; EVID-0003/EVID-0005 and TASK-0009 payment/full-slice gates remain separate. Implementation detail and pending candidate/review gates: `tracking/tasks/TASK-0005/email-otp-only-plan.md` and `tracking/tasks/TASK-0005/email-otp-only-execution.md` (demo-relative paths).
+
+
 Test IDs use `TC-0001` through `TC-9999`, are permanent, and are never reused.
 
 ## Test Case Register
@@ -18,6 +25,9 @@ Test IDs use `TC-0001` through `TC-9999`, are permanent, and are never reused.
 | TC-0010 | REQ-0037, REQ-0038 | SLICE-001 | EVID-0004 | planned |
 | TC-0011 | REQ-0038 | SLICE-001 | EVID-0005 | planned |
 | TC-0012 | REQ-0034, REQ-0035, REQ-0036, REQ-0037, REQ-0038 | SLICE-001 | EVID-0005 | planned |
+| TC-0013 | REQ-0038 | SLICE-001 | EVID-0001 | planned |
+| TC-0014 | REQ-0034, REQ-0038 | SLICE-001 | EVID-0006 | planned |
+| TC-0015 | REQ-0034, REQ-0038 | SLICE-001 | EVID-0006 | planned |
 
 ### TC-0001 — Server-owned schema and privilege boundary
 
@@ -161,6 +171,42 @@ Test IDs use `TC-0001` through `TC-9999`, are permanent, and are never reused.
 - Action: execute the complete customer story plus required cancellation, capture, vault-pending, invalid-webhook, duplicate, stale-quote, OTP, and AI-failure branches
 - Expected: sanitized evidence proves every normalized transition and displays only documented/sandbox-proven/simulated status without exposing secrets or full identifiers
 - Negative case: static mockup, provider docs, unverified callback, or sandbox success cannot be labeled production-ready proof
+- Status: planned
+
+### TC-0013 — Replacement runtime assembly and boundary isolation
+
+- Requirements: REQ-0038
+- Slice: SLICE-001
+- Evidence: EVID-0001
+- Layer: unit, integration, build, security, failure
+- Preconditions: ADR-0001 is approved; the accepted Supabase schema and framework-independent feature source remain unchanged; TASK-0006 dependencies are exactly pinned
+- Action: build and start the single Express service with the compiled Vite shell, then exercise health, API/webhook 404 isolation, static asset and browser-history delivery, base configuration failure, optional capability absence, and Vite public-variable rejection
+- Expected: one Node service serves the passive Vite shell and constant `/api/v1/health`; API/webhook requests never receive SPA HTML; missing optional PayPal/email configuration does not block startup but fails closed when invoked; only approved public build variables enter the client; local tests, typecheck, lint, build, audit, and protected-path checks pass
+- Negative case: legacy `/api/*` compatibility, secret/config leakage, an API path returning HTML, missing base configuration reaching `listen`, a second deployable, or a diff in protected schema/feature paths fails the test
+- Status: planned
+
+### TC-0014 — Hosted Vite/Express and six-digit persistent-email OTP
+
+- Requirements: REQ-0034, REQ-0038
+- Slice: SLICE-001
+- Evidence: EVID-0006
+- Layer: hosted, integration, security, failure
+- Preconditions: the existing single Render Node service, Supabase project and Send Email Hook, and Resend sender are configured with secrets outside the repository
+- Action: verify the hosted health/API/webhook boundaries, deliver a six-digit OTP for a persistent real-email identity through the verified raw-body hook, reject an invalid hook signature, and contain unavailable email capability/provider failure
+- Expected: the persistent user receives a six-digit OTP rather than a Magic Link, the existing intent resumes after verification, unrelated capabilities remain available, and no OTP, raw email, secret, authorization value, or internal provider error appears in client output or retained evidence
+- Negative case: a second deployable, Magic Link delivery, unverified hook body, exposed sensitive value, production-deliverability claim, or unrelated-route failure fails the test
+- Status: planned
+
+### TC-0015 — Hosted persistent resume and originating-browser temporary identity proof
+
+- Requirements: REQ-0034, REQ-0038
+- Slice: SLICE-001
+- Evidence: EVID-0006
+- Layer: hosted, interaction, security, failure
+- Preconditions: the hosted service can issue persistent and high-entropy `.test` identities while the temporary retrieval route retains its signed HttpOnly originating-browser cookie
+- Action: resume the same Go intent after persistent OTP verification; retrieve and verify a five-minute `.test` OTP in the originating browser; repeat retrieval from a second browser and with missing, expired, or unknown session evidence; capture only sanitized results
+- Expected: both valid identities resume the same application-owned intent into a newly calculated review, only the originating temporary session can retrieve its OTP, denials remain non-enumerating, and EVID-0006 labels hosted identity proof separately from all unexecuted payment and complete-slice gates
+- Negative case: alias knowledge substitutes for the cookie, temporary identity becomes recovery proof, OTP or full identifier enters evidence, authentication pays or grants service, or identity proof upgrades EVID-0003/EVID-0005 provider claims
 - Status: planned
 
 ## Milestone Close Gate

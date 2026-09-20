@@ -36,7 +36,7 @@ export function HomeRoute() {
         <ul>
           <li><strong>100 units</strong> each monthly window</li>
           <li>Generate Answer service</li>
-          <li>Persistent or 24-hour demo identity</li>
+          <li>Sign in with an email verification code</li>
           <li>Exact Seattle tax review</li>
         </ul>
         <button className="primary-button" type="button" onClick={chooseGo} disabled={busy}>

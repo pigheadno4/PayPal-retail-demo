@@ -13,6 +13,8 @@ describe("HomeRoute", () => {
     expect(html).toContain("Choose Go Monthly");
     expect(html).toContain("50% off your first month");
     expect(html).toContain("100 units");
+    expect(html).toContain("Sign in with an email verification code");
+    expect(html).not.toMatch(/24-hour|temporary identity/i);
     expect(html).not.toMatch(/paypal|stripe|activation|allowance balance/i);
   });
 });

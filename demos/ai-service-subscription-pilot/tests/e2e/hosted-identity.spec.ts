@@ -1,6 +1,8 @@
 import { test, type APIResponse, type BrowserContext, type Page, type Response } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { hostedIdentityFailure, waitForHostedReadiness } from "../evidence/task0005-readiness";
+import { assertUnchangedAllowance, readAllowanceBaseline, validateBaselineConfiguration, validatePersistentSummary, type AllowanceBaseline } from "../evidence/task0005-allowance-baseline";
 import {
   sanitizeTask0005Record, TASK0005_BLOCKED_CLAIMS, validateTask0005Manifest,
   type Task0005Case, type Task0005Record,
@@ -17,14 +19,10 @@ async function safeJson(response: APIResponse | Response) {
   catch { throw new Error("hosted_identity_check_failed"); }
 }
 
-async function denial(context: BrowserContext) {
-  const response = await context.request.get("/api/v1/demo-sessions/otp");
-  check(response.status() === 404);
-  check(JSON.stringify(await safeJson(response)) === JSON.stringify({ error: { code: "not_found" } }));
-}
-
-async function selectGo(page: Page) {
+async function selectGo(page: Page, setStage?: (stage: "persistent_request_navigation" | "persistent_request_selection") => void) {
+  setStage?.("persistent_request_navigation");
   await page.goto("/");
+  setStage?.("persistent_request_selection");
   const selection = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/checkout-intents"
     && response.request().method() === "POST");
   await page.getByRole("button", { name: "Choose Go Monthly" }).click();
@@ -36,55 +34,48 @@ async function selectGo(page: Page) {
   return body.intentId;
 }
 
-async function requestTemporary(page: Page) {
-  const intent = await selectGo(page);
-  await page.getByRole("radio", { name: /24-hour demo address/ }).check();
-  const sessionResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/demo-sessions");
-  const acceptedResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/request-otp");
-  await page.getByRole("button", { name: "Send verification code" }).click();
-  const session = await sessionResponse;
-  check(session.status() === 201 && session.headers()["cache-control"] === "private, no-store");
-  const body = await safeJson(session);
-  check(typeof body.email === "string" && /^demo-[A-Za-z0-9_-]{20,}@test$/.test(body.email));
-  const accepted = await acceptedResponse;
-  check(accepted.status() === 202 && JSON.stringify(await safeJson(accepted)) === '{"accepted":true}');
-  return intent;
-}
-
-async function waitForOtpExpiry(context: BrowserContext) {
-  // Only the timestamp is used. The transient response is never reported.
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const response = await context.request.get("/api/v1/demo-sessions/otp");
-    if (response.status() === 200) {
-      check(response.headers()["cache-control"] === "private, no-store");
-      const body = await safeJson(response);
-      check(typeof body.otp === "string" && /^\d{6}$/.test(body.otp));
-      check(typeof body.expiresAt === "string");
-      const expiresAt = Date.parse(body.expiresAt);
-      check(expiresAt > Date.now() && expiresAt <= Date.now() + 300_000);
-      return expiresAt;
-    }
-    check(response.status() === 404);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 1000));
-  }
-  throw new Error("hosted_identity_check_failed");
-}
-
-async function verifiedReview(page: Page, response: Response, intent: string, startedAt: number) {
+async function verifiedReview(page: Page, response: Response, intent: string, startedAt: number, setStage: (stage: string, httpStatus?: number) => void, persistentBaseline?: { before: AllowanceBaseline; email: string }) {
+  setStage("review_status");
   check(response.status() === 200);
+  setStage("review_json");
   const review = await safeJson(response);
+  setStage("review_intent_quote");
   check(review.intentId === intent && typeof review.quoteId === "string");
+  setStage("review_expiry");
   check(typeof review.expiresAt === "string" && Date.parse(review.expiresAt) > startedAt);
+  setStage("review_heading");
   await page.getByRole("heading", { name: "Review your newly calculated order" }).waitFor();
-  check(await page.getByLabel("Verification code").count() === 0);
-  check(await page.getByRole("checkbox").isChecked() === false);
-  // A read-only application query proves identity did not create allowance.
+  setStage("review_code_input_read");
+  const codeInputs = await page.getByLabel("Verification code").count();
+  setStage("review_code_input_absent");
+  check(codeInputs === 0);
+  setStage("review_checkbox_read");
+  const checked = await page.getByRole("checkbox").isChecked();
+  setStage("review_checkbox_unchecked");
+  check(checked === false);
+  // Persistent no-grant proof requires the pre-OTP database baseline below.
+  setStage("review_authorization_read");
   const authorization = await response.request().headerValue("authorization");
+  setStage("review_authorization_valid");
   check(authorization && authorization.startsWith("Bearer "));
+  setStage("review_summary_request");
   const summary = await page.context().request.get("/api/v1/me/summary", { headers: { authorization } });
-  check(summary.status() === 404);
-  check(JSON.stringify(await safeJson(summary)) === '{"error":{"code":"not_found"}}');
+  setStage("review_summary_status");
+  const summaryStatus = summary.status();
+  setStage("review_summary_status", summaryStatus);
+  check(persistentBaseline ? summaryStatus === 200 || summaryStatus === 404 : summaryStatus === 404);
+  setStage("review_summary_json");
+  const summaryBody = await safeJson(summary);
+  setStage("review_summary_body");
+  if (persistentBaseline) {
+    validatePersistentSummary(summaryStatus, summaryBody);
+    const claims = JSON.parse(Buffer.from(authorization.slice(7).split(".")[1]!, "base64url").toString("utf8")) as { sub?: unknown; iss?: unknown };
+    check(claims.iss === validateBaselineConfiguration(process.env).issuer && typeof claims.sub === "string");
+    const after = await readAllowanceBaseline(persistentBaseline.email);
+    assertUnchangedAllowance(persistentBaseline.before, after, claims.sub);
+  } else {
+    check(JSON.stringify(summaryBody) === '{"error":{"code":"not_found"}}');
+  }
   return review;
 }
 
@@ -105,7 +96,7 @@ async function safeReviewScreenshot(page: Page, name: string) {
   return { name, bytes: await page.screenshot({ fullPage: true }) };
 }
 
-test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) => {
+test("TC-0014 hosted persistent email identity only", async ({ browser, baseURL }) => {
   const contexts: BrowserContext[] = [];
   const records: Task0005Record[] = [];
   const screenshots: { name: string; bytes: Buffer }[] = [];
@@ -117,6 +108,8 @@ test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) =>
   };
   let unexpectedErrors = 0;
   let prohibitedRequests = 0;
+  let stage = "setup";
+  let summaryHttpStatus: number | undefined;
   try {
     check(baseURL && new URL(baseURL).protocol === "https:" && new URL(baseURL).origin === baseURL);
     const email = process.env.TASK0005_PERSISTENT_EMAIL;
@@ -125,7 +118,7 @@ test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) =>
       const context = await browser.newContext({ baseURL, serviceWorkers: "block" });
       contexts.push(context);
       await context.route((url) => /paypal|stripe/i.test(url.hostname)
-        || /^\/api\/v1\/(paypal|usage|me\/activation)/.test(url.pathname), async (route) => {
+        || /^\/api\/v1\/(paypal|usage|me\/activation|demo-sessions)/.test(url.pathname), async (route) => {
         prohibitedRequests += 1;
         await route.abort();
       });
@@ -136,14 +129,15 @@ test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) =>
       });
       context.on("request", (request) => {
         const url = new URL(request.url());
-        if (/paypal|stripe/i.test(url.hostname) || /^\/api\/v1\/(paypal|usage|me\/activation)/.test(url.pathname)) prohibitedRequests += 1;
+        if (/paypal|stripe/i.test(url.hostname) || /^\/api\/v1\/(paypal|usage|me\/activation|demo-sessions)/.test(url.pathname)) prohibitedRequests += 1;
       });
       return context;
     };
     const persistent = await newContext();
-    const health = await persistent.request.get("/api/v1/health");
-    check(health.status() === 200 && JSON.stringify(await safeJson(health)) === '{"status":"ready"}');
+    stage = "readiness";
+    await waitForHostedReadiness(persistent.request);
     record("health", 200, "ready");
+    stage = "route_boundaries";
     const history = await persistent.request.get("/checkout/history", { headers: { accept: "text/html" } });
     check(history.status() === 200 && history.headers()["content-type"]?.includes("text/html"));
     record("history_route", 200, "compiled_customer_route");
@@ -158,20 +152,31 @@ test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) =>
     check(invalid.status() === 401 && JSON.stringify(await safeJson(invalid)) === '{"error":{"code":"hook_rejected"}}');
     record("invalid_hook", 401, "hook_rejected");
 
+    stage = "persistent_request_page";
     const page = await persistent.newPage();
-    const intent = await selectGo(page);
+    const intent = await selectGo(page, (nextStage) => { stage = nextStage; });
+    stage = "persistent_request_email";
     await page.getByLabel("Email address").fill(email);
+    stage = "persistent_request_baseline";
+    const before = await readAllowanceBaseline(email);
+    stage = "persistent_request_send";
     const requested = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/request-otp");
     await page.getByRole("button", { name: "Send verification code" }).click();
-    check((await requested).status() === 202);
+    stage = "persistent_request_response";
+    const requestedResponse = await requested;
+    stage = "persistent_request_status";
+    check(requestedResponse.status() === 202);
+    stage = "persistent_resume";
     const startedAt = Date.now();
     // User reads the mailbox and enters the code directly in the headed browser.
     const resumed = await page.waitForResponse((response) => new URL(response.url()).pathname === `/api/v1/checkout-intents/${intent}/resume`, { timeout: 5 * 60_000 });
-    const review = await verifiedReview(page, resumed, intent, startedAt);
+    const review = await verifiedReview(page, resumed, intent, startedAt, (nextStage, httpStatus) => { stage = nextStage; summaryHttpStatus = httpStatus; }, { before, email });
     record("persistent_resume", 200, "same_intent_new_review");
+    stage = "persistent_inbox";
     page.on("dialog", () => { /* Intentionally left to the human in the headed browser. */ });
     check(await page.evaluate(() => window.confirm("Confirm you received exactly one six-digit verification code, with no Magic Link, and entered it yourself. Click Cancel if this was not confirmed.")));
     record("persistent_inbox", null, "six_digit_otp_received", "manual_inbox");
+    stage = "persistent_refresh";
     const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/quotes");
     await page.reload();
     const refreshedResponse = await refreshed;
@@ -180,60 +185,28 @@ test("TC-0014 and TC-0015 hosted identity only", async ({ browser, baseURL }) =>
     check(await identitySubject(resumed) === await identitySubject(refreshedResponse));
     await page.getByRole("heading", { name: "Review your newly calculated order" }).waitFor();
     record("persistent_refresh", 200, "same_account_review_retained");
-    if (capture) screenshots.push(await safeReviewScreenshot(page, "persistent-review.png"));
+    if (capture) screenshots.push(await safeReviewScreenshot(page, "persistent-review-email-otp-only.png"));
     await persistent.close();
 
-    const origin = await newContext();
-    const other = await newContext();
-    const temporaryPage = await origin.newPage();
-    const temporaryIntent = await requestTemporary(temporaryPage);
-    const originCookie = (await origin.cookies()).find((cookie) => cookie.name === "ai_demo_session");
-    check(originCookie?.secure && originCookie.httpOnly && originCookie.sameSite === "Lax" && originCookie.path === "/" && originCookie.expires > Date.now() / 1000);
-    record("secure_origin_cookie", 201, "secure_http_only_lax");
-    await waitForOtpExpiry(origin);
-    await denial(other); record("second_browser", 404, "not_found");
-    await other.clearCookies(); await denial(other); record("missing_cookie", 404, "not_found");
-    await other.request.post("/api/v1/checkout-intents");
-    await denial(other); record("unknown_session", 404, "not_found");
-    await other.clearCookies();
-    await other.addCookies([{ ...originCookie, value: `${originCookie.value.slice(0, -1)}${originCookie.value.endsWith("x") ? "y" : "x"}` }]);
-    await denial(other); record("tampered_cookie", 404, "not_found");
-    const temporaryStarted = Date.now();
-    const temporaryResume = temporaryPage.waitForResponse((response) => new URL(response.url()).pathname === `/api/v1/checkout-intents/${temporaryIntent}/resume`);
-    await temporaryPage.getByRole("button", { name: "Retrieve this browser’s demo code" }).click();
-    await verifiedReview(temporaryPage, await temporaryResume, temporaryIntent, temporaryStarted);
-    record("temporary_origin", 200, "same_intent_new_review");
-    await denial(origin); record("consumed_session", 404, "not_found");
-    if (capture) screenshots.push(await safeReviewScreenshot(temporaryPage, "temporary-review.png"));
-    await origin.close(); await other.close();
-
-    const expiry = await newContext();
-    const expiryPage = await expiry.newPage();
-    await requestTemporary(expiryPage);
-    const expiresAt = await waitForOtpExpiry(expiry);
-    // Real wall-clock boundary, with no production clock or session bypass.
-    while (Date.now() <= expiresAt) {
-      await new Promise((resolveWait) => setTimeout(resolveWait, Math.min(30_000, expiresAt - Date.now() + 1000)));
-    }
-    await denial(expiry); record("expired_otp", 404, "not_found");
-    await expiry.close();
+    stage = "authentication_only";
     check(unexpectedErrors === 0 && prohibitedRequests === 0);
     record("authentication_only", 200, "no_payment_or_allowance");
 
     if (capture) {
+      stage = "evidence_capture";
       // Created only by the orchestrator's actual reversible hosted failure probe.
       // It must be a sanitized row; no provider request/response is accepted here.
       const failure = sanitizeTask0005Record(JSON.parse(readFileSync("/private/tmp/task0005-hosted-failure.json", "utf8")));
       check(failure.case === "email_capability_absent" || failure.case === "email_provider_unavailable");
-      const manifest = validateTask0005Manifest([...records, failure]);
+      const manifest = validateTask0005Manifest([...records, failure], "persistent_email");
       const directory = resolve("tracking/evidence/artifacts/EVID-0006");
       mkdirSync(directory, { recursive: true });
       for (const screenshot of screenshots) writeFileSync(resolve(directory, screenshot.name), screenshot.bytes, { mode: 0o600 });
-      writeFileSync(resolve(directory, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+      writeFileSync(resolve(directory, "manifest-email-otp-only.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
     }
   } catch {
     // Playwright errors can otherwise include email input arguments or request URLs.
-    throw new Error("hosted_identity_failed_no_raw_evidence_retained");
+    throw hostedIdentityFailure(stage, summaryHttpStatus);
   } finally {
     await Promise.all(contexts.map((context) => context.close().catch(() => undefined)));
   }
