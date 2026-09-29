@@ -153,6 +153,10 @@ a {
   text-decoration: none;
 }
 
+:root[data-theme="light"] .action-confirmation .primary-button {
+  background: #b34f30;
+}
+
 .brand-mark {
   display: grid;
   width: 38px;
@@ -797,6 +801,10 @@ button:disabled {
 }
 
 @media (max-width: 720px) {
+  .brand {
+    min-height: 44px;
+  }
+
   .app-frame {
     width: min(100% - 24px, 560px);
     padding-block-start: 12px;
