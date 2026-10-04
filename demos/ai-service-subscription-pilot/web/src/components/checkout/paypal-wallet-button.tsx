@@ -91,20 +91,45 @@ export function renderPayPalControl(buttons: Pick<PayPalButtonsComponent, "isEli
   return () => { active = false; void buttons.close().catch(() => {}); };
 }
 
+function measurePreparation(stage: "bootstrap" | "fraudnet" | "sdk" | "render") {
+  const startedAt = performance.now();
+  let settled = false;
+  return (outcome: "success" | "failure" | "cancelled") => {
+    if (settled) return false;
+    settled = true;
+    const durationMs = performance.now() - startedAt;
+    if (Number.isFinite(durationMs) && durationMs >= 0) {
+      // Diagnostics never carry provider context or change preparation/payment behavior.
+      try { console.info({ stage, durationMs, outcome }); } catch { /* unavailable diagnostic sink */ }
+    }
+    return true;
+  };
+}
+
 function OfficialControl(props: Readonly<{ options: PayPalButtonsComponentOptions; ready: () => void; failed: () => void; expiresAt: string }>) {
   const [{ isResolved, isRejected, options }] = usePayPalScriptReducer();
   const scriptId = options["data-react-paypal-script-id"];
   useEffect(() => () => destroySDKScript(scriptId), [scriptId]);
   const container = useRef<HTMLDivElement>(null);
+  const sdkMeasurement = useRef<ReturnType<typeof measurePreparation> | null>(null);
   const latest = useRef(props);
   useEffect(() => { latest.current = props; }, [props]);
+  // Child mount precedes the retained provider's loader effect. This includes
+  // React scheduling/loading overhead, not just SDK network download time.
   useEffect(() => {
-    if (isRejected) { latest.current.failed(); return; }
+    const finish = measurePreparation("sdk");
+    sdkMeasurement.current = finish;
+    return () => { finish("cancelled"); };
+  }, []);
+  useEffect(() => {
+    if (isRejected) { sdkMeasurement.current?.("failure"); latest.current.failed(); return; }
+    if (isResolved) sdkMeasurement.current?.("success");
     if (!isResolved || !container.current) return;
     let active = true;
     const valid = () => active && Date.parse(latest.current.expiresAt) > Date.now();
     let started = false;
     let rendered = false;
+    const finishRender = measurePreparation("render");
     try {
       const buttons = window.paypal?.Buttons?.({
         ...latest.current.options,
@@ -121,16 +146,17 @@ function OfficialControl(props: Readonly<{ options: PayPalButtonsComponentOption
         onError: (error) => {
           if (!valid()) return;
           if (rendered && started) latest.current.options.onError?.(error);
-          else latest.current.failed();
+          else { finishRender("failure"); latest.current.failed(); }
         },
       });
-      if (!buttons) { latest.current.failed(); return; }
+      if (!buttons) { finishRender("failure"); latest.current.failed(); return () => { active = false; }; }
       const cleanup = renderPayPalControl(buttons, container.current, () => {
-        if (valid()) { rendered = true; latest.current.ready(); }
-      }, () => { if (valid()) latest.current.failed(); });
-      return () => { active = false; cleanup(); };
-    } catch { latest.current.failed(); }
-    return () => { active = false; };
+        if (valid()) { if (finishRender("success")) { rendered = true; latest.current.ready(); } }
+        else finishRender("cancelled");
+      }, () => { if (valid()) { finishRender("failure"); latest.current.failed(); } else finishRender("cancelled"); });
+      return () => { active = false; finishRender("cancelled"); cleanup(); };
+    } catch { finishRender("failure"); latest.current.failed(); }
+    return () => { active = false; finishRender("cancelled"); };
   }, [isResolved, isRejected]);
   return <div ref={container} />;
 }
@@ -159,10 +185,11 @@ function PayPalPreparation(props: Props) {
     if (!import.meta.env.VITE_PAYPAL_CLIENT_ID) {
       return;
     }
+    const finish = measurePreparation("bootstrap");
     void demoApi.paypalIdToken(props.intentId, props.quoteId, props.accessToken)
-      .then((value) => { if (active) setBootstrap(value); })
-      .catch(() => { if (active) setError("PayPal is not available right now."); });
-    return () => { active = false; };
+      .then((value) => { if (active) { finish("success"); setBootstrap(value); } })
+      .catch(() => { if (active) { finish("failure"); setError("PayPal is not available right now."); } });
+    return () => { active = false; finish("cancelled"); };
   }, [props.intentId, props.quoteId, props.accessToken, attempt]);
 
   useEffect(() => {
@@ -172,10 +199,11 @@ function PayPalPreparation(props: Props) {
     loader.nonce = props.nonce;
     loader.async = true;
     let active = true;
-    loader.onload = () => { if (active) setFraudNetReady(true); };
-    loader.onerror = () => { if (active) setError("PayPal checkout could not load."); };
+    const finish = measurePreparation("fraudnet");
+    loader.onload = () => { if (active && finish("success")) setFraudNetReady(true); };
+    loader.onerror = () => { if (active && finish("failure")) setError("PayPal checkout could not load."); };
     document.head.append(loader);
-    return () => { active = false; loader.onload = null; loader.onerror = null; loader.remove(); };
+    return () => { active = false; finish("cancelled"); loader.onload = null; loader.onerror = null; loader.remove(); };
   }, [bootstrap, props.nonce, error]);
 
   const params = bootstrap
@@ -212,7 +240,7 @@ function PayPalPreparation(props: Props) {
         <PayPalScriptProvider options={buildPayPalScriptOptions({ clientId, idToken: bootstrap.idToken, nonce: props.nonce })}>
           <OfficialControl ready={() => setReady(true)} failed={failed} expiresAt={props.expiresAt} options={{
             fundingSource: "paypal",
-            style: { layout: "vertical", shape: "rect", label: "paypal" },
+            style: { layout: "vertical", shape: "rect", label: "subscribe" },
             createOrder: async () => {
               setError("");
               createPending.current = false;
