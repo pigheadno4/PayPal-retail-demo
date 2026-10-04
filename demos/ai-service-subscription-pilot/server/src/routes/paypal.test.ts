@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createPayPalRouter } from "./paypal.js";
 import { IntegrationNotConfiguredError } from "../http/errors.js";
+import { QuoteConflictError } from "../domain/quote/service.js";
 
 const intentId = "11111111-1111-4111-8111-111111111111";
 const quoteId = "22222222-2222-4222-8222-222222222222";
@@ -34,6 +35,17 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PayPal API routes", () => {
+  it.each(["/paypal/id-token", "/paypal/orders", "/paypal/orders/ORDER-REDACTED/capture"])("preserves sanitized stale quote rejection at %s", async (path) => {
+    const deny = async () => { throw new QuoteConflictError(); };
+    const { server } = app({ issueIdToken: deny, createOrder: deny, captureOrder: deny });
+    const body = path.endsWith("id-token") ? { intentId, quoteId }
+      : path.endsWith("capture") ? { intentId, quoteId, operationId }
+      : { intentId, quoteId, operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" };
+    const response = await request(server).post(path).set("Authorization", "Bearer verified").send(body);
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: { code: "stale_quote" } });
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+  });
   it("fails before a use-case call without bearer auth or strict input", async () => {
     const { server, dependencies } = app();
     const unauthenticated = await request(server).post("/paypal/id-token").send({ intentId, quoteId });

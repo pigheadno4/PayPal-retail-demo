@@ -69,9 +69,16 @@ export function quoteRequiresReplacement(
   now: Date,
 ): boolean {
   const issuedAt = new Date(current.issuedAt);
-  const expectedExpiry = new Date(issuedAt.getTime() + 15 * 60_000);
-  const expectedRenewal = new Date(issuedAt);
-  expectedRenewal.setUTCMonth(expectedRenewal.getUTCMonth() + 1);
+  if (!Number.isFinite(now.getTime()) || !Number.isFinite(issuedAt.getTime())) return true;
+  let issuedDraft: GoMonthlyQuoteDraft;
+  try {
+    issuedDraft = createGoMonthlyQuote(() => issuedAt);
+  } catch {
+    return true;
+  }
+  if (Object.keys(issuedDraft).some((key) =>
+    current[key as keyof GoMonthlyQuoteDraft] !== issuedDraft[key as keyof GoMonthlyQuoteDraft],
+  )) return true;
   return current.baseCents !== draft.baseCents
     || current.promotionCents !== draft.promotionCents
     || current.taxableSubtotalCents !== draft.taxableSubtotalCents
@@ -82,10 +89,7 @@ export function quoteRequiresReplacement(
     || current.taxVersion !== draft.taxVersion
     || current.locationKey !== draft.locationKey
     || current.timeZone !== draft.timeZone
-    || !Number.isFinite(issuedAt.getTime())
-    || current.expiresAt !== expectedExpiry.toISOString()
-    || current.renewsAt !== expectedRenewal.toISOString()
-    || current.allowanceResetsAt !== expectedRenewal.toISOString()
+    || issuedAt.getTime() > now.getTime()
     || Date.parse(current.expiresAt) <= now.getTime();
 }
 
@@ -97,11 +101,17 @@ export async function replaceCurrentQuote(input: Readonly<{
   repository: QuoteRepository;
 }>): Promise<ReplaceQuoteResponse> {
   const now = input.clock();
+  let draft: GoMonthlyQuoteDraft;
+  try {
+    draft = createGoMonthlyQuote(() => now);
+  } catch {
+    throw new QuoteConflictError();
+  }
   const result = await input.repository.replaceOwnedQuoteAtomically({
     accountId: input.accountId,
     intentId: input.intentId,
     currentQuoteId: input.currentQuoteId,
-    draft: createGoMonthlyQuote(() => now),
+    draft,
     now,
   });
   if (result.kind === "not_found") throw new QuoteNotFoundError();
@@ -128,7 +138,16 @@ export async function requireCurrentQuoteForPayment(input: Readonly<{
   if (await input.repository.findReplacementOf(current.internalId)) {
     throw new QuoteConflictError();
   }
-  if (Date.parse(current.expiresAt) <= input.now.getTime()) {
+  let draft: GoMonthlyQuoteDraft;
+  try {
+    draft = createGoMonthlyQuote(() => input.now);
+  } catch {
+    throw new QuoteConflictError();
+  }
+  if (current.accountId !== input.accountId
+    || current.intentId !== input.intentId
+    || current.quoteId !== input.quoteId
+    || quoteRequiresReplacement(current, draft, input.now)) {
     throw new QuoteConflictError();
   }
   return toCheckoutReview(current);

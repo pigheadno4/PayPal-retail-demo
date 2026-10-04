@@ -45,6 +45,14 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("quote routes", () => {
+  it("returns a Q4 successor for explicit customer review without changing the total", async () => {
+    const replacement = { ...review, quoteId: "33333333-3333-4333-8333-333333333333", taxVersion: "us-wa-seattle-digital-ai-q4-2026-v1", expiresAt: "2026-10-02T19:15:00.000Z" };
+    const { server } = app({ replaceQuote: async () => ({ review: replacement, replacementCreated: true }) });
+    const response = await request(server).post("/quotes").set("Authorization", "Bearer verified").send({ intentId, currentQuoteId: quoteId });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ review: replacement, replacementCreated: true });
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+  });
   it("catches reading or replacing quote state without verified bearer ownership", async () => {
     const { server } = app();
     const read = await request(server).get(`/quotes?intentId=${intentId}`);

@@ -8,6 +8,8 @@ import type {
 } from "./gateway.js";
 import { PayPalDefinitiveError } from "./gateway.js";
 import { FakePayPalGateway } from "./fake-gateway.js";
+import { createGoMonthlyQuote } from "../quote/go-monthly-seattle.js";
+import { QuoteConflictError, requireCurrentQuoteForPayment, type StoredQuote, type QuoteRepository } from "../quote/service.js";
 import { HttpPayPalGateway, projectPayPalCaptureEvidence } from "./http-gateway.js";
 import {
   captureAndReconcilePayPalOrder,
@@ -146,6 +148,59 @@ function providerError(name: string, issue: string) {
 }
 
 describe("TC-0005 user token and create ownership", () => {
+  it.each([
+    ["2026-09-30T19:00:00.000Z", "2026-10-02T19:00:00.000Z", { expiresAt: "2027-01-02T00:00:00.000Z" }],
+    ["2026-10-02T19:00:00.000Z", "2026-10-02T19:01:00.000Z", { taxVersion: "unknown" }],
+    ["2026-12-31T19:00:00.000Z", "2027-01-01T08:00:00.000Z", {}],
+  ])("denies token/create/capture before any gateway mutation for stale mapping %#", async (issuedAt, now, overrides) => {
+    const quote: StoredQuote = {
+      ...createGoMonthlyQuote(() => new Date(issuedAt)), ...overrides,
+      internalId: 11n, intentInternalId: 7n, accountId: 2n,
+      intentId: review.intentId, quoteId: review.quoteId, supersedesInternalId: null,
+    };
+    const quotes: QuoteRepository = {
+      findOwnedQuote: async () => quote, findReplacementOf: async () => null,
+      replaceOwnedQuoteAtomically: async () => ({ kind: "conflict" }),
+    };
+    const gateway = new FakePayPalGateway();
+    const repository = new MemoryPayPalRepository();
+    const deps = {
+      ...dependencies(repository, gateway), clock: () => new Date(now),
+      requireReview: (input: Omit<Parameters<typeof requireCurrentQuoteForPayment>[0], "repository">) => requireCurrentQuoteForPayment({ ...input, repository: quotes }),
+    };
+    const input = { accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId };
+    await expect(issuePayPalUserIdToken({ ...input, merchantCustomerReference: "account-public-id" }, deps)).rejects.toBeInstanceOf(QuoteConflictError);
+    await expect(createPayPalOrder({ ...input, clientMetadataId: "1234567890abcdef1234567890abcdef" }, deps)).rejects.toBeInstanceOf(QuoteConflictError);
+    await expect(captureAndReconcilePayPalOrder({ ...input, orderId: vaultedEvidence.orderId }, deps)).rejects.toBeInstanceOf(QuoteConflictError);
+    expect(gateway.userTokenInputs).toEqual([]);
+    expect(gateway.createInputs).toEqual([]);
+    expect(gateway.captureInputs).toEqual([]);
+    expect(repository.createInputs).toEqual([]);
+    expect(repository.funded).toEqual([]);
+  });
+
+  it("creates just before the Q4 boundary but stops capture at the boundary", async () => {
+    let now = new Date("2027-01-01T07:59:59.998Z");
+    const quote: StoredQuote = {
+      ...createGoMonthlyQuote(() => now), internalId: 11n, intentInternalId: 7n,
+      accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, supersedesInternalId: null,
+    };
+    const quotes: QuoteRepository = {
+      findOwnedQuote: async () => quote, findReplacementOf: async () => null,
+      replaceOwnedQuoteAtomically: async () => ({ kind: "conflict" }),
+    };
+    const gateway = new FakePayPalGateway();
+    const deps = {
+      ...dependencies(new MemoryPayPalRepository(), gateway), clock: () => now,
+      requireReview: (input: Omit<Parameters<typeof requireCurrentQuoteForPayment>[0], "repository">) => requireCurrentQuoteForPayment({ ...input, repository: quotes }),
+    };
+    const input = { accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId };
+    await expect(createPayPalOrder({ ...input, clientMetadataId: "1234567890abcdef1234567890abcdef" }, deps)).resolves.toMatchObject({ status: "ready" });
+    now = new Date("2027-01-01T08:00:00.000Z");
+    await expect(captureAndReconcilePayPalOrder({ ...input, orderId: gateway.createdOrderId }, deps)).rejects.toBeInstanceOf(QuoteConflictError);
+    expect(gateway.createInputs).toHaveLength(1);
+    expect(gateway.captureInputs).toEqual([]);
+  });
   it("omits target customer for first-time payers and uses only the stored scoped mapping for returns", async () => {
     const repository = new MemoryPayPalRepository();
     const gateway = new FakePayPalGateway();
