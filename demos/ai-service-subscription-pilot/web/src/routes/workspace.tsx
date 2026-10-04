@@ -84,6 +84,19 @@ export function WorkspaceView(props: Readonly<{
   );
 }
 
+export function workspaceRestorationError(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401) return "Sign in to open your workspace.";
+    if (error.status === 404 && error.code === "not_found") {
+      return "Your workspace usage could not be found after restoring access.";
+    }
+    if (error.status === 409 && error.code === "usage_not_available") {
+      return "Your workspace access cannot currently be restored.";
+    }
+  }
+  return "Your workspace could not load. Please try again later.";
+}
+
 export function WorkspaceRoute() {
   const [summary, setSummary] = useState<AccountUsageSummary | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -97,7 +110,7 @@ export function WorkspaceRoute() {
     void (async () => {
       try {
         const accessToken = await currentAccessToken();
-        if (!accessToken) throw new Error("authentication_required");
+        if (!accessToken) throw new ApiRequestError(401, "authentication_required");
         let next: AccountUsageSummary;
         try {
           next = await demoApi.readUsageSummary(accessToken);
@@ -116,8 +129,8 @@ export function WorkspaceRoute() {
             answer: returnedAnswers[lastCommitted.fixtureKey],
           });
         }
-      } catch {
-        if (active) setError("Sign in and complete a verified Go payment before opening the workspace.");
+      } catch (restorationError) {
+        if (active) setError(workspaceRestorationError(restorationError));
       }
     })();
     return () => { active = false; };

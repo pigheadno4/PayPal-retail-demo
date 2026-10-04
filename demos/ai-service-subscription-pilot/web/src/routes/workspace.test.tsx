@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AccountUsageSummary, GenerateAnswerOutcome } from "../../../shared/src/usage.js";
-import { WorkspaceView } from "./workspace.js";
+import { WorkspaceView, workspaceRestorationError } from "./workspace.js";
+import { ApiRequestError } from "../lib/api.js";
 
 const summary = (reserved = 0, committed = 0): AccountUsageSummary => ({
   tier: "go",
@@ -15,6 +16,25 @@ const props = {
   summary: summary(), selectedPrompt: null, outcome: null, busy: false, error: null,
   onSelectPrompt: vi.fn(), onChooseAnother: vi.fn(), onGenerate: vi.fn(),
 };
+
+describe("workspace restoration errors", () => {
+  it.each([
+    [new ApiRequestError(401, "authentication_required"), "Sign in to open your workspace."],
+    [new ApiRequestError(404, "not_found"), "Your workspace usage could not be found after restoring access."],
+    [new ApiRequestError(409, "usage_not_available"), "Your workspace access cannot currently be restored."],
+    [new ApiRequestError(500, "internal_error"), "Your workspace could not load. Please try again later."],
+    [new ApiRequestError(409, "alice@example.test fixture-secret"), "Your workspace could not load. Please try again later."],
+    [new ApiRequestError(404, "unknown_code"), "Your workspace could not load. Please try again later."],
+    [new ApiRequestError(418, "not_found"), "Your workspace could not load. Please try again later."],
+    [new Error("alice@example.test fixture-secret"), "Your workspace could not load. Please try again later."],
+    [new TypeError("Failed to fetch fixture-secret"), "Your workspace could not load. Please try again later."],
+    [null, "Your workspace could not load. Please try again later."],
+  ])("maps %s to safe restoration copy", (error, expected) => {
+    const copy = workspaceRestorationError(error);
+    expect(copy).toBe(expected);
+    expect(copy).not.toMatch(/fixture-secret|alice@|unknown_code|pay(?:ment)?|verified/i);
+  });
+});
 
 describe("WorkspaceView", () => {
   it("places independent payment management beside paid workspace content", () => {

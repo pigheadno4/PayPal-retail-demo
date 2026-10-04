@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router, type Response } from "express";
 
 import {
@@ -34,6 +35,29 @@ export function createUsageRouter(dependencies: UsageRouterDependencies): Router
 
   router.use((_request, response, next) => {
     response.set("Cache-Control", "private, no-store");
+    next();
+  });
+
+  router.use((request, response, next) => {
+    const operation = request.method === "GET" && request.path === "/me/summary"
+      ? "summary"
+      : request.method === "POST" && request.path === "/me/activation" ? "activation" : null;
+    if (operation) {
+      const correlationId = randomUUID();
+      const started = performance.now();
+      response.set("X-Request-Id", correlationId);
+      response.once("finish", () => {
+        const status = response.statusCode;
+        const code = status === 200 ? "ok"
+          : status === 401 ? "authentication_required"
+          : status === 404 ? "not_found"
+          : status === 409 ? "usage_not_available" : "internal_error";
+        console.info(JSON.stringify({
+          event: "workspace_request", correlationId, operation, status,
+          elapsedMs: Math.max(0, Math.round(performance.now() - started)), code,
+        }));
+      });
+    }
     next();
   });
 
