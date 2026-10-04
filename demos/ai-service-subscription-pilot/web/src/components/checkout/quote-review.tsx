@@ -75,7 +75,7 @@ export function QuoteReview(props: Readonly<{
   }
   return (
     <section className="review-layout" aria-labelledby="review-heading">
-      <article className="review-copy reading-surface">
+      <div className="review-copy reading-surface" style={{ gridColumn: "1 / -1", order: 0 }}>
         <p className="eyebrow">Customer story · step 3</p>
         <h1 id="review-heading">Review your newly calculated order</h1>
         <p className="section-copy">Your identity is verified. This server-owned quote must remain current before the next task can begin.</p>
@@ -87,7 +87,32 @@ export function QuoteReview(props: Readonly<{
         ) : (
           <div className="status-note" role="status"><strong>Current review</strong> · expires {boundary(review.expiresAt, review.timeZone)}</div>
         )}
+      </div>
+
+      <aside className="summary-card reading-surface" style={{ order: 1 }} aria-label="Go Monthly price review">
+        <div className="summary-heading"><span>Go</span><strong>Monthly</strong></div>
+        <dl>
+          <div><dt>Base price</dt><dd>{money(review.base.cents)}</dd></div>
+          <div className="discount"><dt>First-month promotion</dt><dd>{money(review.promotion.cents)}</dd></div>
+          <div><dt>Taxable subtotal</dt><dd>{money(review.taxableSubtotal.cents)}</dd></div>
+          <div><dt>Seattle tax · {(review.taxBasisPoints / 100).toFixed(2)}%</dt><dd>{money(review.tax.cents)}</dd></div>
+          <div className="total"><dt>Due today</dt><dd>{money(review.dueToday.cents)}</dd></div>
+        </dl>
+        <div className="quote-facts">
+          <p><span>Renews</span><strong>{boundary(review.renewsAt, review.timeZone)}</strong></p>
+          <p><span>Allowance resets</span><strong>{boundary(review.allowanceResetsAt, review.timeZone)}</strong></p>
+          <p><span>Time zone</span><strong>{review.timeZone}</strong></p>
+          <p><span>Evidence</span><strong>{review.pricingVersion} · {review.taxVersion}</strong></p>
+        </div>
+        {stale ? (
+          <button className="primary-button" type="button" disabled={props.busy} onClick={props.onReplace}>
+            {props.busy ? "Refreshing…" : "Refresh review"}
+          </button>
+        ) : null}
+      </aside>
+
         {prepare ? (
+          <article className="review-copy reading-surface" style={{ order: 2 }}>
           <div className="payment-lane">
             <p className="eyebrow">Pay securely with PayPal</p>
             <div className="status-note">
@@ -119,30 +144,8 @@ export function QuoteReview(props: Readonly<{
                 }}
               />
           </div>
+          </article>
         ) : null}
-      </article>
-
-      <aside className="summary-card reading-surface" aria-label="Go Monthly price review">
-        <div className="summary-heading"><span>Go</span><strong>Monthly</strong></div>
-        <dl>
-          <div><dt>Base price</dt><dd>{money(review.base.cents)}</dd></div>
-          <div className="discount"><dt>First-month promotion</dt><dd>{money(review.promotion.cents)}</dd></div>
-          <div><dt>Taxable subtotal</dt><dd>{money(review.taxableSubtotal.cents)}</dd></div>
-          <div><dt>Seattle tax · {(review.taxBasisPoints / 100).toFixed(2)}%</dt><dd>{money(review.tax.cents)}</dd></div>
-          <div className="total"><dt>Due today</dt><dd>{money(review.dueToday.cents)}</dd></div>
-        </dl>
-        <div className="quote-facts">
-          <p><span>Renews</span><strong>{boundary(review.renewsAt, review.timeZone)}</strong></p>
-          <p><span>Allowance resets</span><strong>{boundary(review.allowanceResetsAt, review.timeZone)}</strong></p>
-          <p><span>Time zone</span><strong>{review.timeZone}</strong></p>
-          <p><span>Evidence</span><strong>{review.pricingVersion} · {review.taxVersion}</strong></p>
-        </div>
-        {stale ? (
-          <button className="primary-button" type="button" disabled={props.busy} onClick={props.onReplace}>
-            {props.busy ? "Refreshing…" : "Refresh review"}
-          </button>
-        ) : null}
-      </aside>
     </section>
   );
 }

@@ -126,13 +126,30 @@ async function expectNonceParity(page: Page) {
 
 test("TC-0006 review surface is bounded and accessible in both themes", async ({ page }, testInfo) => {
   const consoleErrors = collectConsoleErrors(page);
+  await page.setViewportSize({ width: testInfo.project.name === "chromium" ? 1280 : 375, height: 900 });
   await page.emulateMedia({ colorScheme: "light" });
   await stubProvider(page, "ready");
   await page.goto(`/checkout/${INTENT_ID}`);
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await loadProviderControl(page);
   await expectNonceParity(page);
-  await captureThemes(page, testInfo, "task-0008-review", page.getByRole("button", { name: "Pay with PayPal" }));
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    await expectInteractionQuality(page, page.getByRole("button", { name: "Pay with PayPal" }));
+  const quoteOrder = await page.locator(".summary-card").evaluate((summary) => {
+    const provider = document.querySelector(".paypal-provider-region")!;
+    const financialRows = [...summary.querySelectorAll("dl > div,.quote-facts > p")];
+    const quoteBounds = summary.getBoundingClientRect();
+    const controlBounds = provider.getBoundingClientRect();
+    return {
+      completeRows: financialRows.length,
+      allRowsBeforeControl: financialRows.every((row) => Boolean(row.compareDocumentPosition(provider) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      visualQuoteFirst: quoteBounds.bottom <= controlBounds.top || quoteBounds.right <= controlBounds.left,
+    };
+  });
+  expect(quoteOrder).toEqual({ completeRows: 9, allRowsBeforeControl: true, visualQuoteFirst: true });
+    await page.screenshot({ path: screenshotPath(testInfo, `quote-before-control-${theme}`), fullPage: true });
+  }
   expect(consoleErrors).toEqual([]);
 });
 
