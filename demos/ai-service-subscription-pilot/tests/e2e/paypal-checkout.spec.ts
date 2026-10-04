@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -83,6 +83,7 @@ const review = {
 };
 
 async function stubProvider(page: Page, readiness: "pending" | "ready") {
+  await page.route("**/*", (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.fallback() : route.abort());
   await page.addInitScript(() => {
     localStorage.setItem("sb-task0007-auth-token", JSON.stringify({
       access_token: "redacted-e2e-access",
@@ -106,7 +107,6 @@ async function stubProvider(page: Page, readiness: "pending" | "ready") {
 }
 
 async function loadProviderControl(page: Page) {
-  await page.getByLabel("Save my PayPal Wallet for future recurring Go payments.").check();
   await expect(page.getByRole("button", { name: "Pay with PayPal" })).toBeVisible();
 }
 
@@ -166,7 +166,6 @@ test("TC-0006 cancellation returns to review and grants nothing", async ({ page 
   await page.unroute("https://www.paypal.com/sdk/js**");
   await page.route("https://www.paypal.com/sdk/js**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: `window.paypal={Buttons:(options)=>({isEligible:()=>true,render:async(container)=>{const label=document.createElement('small');label.textContent='Simulated provider control';container.appendChild(label);const cancel=document.createElement('button');cancel.textContent='Cancel PayPal';cancel.style.minHeight='44px';cancel.onclick=()=>options.onCancel();container.appendChild(cancel);},close:()=>Promise.resolve()})};` }));
   await page.goto(`/checkout/${INTENT_ID}`);
-  await page.getByLabel("Save my PayPal Wallet for future recurring Go payments.").check();
   await expect(page.getByRole("button", { name: "Cancel PayPal" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel PayPal" }).click();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
@@ -369,4 +368,206 @@ test("TC-0006 in-progress capture stays pending and can return to a safe status 
 
 test.skip("@sandbox @hosted real PayPal SDK, FraudNet, capture, and webhook evidence", async () => {
   // Requires an orchestrator-supplied hosted URL and configured direct sandbox merchant.
+});
+
+test("preparation stays loading until render and manually retries without payment", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: testInfo.project.name === "chromium" ? 1280 : 375, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/*", (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.fallback() : route.abort());
+  await stubProvider(page, "ready");
+  let tokenRequests = 0;
+  let paymentRequests = 0;
+  await page.route("**/api/v1/paypal/id-token", (route) => {
+    tokenRequests += 1;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ idToken: "SYNTHETIC", fraudNet: { sourceId: "AI_SERVICE_STUDIO_CHECKOUT", sandbox: true } }) });
+  });
+  await page.route("**/api/v1/paypal/orders**", (route) => { paymentRequests += 1; return route.abort(); });
+  await page.unroute("https://www.paypal.com/sdk/js**");
+  await page.route("https://www.paypal.com/sdk/js**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: `
+    window.syntheticClosed=window.syntheticClosed||0;
+    window.paypal={Buttons:()=>({isEligible:()=>true,render:(container)=>new Promise((resolve,reject)=>{
+      window.syntheticRenders=(window.syntheticRenders||0)+1;
+      window.syntheticFinish=()=>{const button=document.createElement('button');button.textContent='Simulated PayPal control';button.style.minHeight='44px';container.appendChild(button);resolve();};
+      window.syntheticReject=()=>reject(new Error('private-provider-detail'));
+    }),close:async()=>{window.syntheticClosed++;}})};` }));
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { syntheticFinish?: unknown }).syntheticFinish)).toBe("function");
+  const initialTokenRequests = tokenRequests;
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Preparing secure PayPal checkout" })).toBeVisible();
+  await expect(page.getByText("Secure PayPal checkout ready", { exact: true })).toHaveCount(0);
+  const region = page.locator(".paypal-provider-region");
+  const loadingHeight = await region.evaluate((element) => element.getBoundingClientRect().height);
+  await page.screenshot({ path: testInfo.outputPath("preparation-loading-light.png"), fullPage: true });
+  await page.evaluate(() => (window as unknown as { syntheticReject(): void }).syntheticReject());
+  const retry = page.getByRole("button", { name: "Try loading PayPal again" });
+  await expect(retry).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payment was not completed" })).toHaveCount(0);
+  await expect(page.getByText("private-provider-detail")).toHaveCount(0);
+  await expect(page.locator('script[src="https://c.paypal.com/da/r/fb.js"]')).toHaveCount(0);
+  await captureThemes(page, testInfo, "preparation-failed", retry);
+  expect(await page.locator(".paypal-provider-region .warning-note p").evaluate((element) => getComputedStyle(element).color === getComputedStyle(document.body).color)).toBe(true);
+  expect(await region.evaluate((element) => element.getBoundingClientRect().height)).toBe(loadingHeight);
+  expect(tokenRequests).toBe(initialTokenRequests);
+  await page.keyboard.press("Enter");
+  await expect.poll(() => tokenRequests).toBe(initialTokenRequests + 1);
+  await expect(page.getByText("Preparing secure PayPal checkout…", { exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('script[src="https://c.paypal.com/da/r/fb.js"]').count()).toBe(1);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { syntheticRenders: number }).syntheticRenders)).toBe(2);
+  await page.evaluate(() => (window as unknown as { syntheticFinish(): void }).syntheticFinish());
+  await expect(page.getByText("Secure PayPal checkout ready", { exact: true })).toBeVisible();
+  await captureThemes(page, testInfo, "preparation-ready", page.getByRole("button", { name: "Simulated PayPal control" }));
+  expect(await region.evaluate((element) => element.getBoundingClientRect().height)).toBe(loadingHeight);
+  expect(paymentRequests).toBe(0);
+  expect(await page.evaluate(() => (window as unknown as { syntheticClosed: number }).syntheticClosed)).toBeGreaterThan(0);
+});
+
+test("expired review never bootstraps PayPal", async ({ page }) => {
+  await stubProvider(page, "ready");
+  let tokenRequests = 0;
+  await page.route("**/api/v1/paypal/id-token", (route) => { tokenRequests += 1; return route.abort(); });
+  await page.route("**/api/v1/quotes?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...review, expiresAt: "2020-01-01T00:00:00Z" }) }));
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await expect(page.getByText("Review expired", { exact: true })).toBeVisible();
+  await expect(page.locator(".paypal-area")).toHaveCount(0);
+  expect(tokenRequests).toBe(0);
+});
+
+test("expiry removes pending SDK resources and rejects late payment callbacks", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-04T00:00:00Z") });
+  await stubProvider(page, "ready");
+  await page.route("**/api/v1/quotes?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...review, expiresAt: "2026-10-04T00:01:00Z" }) }));
+  let paymentRequests = 0;
+  await page.route("**/api/v1/paypal/orders**", (route) => { paymentRequests += 1; return route.abort(); });
+  await page.unroute("https://www.paypal.com/sdk/js**");
+  await page.route("https://www.paypal.com/sdk/js**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: `window.syntheticClosed=0;window.paypal={Buttons:(options)=>{window.syntheticOptions=options;return {isEligible:()=>true,render:()=>new Promise(resolve=>{window.syntheticLate=resolve}),close:async()=>{window.syntheticClosed++}}}};` }));
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { syntheticLate: unknown }).syntheticLate)).toBe("function");
+  await page.clock.runFor(60_001);
+  await expect(page.getByText("Review expired", { exact: true })).toBeVisible();
+  await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js'],script[src='https://c.paypal.com/da/r/fb.js']")).toHaveCount(0);
+  const result = await page.evaluate(async () => {
+    const target = window as unknown as { syntheticLate(): void; syntheticClosed: number; syntheticOptions: { createOrder(): Promise<string>; onApprove(data: { orderID: string }): Promise<void>; onCancel(): void } };
+    target.syntheticLate();
+    let rejected = false;
+    try { await target.syntheticOptions.createOrder(); } catch { rejected = true; }
+    await target.syntheticOptions.onApprove({ orderID: "SYNTHETIC" });
+    target.syntheticOptions.onCancel();
+    return { rejected, closed: target.syntheticClosed };
+  });
+  expect(result).toEqual({ rejected: true, closed: 1 });
+  expect(paymentRequests).toBe(0);
+  await expect(page.getByText("Secure PayPal checkout ready", { exact: true })).toHaveCount(0);
+});
+
+test("mounted quote and credential replacements invalidate late token and FraudNet callbacks", async ({ page }) => {
+  await stubProvider(page, "ready");
+  const tokens: Route[] = [];
+  const fraudScripts: Route[] = [];
+  let sdkRequests = 0;
+  let paymentRequests = 0;
+  await page.route("**/api/v1/paypal/id-token", (route) => { tokens.push(route); });
+  await page.route("https://c.paypal.com/da/r/fb.js", (route) => { fraudScripts.push(route); });
+  await page.route("https://www.paypal.com/sdk/js**", (route) => { sdkRequests += 1; return route.abort(); });
+  await page.route("**/api/v1/paypal/orders**", (route) => { paymentRequests += 1; return route.abort(); });
+  await page.goto("/");
+  const loadedModules = await page.evaluate(() => performance.getEntriesByType("resource").map((entry) => entry.name));
+  await page.clock.install({ time: new Date("2026-10-04T00:00:00Z") });
+  await page.evaluate(async ({ review, loadedModules }) => {
+    const reactPath = loadedModules.find((name) => /\/react\.js\?/.test(name));
+    const clientPath = loadedModules.find((name) => /\/react-dom_client\.js\?/.test(name));
+    if (!reactPath || !clientPath) throw new Error("synthetic_runtime_modules_unavailable");
+    const componentPath = "/src/components/checkout/quote-review.tsx";
+    const React = (await import(reactPath)).default;
+    const { createRoot } = (await import(clientPath)).default;
+    const { QuoteReview } = await import(componentPath);
+    const host = document.createElement("div");
+    host.id = "synthetic-mounted-review";
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const target = window as unknown as { syntheticUpdate(change: Record<string, unknown>): void; syntheticUnmount(): void };
+    let props = { review, stale: false, busy: false, accessToken: "synthetic-first", nonce: "synthetic-nonce", onReplace: () => {} };
+    target.syntheticUpdate = (change) => { props = { ...props, ...change }; root.render(React.createElement(QuoteReview, props)); };
+    target.syntheticUnmount = () => root.unmount();
+    target.syntheticUpdate({});
+  }, { review, loadedModules });
+  await expect.poll(() => tokens.length).toBe(1);
+  await page.evaluate(() => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ accessToken: "synthetic-second" }));
+  await expect.poll(() => tokens.length).toBe(2);
+  const bootstrap = { idToken: "SYNTHETIC", fraudNet: { sourceId: "AI_SERVICE_STUDIO_CHECKOUT", sandbox: true } };
+  await tokens[0].fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bootstrap) });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  expect(fraudScripts).toHaveLength(0);
+  await tokens[1].fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bootstrap) });
+  await expect.poll(() => fraudScripts.length).toBe(1);
+  await page.evaluate(() => {
+    const target = window as unknown as { syntheticOldFraudLoad: unknown };
+    target.syntheticOldFraudLoad = document.querySelector<HTMLScriptElement>('script[src="https://c.paypal.com/da/r/fb.js"]')?.onload;
+  });
+  await page.evaluate((review) => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ review: { ...review, quoteId: "55555555-5555-4555-8555-555555555555" } }), review);
+  await expect.poll(() => tokens.length).toBe(3);
+  await expect(page.locator('script[fncls],script[src="https://c.paypal.com/da/r/fb.js"]')).toHaveCount(0);
+  await fraudScripts[0].fulfill({ status: 200, contentType: "application/javascript", body: "void 0;" });
+  await page.evaluate(() => (window as unknown as { syntheticOldFraudLoad(event: Event): void }).syntheticOldFraudLoad(new Event("load")));
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  expect(sdkRequests).toBe(0);
+  await page.evaluate(() => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ busy: true }));
+  await expect(page.locator("#synthetic-mounted-review .paypal-area")).toHaveCount(0);
+  await tokens[2].fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bootstrap) });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  expect(fraudScripts).toHaveLength(1);
+  for (const change of [{ busy: false, accessToken: "" }, { accessToken: "synthetic-third", stale: true }]) {
+    await page.evaluate((change) => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate(change), change);
+    await expect(page.locator("#synthetic-mounted-review .paypal-area")).toHaveCount(0);
+  }
+  expect(tokens).toHaveLength(3);
+  await page.clock.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+  await page.evaluate((review) => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ stale: false, review: { ...review, expiresAt: "2026-10-04T12:00:00Z" } }), review);
+  await expect(page.locator("#synthetic-mounted-review .paypal-area")).toHaveCount(0);
+  expect(tokens).toHaveLength(3);
+  await page.evaluate((review) => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ review }), review);
+  await expect.poll(() => tokens.length).toBe(4);
+  await page.evaluate(() => (window as unknown as { syntheticUnmount(): void }).syntheticUnmount());
+  await tokens[3].fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bootstrap) });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  expect(fraudScripts).toHaveLength(1);
+  expect(sdkRequests).toBe(0);
+  expect(paymentRequests).toBe(0);
+});
+
+test("unmounted pending SDK download cannot construct or ready a late control", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-04T00:00:00Z") });
+  await stubProvider(page, "ready");
+  await page.route("**/api/v1/quotes?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...review, expiresAt: "2026-10-04T00:01:00Z" }) }));
+  let download: Route | undefined;
+  let paymentRequests = 0;
+  await page.route("**/api/v1/paypal/orders**", (route) => { paymentRequests += 1; return route.abort(); });
+  await page.unroute("https://www.paypal.com/sdk/js**");
+  await page.route("https://www.paypal.com/sdk/js**", (route) => { download = route; });
+  await page.goto(`/checkout/${INTENT_ID}`);
+  await expect.poll(() => Boolean(download)).toBe(true);
+  await page.evaluate(() => {
+    const script = document.querySelector<HTMLScriptElement>('script[src*="paypal.com/sdk/js"]');
+    const target = window as unknown as { syntheticSdkLoad: unknown; syntheticConstructed: number };
+    target.syntheticSdkLoad = script?.onload;
+    target.syntheticConstructed = 0;
+  });
+  await expect(page.getByText("Preparing secure PayPal checkout…", { exact: true })).toBeVisible();
+  await page.clock.runFor(60_001);
+  await expect(page.getByText("Review expired", { exact: true })).toBeVisible();
+  await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js'],script[src='https://c.paypal.com/da/r/fb.js']")).toHaveCount(0);
+  await download!.fulfill({ status: 200, contentType: "application/javascript", body: "window.syntheticDownloadCompleted=true;window.paypal={Buttons:()=>{window.syntheticConstructed++;return {isEligible:()=>true,render:async()=>{},close:async()=>{}}}};" });
+  const constructed = await page.evaluate(async () => {
+    const target = window as unknown as { paypal: unknown; syntheticSdkLoad(event: Event): void; syntheticConstructed: number };
+    // Force the captured real loader's success callback after detached download completion.
+    // This exercises the provider subscription cleanup even if the browser cancels detached scripts.
+    target.paypal = { Buttons: () => { target.syntheticConstructed += 1; return { isEligible: () => true, render: async () => {}, close: async () => {} }; } };
+    target.syntheticSdkLoad(new Event("load"));
+    await Promise.resolve(); await Promise.resolve();
+    return target.syntheticConstructed;
+  });
+  expect(constructed).toBe(0);
+  expect(paymentRequests).toBe(0);
+  await expect(page.getByText("Secure PayPal checkout ready", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js'],script[src='https://c.paypal.com/da/r/fb.js']")).toHaveCount(0);
 });

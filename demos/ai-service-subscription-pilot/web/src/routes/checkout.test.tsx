@@ -48,6 +48,9 @@ describe("CheckoutRouteView", () => {
   });
 
   it("renders the exact immutable review and a visible stop before payment", () => {
+    vi.useFakeTimers();
+    vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "synthetic-client");
+    vi.setSystemTime(new Date("2026-08-29T04:00:00.000Z"));
     const html = renderToStaticMarkup(
       <CheckoutRouteView
         state={{ phase: "review", review, stale: false, busy: false, accessToken: "TOKEN-REDACTED" }}
@@ -61,9 +64,13 @@ describe("CheckoutRouteView", () => {
       expect(html).toContain(value);
     }
     expect(html).toContain("America/Los_Angeles");
-    expect(html).toContain("Save my PayPal Wallet for future recurring Go payments");
-    expect(html).toContain("official PayPal control");
+    expect(html).not.toContain('type="checkbox"');
+    expect(html).toContain("Your recurring-payment terms");
+    expect(html).toContain("$10.00 monthly plus then-applicable tax");
+    expect(html).toContain("Preparing secure PayPal checkout");
     expect(html).not.toMatch(/stripe|activate|allowance balance/i);
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it("makes stale state explicit and exposes only quote replacement", () => {

@@ -1,4 +1,5 @@
-import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { destroySDKScript, PayPalScriptProvider, usePayPalScriptReducer } from "@paypal/react-paypal-js";
+import type { PayPalButtonsComponent, PayPalButtonsComponentOptions } from "@paypal/paypal-js";
 import { createElement, useEffect, useRef, useState } from "react";
 
 import type {
@@ -15,6 +16,7 @@ type Props = Readonly<{
   nonce: string;
   operationId: string;
   clientMetadataId: string;
+  expiresAt: string;
   onOperationResolved(operationId: string): void;
   onVerifying(): void;
   onComplete(status: PayPalCheckoutStatus): void;
@@ -80,40 +82,114 @@ export function classifyCreateOrderResponse(result: Partial<CreatePayPalOrderRes
   return Object.freeze({ kind: "failed" as const });
 }
 
+export function renderPayPalControl(buttons: Pick<PayPalButtonsComponent, "isEligible" | "render" | "close">, container: HTMLElement, ready: () => void, failed: () => void) {
+  let active = true;
+  try {
+    if (!buttons.isEligible()) failed();
+    else void buttons.render(container).then(() => { if (active) ready(); }, () => { if (active) failed(); });
+  } catch { failed(); }
+  return () => { active = false; void buttons.close().catch(() => {}); };
+}
+
+function OfficialControl(props: Readonly<{ options: PayPalButtonsComponentOptions; ready: () => void; failed: () => void; expiresAt: string }>) {
+  const [{ isResolved, isRejected, options }] = usePayPalScriptReducer();
+  const scriptId = options["data-react-paypal-script-id"];
+  useEffect(() => () => destroySDKScript(scriptId), [scriptId]);
+  const container = useRef<HTMLDivElement>(null);
+  const latest = useRef(props);
+  useEffect(() => { latest.current = props; }, [props]);
+  useEffect(() => {
+    if (isRejected) { latest.current.failed(); return; }
+    if (!isResolved || !container.current) return;
+    let active = true;
+    const valid = () => active && Date.parse(latest.current.expiresAt) > Date.now();
+    let started = false;
+    let rendered = false;
+    try {
+      const buttons = window.paypal?.Buttons?.({
+        ...latest.current.options,
+        createOrder: async (data, actions) => {
+          if (!valid()) throw new Error("review_expired");
+          started = true;
+          return latest.current.options.createOrder!(data, actions);
+        },
+        onApprove: async (data, actions) => {
+          if (!valid()) return;
+          return latest.current.options.onApprove!(data, actions);
+        },
+        onCancel: (data, actions) => { if (valid()) return latest.current.options.onCancel?.(data, actions); },
+        onError: (error) => {
+          if (!valid()) return;
+          if (rendered && started) latest.current.options.onError?.(error);
+          else latest.current.failed();
+        },
+      });
+      if (!buttons) { latest.current.failed(); return; }
+      const cleanup = renderPayPalControl(buttons, container.current, () => {
+        if (valid()) { rendered = true; latest.current.ready(); }
+      }, () => { if (valid()) latest.current.failed(); });
+      return () => { active = false; cleanup(); };
+    } catch { latest.current.failed(); }
+    return () => { active = false; };
+  }, [isResolved, isRejected]);
+  return <div ref={container} />;
+}
+
 export function PayPalWalletButton(props: Props) {
+  // Credentials stay out of keys and presentation; a context change remounts preparation.
+  const [context, setContext] = useState({ quoteId: props.quoteId, accessToken: props.accessToken, generation: 0 });
+  if (context.quoteId !== props.quoteId || context.accessToken !== props.accessToken) {
+    setContext({ quoteId: props.quoteId, accessToken: props.accessToken, generation: context.generation + 1 });
+  }
+  return <PayPalPreparation key={context.generation} {...props} />;
+}
+
+function PayPalPreparation(props: Props) {
+  const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
   const [bootstrap, setBootstrap] = useState<PayPalIdTokenResponse | null>(null);
   const [fraudNetReady, setFraudNetReady] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(clientId ? "" : "PayPal checkout could not load.");
+  const [ready, setReady] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const operationId = useRef<string>(props.operationId);
   const createPending = useRef(false);
 
   useEffect(() => {
     let active = true;
+    if (!import.meta.env.VITE_PAYPAL_CLIENT_ID) {
+      return;
+    }
     void demoApi.paypalIdToken(props.intentId, props.quoteId, props.accessToken)
       .then((value) => { if (active) setBootstrap(value); })
       .catch(() => { if (active) setError("PayPal is not available right now."); });
     return () => { active = false; };
-  }, [props.intentId, props.quoteId, props.accessToken]);
+  }, [props.intentId, props.quoteId, props.accessToken, attempt]);
 
   useEffect(() => {
-    if (!bootstrap) return;
+    if (!bootstrap || error) return;
     const loader = document.createElement("script");
     loader.src = "https://c.paypal.com/da/r/fb.js";
     loader.nonce = props.nonce;
     loader.async = true;
-    loader.onload = () => setFraudNetReady(true);
-    loader.onerror = () => setError("PayPal risk checks could not initialize.");
+    let active = true;
+    loader.onload = () => { if (active) setFraudNetReady(true); };
+    loader.onerror = () => { if (active) setError("PayPal checkout could not load."); };
     document.head.append(loader);
-    return () => loader.remove();
-  }, [bootstrap, props.nonce]);
+    return () => { active = false; loader.onload = null; loader.onerror = null; loader.remove(); };
+  }, [bootstrap, props.nonce, error]);
 
   const params = bootstrap
     ? { f: props.clientMetadataId, s: bootstrap.fraudNet.sourceId, sandbox: bootstrap.fraudNet.sandbox }
     : null;
-  const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+  const failed = () => { setReady(false); setError("PayPal checkout could not load."); };
 
   return (
     <div className="paypal-area">
+      <style nonce={props.nonce}>{".paypal-provider-region{min-height:250px;border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;justify-content:center;gap:10px}.paypal-provider-region p{margin:0}.paypal-provider-region .warning-note{color:var(--foreground)}@media(max-width:740px){.paypal-provider-region{min-height:320px}}"}</style>
+      <div className="paypal-provider-region" aria-busy={!ready && !error}>
+      <div role="status" aria-live="polite" aria-busy={!ready && !error}>
+        {error ? "PayPal checkout could not load." : ready ? "Secure PayPal checkout ready" : "Preparing secure PayPal checkout…"}
+      </div>
       {params ? (
         <>
           <script
@@ -132,12 +208,12 @@ export function PayPalWalletButton(props: Props) {
           </noscript>
         </>
       ) : null}
-      {bootstrap && fraudNetReady && clientId ? (
+      {bootstrap && fraudNetReady && clientId && !error ? (
         <PayPalScriptProvider options={buildPayPalScriptOptions({ clientId, idToken: bootstrap.idToken, nonce: props.nonce })}>
-          <PayPalButtons
-            fundingSource="paypal"
-            style={{ layout: "vertical", shape: "rect", label: "paypal" }}
-            createOrder={async () => {
+          <OfficialControl ready={() => setReady(true)} failed={failed} expiresAt={props.expiresAt} options={{
+            fundingSource: "paypal",
+            style: { layout: "vertical", shape: "rect", label: "paypal" },
+            createOrder: async () => {
               setError("");
               createPending.current = false;
               let result: CreatePayPalOrderResponse;
@@ -168,8 +244,8 @@ export function PayPalWalletButton(props: Props) {
                 throw new Error("payment_in_progress");
               }
               return outcome.orderId;
-            }}
-            onApprove={async ({ orderID }) => {
+            },
+            onApprove: async ({ orderID }) => {
               props.onVerifying();
               try {
                 const status = await demoApi.capturePayPalOrder(orderID, {
@@ -188,20 +264,21 @@ export function PayPalWalletButton(props: Props) {
                   props.onPending(uncertainCaptureStatus(operationId.current));
                 }
               }
-            }}
-            onCancel={props.onCancel}
-            onError={() => {
+            },
+            onCancel: props.onCancel,
+            onError: () => {
               if (createPending.current) {
                 createPending.current = false;
                 return;
               }
               props.onFailure(operationId.current);
-            }}
-          />
+            },
+          }} />
         </PayPalScriptProvider>
       ) : null}
-      {!fraudNetReady && !error ? <p className="muted" aria-live="polite">Preparing secure PayPal checkout…</p> : null}
-      {error ? <p className="warning-note" role="alert">{error}</p> : null}
+      {error ? <div className="warning-note" role="alert"><p>No payment has been submitted by preparation. Your order is unchanged.</p><button className="primary-button" type="button" onClick={() => { setBootstrap(null); setFraudNetReady(false); setReady(false); setError(clientId ? "" : "PayPal checkout could not load."); setAttempt((value) => value + 1); }}>Try loading PayPal again</button></div> : null}
+      </div>
+      <p className="muted">Preparing and ready describe the control only. Funding, wallet readiness and account activation require separate verified evidence.</p>
     </div>
   );
 }

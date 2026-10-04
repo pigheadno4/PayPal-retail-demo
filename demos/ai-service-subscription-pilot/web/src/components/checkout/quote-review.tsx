@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
 import type { PayPalCheckoutStatus } from "../../../../shared/src/paypal.js";
 import { PaymentHandoff } from "./payment-handoff.js";
@@ -25,6 +25,10 @@ export function operationIdAfterRetry(
   return funding === "failed" ? createOperationId() : currentOperationId;
 }
 
+export function canPreparePayPal(input: Readonly<{ stale: boolean; busy: boolean; accessToken: string; expiresAt: string }>, now = Date.now()) {
+  return !input.stale && !input.busy && input.accessToken.trim().length > 0 && Date.parse(input.expiresAt) > now;
+}
+
 export function QuoteReview(props: Readonly<{
   review: CheckoutReview;
   stale: boolean;
@@ -34,11 +38,25 @@ export function QuoteReview(props: Readonly<{
   onReplace: () => void;
 }>) {
   const { review } = props;
-  const [consented, setConsented] = useState(false);
+  const [now, setNow] = useState(Date.now);
+  const [clockContext, setClockContext] = useState({ review, accessToken: props.accessToken, busy: props.busy, stale: props.stale });
+  if (clockContext.review !== review || clockContext.accessToken !== props.accessToken || clockContext.busy !== props.busy || clockContext.stale !== props.stale) {
+    setClockContext({ review, accessToken: props.accessToken, busy: props.busy, stale: props.stale });
+    setNow(Date.now);
+  }
   const [verifying, setVerifying] = useState(false);
   const [status, setStatus] = useState<PayPalCheckoutStatus | null>(null);
   const [operationId, setOperationId] = useState<string>(() => crypto.randomUUID());
   const [clientMetadataId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
+  const expired = !(Date.parse(review.expiresAt) > now);
+  const stale = props.stale || expired;
+  const prepare = canPreparePayPal({ ...props, expiresAt: review.expiresAt }, now);
+  useEffect(() => {
+    const deadline = Date.parse(review.expiresAt);
+    if (!(deadline > Date.now())) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(2_147_483_647, deadline - Date.now()));
+    return () => clearTimeout(timer);
+  }, [review.expiresAt, now]);
 
   if (status) {
     return <PaymentHandoff status={status} onRetry={status.funding === "verified" ? undefined : () => {
@@ -61,7 +79,7 @@ export function QuoteReview(props: Readonly<{
         <p className="eyebrow">Customer story · step 3</p>
         <h1 id="review-heading">Review your newly calculated order</h1>
         <p className="section-copy">Your identity is verified. This server-owned quote must remain current before the next task can begin.</p>
-        {props.stale ? (
+        {stale ? (
           <div className="warning-note" role="alert">
             <strong>Review expired</strong>
             <span>Refresh the commercial state before proceeding.</span>
@@ -69,18 +87,14 @@ export function QuoteReview(props: Readonly<{
         ) : (
           <div className="status-note" role="status"><strong>Current review</strong> · expires {boundary(review.expiresAt, review.timeZone)}</div>
         )}
-        {!props.stale ? (
+        {prepare ? (
           <div className="payment-lane">
             <p className="eyebrow">Pay securely with PayPal</p>
-            <label className="consent-control">
-              <input
-                type="checkbox"
-                checked={consented}
-                onChange={(event) => setConsented(event.currentTarget.checked)}
-              />
-              <span>Save my PayPal Wallet for future recurring Go payments.</span>
-            </label>
-            {consented ? (
+            <div className="status-note">
+              <strong>Your recurring-payment terms</strong>
+              <p>{money(review.dueToday.cents)} due today. Renews at $10.00 monthly plus then-applicable tax on {boundary(review.renewsAt, review.timeZone)} ({review.timeZone}).</p>
+              <p>Wallet approval and authorization for future use are completed inside PayPal. Loading this region does not authorize payment, save your wallet or start your subscription.</p>
+            </div>
               <PayPalWalletButton
                 intentId={review.intentId}
                 quoteId={review.quoteId}
@@ -88,6 +102,7 @@ export function QuoteReview(props: Readonly<{
                 nonce={props.nonce}
                 operationId={operationId}
                 clientMetadataId={clientMetadataId}
+                expiresAt={review.expiresAt}
                 onOperationResolved={setOperationId}
                 onVerifying={() => setVerifying(true)}
                 onComplete={(next) => { setVerifying(false); setStatus(next); }}
@@ -103,7 +118,6 @@ export function QuoteReview(props: Readonly<{
                   });
                 }}
               />
-            ) : <p className="muted">Confirm consent to load the official PayPal control.</p>}
           </div>
         ) : null}
       </article>
@@ -123,7 +137,7 @@ export function QuoteReview(props: Readonly<{
           <p><span>Time zone</span><strong>{review.timeZone}</strong></p>
           <p><span>Evidence</span><strong>{review.pricingVersion} · {review.taxVersion}</strong></p>
         </div>
-        {props.stale ? (
+        {stale ? (
           <button className="primary-button" type="button" disabled={props.busy} onClick={props.onReplace}>
             {props.busy ? "Refreshing…" : "Refresh review"}
           </button>

@@ -6,6 +6,7 @@ import {
   classifyCaptureStatus,
   classifyCreateOrderError,
   classifyCreateOrderResponse,
+  renderPayPalControl,
 } from "./paypal-wallet-button.js";
 import { ApiRequestError } from "../../lib/api.js";
 
@@ -69,5 +70,42 @@ describe("PayPalWalletButton payment boundary", () => {
     [new ApiRequestError(409, "payment_not_available"), "failed"],
   ] as const)("classifies create exception %s as %s", (error, expected) => {
     expect(classifyCreateOrderError(error)).toBe(expected);
+  });
+});
+
+describe("official render lifecycle", () => {
+  it("does not signal ready until render fulfillment and closes on cleanup", async () => {
+    let resolve!: () => void;
+    const states: string[] = [];
+    let closed = 0;
+    const cleanup = renderPayPalControl({
+      isEligible: () => true,
+      render: () => new Promise<void>((done) => { resolve = done; }),
+      close: async () => { closed += 1; },
+    }, {} as HTMLElement, () => states.push("ready"), () => states.push("failed"));
+    expect(states).toEqual([]);
+    resolve();
+    await Promise.resolve();
+    expect(states).toEqual(["ready"]);
+    cleanup();
+    expect(closed).toBe(1);
+  });
+  it("ignores late render fulfillment after invalidation", async () => {
+    let resolve!: () => void;
+    const states: string[] = [];
+    const cleanup = renderPayPalControl({ isEligible: () => true,
+      render: () => new Promise<void>((done) => { resolve = done; }), close: async () => {},
+    }, {} as HTMLElement, () => states.push("ready"), () => states.push("failed"));
+    cleanup(); resolve(); await Promise.resolve();
+    expect(states).toEqual([]);
+  });
+  it.each(["ineligible", "rejected", "throws"])("contains %s preparation failure", async (failure) => {
+    const states: string[] = [];
+    const cleanup = renderPayPalControl({ isEligible: () => failure !== "ineligible",
+      render: () => { if (failure === "throws") throw new Error("private"); return Promise.reject(new Error("private")); },
+      close: async () => {},
+    }, {} as HTMLElement, () => states.push("ready"), () => states.push("failed"));
+    await Promise.resolve(); await Promise.resolve();
+    expect(states).toEqual(["failed"]); cleanup();
   });
 });
