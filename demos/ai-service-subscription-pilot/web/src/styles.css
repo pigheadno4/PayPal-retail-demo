@@ -623,6 +623,45 @@ button:disabled {
   padding-block: clamp(36px, 7vw, 80px);
 }
 
+.payment-method {
+  grid-column: 1 / -1;
+  padding: clamp(24px, 4vw, 32px);
+  border-radius: 20px;
+}
+.payment-method h2 { margin-top: 0; }
+.payment-method p { max-width: 72ch; }
+.payment-method button, .wallet-dialog button {
+  min-height: 44px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.payment-method button.wallet-danger, .wallet-dialog button.wallet-danger {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive);
+}
+.wallet-dialog {
+  width: min(510px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px;
+  color: var(--foreground);
+  background: var(--card);
+}
+.wallet-dialog::backdrop { background: #0009; }
+.wallet-dialog h2 { font-size: 1.6rem; }
+.wallet-notice { background: var(--secondary); border-radius: 12px; padding: 16px; }
+.wallet-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.wallet-actions button { flex: 1; }
+.wallet-dialog button:focus-visible, .payment-method button:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+
 .workspace-conversation,
 .allowance-card,
 .action-confirmation,

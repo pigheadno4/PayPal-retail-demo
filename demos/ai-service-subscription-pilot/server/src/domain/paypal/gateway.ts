@@ -22,6 +22,7 @@ export class PayPalDefinitiveError extends Error {
 }
 
 export interface PayPalGateway {
+  deletePaymentToken(input: Readonly<{ paymentTokenId: string }>): Promise<void>;
   createUserIdToken(input: Readonly<{
     merchantCustomerReference: string;
     targetCustomerId?: string;

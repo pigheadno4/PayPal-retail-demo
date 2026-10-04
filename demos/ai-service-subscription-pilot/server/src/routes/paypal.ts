@@ -1,4 +1,5 @@
 import { Router, type Response } from "express";
+import { z } from "zod";
 
 import {
   capturePayPalOrderRequestSchema,
@@ -7,6 +8,10 @@ import {
   paypalCheckoutStatusSchema,
   paypalIdTokenRequestSchema,
   paypalIdTokenResponseSchema,
+  paypalWalletResponseSchema,
+  removePayPalWalletRequestSchema,
+  type PayPalWallet,
+  type PayPalWalletResponse,
   type CapturePayPalOrderRequest,
   type CreatePayPalOrderRequest,
   type CreatePayPalOrderResponse,
@@ -22,6 +27,8 @@ import {
 
 type PayPalRouterDependencies = Readonly<{
   verifyToken: VerifyToken;
+  readWallet(identity: VerifiedIdentity): Promise<PayPalWalletResponse>;
+  removeWallet(identity: VerifiedIdentity, methodId: string): Promise<PayPalWallet>;
   issueIdToken(identity: VerifiedIdentity, input: PayPalIdTokenRequest): Promise<PayPalIdTokenResponse>;
   createOrder(identity: VerifiedIdentity, input: CreatePayPalOrderRequest): Promise<CreatePayPalOrderResponse>;
   captureOrder(
@@ -74,6 +81,22 @@ export function createPayPalRouter(dependencies: PayPalRouterDependencies): Rout
     void run(response, async () => paypalIdTokenResponseSchema.parse(
       await dependencies.issueIdToken(response.locals.auth, input.data),
     ));
+  });
+
+  router.get("/paypal/wallet", authenticated, (_request, response) => {
+    void run(response, async () => paypalWalletResponseSchema.parse(await dependencies.readWallet(response.locals.auth)));
+  });
+
+  router.post("/paypal/wallet/:methodId/remove", authenticated, (request, response) => {
+    const input = removePayPalWalletRequestSchema.safeParse(request.body);
+    const methodId = z.uuid().safeParse(request.params.methodId);
+    if (!input.success || !methodId.success) {
+      response.status(400).json({ error: { code: "invalid_request" } });
+      return;
+    }
+    void run(response, async () => paypalWalletResponseSchema.parse({
+      wallet: await dependencies.removeWallet(response.locals.auth, methodId.data),
+    }), (result) => result.wallet?.state === "removed" ? 200 : result.wallet?.state === "rejected" ? 409 : 202);
   });
 
   router.post("/paypal/orders", authenticated, (request, response) => {

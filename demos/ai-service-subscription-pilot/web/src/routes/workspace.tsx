@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { PaymentMethod } from "../components/workspace/payment-method.js";
 
 import type {
   AccountUsageSummary,
@@ -43,6 +44,7 @@ export function WorkspaceView(props: Readonly<{
   onSelectPrompt: (prompt: PromptKey) => void;
   onChooseAnother: () => void;
   onGenerate: () => void;
+  paymentMethod?: ReactNode;
 }>) {
   return (
     <main className="workspace-main">
@@ -77,6 +79,7 @@ export function WorkspaceView(props: Readonly<{
         {props.error ? <p className="error-note" role="alert">{props.error}</p> : null}
       </section>
       <AllowanceCard summary={props.summary} />
+      {props.paymentMethod}
     </main>
   );
 }
@@ -183,6 +186,7 @@ export function WorkspaceRoute() {
       onSelectPrompt={setSelectedPrompt}
       onChooseAnother={() => { setSelectedPrompt(null); setOutcome(null); setError(null); }}
       onGenerate={() => void generate()}
+      paymentMethod={token ? <PaymentMethod token={token} /> : null}
     />
   );
 }

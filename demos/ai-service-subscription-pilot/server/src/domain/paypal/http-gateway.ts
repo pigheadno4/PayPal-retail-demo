@@ -121,7 +121,7 @@ export class HttpPayPalGateway implements PayPalGateway {
     this.apiBase = config.environment === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
   }
 
-  private async oauthToken(responseType?: "id_token", targetCustomerId?: string) {
+  private async oauthToken(responseType?: "id_token", targetCustomerId?: string, signal?: AbortSignal) {
     const body = new URLSearchParams({ grant_type: "client_credentials" });
     if (responseType) body.set("response_type", responseType);
     if (targetCustomerId) body.set("target_customer_id", targetCustomerId);
@@ -133,6 +133,7 @@ export class HttpPayPalGateway implements PayPalGateway {
       },
       body,
       cache: "no-store",
+      signal,
     });
     if (!response.ok) throwForProviderResponse(response);
     const result = record(await response.json());
@@ -146,6 +147,28 @@ export class HttpPayPalGateway implements PayPalGateway {
     if (!input.merchantCustomerReference) throw new Error("paypal_unavailable");
     const result = await this.oauthToken("id_token", input.targetCustomerId);
     return result.idToken!;
+  }
+
+  async deletePaymentToken(input: { paymentTokenId: string }): Promise<void> {
+    const signal = AbortSignal.timeout(15_000);
+    // OAuth and DELETE share one bounded operation; never retry an uncertain deletion.
+    let accessToken: string;
+    try {
+      accessToken = (await this.oauthToken(undefined, undefined, signal)).accessToken;
+    } catch {
+      throw new Error("paypal_unavailable");
+    }
+    let response: Response;
+    try {
+      response = await this.request(`${this.apiBase}/v3/vault/payment-tokens/${encodeURIComponent(input.paymentTokenId)}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
+      });
+    } catch {
+      throw new Error("paypal_unavailable");
+    }
+    if (response.status === 204) return;
+    if (response.status === 400 || response.status === 403) throw new PayPalDefinitiveError();
+    throw new Error("paypal_unavailable");
   }
 
   async createOrder(input: { payload: PayPalOrderPayload; requestId: string; clientMetadataId: string }) {

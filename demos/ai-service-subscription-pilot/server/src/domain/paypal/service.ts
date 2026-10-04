@@ -478,24 +478,27 @@ export class PostgresPayPalRepository implements PayPalRepository {
       if (!customer || customer.provider_customer_id !== evidence.paypalCustomerId) throw new Error("provider_customer_conflict");
 
       let paymentMethodId: string | null = null;
+      let reusableReadiness: "ready" | "pending" | "failed" = "pending";
       if (evidence.vaultStatus === "VAULTED") {
         if (!evidence.vaultId) throw new Error("capture_mismatch");
         await tx`
           update app_private.payment_methods set is_primary = false, updated_at = now()
           where provider_customer_id = ${customer.id} and is_primary
         `;
-        const methods = await tx<{ id: string }[]>`
+        const methods = await tx<{ id: string; removal_state: string }[]>`
           insert into app_private.payment_methods
             (public_id, provider_customer_id, merchant_id, environment, provider_vault_id, display_brand, readiness, is_primary)
           values
             (${randomUUID()}, ${customer.id}, ${locked.merchantId}, ${locked.environment}, ${evidence.vaultId}, 'PayPal Wallet', 'ready', true)
           on conflict on constraint payment_methods_vault_owner_unique do update
-            set readiness = 'ready', is_primary = true, updated_at = now()
+            set readiness = case when app_private.payment_methods.removal_state = 'none' then 'ready' else 'failed' end,
+                is_primary = (app_private.payment_methods.removal_state = 'none'), updated_at = now()
             where app_private.payment_methods.provider_customer_id = excluded.provider_customer_id
-          returning id
+          returning id, removal_state
         `;
         if (!methods[0]) throw new Error("vault_ownership_conflict");
         paymentMethodId = methods[0].id;
+        reusableReadiness = methods[0].removal_state === "none" ? "ready" : "failed";
       }
 
       await tx`
@@ -531,7 +534,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
            tier, cadence, funding_status, reusable_readiness, entitlement_status, renewal_at, allowance_resets_at)
         select ${randomUUID()}, ${locked.accountId.toString()}, o.checkout_intent_id, o.quote_id, o.id,
                ${paymentMethodId}, 'go', 'monthly', 'verified',
-               ${evidence.vaultStatus === "VAULTED" ? "ready" : "pending"}, 'pending', q.renews_at, q.allowance_resets_at
+               ${reusableReadiness}, 'pending', q.renews_at, q.allowance_resets_at
         from app_private.payment_operations o join app_private.quotes q on q.id = o.quote_id
         where o.id = ${locked.internalId.toString()}
         on conflict (payment_operation_id) do update
@@ -541,7 +544,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
       `;
       const billingArrangementId = arrangements[0]?.public_id;
       if (!billingArrangementId) throw new Error("payment_state_conflict");
-      const readiness = evidence.vaultStatus === "VAULTED" ? "ready" as const : "pending" as const;
+      const readiness = reusableReadiness;
       return Object.freeze({
         operationId: locked.operationId,
         paymentOperationId: locked.operationId,
@@ -551,7 +554,8 @@ export class PostgresPayPalRepository implements PayPalRepository {
         reusableReadiness: readiness,
         customerMessage: readiness === "ready"
           ? "PayPal Wallet is ready for future recurring payments."
-          : "Payment verified. Reusable payment setup is finishing.",
+          : readiness === "failed" ? "Payment verified. This saved wallet is not available for future payments."
+            : "Payment verified. Reusable payment setup is finishing.",
       });
     });
   }

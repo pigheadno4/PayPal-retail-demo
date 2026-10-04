@@ -2,6 +2,19 @@ import { z } from "zod";
 
 const uuid = z.uuid();
 
+export const removePayPalWalletRequestSchema = z.object({ confirmed: z.literal(true) }).strict();
+export const paypalWalletSchema = z.object({
+  methodId: uuid,
+  brand: z.literal("PayPal Wallet"),
+  lastFour: z.string().regex(/^\d{4}$/).optional(),
+  state: z.enum(["ready", "removing", "removed", "rejected", "unknown"]),
+  renewalReady: z.boolean(),
+  paidThrough: z.iso.datetime(),
+}).strict().refine((wallet) => wallet.state === "ready" || !wallet.renewalReady);
+export const paypalWalletResponseSchema = z.object({ wallet: paypalWalletSchema.nullable() }).strict();
+export type PayPalWallet = Readonly<z.infer<typeof paypalWalletSchema>>;
+export type PayPalWalletResponse = Readonly<z.infer<typeof paypalWalletResponseSchema>>;
+
 export const paypalIdTokenRequestSchema = z.object({
   intentId: uuid,
   quoteId: uuid,

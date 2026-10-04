@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as contracts from "./paypal.js";
 
 import {
   createPayPalOrderRequestSchema,
@@ -51,5 +52,19 @@ describe("TASK-0008 shared PayPal boundary", () => {
     expect(result).toMatchObject({ funding: "verified", reusableReadiness: "pending" });
     expect(result).not.toHaveProperty("allowance");
     expect(result).not.toHaveProperty("entitlement");
+  });
+});
+
+describe("wallet management privacy contract", () => {
+  it("requires explicit confirmation and rejects extra provider identifiers", () => {
+    expect(contracts.removePayPalWalletRequestSchema?.safeParse({ confirmed: true }).success).toBe(true);
+    expect(contracts.removePayPalWalletRequestSchema?.safeParse({ confirmed: false }).success).toBe(false);
+    expect(contracts.removePayPalWalletRequestSchema?.safeParse({ confirmed: true, vaultId: "private" }).success).toBe(false);
+  });
+  it("rejects provider tokens and renewal readiness on blocked wallets", () => {
+    const wallet = { methodId: "11111111-1111-4111-8111-111111111111", brand: "PayPal Wallet", state: "removed", renewalReady: false, paidThrough: "2026-11-01T00:00:00.000Z" };
+    expect(contracts.paypalWalletSchema?.safeParse(wallet).success).toBe(true);
+    expect(contracts.paypalWalletSchema?.safeParse({ ...wallet, vaultId: "private" }).success).toBe(false);
+    expect(contracts.paypalWalletSchema?.safeParse({ ...wallet, renewalReady: true }).success).toBe(false);
   });
 });

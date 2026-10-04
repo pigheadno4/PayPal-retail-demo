@@ -12,6 +12,7 @@ import type {
   PayPalCheckoutStatus,
   PayPalIdTokenResponse,
 } from "../../../shared/src/paypal.js";
+import { paypalWalletResponseSchema, type PayPalWalletResponse } from "../../../shared/src/paypal.js";
 import type {
   AccountUsageSummary,
   GenerateAnswerOutcome,
@@ -51,6 +52,15 @@ function bearer(token: string): HeadersInit {
 }
 
 export const demoApi = {
+  readPayPalWallet: async (token: string): Promise<PayPalWalletResponse> => paypalWalletResponseSchema.parse(await requestJson("/api/v1/paypal/wallet", { headers: bearer(token) })),
+  removePayPalWallet: async (methodId: string, token: string): Promise<PayPalWalletResponse> => {
+    const response = await fetch(`/api/v1/paypal/wallet/${encodeURIComponent(methodId)}/remove`, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { ...bearer(token), "Content-Type": "application/json" }, body: JSON.stringify({ confirmed: true }),
+    });
+    if (![200, 202, 409].includes(response.status)) throw new ApiRequestError(response.status);
+    return paypalWalletResponseSchema.parse(await response.json());
+  },
   createIntent: () => requestJson<CreateCheckoutIntentResponse>("/api/v1/checkout-intents", {
     method: "POST",
   }),

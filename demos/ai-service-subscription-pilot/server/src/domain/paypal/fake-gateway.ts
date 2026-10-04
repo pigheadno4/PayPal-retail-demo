@@ -19,6 +19,11 @@ const defaultEvidence: PayPalCaptureEvidence = {
 
 export class FakePayPalGateway implements PayPalGateway {
   readonly createdOrderId = "ORDER-REDACTED";
+  readonly deleteInputs: Array<{ paymentTokenId: string }> = [];
+
+  async deletePaymentToken(input: { paymentTokenId: string }) {
+    this.deleteInputs.push(input);
+  }
   readonly userTokenInputs: Array<{ merchantCustomerReference: string; targetCustomerId?: string }> = [];
   readonly createInputs: Array<{ payload: PayPalOrderPayload; requestId: string; clientMetadataId: string }> = [];
   readonly captureInputs: Array<{ orderId: string; requestId: string }> = [];

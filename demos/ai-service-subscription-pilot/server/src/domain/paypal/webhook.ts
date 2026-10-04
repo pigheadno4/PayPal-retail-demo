@@ -145,7 +145,9 @@ export class PostgresPayPalWebhookRepository implements PayPalWebhookRepository 
           insert into app_private.payment_methods (public_id, provider_customer_id, merchant_id, environment, provider_vault_id, display_brand, readiness, is_primary)
           values (${randomUUID()}, ${rows[0].provider_customer_id}, ${input.merchantId}, ${input.environment}, ${input.vaultId}, 'PayPal Wallet', 'ready', true)
           on conflict on constraint payment_methods_vault_owner_unique do update set readiness = 'ready', is_primary = true, updated_at = now()
-          where app_private.payment_methods.provider_customer_id = excluded.provider_customer_id returning id
+          where app_private.payment_methods.provider_customer_id = excluded.provider_customer_id
+            and app_private.payment_methods.removal_state = 'none'
+          returning id
         `;
         if (!methods[0]) throw new Error("paypal_promotion_conflict");
         await tx`update app_private.payment_operations set vault_status = 'vaulted', vault_verified_at = ${new Date(input.occurredAt)}, updated_at = now() where id = ${input.operation.operationInternalId.toString()} and vault_status = 'pending'`;

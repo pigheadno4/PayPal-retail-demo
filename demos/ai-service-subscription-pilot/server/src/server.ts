@@ -29,6 +29,7 @@ import {
   requireCurrentQuoteForPayment,
 } from "./domain/quote/service.js";
 import { HttpPayPalGateway } from "./domain/paypal/http-gateway.js";
+import { PostgresPayPalWalletRepository, removePayPalWallet } from "./domain/paypal/wallet-management.js";
 import {
   captureAndReconcilePayPalOrder,
   createPayPalOrder,
@@ -138,6 +139,20 @@ apiRouter.use(createQuotesRouter({
 }));
 apiRouter.use(createPayPalRouter({
   verifyToken,
+  readWallet: async (identity) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    return { wallet: await new PostgresPayPalWalletRepository(sql).readOwnedWallet({ accountId, merchantId: capability.merchantId, environment: capability.environment }) };
+  },
+  removeWallet: async (identity, methodId) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    return removePayPalWallet({ accountId, merchantId: capability.merchantId, environment: capability.environment }, methodId, {
+      repository: new PostgresPayPalWalletRepository(sql), gateway: new HttpPayPalGateway(capability),
+    });
+  },
   issueIdToken: async (identity, input) => {
     const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
     if (!accountId) throw new Error("payment_not_found");

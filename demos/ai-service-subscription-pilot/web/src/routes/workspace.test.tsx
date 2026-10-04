@@ -17,6 +17,12 @@ const props = {
 };
 
 describe("WorkspaceView", () => {
+  it("places independent payment management beside paid workspace content", () => {
+    const html = renderToStaticMarkup(<WorkspaceView {...props} paymentMethod={<section>Payment method fixture</section>} />);
+    expect(html).toContain("Payment method fixture");
+    expect(html).toContain("100 units available");
+    expect(html).toContain("#Generate Answer");
+  });
   it("shows the approved Go prompts without changing the 100-unit allowance", () => {
     const html = renderToStaticMarkup(<WorkspaceView {...props} />);
     expect(html).toContain("mobile-allowance-strip");

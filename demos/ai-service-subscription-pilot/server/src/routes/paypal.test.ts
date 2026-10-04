@@ -21,6 +21,8 @@ function app(overrides: Record<string, unknown> = {}) {
       fraudNet: { sourceId: "AI_SERVICE_STUDIO_CHECKOUT", sandbox: true },
     }),
     createOrder: vi.fn().mockResolvedValue({ status: "ready", operationId, orderId: "ORDER-REDACTED" }),
+    readWallet: vi.fn().mockResolvedValue({ wallet: null }),
+    removeWallet: vi.fn().mockResolvedValue({ methodId: operationId, brand: "PayPal Wallet", state: "removed", renewalReady: false, paidThrough: "2026-11-01T00:00:00.000Z" }),
     captureOrder: vi.fn().mockResolvedValue({
       operationId,
       funding: "verified",
@@ -35,6 +37,36 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PayPal API routes", () => {
+  it("protects wallet read/removal and requires explicit strict UUID confirmation", async () => {
+    const { server, dependencies } = app();
+    expect((await request(server).get("/paypal/wallet")).status).toBe(401);
+    expect((await request(server).post(`/paypal/wallet/${operationId}/remove`).send({ confirmed: true })).status).toBe(401);
+    for (const [id, body] of [["vault-token", { confirmed: true }], [operationId, { confirmed: false }], [operationId, { confirmed: true, merchantId: "external" }]]) {
+      expect((await request(server).post(`/paypal/wallet/${id}/remove`).set("Authorization", "Bearer verified").send(body)).status).toBe(400);
+    }
+    expect(dependencies.removeWallet).not.toHaveBeenCalled();
+    expect(dependencies.createOrder).not.toHaveBeenCalled();
+    expect(dependencies.captureOrder).not.toHaveBeenCalled();
+    const read = await request(server).get("/paypal/wallet").set("Authorization", "Bearer verified");
+    expect(read.status).toBe(200);
+    expect(read.body).toEqual({ wallet: null });
+    expect(read.headers["cache-control"]).toBe("private, no-store");
+  });
+  it.each([["removed", 200], ["removing", 202], ["unknown", 202], ["rejected", 409]])("preserves %s removal outcome as HTTP %i", async (state, status) => {
+    const { server, dependencies } = app({ removeWallet: vi.fn().mockResolvedValue({ methodId: operationId, brand: "PayPal Wallet", state, renewalReady: false, paidThrough: "2026-11-01T00:00:00.000Z" }) });
+    const result = await request(server).post(`/paypal/wallet/${operationId}/remove`).set("Authorization", "Bearer verified").send({ confirmed: true });
+    expect(result.status).toBe(status);
+    expect(result.body.wallet.state).toBe(state);
+    expect(result.headers["cache-control"]).toBe("private, no-store");
+    expect(dependencies.createOrder).not.toHaveBeenCalled();
+    expect(dependencies.captureOrder).not.toHaveBeenCalled();
+  });
+  it("returns a safe 404 on wallet ownership denial", async () => {
+    const { server } = app({ removeWallet: vi.fn().mockRejectedValue(new Error("payment_not_found")) });
+    const result = await request(server).post(`/paypal/wallet/${operationId}/remove`).set("Authorization", "Bearer verified").send({ confirmed: true });
+    expect(result.status).toBe(404);
+    expect(result.body).toEqual({ error: { code: "not_found" } });
+  });
   it.each(["/paypal/id-token", "/paypal/orders", "/paypal/orders/ORDER-REDACTED/capture"])("preserves sanitized stale quote rejection at %s", async (path) => {
     const deny = async () => { throw new QuoteConflictError(); };
     const { server } = app({ issueIdToken: deny, createOrder: deny, captureOrder: deny });
