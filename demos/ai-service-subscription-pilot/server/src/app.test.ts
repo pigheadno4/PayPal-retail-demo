@@ -126,8 +126,18 @@ describe("createApp", () => {
       "frame-src https://www.paypal.com https://c.paypal.com",
     );
     expect(first.headers["content-security-policy"].match(/frame-src [^;]+/)?.[0]).toBe(
-      "frame-src https://www.paypal.com https://c.paypal.com",
+      "frame-src https://www.paypal.com https://c.paypal.com https://www.sandbox.paypal.com https://c.sandbox.paypal.com",
     );
+    expect(first.headers["content-security-policy"]).toBe([
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com`,
+      `style-src 'self' 'nonce-${nonce}' https://www.paypal.com https://www.paypalobjects.com`,
+      "img-src 'self' data: https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://b.stats.paypal.com",
+      "frame-src https://www.paypal.com https://c.paypal.com https://www.sandbox.paypal.com https://c.sandbox.paypal.com",
+      "connect-src 'self' https://www.paypal.com https://www.paypalobjects.com https://c.paypal.com https://supabase-secret.example.test",
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join("; "));
     expect(first.headers["content-security-policy"]).not.toContain("unsafe-inline");
     expect(second.text).not.toContain(`content="${nonce}"`);
   });
