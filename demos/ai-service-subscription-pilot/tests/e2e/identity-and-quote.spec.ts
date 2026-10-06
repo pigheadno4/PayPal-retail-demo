@@ -13,12 +13,12 @@ const evidenceDirectory = resolve("/private/tmp/task0005-email-only-local");
 mkdirSync(evidenceDirectory, { recursive: true });
 
 const forbiddenRequests = new WeakMap<Page, string[]>();
-test.beforeEach(async ({ page, context }) => {
+test.beforeEach(async ({ page, context, baseURL }) => {
   const forbidden: string[] = [];
   forbiddenRequests.set(page, forbidden);
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (/^\/api\/v1\/(demo-sessions|paypal|usage|me\/activation)(?:\/|$)/.test(url.pathname)) {
+    if (/^\/api\/v1\/(demo-sessions|paypal\/(orders|wallet)|usage|me\/activation)(?:\/|$)/.test(url.pathname)) {
       forbidden.push("forbidden_identity_operation");
     }
   });
@@ -26,11 +26,15 @@ test.beforeEach(async ({ page, context }) => {
   // stops here rather than reaching a real provider or the local database.
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
-    if (url.origin !== "http://127.0.0.1:3000" || /^\/(api|webhooks)(?:\/|$)/.test(url.pathname)) {
+    if (url.origin !== new URL(baseURL??"http://127.0.0.1:3000").origin || /^\/(api|webhooks)(?:\/|$)/.test(url.pathname)) {
       forbidden.push("unmocked_request");
       await route.abort();
     } else await route.continue();
   });
+  // Approved checkbox-free TASK-0009 preparation is non-paying; all loaders are synthetic.
+  await page.route("**/api/v1/paypal/id-token",route=>route.fulfill({json:{idToken:"synthetic-no-provider",fraudNet:{sourceId:"AI_SERVICE_STUDIO_CHECKOUT",sandbox:true}}}));
+  await page.route("https://c.paypal.com/da/r/fb.js",route=>route.fulfill({contentType:"application/javascript",body:"void 0;"}));
+  await page.route("https://www.paypal.com/sdk/js**",route=>route.fulfill({contentType:"application/javascript",body:"window.paypal={Buttons:()=>({isEligible:()=>true,render:async container=>{const b=document.createElement('button');b.textContent='Simulated provider control';b.className='primary-button';container.append(b);},close:async()=>{}})};"}));
 });
 test.afterEach(async ({ page }) => {
   expect(forbiddenRequests.get(page)).toEqual([]);
@@ -132,7 +136,7 @@ test("TC-0002 selection and persistent Supabase identity resume the same intent"
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
   page.on("request", (request) => {
-    if (/paypal|stripe/i.test(request.url())) providerRequests.push(request.url());
+    if (/\/api\/v1\/paypal\/(orders|wallet)|stripe/i.test(request.url())) providerRequests.push(request.url());
   });
 
   await installSelection(page);
@@ -169,8 +173,8 @@ test("TC-0002 selection and persistent Supabase identity resume the same intent"
   await page.getByRole("button", { name: "Verify and review" }).click();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   await expect(page.getByText("$5.53", { exact: true })).toBeVisible();
-  await expect(page.getByText("Save my PayPal Wallet for future recurring Go payments.")).toBeVisible();
-  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await expect(page.getByText("Your recurring-payment terms")).toBeVisible();
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
   if (testInfo.project.name === "chromium") {
@@ -334,7 +338,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Verify and review" }).click();
     await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
     await expect(page.getByText("$5.53", { exact: true })).toBeVisible();
-    await expect(page.getByRole("checkbox")).not.toBeChecked();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
     await capture("review");
     expect(requests).toBe(2);
   });
@@ -407,3 +411,4 @@ test("manual light selection overrides dark-OS body and evidence surfaces", asyn
 test.skip("@hosted originating-session isolation", async () => {
   // Requires an orchestrator-supplied Render URL and configured Supabase Send Email Hook.
 });
+import "./support/task0011-browser-network.js";

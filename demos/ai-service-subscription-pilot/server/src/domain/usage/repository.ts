@@ -68,16 +68,19 @@ export class PostgresUsageRepository implements UsageRepository {
         funding_verified_at: Date | string;
         allowance_resets_at: Date | string;
       }[]>`
-        select b.id, p.funding_verified_at, b.allowance_resets_at
+        select b.id, coalesce(latest.window_starts_at,p.funding_verified_at) as funding_verified_at, b.allowance_resets_at
         from app_private.billing_arrangements b
         join app_private.accounts a on a.id = b.account_id
-        join app_private.payment_operations p on p.id = b.payment_operation_id
+        left join lateral(select window_starts_at,funding_payment_operation_id from app_private.allowance_windows where billing_arrangement_id=b.id order by window_starts_at desc,id desc limit 1) latest on true
+        join app_private.payment_operations p on p.id = coalesce(latest.funding_payment_operation_id,b.payment_operation_id)
         where a.auth_user_id = ${authUserId}
           and b.tier = 'go' and b.cadence = 'monthly'
           and b.funding_status = 'verified'
           and p.funding_status = 'completed'
           and p.funding_verified_at is not null
-          and p.funding_verified_at < b.allowance_resets_at
+          and coalesce(latest.window_starts_at,p.funding_verified_at) < b.allowance_resets_at
+          and b.allowance_resets_at > ${now}
+          and b.entitlement_status <> 'canceled'
         order by b.id desc
         limit 1
         for update of b
@@ -125,8 +128,11 @@ export class PostgresUsageRepository implements UsageRepository {
                   and p.funding_status = 'completed'
                   and p.funding_verified_at is not null
                   and p.account_id = b.account_id
-                  and p.checkout_intent_id = b.checkout_intent_id
-                  and p.quote_id = b.quote_id
+                  and ((w.funding_payment_operation_id is null
+                    and p.checkout_intent_id = b.checkout_intent_id and p.quote_id = b.quote_id)
+                    or (w.funding_payment_operation_id is not null
+                    and p.quote_id = w.funding_quote_id and p.reactivation_arrangement_id = b.id
+                    and p.reactivation_state = 'confirmed'))
                  then 'PayPal Wallet'
                  else null
                end as funding_source
@@ -134,7 +140,7 @@ export class PostgresUsageRepository implements UsageRepository {
         join app_private.allowance_windows w on w.id = u.allowance_window_id
         join app_private.billing_arrangements b on b.id = w.billing_arrangement_id
         join app_private.accounts a on a.id = b.account_id and a.id = u.account_id
-        left join app_private.payment_operations p on p.id = b.payment_operation_id
+        left join app_private.payment_operations p on p.id = coalesce(w.funding_payment_operation_id,b.payment_operation_id)
         where u.allowance_window_id = ${allowance.id}
           and a.auth_user_id = ${authUserId}
         order by u.created_at desc, u.id desc limit 20

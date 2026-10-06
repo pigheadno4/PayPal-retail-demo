@@ -88,3 +88,11 @@ export function createGoMonthlyQuote(
     locationKey: fixture.locationKey,
   });
 }
+
+export function createGoMonthlyReactivationQuote(clock: () => Date = () => new Date()) {
+  const initial = createGoMonthlyQuote(clock);
+  const taxCents = Math.round(initial.baseCents * initial.taxBasisPoints / 10_000);
+  return Object.freeze({ ...initial, promotionCents: 0, taxableSubtotalCents: initial.baseCents,
+    taxCents, totalCents: initial.baseCents + taxCents, pricingVersion: "go-monthly-reactivation-v1",
+    renewsAt: null, allowanceResetsAt: null });
+}

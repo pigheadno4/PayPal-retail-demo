@@ -7,9 +7,9 @@ async function fixture(page: Page, outcome: PayPalWallet["state"] = "removed", r
   let wallet = ready;
   let removals = 0;
   const paymentCalls: string[] = [];
-  await page.addInitScript(() => {
-    localStorage.setItem("sb-task0007-auth-token", JSON.stringify({ access_token: "task0010-local-fixture", refresh_token: "nonreusable-fixture", expires_at: 4102444800, expires_in: 86400, token_type: "bearer", user: { id: "fixture-user", aud: "authenticated", role: "authenticated" } }));
-  });
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, JSON.stringify({ access_token: "task0010-local-fixture", refresh_token: "nonreusable-fixture", expires_at: 4102444800, expires_in: 86400, token_type: "bearer", user: { id: "fixture-user", aud: "authenticated", role: "authenticated" } }));
+  },`sb-${new URL(process.env.VITE_SUPABASE_URL??"https://task0007.supabase.test").hostname.split('.')[0]}-auth-token`);
   await page.route("https://task0007.supabase.test/**", (route) => route.abort());
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -42,6 +42,10 @@ test("TC-0016/17 confirmation, safe focus, Escape/cancel and no payment", async 
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Confirm removal" })).toBeFocused();
   await page.keyboard.press("Tab");
+  // Native modal dialogs may pass through browser chrome when cycling forward.
+  // No background document control may gain focus during that transition.
+  const browserFocus = await page.evaluate(() => document.activeElement === document.body);
+  if (browserFocus) await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Keep wallet" })).toBeFocused();
   for (const button of await dialog.getByRole("button").all()) {
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -87,3 +91,4 @@ test("wallet read failure leaves paid workspace usable", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("Your paid workspace remains available");
   await expect(page.getByRole("button", { name: "Explain usage-based AI credits to a new customer." })).toBeEnabled();
 });
+import "./support/task0011-browser-network.js";

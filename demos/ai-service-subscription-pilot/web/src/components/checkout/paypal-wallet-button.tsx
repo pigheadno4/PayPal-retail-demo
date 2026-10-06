@@ -6,6 +6,7 @@ import type {
   CreatePayPalOrderResponse,
   PayPalCheckoutStatus,
   PayPalIdTokenResponse,
+  FraudNetBootstrap,
 } from "../../../../shared/src/paypal.js";
 import { ApiRequestError, demoApi } from "../../lib/api.js";
 
@@ -106,6 +107,21 @@ function measurePreparation(stage: "bootstrap" | "fraudnet" | "sdk" | "render") 
   };
 }
 
+function loadFraudNet(nonce:string,ready:()=>void,failed:()=>void){
+ const loader=document.createElement("script");loader.src="https://c.paypal.com/da/r/fb.js";loader.nonce=nonce;loader.async=true;let active=true;const finish=measurePreparation("fraudnet");
+ loader.onload=()=>{if(active&&finish("success"))ready();};loader.onerror=()=>{if(active&&finish("failure"))failed();};document.head.append(loader);
+ return()=>{active=false;finish("cancelled");loader.onload=null;loader.onerror=null;loader.remove();};
+}
+function FraudNetParameters({bootstrap,nonce,clientMetadataId}:{bootstrap:FraudNetBootstrap;nonce:string;clientMetadataId:string}){
+ const params={f:clientMetadataId,s:bootstrap.sourceId,sandbox:bootstrap.sandbox};
+ return <><script type="application/json" nonce={nonce} {...({fncls:"fnparams-dede7cc5-15fd-4c75-a9f4-36c430ee3a99"} as Record<string,string>)} dangerouslySetInnerHTML={{__html:JSON.stringify(params).replaceAll("<","\\u003c")}}/><noscript>{createElement("img",{alt:"",width:1,height:1,src:`https://c.paypal.com/v1/r/d/b/ns?f=${clientMetadataId}&s=${encodeURIComponent(params.s)}&js=0&r=1`})}</noscript></>;
+}
+export function FraudNetPreparation(props:{bootstrap:FraudNetBootstrap;nonce:string;clientMetadataId:string;onReady():void;onFailure():void}) {
+ const callbacks=useRef(props);useEffect(()=>{callbacks.current=props;},[props]);
+ useEffect(()=>loadFraudNet(props.nonce,()=>callbacks.current.onReady(),()=>callbacks.current.onFailure()),[props.nonce,props.clientMetadataId,props.bootstrap.sourceId,props.bootstrap.sandbox]);
+ return <FraudNetParameters {...props}/>;
+}
+
 function OfficialControl(props: Readonly<{ options: PayPalButtonsComponentOptions; ready: () => void; failed: () => void; expiresAt: string }>) {
   const [{ isResolved, isRejected, options }] = usePayPalScriptReducer();
   const scriptId = options["data-react-paypal-script-id"];
@@ -194,16 +210,7 @@ function PayPalPreparation(props: Props) {
 
   useEffect(() => {
     if (!bootstrap || error) return;
-    const loader = document.createElement("script");
-    loader.src = "https://c.paypal.com/da/r/fb.js";
-    loader.nonce = props.nonce;
-    loader.async = true;
-    let active = true;
-    const finish = measurePreparation("fraudnet");
-    loader.onload = () => { if (active && finish("success")) setFraudNetReady(true); };
-    loader.onerror = () => { if (active && finish("failure")) setError("PayPal checkout could not load."); };
-    document.head.append(loader);
-    return () => { active = false; finish("cancelled"); loader.onload = null; loader.onerror = null; loader.remove(); };
+    return loadFraudNet(props.nonce,()=>setFraudNetReady(true),()=>setError("PayPal checkout could not load."));
   }, [bootstrap, props.nonce, error]);
 
   const params = bootstrap

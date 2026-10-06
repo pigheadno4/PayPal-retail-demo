@@ -54,6 +54,9 @@ import {
   readUsageSummary,
 } from "./domain/usage/service.js";
 import { createUsageRouter } from "./routes/usage.js";
+import { createReactivationRouter } from "./routes/reactivation.js";
+import { PostgresReactivationRepository } from "./domain/reactivation/repository.js";
+import { ReactivationService } from "./domain/reactivation/service.js";
 
 const config = parseBaseServerConfig(process.env);
 const sql = createDatabaseClient(config.databaseUrl);
@@ -63,6 +66,11 @@ const verifyToken = createSupabaseTokenVerifier(config);
 const usageRepository = new PostgresUsageRepository(sql);
 const usageDependencies = { repository: usageRepository, clock: () => new Date() };
 const runFixture = createDeterministicFixtureRunner();
+function recovery(){
+  const capability=requirePayPalConfig(process.env);
+  const repository=new PostgresReactivationRepository(sql,capability.merchantId,capability.environment);
+  return{repository,service:new ReactivationService(repository,new HttpPayPalGateway(capability),()=>new Date())};
+}
 const otpClient = createClient(config.supabaseUrl, config.supabasePublishableKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
@@ -210,6 +218,13 @@ apiRouter.use(createPayPalRouter({
       },
     );
   },
+}));
+apiRouter.use(createReactivationRouter({
+  verifyToken,
+  entry:(userId)=>recovery().repository.readEntry(userId,new Date()),
+  review:(userId,input)=>recovery().service.review(userId,input),
+  confirm:(userId,input)=>recovery().service.confirm(userId,input),
+  status:(userId,operationId)=>recovery().service.status(userId,operationId),
 }));
 apiRouter.use(createUsageRouter({
   verifyToken,

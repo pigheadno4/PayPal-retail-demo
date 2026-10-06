@@ -91,9 +91,10 @@ function collectUnexpectedConsoleErrors(page: Page) {
 }
 
 function expectOnlyBootstrapSummaryMiss(browserErrors: ReturnType<typeof collectUnexpectedConsoleErrors>) {
-  expect(browserErrors.failedResponses).toEqual(["404 /api/v1/me/summary"]);
+  expect(browserErrors.failedResponses).toEqual(["404 /api/v1/me/summary",`${process.env.TASK0011_LOCAL==="1"?409:404} /api/v1/me/reactivation`]);
   expect(browserErrors.errors).toEqual([
     "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    `Failed to load resource: the server responded with a status of ${process.env.TASK0011_LOCAL==="1"?"409 (Conflict)":"404 (Not Found)"}`,
   ]);
 }
 
@@ -199,3 +200,4 @@ test.describe("TASK-0004 local E2E from accepted handoff", () => {
     expectOnlyBootstrapSummaryMiss(browserErrors);
   });
 });
+import "./support/task0011-browser-network.js";

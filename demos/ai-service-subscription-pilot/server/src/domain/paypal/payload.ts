@@ -5,6 +5,10 @@ function decimal(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+export function buildSavedWalletOrder(review: Pick<CheckoutReview,"quoteId"|"dueToday"|"taxableSubtotal"|"tax">,token:string,reference:string):PayPalOrderPayload {
+  return Object.freeze({intent:"CAPTURE",payment_source:{paypal:{vault_id:token,stored_credential:{payment_initiator:"CUSTOMER",usage:"SUBSEQUENT"}}},purchase_units:[{reference_id:reference,custom_id:reference,amount:{currency_code:"USD",value:decimal(review.dueToday.cents),breakdown:{item_total:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)},tax_total:{currency_code:"USD",value:decimal(review.tax.cents)}}},items:[{name:"Go Monthly recovery",quantity:"1",category:"DIGITAL_GOODS",unit_amount:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)}}]}]});
+}
+
 export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayload {
   return Object.freeze({
     intent: "CAPTURE",

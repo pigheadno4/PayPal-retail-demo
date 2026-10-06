@@ -65,7 +65,7 @@ export class PostgresQuoteRepository implements QuoteRepository {
     const rows = await this.sql<QuoteRow[]>`
       select q.*, i.public_id as intent_public_id, i.account_id
       from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
-      where i.account_id = ${accountId.toString()} and i.public_id = ${intentId}
+      where i.purpose = 'initial' and i.account_id = ${accountId.toString()} and i.public_id = ${intentId}
         and q.public_id = ${quoteId} limit 1
     `;
     return rows[0] ? mapQuoteRow(rows[0]) : null;
@@ -75,7 +75,7 @@ export class PostgresQuoteRepository implements QuoteRepository {
     const rows = await this.sql<QuoteRow[]>`
       select q.*, i.public_id as intent_public_id, i.account_id
       from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
-      where q.supersedes_quote_id = ${internalId.toString()} limit 1
+      where i.purpose = 'initial' and q.supersedes_quote_id = ${internalId.toString()} limit 1
     `;
     return rows[0] ? mapQuoteRow(rows[0]) : null;
   }
@@ -84,7 +84,7 @@ export class PostgresQuoteRepository implements QuoteRepository {
     const rows = await this.sql<QuoteRow[]>`
       select q.*, i.public_id as intent_public_id, i.account_id
       from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
-      where i.account_id = ${accountId.toString()} and i.public_id = ${intentId}
+      where i.purpose = 'initial' and i.account_id = ${accountId.toString()} and i.public_id = ${intentId}
         and not exists (select 1 from app_private.quotes r where r.supersedes_quote_id = q.id)
       order by q.id desc limit 1
     `;
@@ -102,7 +102,7 @@ export class PostgresQuoteRepository implements QuoteRepository {
       const currentRows = await tx<QuoteRow[]>`
         select q.*, i.public_id as intent_public_id, i.account_id
         from app_private.quotes q join app_private.checkout_intents i on i.id = q.checkout_intent_id
-        where i.account_id = ${input.accountId.toString()} and i.public_id = ${input.intentId}
+        where i.purpose = 'initial' and i.account_id = ${input.accountId.toString()} and i.public_id = ${input.intentId}
           and q.public_id = ${input.currentQuoteId}
         limit 1 for update of q
       `;

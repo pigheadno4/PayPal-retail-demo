@@ -1,0 +1,12 @@
+import { z } from "zod";
+import { fraudNetBootstrapSchema } from "./paypal.js";
+const money = z.object({currency:z.literal("USD"),cents:z.number().int()}).strict();
+export const reactivationEntrySchema = z.object({state:z.literal("expired"),arrangementId:z.uuid(),paidThrough:z.iso.datetime(),timeZone:z.literal("America/Los_Angeles"),wallet:z.object({label:z.literal("Saved PayPal wallet"),eligible:z.boolean()}).strict(),canReview:z.boolean(),blocker:z.enum(["none","wallet_unavailable","payment_pending"])}).strict();
+export const reactivationReviewRequestSchema = z.object({arrangementId:z.uuid(),currentQuoteId:z.uuid().optional()}).strict();
+export const reactivationConfirmRequestSchema = z.object({arrangementId:z.uuid(),quoteId:z.uuid(),confirmed:z.literal(true),clientMetadataId:z.string().regex(/^[A-Za-z0-9_-]{32}$/)}).strict();
+export const reactivationReviewSchema = z.object({arrangementId:z.uuid(),intentId:z.uuid(),quoteId:z.uuid(),base:money,promotion:money,taxableSubtotal:money,tax:money,dueToday:money,taxVersion:z.string(),pricingVersion:z.literal("go-monthly-reactivation-v1"),expiresAt:z.iso.datetime(),timeZone:z.literal("America/Los_Angeles"),termStart:z.literal("verified_funding"),duration:z.literal("one_calendar_month"),includedUnits:z.literal(100),fraudNet:fraudNetBootstrapSchema}).strict();
+export const reactivationOutcomeSchema = z.object({operationId:z.uuid(),state:z.enum(["confirmed","pending","action_required","failed"]),term:z.object({startsAt:z.iso.datetime(),endsAt:z.iso.datetime(),timeZone:z.literal("America/Los_Angeles"),includedUnits:z.literal(100)}).strict().optional()}).strict().superRefine((value,ctx)=>{if((value.state==="confirmed")!==Boolean(value.term))ctx.addIssue({code:"custom",message:"funding_term_mismatch"});});
+export type ReactivationEntry = z.infer<typeof reactivationEntrySchema>;
+export type ReactivationReview = z.infer<typeof reactivationReviewSchema>;
+export type ReactivationConfirm = z.infer<typeof reactivationConfirmRequestSchema>;
+export type ReactivationOutcome = z.infer<typeof reactivationOutcomeSchema>;

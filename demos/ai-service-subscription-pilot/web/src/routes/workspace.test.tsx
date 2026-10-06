@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AccountUsageSummary, GenerateAnswerOutcome } from "../../../shared/src/usage.js";
-import { WorkspaceView, workspaceRestorationError } from "./workspace.js";
+import { WorkspaceView, workspaceRestorationError, restoreWorkspace } from "./workspace.js";
+import { demoApi } from "../lib/api.js";
 import { ApiRequestError } from "../lib/api.js";
 
 const summary = (reserved = 0, committed = 0): AccountUsageSummary => ({
@@ -16,6 +17,11 @@ const props = {
   summary: summary(), selectedPrompt: null, outcome: null, busy: false, error: null,
   onSelectPrompt: vi.fn(), onChooseAnother: vi.fn(), onGenerate: vi.fn(),
 };
+it("requires owned expired proof before rendering recovery and never activates it for free",async()=>{
+ const entry={state:"expired",arrangementId:"00000000-0000-4000-8000-000000000011",paidThrough:"2026-09-01T00:00:00Z",timeZone:"America/Los_Angeles",wallet:{label:"Saved PayPal wallet",eligible:true},canReview:true,blocker:"none"} as const;
+ const api={...demoApi,readUsageSummary:async()=>{throw new ApiRequestError(404,"not_found");},readReactivation:async()=>entry,activateGo:async()=>{throw new Error("expired_free_activation");}};
+ expect(await restoreWorkspace("synthetic",api)).toEqual(entry);
+});
 
 describe("workspace restoration errors", () => {
   it.each([

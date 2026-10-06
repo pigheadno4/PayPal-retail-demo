@@ -17,6 +17,12 @@ export type PayPalCaptureEvidence = Readonly<{
 
 export type PayPalTransmissionHeaders = Readonly<Record<string, string>>;
 
+export type SavedWalletFundingEvidence = Readonly<{orderId:string;captureId:string;captureStatus:"COMPLETED";amount:Money;payeeMerchantId:string;capturedAt:string;operationReference:string}>;
+export interface SavedWalletGateway {
+  createSavedWalletOrder(input:Readonly<{payload:PayPalOrderPayload;requestId:string;clientMetadataId:string}>):Promise<unknown>;
+  readSavedWalletOrder(orderId:string):Promise<unknown>;
+}
+
 export class PayPalDefinitiveError extends Error {
   constructor() { super("paypal_definitive_failure"); }
 }

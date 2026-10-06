@@ -84,8 +84,8 @@ const review = {
 
 async function stubProvider(page: Page, readiness: "pending" | "ready") {
   await page.route("**/*", (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.fallback() : route.abort());
-  await page.addInitScript(() => {
-    localStorage.setItem("sb-task0007-auth-token", JSON.stringify({
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, JSON.stringify({
       access_token: "redacted-e2e-access",
       refresh_token: "redacted-e2e-refresh",
       expires_at: 4_102_444_800,
@@ -93,7 +93,7 @@ async function stubProvider(page: Page, readiness: "pending" | "ready") {
       token_type: "bearer",
       user: { id: "44444444-4444-4444-8444-444444444444", aud: "authenticated", role: "authenticated", email: "customer@example.test" },
     }));
-  });
+  },`sb-${new URL(process.env.VITE_SUPABASE_URL??"https://task0007.supabase.test").hostname.split('.')[0]}-auth-token`);
   await page.route("**/api/v1/quotes?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(review) }));
   await page.route("**/api/v1/paypal/id-token", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ idToken: "ID-TOKEN-REDACTED", fraudNet: { sourceId: "AI_SERVICE_STUDIO_CHECKOUT", sandbox: true } }) }));
   await page.route("https://c.paypal.com/da/r/fb.js", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: "void 0;" }));
@@ -490,24 +490,26 @@ test("mounted quote and credential replacements invalidate late token and FraudN
   await page.goto("/");
   const loadedModules = await page.evaluate(() => performance.getEntriesByType("resource").map((entry) => entry.name));
   await page.clock.install({ time: new Date("2026-10-04T00:00:00Z") });
-  await page.evaluate(async ({ review, loadedModules }) => {
+  await page.evaluate(async ({ review, loadedModules,taskRuntime }) => {
     const reactPath = loadedModules.find((name) => /\/react\.js\?/.test(name));
     const clientPath = loadedModules.find((name) => /\/react-dom_client\.js\?/.test(name));
-    if (!reactPath || !clientPath) throw new Error("synthetic_runtime_modules_unavailable");
+    if (!taskRuntime&&(!reactPath || !clientPath)) throw new Error("synthetic_runtime_modules_unavailable");
     const componentPath = "/src/components/checkout/quote-review.tsx";
-    const React = (await import(reactPath)).default;
-    const { createRoot } = (await import(clientPath)).default;
-    const { QuoteReview } = await import(componentPath);
+    const taskPath="/assets/task0011-runtime.js";
+    const runtime=taskRuntime?await import(taskPath):null;
+    const React = runtime?.React??(await import(reactPath!)).default;
+    const { createRoot } = runtime??(await import(clientPath!)).default;
+    const { QuoteReview } = runtime??await import(componentPath);
     const host = document.createElement("div");
     host.id = "synthetic-mounted-review";
     document.body.appendChild(host);
     const root = createRoot(host);
     const target = window as unknown as { syntheticUpdate(change: Record<string, unknown>): void; syntheticUnmount(): void };
-    let props = { review, stale: false, busy: false, accessToken: "synthetic-first", nonce: "synthetic-nonce", onReplace: () => {} };
+    let props = { review, stale: false, busy: false, accessToken: "synthetic-first", nonce: document.querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')?.content??"synthetic-nonce", onReplace: () => {} };
     target.syntheticUpdate = (change) => { props = { ...props, ...change }; root.render(React.createElement(QuoteReview, props)); };
     target.syntheticUnmount = () => root.unmount();
     target.syntheticUpdate({});
-  }, { review, loadedModules });
+  }, { review, loadedModules,taskRuntime:process.env.TASK0011_LOCAL==="1" });
   await expect.poll(() => tokens.length).toBe(1);
   await page.evaluate(() => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ accessToken: "synthetic-second" }));
   await expect.poll(() => tokens.length).toBe(2);
@@ -588,3 +590,4 @@ test("unmounted pending SDK download cannot construct or ready a late control", 
   await expect(page.getByText("Secure PayPal checkout ready", { exact: true })).toHaveCount(0);
   await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js'],script[src='https://c.paypal.com/da/r/fb.js']")).toHaveCount(0);
 });
+import "./support/task0011-browser-network.js";

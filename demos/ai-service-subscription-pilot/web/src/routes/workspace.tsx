@@ -1,5 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { PaymentMethod } from "../components/workspace/payment-method.js";
+import type { ReactivationEntry } from "../../../shared/src/reactivation.js";
+import { ReactivationRecovery } from "../components/workspace/reactivation-review.js";
+
+export async function restoreWorkspace(token:string,api=demoApi):Promise<AccountUsageSummary|ReactivationEntry>{
+ try{return await api.readUsageSummary(token);}catch(error){
+  if(!(error instanceof ApiRequestError)||error.status!==404)throw error;
+  try{return await api.readReactivation(token);}catch(entryError){if(!(entryError instanceof ApiRequestError)||![404,409].includes(entryError.status))throw entryError;return api.activateGo(token);}
+ }
+}
 
 import type {
   AccountUsageSummary,
@@ -100,6 +109,8 @@ export function workspaceRestorationError(error: unknown): string {
 export function WorkspaceRoute() {
   const [summary, setSummary] = useState<AccountUsageSummary | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [expired,setExpired]=useState<ReactivationEntry|null>(null);
+  const [restoration,setRestoration]=useState(0);
   const [selectedPrompt, setSelectedPrompt] = useState<PromptKey | null>(null);
   const [outcome, setOutcome] = useState<GenerateAnswerOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,15 +122,11 @@ export function WorkspaceRoute() {
       try {
         const accessToken = await currentAccessToken();
         if (!accessToken) throw new ApiRequestError(401, "authentication_required");
-        let next: AccountUsageSummary;
-        try {
-          next = await demoApi.readUsageSummary(accessToken);
-        } catch (readError) {
-          if (!(readError instanceof ApiRequestError) || readError.status !== 404) throw readError;
-          next = await demoApi.activateGo(accessToken);
-        }
+        const next = await restoreWorkspace(accessToken);
         if (!active) return;
         setToken(accessToken);
+        if("state" in next){setExpired(next);return;}
+        setExpired(null);
         setSummary(next);
         const lastCommitted = next.operations.find((operation) => operation.state === "committed");
         if (lastCommitted) {
@@ -134,7 +141,9 @@ export function WorkspaceRoute() {
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [restoration]);
+
+  if(expired&&token)return <ReactivationRecovery entry={expired} token={token} onRecovered={()=>setRestoration(value=>value+1)}/>;
 
   if (!summary) {
     return <main className="route-status" aria-busy={!error}>{error ? <p role="alert">{error}</p> : <p>Restoring your Go workspace…</p>}</main>;

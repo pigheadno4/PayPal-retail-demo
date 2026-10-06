@@ -13,6 +13,7 @@ import type {
   PayPalIdTokenResponse,
 } from "../../../shared/src/paypal.js";
 import { paypalWalletResponseSchema, type PayPalWalletResponse } from "../../../shared/src/paypal.js";
+import { reactivationEntrySchema, reactivationReviewSchema, reactivationOutcomeSchema, type ReactivationConfirm } from "../../../shared/src/reactivation.js";
 import type {
   AccountUsageSummary,
   GenerateAnswerOutcome,
@@ -52,6 +53,10 @@ function bearer(token: string): HeadersInit {
 }
 
 export const demoApi = {
+  readReactivation: async(token:string)=>reactivationEntrySchema.parse(await requestJson("/api/v1/me/reactivation",{headers:bearer(token),cache:"no-store"})),
+  reviewReactivation: async(body:{arrangementId:string;currentQuoteId?:string},token:string)=>reactivationReviewSchema.parse(await requestJson("/api/v1/me/reactivation/review",{method:"POST",headers:bearer(token),body:JSON.stringify(body)})),
+  confirmReactivation: async(body:ReactivationConfirm,token:string)=>reactivationOutcomeSchema.parse(await requestJson("/api/v1/me/reactivation/confirm",{method:"POST",headers:bearer(token),body:JSON.stringify(body)})),
+  readReactivationOutcome: async(id:string,token:string)=>reactivationOutcomeSchema.parse(await requestJson(`/api/v1/me/reactivation/operations/${encodeURIComponent(id)}`,{headers:bearer(token),cache:"no-store"})),
   readPayPalWallet: async (token: string): Promise<PayPalWalletResponse> => paypalWalletResponseSchema.parse(await requestJson("/api/v1/paypal/wallet", { headers: bearer(token) })),
   removePayPalWallet: async (methodId: string, token: string): Promise<PayPalWalletResponse> => {
     const response = await fetch(`/api/v1/paypal/wallet/${encodeURIComponent(methodId)}/remove`, {
