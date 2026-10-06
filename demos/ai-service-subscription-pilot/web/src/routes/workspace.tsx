@@ -143,7 +143,7 @@ export function WorkspaceRoute() {
     return () => { active = false; };
   }, [restoration]);
 
-  if(expired&&token)return <ReactivationRecovery entry={expired} token={token} onRecovered={()=>setRestoration(value=>value+1)}/>;
+  if(expired&&token)return <ReactivationRecovery entry={expired} token={token} onRecovered={()=>{setExpired(null);setSummary(null);setRestoration(value=>value+1);}}/>;
 
   if (!summary) {
     return <main className="route-status" aria-busy={!error}>{error ? <p role="alert">{error}</p> : <p>Restoring your Go workspace…</p>}</main>;
