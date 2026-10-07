@@ -96,6 +96,66 @@ const review = {
 };
 
 for (const boundary of ["creation", "capture"] as const) {
+  test(`lifecycle follow-up retains the actual mounted control through deferred ${boundary} and contained settlement`, async ({ page }, testInfo) => {
+    await stubProvider(page, "ready");
+    const requests = { create: 0, capture: 0, external: 0 };
+    page.on("requestfailed", request => { if (!new URL(request.url()).hostname.includes("127.0.0.1")) requests.external++; });
+    await page.unroute("https://www.paypal.com/sdk/js**");
+    await page.route("https://www.paypal.com/sdk/js**", route => route.fulfill({ contentType: "application/javascript", body: `
+      window.lifecycle={constructed:0,closed:0,settled:0};
+      window.paypal={Buttons:(options)=>{window.lifecycle.constructed++;window.lifecycleOptions=options;return {
+        isEligible:()=>true,render:async(container)=>{const button=document.createElement('button');button.textContent='Pay with PayPal';button.style.minHeight='44px';
+          button.onclick=async()=>{try{const orderID=await options.createOrder();await options.onApprove({orderID});}catch(error){options.onError(error);}finally{window.lifecycle.settled++;}};container.appendChild(button);},
+        close:async()=>{window.lifecycle.closed++;}
+      }}};` }));
+    let deferredRoute: Route | undefined;
+    let operationId = "";
+    await page.route("**/api/v1/paypal/orders", route => {
+      requests.create++; operationId = route.request().postDataJSON().operationId;
+      if (boundary === "creation") { deferredRoute = route; return; }
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "ready", operationId, orderId: "SYNTHETIC" }) });
+    });
+    await page.route("**/api/v1/paypal/orders/*/capture", route => { requests.capture++; deferredRoute = route; });
+    await page.goto(`/checkout/${INTENT_ID}`);
+    await loadProviderControl(page);
+    await page.evaluate(() => { (window as unknown as { lifecycleScript: Element | null }).lifecycleScript = document.querySelector('script[src*="paypal.com/sdk/js"]'); });
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect.poll(() => Boolean(deferredRoute)).toBe(true);
+    if (boundary === "capture") {
+      await expect(page.getByRole("heading", { name: "Verifying payment…" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Pay with PayPal" })).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath(`${testInfo.project.name}-lifecycle-capture-verifying.png`), fullPage: true });
+    }
+    const counters = () => page.evaluate(() => {
+      const target = window as unknown as { lifecycle: { constructed: number; closed: number; settled: number }; lifecycleScript: Element };
+      return { ...target.lifecycle, sameScript: target.lifecycleScript === document.querySelector('script[src*="paypal.com/sdk/js"]') };
+    });
+    expect(await counters()).toEqual({ constructed: 1, closed: 0, settled: 0, sameScript: true });
+    await page.locator(".icon-button").click();
+    expect(await counters()).toEqual({ constructed: 1, closed: 0, settled: 0, sameScript: true });
+    await deferredRoute!.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(boundary === "creation"
+      ? { status: "in_progress", operationId, retryable: true }
+      : { operationId, funding: "pending", reusableReadiness: "pending", customerMessage: "Payment verification is still in progress." }) });
+    await expect(page.getByRole("heading", { name: boundary === "creation" ? "PayPal order creation is unconfirmed" : "Confirming your payment" })).toBeVisible();
+    await expect.poll(counters).toEqual({ constructed: 1, closed: 0, settled: 1, sameScript: true });
+    await expect(page.locator(".review-layout").locator("..")).toHaveAttribute("inert", "");
+    await expect(page.locator(".review-layout")).toBeHidden();
+    await page.evaluate(() => {
+      const options = (window as unknown as { lifecycleOptions: { onError(error: Error): void } }).lifecycleOptions;
+      options.onError(new Error("synthetic-delayed-error")); options.onError(new Error("synthetic-duplicate-error"));
+    });
+    const check = page.getByRole("button", { name: "Check payment status" });
+    await expect(check).toBeVisible();
+    await captureThemes(page, testInfo, `lifecycle-${boundary}-contained`, check);
+    await check.click();
+    await expect(check).toBeEnabled();
+    expect(requests).toEqual({ create: 1, capture: boundary === "creation" ? 0 : 1, external: 0 });
+    expect(await counters()).toEqual({ constructed: 1, closed: 0, settled: 1, sameScript: true });
+    await expect(page.getByText("Not granted yet")).toBeVisible();
+  });
+}
+
+for (const boundary of ["creation", "capture"] as const) {
   test(`TC-0027 ${boundary} status checking contains loading/error and never remounts or replays payment`, async ({ page }, testInfo) => {
     await stubProvider(page, "ready");
     const counters = { create: 0, capture: 0, bootstrap: 0, sdk: 0, reads: 0 };
@@ -141,7 +201,8 @@ for (const boundary of ["creation", "capture"] as const) {
     await pendingRead!.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId, stage: boundary === "creation" ? "creation_unconfirmed" : "capture_pending", funding: "pending", reusableReadiness: boundary === "creation" ? "not_requested" : "pending", customerMessage: boundary === "creation" ? "PayPal order creation is unconfirmed." : "Payment verification is still in progress." }) });
     await expect(check).toBeEnabled();
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js']")).toHaveCount(0);
+    await expect(page.locator(".paypal-area")).toBeHidden();
+    await expect(page.locator("script[fncls],script[src*='paypal.com/sdk/js']")).toHaveCount(2);
     await expect(page.getByText("Not granted yet")).toBeVisible();
     expect({ create: counters.create, capture: counters.capture, bootstrap: counters.bootstrap, sdk: counters.sdk }).toEqual(fixed);
     expect(counters.reads).toBe(2);

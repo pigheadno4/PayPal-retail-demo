@@ -62,8 +62,7 @@ export function QuoteReview(props: Readonly<{
     return () => clearTimeout(timer);
   }, [review.expiresAt, now]);
 
-  if (status) {
-    return <PaymentHandoff status={status} checking={checking} statusError={statusError} onCheckStatus={status.funding !== "pending" ? undefined : () => {
+  const handoff = status ? <PaymentHandoff status={status} checking={checking} statusError={statusError} onCheckStatus={status.funding !== "pending" ? undefined : () => {
       if (checkInFlight.current) return;
       checkInFlight.current = true;
       setChecking(true);
@@ -75,18 +74,17 @@ export function QuoteReview(props: Readonly<{
       setOperationId(operationIdAfterRetry(status.funding, operationId, () => crypto.randomUUID()));
       setStatusError("");
       setStatus(null);
-    }} />;
-  }
-  if (verifying) {
-    return (
+    }} /> : null;
+  const verification = verifying ? (
       <section className="payment-verification" aria-live="polite" aria-busy="true">
         <p className="eyebrow">Payment approval received</p>
         <h2>Verifying payment…</h2>
         <p>Checkout is locked while the server verifies the authoritative PayPal capture.</p>
       </section>
-    );
-  }
+    ) : null;
   return (
+    <>
+    <div hidden={verifying || !!status} inert={verifying || !!status}>
     <section className="review-layout" aria-labelledby="review-heading">
       <div className="review-copy reading-surface" style={{ gridColumn: "1 / -1", order: 0 }}>
         <p className="eyebrow">Customer story · step 3</p>
@@ -160,5 +158,9 @@ export function QuoteReview(props: Readonly<{
           </article>
         ) : null}
     </section>
+    </div>
+    {verification}
+    {handoff}
+    </>
   );
 }

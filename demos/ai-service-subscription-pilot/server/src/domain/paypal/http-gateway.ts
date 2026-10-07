@@ -22,15 +22,17 @@ const definitiveMutationIssues: Readonly<Record<MutationEndpoint, ReadonlySet<st
   capture_order: new Set(["INSTRUMENT_DECLINED"]),
 });
 
-async function throwForMutationResponse(response: Response, endpoint: MutationEndpoint): Promise<never> {
+async function throwForMutationResponse(response: Response, endpoint: MutationEndpoint, rejected?: (issues: unknown[]) => void): Promise<never> {
   let body: JsonRecord | null = null;
   try {
     body = record(await response.json());
   } catch {
+    rejected?.([]);
     throw new Error("paypal_unavailable");
   }
-  const issues = array(body?.details)
-    .map((detail) => nonEmptyString(record(detail)?.issue))
+  const rawIssues = array(body?.details).map((detail) => record(detail)?.issue);
+  rejected?.(rawIssues);
+  const issues = rawIssues.map(nonEmptyString)
     .filter((issue): issue is string => issue !== undefined);
   if (issues.length > 0 && issues.every((issue) => definitiveMutationIssues[endpoint].has(issue))) {
     throw new PayPalDefinitiveError();
@@ -120,7 +122,7 @@ export function projectPayPalCaptureEvidence(raw: unknown, storedOrderId: string
   });
 }
 
-import { emitCreationDiagnostic, observeCreation, type CreationDiagnosticSink } from "./creation-diagnostics.js";
+import { emitCreationDiagnostic, observeCreation, safeCreationIssues, type CreationDiagnosticSink } from "./creation-diagnostics.js";
 
 type HttpGatewayConfig = Readonly<{
   clientId: string;
@@ -215,8 +217,10 @@ export class HttpPayPalGateway implements PayPalGateway {
       body: JSON.stringify(input.payload),
       cache: "no-store",
     }), "transport");
-    emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: response.ok ? "success" : "failure", category: response.ok ? "none" : "http", httpStatus: response.status });
-    if (!response.ok) await throwForMutationResponse(response, "create_order");
+    if (!response.ok) await throwForMutationResponse(response, "create_order", issues => {
+      emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: "failure", category: "http", httpStatus: response.status, issues: safeCreationIssues(issues) });
+    });
+    emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: "success", category: "none", httpStatus: response.status });
     const body = await observeCreation(diagnostic, "json_parse", () => response.json());
     const orderId = await observeCreation(diagnostic, "id_projection", async () => {
       const id = nonEmptyString(record(body)?.id);

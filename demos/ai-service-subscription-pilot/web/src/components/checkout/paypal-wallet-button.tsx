@@ -196,6 +196,18 @@ function PayPalPreparation(props: Props) {
   const [attempt, setAttempt] = useState(0);
   const operationId = useRef<string>(props.operationId);
   const createPending = useRef(false);
+  const paymentSettled = useRef(false);
+  const captureInFlight = useRef(false);
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => {
+    if (operationId.current !== props.operationId) {
+      operationId.current = props.operationId;
+      createPending.current = false;
+      paymentSettled.current = false;
+      captureInFlight.current = false;
+    }
+  }, [props.operationId]);
 
   useEffect(() => {
     let active = true;
@@ -250,6 +262,7 @@ function PayPalPreparation(props: Props) {
             fundingSource: "paypal",
             style: { layout: "vertical", shape: "rect", label: "subscribe" },
             createOrder: async () => {
+              if (!active.current || createPending.current || paymentSettled.current) throw new Error("payment_in_progress");
               setError("");
               createPending.current = false;
               let result: CreatePayPalOrderResponse;
@@ -261,11 +274,13 @@ function PayPalPreparation(props: Props) {
                   clientMetadataId: props.clientMetadataId,
                 }, props.accessToken);
               } catch (error) {
+                if (!active.current) throw error;
                 if (classifyCreateOrderError(error) === "failed") throw error;
                 createPending.current = true;
                 props.onPending(uncertainCreationStatus(operationId.current));
                 throw new Error("payment_in_progress");
               }
+              if (!active.current) throw new Error("payment_in_progress");
               const outcome = classifyCreateOrderResponse(result);
               if (outcome.kind === "failed") {
                 createPending.current = true;
@@ -282,6 +297,8 @@ function PayPalPreparation(props: Props) {
               return outcome.orderId;
             },
             onApprove: async ({ orderID }) => {
+              if (!active.current || paymentSettled.current || createPending.current || captureInFlight.current) return;
+              captureInFlight.current = true;
               props.onVerifying();
               try {
                 const status = await demoApi.capturePayPalOrder(orderID, {
@@ -289,21 +306,27 @@ function PayPalPreparation(props: Props) {
                   quoteId: props.quoteId,
                   operationId: operationId.current,
                 }, props.accessToken);
+                if (!active.current) return;
+                paymentSettled.current = true;
                 const outcome = classifyCaptureStatus(status);
                 if (outcome === "complete") props.onComplete(status);
                 else if (outcome === "pending") props.onPending(status);
                 else props.onFailure(operationId.current);
               } catch (error) {
+                if (!active.current) return;
+                paymentSettled.current = true;
                 if (classifyCaptureError(error) === "failed") {
                   props.onFailure(operationId.current);
                 } else {
                   props.onPending(uncertainCaptureStatus(operationId.current));
                 }
+              } finally {
+                captureInFlight.current = false;
               }
             },
-            onCancel: props.onCancel,
+            onCancel: () => { if (active.current && !createPending.current && !paymentSettled.current && !captureInFlight.current) props.onCancel(); },
             onError: () => {
-              if (createPending.current) {
+              if (!active.current || createPending.current || paymentSettled.current || captureInFlight.current) {
                 return;
               }
               props.onFailure(operationId.current);

@@ -119,6 +119,33 @@ function setupPreparation() {
 }
 
 describe("actual preparation lifecycle measurements", () => {
+  it("does not let duplicate SDK errors or approvals interrupt deferred capture", async () => {
+    const run = setupPreparation(); await run.bootstrap(); const element = run.official(); let options!: PayPalButtonsComponentOptions;
+    vi.stubGlobal("window", { paypal: { Buttons: (value: PayPalButtonsComponentOptions) => { options = value; return { isEligible: () => true, render: async () => {}, close: async () => {} }; } } });
+    const control = componentHarness(); control.render(element); control.attach(); control.flush(); sdk.isResolved = true; control.render(element); control.flush(); await flushPromises();
+    const response = deferred<Awaited<ReturnType<typeof demoApi.capturePayPalOrder>>>();
+    const capture = vi.spyOn(demoApi, "capturePayPalOrder").mockReturnValue(response.promise);
+    const approveData = { orderID: "synthetic-order" } as Parameters<NonNullable<typeof options.onApprove>>[0];
+    const approveActions = {} as Parameters<NonNullable<typeof options.onApprove>>[1];
+    const pending = options.onApprove!(approveData, approveActions);
+    options.onError!({ message: "duplicate SDK callback" }); options.onCancel!({} as Parameters<NonNullable<typeof options.onCancel>>[0], {} as Parameters<NonNullable<typeof options.onCancel>>[1]);
+    const duplicate = options.onApprove!(approveData, approveActions);
+    expect(capture).toHaveBeenCalledOnce(); expect(props.onFailure).not.toHaveBeenCalled(); expect(props.onCancel).not.toHaveBeenCalled();
+    response.resolve({ operationId: props.operationId, funding: "pending", reusableReadiness: "pending", customerMessage: "pending" });
+    await pending; await duplicate;
+    expect(props.onPending).toHaveBeenCalledOnce();
+    options.onError!({ message: "late SDK callback" }); expect(props.onFailure).not.toHaveBeenCalled();
+    control.cleanup(); run.preparation.cleanup();
+  });
+  it("suppresses capture completion after preparation context teardown", async () => {
+    const run = setupPreparation(); await run.bootstrap(); const element = run.official(); let options!: PayPalButtonsComponentOptions;
+    vi.stubGlobal("window", { paypal: { Buttons: (value: PayPalButtonsComponentOptions) => { options = value; return { isEligible: () => true, render: async () => {}, close: async () => {} }; } } });
+    const control = componentHarness(); control.render(element); control.attach(); control.flush(); sdk.isResolved = true; control.render(element); control.flush(); await flushPromises();
+    const response = deferred<Awaited<ReturnType<typeof demoApi.capturePayPalOrder>>>(); vi.spyOn(demoApi, "capturePayPalOrder").mockReturnValue(response.promise);
+    const pending = options.onApprove!({ orderID: "synthetic-order" } as Parameters<NonNullable<typeof options.onApprove>>[0], {} as Parameters<NonNullable<typeof options.onApprove>>[1]);
+    control.cleanup(); run.preparation.cleanup(); response.resolve({ operationId: props.operationId, funding: "verified", reusableReadiness: "pending", customerMessage: "verified" }); await pending;
+    expect(props.onComplete).not.toHaveBeenCalled(); expect(props.onPending).not.toHaveBeenCalled();
+  });
   it("keeps uncertain creation pending across duplicate SDK rejection callbacks without capture", async () => {
     const run = setupPreparation(); await run.bootstrap(); const element = run.official(); let options!: PayPalButtonsComponentOptions;
     vi.stubGlobal("window", { paypal: { Buttons: (value: PayPalButtonsComponentOptions) => { options = value; return { isEligible: () => true, render: async () => {}, close: async () => {} }; } } });
@@ -233,7 +260,7 @@ describe("actual preparation lifecycle measurements", () => {
     expect(order).toHaveBeenCalledWith({ intentId: props.intentId, quoteId: props.quoteId, operationId: props.operationId, clientMetadataId: props.clientMetadataId }, props.accessToken);
     await options.onApprove!({ orderID: "synthetic-order" } as Parameters<NonNullable<typeof options.onApprove>>[0], {} as Parameters<NonNullable<typeof options.onApprove>>[1]);
     expect(capture).toHaveBeenCalledWith("synthetic-order", { intentId: props.intentId, quoteId: props.quoteId, operationId: "resolved-operation" }, props.accessToken);
-    expect(props.onComplete).toHaveBeenCalledOnce(); options.onCancel!({} as Parameters<NonNullable<typeof options.onCancel>>[0], {} as Parameters<NonNullable<typeof options.onCancel>>[1]); expect(props.onCancel).toHaveBeenCalledOnce();
+    expect(props.onComplete).toHaveBeenCalledOnce(); options.onCancel!({} as Parameters<NonNullable<typeof options.onCancel>>[0], {} as Parameters<NonNullable<typeof options.onCancel>>[1]); expect(props.onCancel).not.toHaveBeenCalled();
     expect(run.records).toHaveLength(4);
     const expired = { ...element, props: { ...(element.props as object), expiresAt: "2000-01-01T00:00:00Z" } } as ReactElement;
     control.render(expired); control.flush(); await expect(options.createOrder!(data, actions)).rejects.toThrow("review_expired");
