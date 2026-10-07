@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
 import type {
@@ -117,6 +117,33 @@ function dependencies(repository = new MemoryPayPalRepository(), gateway: PayPal
     clock: () => new Date("2026-07-15T19:00:00.000Z"),
   };
 }
+
+describe("TASK-0012 creation boundary diagnostics", () => {
+  const input = { accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" };
+  it.each(["review", "claim", "persistence"] as const)("identifies %s failure without exposing raw error or changing outcome", async (boundary) => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    const config = { ...dependencies(repository, gateway), diagnostic: vi.fn() };
+    const fail = async () => { throw new Error("private-customer-token-stack-canary"); };
+    if (boundary === "review") config.requireReview = fail;
+    if (boundary === "claim") repository.claimCreateOperation = fail;
+    if (boundary === "persistence") repository.storeCreatedOrder = fail;
+    const result = createPayPalOrder(input, config);
+    if (boundary === "persistence") await expect(result).resolves.toMatchObject({ status: "in_progress" });
+    else await expect(result).rejects.toThrow("private-customer-token-stack-canary");
+    expect(config.diagnostic).toHaveBeenCalledWith({ stage: boundary, outcome: "failure", category: "exception" });
+    expect(JSON.stringify(config.diagnostic.mock.calls)).not.toContain("canary");
+    expect(repository.failed).toEqual([]);
+    expect(gateway.createInputs).toHaveLength(boundary === "persistence" ? 1 : 0);
+  });
+  it("keeps successful payment outcomes when the logging sink throws", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    await expect(createPayPalOrder(input, { ...dependencies(repository, gateway), diagnostic: () => { throw new Error("sink failure"); } })).resolves.toMatchObject({ status: "ready" });
+    expect(repository.storedOrder).toBe(gateway.createdOrderId);
+    expect(gateway.createInputs).toHaveLength(1);
+  });
+});
 
 function mutationGateway(errorStatus: number, errorBody: unknown) {
   const responses = [

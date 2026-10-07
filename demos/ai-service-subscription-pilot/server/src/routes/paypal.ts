@@ -6,6 +6,8 @@ import {
   createPayPalOrderRequestSchema,
   createPayPalOrderResponseSchema,
   paypalCheckoutStatusSchema,
+  paypalOperationStatusSchema,
+  type PayPalOperationStatus,
   paypalIdTokenRequestSchema,
   paypalIdTokenResponseSchema,
   paypalWalletResponseSchema,
@@ -27,6 +29,7 @@ import {
 
 type PayPalRouterDependencies = Readonly<{
   verifyToken: VerifyToken;
+  readOperationStatus(identity: VerifiedIdentity, operationId: string): Promise<PayPalOperationStatus>;
   readWallet(identity: VerifiedIdentity): Promise<PayPalWalletResponse>;
   removeWallet(identity: VerifiedIdentity, methodId: string): Promise<PayPalWallet>;
   issueIdToken(identity: VerifiedIdentity, input: PayPalIdTokenRequest): Promise<PayPalIdTokenResponse>;
@@ -80,6 +83,17 @@ export function createPayPalRouter(dependencies: PayPalRouterDependencies): Rout
     }
     void run(response, async () => paypalIdTokenResponseSchema.parse(
       await dependencies.issueIdToken(response.locals.auth, input.data),
+    ));
+  });
+
+  router.get("/paypal/operations/:operationId/status", authenticated, (request, response) => {
+    const operationId = z.uuid().safeParse(request.params.operationId);
+    if (!operationId.success) {
+      response.status(400).json({ error: { code: "invalid_request" } });
+      return;
+    }
+    void run(response, async () => paypalOperationStatusSchema.parse(
+      await dependencies.readOperationStatus(response.locals.auth, operationId.data),
     ));
   });
 

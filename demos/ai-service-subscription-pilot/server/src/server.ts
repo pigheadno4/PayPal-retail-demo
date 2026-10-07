@@ -29,6 +29,7 @@ import {
   requireCurrentQuoteForPayment,
 } from "./domain/quote/service.js";
 import { HttpPayPalGateway } from "./domain/paypal/http-gateway.js";
+import type { CreationDiagnosticSink } from "./domain/paypal/creation-diagnostics.js";
 import { PostgresPayPalWalletRepository, removePayPalWallet } from "./domain/paypal/wallet-management.js";
 import {
   captureAndReconcilePayPalOrder,
@@ -66,6 +67,7 @@ const verifyToken = createSupabaseTokenVerifier(config);
 const usageRepository = new PostgresUsageRepository(sql);
 const usageDependencies = { repository: usageRepository, clock: () => new Date() };
 const runFixture = createDeterministicFixtureRunner();
+const creationDiagnostic: CreationDiagnosticSink = (record) => console.info(record);
 function recovery(){
   const capability=requirePayPalConfig(process.env);
   const repository=new PostgresReactivationRepository(sql,capability.merchantId,capability.environment);
@@ -147,6 +149,12 @@ apiRouter.use(createQuotesRouter({
 }));
 apiRouter.use(createPayPalRouter({
   verifyToken,
+  readOperationStatus: async (identity, operationId) => {
+    const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
+    if (!accountId) throw new Error("payment_not_found");
+    const capability = requirePayPalConfig(process.env);
+    return new PostgresPayPalRepository(sql).readOwnedOperationStatus({ accountId, operationId, merchantId: capability.merchantId, environment: capability.environment });
+  },
   readWallet: async (identity) => {
     const accountId = await checkoutRepository.findAccountIdByAuthUser(identity.userId);
     if (!accountId) throw new Error("payment_not_found");
@@ -190,7 +198,8 @@ apiRouter.use(createPayPalRouter({
       { accountId, ...input },
       {
         repository: new PostgresPayPalRepository(sql),
-        gateway: new HttpPayPalGateway(capability),
+        gateway: new HttpPayPalGateway({ ...capability, diagnostic: creationDiagnostic }),
+        diagnostic: creationDiagnostic,
         merchantId: capability.merchantId,
         environment: capability.environment,
         requireReview: (reviewInput) => requireCurrentQuoteForPayment({

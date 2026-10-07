@@ -22,6 +22,7 @@ function app(overrides: Record<string, unknown> = {}) {
     }),
     createOrder: vi.fn().mockResolvedValue({ status: "ready", operationId, orderId: "ORDER-REDACTED" }),
     readWallet: vi.fn().mockResolvedValue({ wallet: null }),
+    readOperationStatus: vi.fn().mockResolvedValue({ operationId, stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "PayPal order creation is unconfirmed." }),
     removeWallet: vi.fn().mockResolvedValue({ methodId: operationId, brand: "PayPal Wallet", state: "removed", renewalReady: false, paidThrough: "2026-11-01T00:00:00.000Z" }),
     captureOrder: vi.fn().mockResolvedValue({
       operationId,
@@ -37,6 +38,29 @@ function app(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PayPal API routes", () => {
+  it("authenticates and validates a read-only operation GET without payment mutations", async () => {
+    const { server, dependencies } = app();
+    const path = `/paypal/operations/${operationId}/status`;
+    expect((await request(server).get(path)).status).toBe(401);
+    expect((await request(server).get(path).set("Authorization", "Bearer invalid")).status).toBe(200);
+    expect((await request(server).get("/paypal/operations/not-uuid/status").set("Authorization", "Bearer verified")).status).toBe(400);
+    const result = await request(server).get(path).set("Authorization", "Bearer verified");
+    expect(result.status).toBe(200);
+    expect(result.headers["cache-control"]).toBe("private, no-store");
+    expect(result.body).toEqual({ operationId, stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "PayPal order creation is unconfirmed." });
+    expect(dependencies.readOperationStatus).toHaveBeenCalledWith({ userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", email: "customer@example.com" }, operationId);
+    expect(dependencies.createOrder).not.toHaveBeenCalled();
+    expect(dependencies.captureOrder).not.toHaveBeenCalled();
+    expect(dependencies.issueIdToken).not.toHaveBeenCalled();
+  });
+  it("denies invalid bearer identity and hides ownership/missing failures alike", async () => {
+    const path = `/paypal/operations/${operationId}/status`;
+    expect((await request(app({ verifyToken: vi.fn().mockResolvedValue(null) }).server).get(path).set("Authorization", "Bearer invalid")).status).toBe(401);
+    const { server } = app({ readOperationStatus: vi.fn().mockRejectedValue(new Error("payment_not_found")) });
+    const result = await request(server).get(path).set("Authorization", "Bearer verified");
+    expect(result.status).toBe(404);
+    expect(result.body).toEqual({ error: { code: "not_found" } });
+  });
   it("protects wallet read/removal and requires explicit strict UUID confirmation", async () => {
     const { server, dependencies } = app();
     expect((await request(server).get("/paypal/wallet")).status).toBe(401);

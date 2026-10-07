@@ -6,6 +6,7 @@ import {PostgresReactivationRepository} from "../../../server/src/domain/reactiv
 import {ReactivationService} from "../../../server/src/domain/reactivation/service.js";
 import {PayPalDefinitiveError} from "../../../server/src/domain/paypal/gateway.js";
 import {PostgresPayPalWalletRepository} from "../../../server/src/domain/paypal/wallet-management.js";
+import {PostgresPayPalRepository} from "../../../server/src/domain/paypal/service.js";
 import {PostgresUsageRepository} from "../../../server/src/domain/usage/repository.js";
 import {activateGo,readUsageSummary,generateAnswer} from "../../../server/src/domain/usage/service.js";
 import {createDeterministicFixtureRunner} from "../../../server/src/domain/usage/fixtures.js";
@@ -43,7 +44,7 @@ const api=Router();
 api.use(createReactivationRouter({verifyToken,entry:user=>recoveryRepository.readEntry(user,task0011Now),review:(user,input)=>recovery.review(user,input),confirm:(user,input)=>recovery.confirm(user,input),status:(user,id)=>recovery.status(user,id)}));
 api.use(createUsageRouter({verifyToken,activate:identity=>activateGo(identity.userId,{repository:usage,clock}),readSummary:identity=>readUsageSummary(identity.userId,{repository:usage,clock}),generateAnswer:(identity,input)=>generateAnswer(identity.userId,input,{repository:usage,clock,runFixture:createDeterministicFixtureRunner(3000,identity.userId===task0004Identity.failure.userId?async()=>{await new Promise(done=>setTimeout(done,3000));throw new Error("synthetic_failure");}:undefined)})}));
 const unavailable=async()=>{throw new Error("integration_not_configured");};
-api.use(createPayPalRouter({verifyToken,readWallet:async identity=>{const [account]=await sql`select id from app_private.accounts where auth_user_id=${identity.userId}`;return{wallet:account?await new PostgresPayPalWalletRepository(sql).readOwnedWallet({accountId:BigInt(account.id),merchantId:"TASK0011",environment:"sandbox"}):null};},removeWallet:unavailable,issueIdToken:unavailable,createOrder:unavailable,captureOrder:unavailable}));
+api.use(createPayPalRouter({verifyToken,readOperationStatus:async(identity,operationId)=>{const [account]=await sql`select id from app_private.accounts where auth_user_id=${identity.userId}`;if(!account)throw new Error("payment_not_found");return new PostgresPayPalRepository(sql).readOwnedOperationStatus({accountId:BigInt(account.id),operationId,merchantId:"TASK0011",environment:"sandbox"});},readWallet:async identity=>{const [account]=await sql`select id from app_private.accounts where auth_user_id=${identity.userId}`;return{wallet:account?await new PostgresPayPalWalletRepository(sql).readOwnedWallet({accountId:BigInt(account.id),merchantId:"TASK0011",environment:"sandbox"}):null};},removeWallet:unavailable,issueIdToken:unavailable,createOrder:unavailable,captureOrder:unavailable}));
 const app=createApp({config:{port:3111,appUrl:"http://127.0.0.1:3111",databaseUrl:process.env.DATABASE_URL!,supabaseUrl:"http://127.0.0.1:3111",supabasePublishableKey:"synthetic-public",supabaseSecretKey:"synthetic-not-used",demoSessionSigningSecret:"synthetic-signing-not-used-00000000"},webDistPath:resolve("dist/web"),apiRouter:api});
 const server=app.listen(3111,"127.0.0.1");
 const close=()=>server.close(()=>void sql.end().finally(()=>process.exit(0)));

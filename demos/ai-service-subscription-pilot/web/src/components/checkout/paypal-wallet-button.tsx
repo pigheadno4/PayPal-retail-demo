@@ -5,6 +5,7 @@ import { createElement, useEffect, useRef, useState } from "react";
 import type {
   CreatePayPalOrderResponse,
   PayPalCheckoutStatus,
+  PayPalOperationStatus,
   PayPalIdTokenResponse,
   FraudNetBootstrap,
 } from "../../../../shared/src/paypal.js";
@@ -21,7 +22,7 @@ type Props = Readonly<{
   onOperationResolved(operationId: string): void;
   onVerifying(): void;
   onComplete(status: PayPalCheckoutStatus): void;
-  onPending(status: PayPalCheckoutStatus): void;
+  onPending(status: PayPalCheckoutStatus | PayPalOperationStatus): void;
   onCancel(): void;
   onFailure(operationId: string): void;
 }>;
@@ -65,6 +66,11 @@ function uncertainCaptureStatus(operationId: string): PayPalCheckoutStatus {
   });
 }
 
+function uncertainCreationStatus(operationId: string): PayPalOperationStatus {
+  return Object.freeze({ operationId, stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested",
+    customerMessage: "PayPal order creation is unconfirmed. Funding has not been verified. No access was granted." });
+}
+
 export function classifyCreateOrderResponse(result: Partial<CreatePayPalOrderResponse>) {
   if (result.status === "ready" && result.operationId && result.orderId) {
     return Object.freeze({ kind: "ready" as const, operationId: result.operationId, orderId: result.orderId });
@@ -72,12 +78,7 @@ export function classifyCreateOrderResponse(result: Partial<CreatePayPalOrderRes
   if (result.status === "in_progress" && result.operationId) {
     return Object.freeze({
       kind: "pending" as const,
-      status: Object.freeze({
-        operationId: result.operationId,
-        funding: "pending" as const,
-        reusableReadiness: "pending" as const,
-        customerMessage: "Payment verification is still in progress.",
-      }),
+      status: uncertainCreationStatus(result.operationId),
     });
   }
   return Object.freeze({ kind: "failed" as const });
@@ -262,13 +263,13 @@ function PayPalPreparation(props: Props) {
               } catch (error) {
                 if (classifyCreateOrderError(error) === "failed") throw error;
                 createPending.current = true;
-                props.onPending(uncertainCaptureStatus(operationId.current));
+                props.onPending(uncertainCreationStatus(operationId.current));
                 throw new Error("payment_in_progress");
               }
               const outcome = classifyCreateOrderResponse(result);
               if (outcome.kind === "failed") {
                 createPending.current = true;
-                props.onPending(uncertainCaptureStatus(operationId.current));
+                props.onPending(uncertainCreationStatus(operationId.current));
                 throw new Error("payment_in_progress");
               }
               operationId.current = outcome.kind === "ready" ? outcome.operationId : outcome.status.operationId;
@@ -303,7 +304,6 @@ function PayPalPreparation(props: Props) {
             onCancel: props.onCancel,
             onError: () => {
               if (createPending.current) {
-                createPending.current = false;
                 return;
               }
               props.onFailure(operationId.current);

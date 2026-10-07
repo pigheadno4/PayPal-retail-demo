@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import * as contracts from "./paypal.js";
 
+describe("TASK-0012 read-only operation status", () => {
+  const status = { operationId: "33333333-3333-4333-8333-333333333333", stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "Creation remains unconfirmed." };
+  it("validates creation uncertainty without allowing provider or entitlement fields", () => {
+    expect(contracts.paypalOperationStatusSchema?.safeParse(status).success).toBe(true);
+    expect(contracts.paypalOperationStatusSchema?.safeParse({ ...status, orderId: "private" }).success).toBe(false);
+    expect(contracts.paypalOperationStatusSchema?.safeParse({ ...status, funding: "verified" }).success).toBe(false);
+    expect(contracts.paypalOperationStatusSchema?.safeParse({ ...status, reusableReadiness: "ready" }).success).toBe(false);
+  });
+});
+
 import {
   createPayPalOrderRequestSchema,
   paypalIdTokenResponseSchema,

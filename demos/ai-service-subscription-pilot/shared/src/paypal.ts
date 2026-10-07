@@ -63,3 +63,19 @@ export type FraudNetBootstrap = Readonly<z.infer<typeof fraudNetBootstrapSchema>
 export type PayPalIdTokenResponse = Readonly<z.infer<typeof paypalIdTokenResponseSchema>>;
 export type CreatePayPalOrderResponse = Readonly<z.infer<typeof createPayPalOrderResponseSchema>>;
 export type PayPalCheckoutStatus = Readonly<z.infer<typeof paypalCheckoutStatusSchema>>;
+
+export const paypalOperationStatusSchema = z.object({
+  operationId: uuid,
+  stage: z.enum(["creation_unconfirmed", "order_created", "capture_pending", "funded", "failed"]),
+  funding: z.enum(["pending", "verified", "failed"]),
+  reusableReadiness: z.enum(["not_requested", "pending", "ready", "failed"]),
+  customerMessage: z.string().min(1),
+}).strict().refine((status) => {
+  if (status.stage === "creation_unconfirmed" || status.stage === "order_created") {
+    return status.funding === "pending" && status.reusableReadiness === "not_requested";
+  }
+  if (status.stage === "capture_pending") return status.funding === "pending" && status.reusableReadiness === "pending";
+  if (status.stage === "failed") return status.funding === "failed" && status.reusableReadiness === "failed";
+  return status.funding === "verified" && status.reusableReadiness !== "not_requested";
+});
+export type PayPalOperationStatus = Readonly<z.infer<typeof paypalOperationStatusSchema>>;

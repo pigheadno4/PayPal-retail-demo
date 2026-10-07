@@ -70,6 +70,19 @@ async function captureThemes(page: Page, testInfo: TestInfo, state: string, focu
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
     await expectInteractionQuality(page, focusTarget);
+    if (state.startsWith("task0012-") && state.endsWith("-error")) {
+      await expect(page.getByRole("alert").locator("[style]")).toHaveCount(0);
+      const contrast = await page.getByRole("alert").evaluate(element => {
+        const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d")!;
+        const color = (css: string) => { context.clearRect(0, 0, 1, 1); context.fillStyle = css; context.fillRect(0, 0, 1, 1); return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        const luminance = (rgb: number[]) => rgb.map(value => { const channel = value / 255; return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4; }).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+        const foreground = luminance(color(getComputedStyle(element.querySelector("p") ?? element).color));
+        const background = luminance(color(getComputedStyle(element).backgroundColor));
+        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(4.5);
+    }
     await page.screenshot({ path: screenshotPath(testInfo, `${state}-${theme}`, true), fullPage: true });
   }
 }
@@ -81,6 +94,59 @@ const review = {
   expiresAt: "2027-07-15T19:15:00.000Z", renewsAt: "2027-08-15T19:00:00.000Z", allowanceResetsAt: "2027-08-15T19:00:00.000Z",
   timeZone: "America/Los_Angeles", pricingVersion: "go-monthly-intro-v1", taxVersion: "us-wa-seattle-digital-ai-q3-2026-v1",
 };
+
+for (const boundary of ["creation", "capture"] as const) {
+  test(`TC-0027 ${boundary} status checking contains loading/error and never remounts or replays payment`, async ({ page }, testInfo) => {
+    await stubProvider(page, "ready");
+    const counters = { create: 0, capture: 0, bootstrap: 0, sdk: 0, reads: 0 };
+    let operationId = "33333333-3333-4333-8333-333333333333";
+    page.on("request", request => {
+      const url = request.url();
+      if (url.endsWith("/paypal/orders")) counters.create++;
+      if (url.endsWith("/capture")) counters.capture++;
+      if (url.endsWith("/paypal/id-token")) counters.bootstrap++;
+      if (url.startsWith("https://www.paypal.com/sdk/js")) counters.sdk++;
+    });
+    await page.route("**/api/v1/paypal/orders", route => {
+      operationId = route.request().postDataJSON().operationId;
+      return route.fulfill({ status: boundary === "creation" ? 202 : 200, contentType: "application/json", body: JSON.stringify(boundary === "creation" ? { status: "in_progress", operationId, retryable: true } : { status: "ready", operationId, orderId: "SYNTHETIC" }) });
+    });
+    await page.route("**/api/v1/paypal/orders/*/capture", route => route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ operationId, funding: "pending", reusableReadiness: "pending", customerMessage: "Payment verification is still in progress." }) }));
+    let pendingRead: Route | undefined;
+    await page.route("**/api/v1/paypal/operations/*/status", route => { counters.reads++; pendingRead = route; });
+    await page.goto(`/checkout/${INTENT_ID}`);
+    await loadProviderControl(page);
+    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    const heading = boundary === "creation" ? "PayPal order creation is unconfirmed" : "Confirming your payment";
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    const fixed = { create: counters.create, capture: counters.capture, bootstrap: counters.bootstrap, sdk: counters.sdk };
+    const check = page.getByRole("button", { name: "Check payment status" });
+    await captureThemes(page, testInfo, `task0012-${boundary}-pending`, check);
+    await check.click();
+    await expect(page.getByRole("button", { name: "Checking status…" })).toBeDisabled();
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await expect.poll(() => Boolean(pendingRead)).toBe(true);
+    expect(pendingRead!.request().method()).toBe("GET");
+    expect(pendingRead!.request().headers().authorization).toBeTruthy();
+    await page.screenshot({ path: testInfo.outputPath(`task0012-${boundary}-checking.png`), fullPage: true });
+    await pendingRead!.fulfill({ status: 503, contentType: "application/json", body: '{"error":{"code":"internal_error"}}' });
+    await expect(check).toBeEnabled();
+    await expect(page.getByRole("alert")).toHaveText("Status could not be checked. Your last known status is unchanged.");
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await captureThemes(page, testInfo, `task0012-${boundary}-error`, check);
+    expect(counters.reads).toBe(1);
+    pendingRead = undefined;
+    await check.click();
+    await expect.poll(() => Boolean(pendingRead)).toBe(true);
+    await pendingRead!.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId, stage: boundary === "creation" ? "creation_unconfirmed" : "capture_pending", funding: "pending", reusableReadiness: boundary === "creation" ? "not_requested" : "pending", customerMessage: boundary === "creation" ? "PayPal order creation is unconfirmed." : "Payment verification is still in progress." }) });
+    await expect(check).toBeEnabled();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.locator(".paypal-area,script[fncls],script[src*='paypal.com/sdk/js']")).toHaveCount(0);
+    await expect(page.getByText("Not granted yet")).toBeVisible();
+    expect({ create: counters.create, capture: counters.capture, bootstrap: counters.bootstrap, sdk: counters.sdk }).toEqual(fixed);
+    expect(counters.reads).toBe(2);
+  });
+}
 
 async function stubProvider(page: Page, readiness: "pending" | "ready") {
   await page.route("**/*", (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.fallback() : route.abort());
@@ -104,6 +170,7 @@ async function stubProvider(page: Page, readiness: "pending" | "ready") {
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", operationId: input.operationId, orderId: "ORDER-REDACTED" }) });
   });
   await page.route("**/api/v1/paypal/orders/*/capture", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId: "33333333-3333-4333-8333-333333333333", funding: "verified", reusableReadiness: readiness, customerMessage: readiness === "ready" ? "PayPal Wallet is ready for future recurring payments." : "Payment verified. Reusable payment setup is finishing." }) }));
+  await page.route("**/api/v1/paypal/operations/*/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId: route.request().url().split("/").at(-2), stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "PayPal order creation is unconfirmed. Funding has not been verified. No access was granted." }) }));
 }
 
 async function loadProviderControl(page: Page) {
@@ -260,16 +327,17 @@ for (const uncertainty of ["aborted", "server-5xx", "malformed", "unknown"] as c
     await page.goto(`/checkout/${INTENT_ID}`);
     await loadProviderControl(page);
     await page.getByRole("button", { name: "Pay with PayPal" }).click();
-    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "PayPal order creation is unconfirmed" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Payment was not completed" })).toHaveCount(0);
     await page.getByRole("button", { name: "Check payment status" }).click();
-    await page.getByRole("button", { name: "Pay with PayPal" }).click();
-    await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check payment status" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Pay with PayPal" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "PayPal order creation is unconfirmed" })).toBeVisible();
 
-    expect(createRequests).toBe(2);
+    expect(createRequests).toBe(1);
     expect(operationIds.size).toBe(1);
     expect(captureRequests).toBe(0);
-    if (uncertainty === "aborted" || uncertainty === "server-5xx") expectOnlyNetworkErrors(consoleErrors, 2);
+    if (uncertainty === "aborted" || uncertainty === "server-5xx") expectOnlyNetworkErrors(consoleErrors, 1);
     else expect(consoleErrors).toEqual([]);
   });
 }
@@ -278,6 +346,7 @@ for (const uncertainty of ["aborted", "server-5xx"] as const) {
   test(`TC-0006 ${uncertainty} capture keeps the same operation pending`, async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await stubProvider(page, "ready");
+    await page.route("**/api/v1/paypal/operations/*/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId: route.request().url().split("/").at(-2), stage: "capture_pending", funding: "pending", reusableReadiness: "pending", customerMessage: "Payment verification is still in progress." }) }));
     const operationIds = new Set<string>();
     await page.unroute("**/api/v1/paypal/orders");
     await page.route("**/api/v1/paypal/orders", async (route) => {
@@ -300,10 +369,11 @@ for (const uncertainty of ["aborted", "server-5xx"] as const) {
     await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
     await expect(page.getByText("Payment was not completed.")).toHaveCount(0);
     await page.getByRole("button", { name: "Check payment status" }).click();
-    await page.getByRole("button", { name: "Pay with PayPal" }).click();
+    await expect(page.getByRole("button", { name: "Check payment status" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Pay with PayPal" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
     expect(operationIds.size).toBe(1);
-    expectOnlyNetworkErrors(consoleErrors, 2);
+    expectOnlyNetworkErrors(consoleErrors, 1);
   });
 }
 
@@ -340,13 +410,13 @@ test("TC-0005 unresolved create ownership stays pending without capture or termi
   await loadProviderControl(page);
   await page.getByRole("button", { name: "Pay with PayPal" }).click();
 
-  await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PayPal order creation is unconfirmed" })).toBeVisible();
   await expect(page.getByText("Payment was not completed.")).toHaveCount(0);
   await page.getByRole("button", { name: "Check payment status" }).click();
-  await expect(page.getByRole("button", { name: "Pay with PayPal" })).toBeVisible();
-  await page.getByRole("button", { name: "Pay with PayPal" }).click();
-  await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
-  expect(createRequests).toBe(2);
+  await expect(page.getByRole("button", { name: "Check payment status" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Pay with PayPal" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "PayPal order creation is unconfirmed" })).toBeVisible();
+  expect(createRequests).toBe(1);
   expect(operationIds.size).toBe(1);
   expect(metadataIds.size).toBe(1);
   expect(captureRequests).toBe(0);
@@ -357,6 +427,7 @@ test("TC-0006 in-progress capture stays pending and can return to a safe status 
   const consoleErrors = collectConsoleErrors(page);
   await page.emulateMedia({ colorScheme: "light" });
   await stubProvider(page, "ready");
+  await page.route("**/api/v1/paypal/operations/*/status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ operationId: route.request().url().split("/").at(-2), stage: "capture_pending", funding: "pending", reusableReadiness: "pending", customerMessage: "Payment verification is still in progress." }) }));
   await page.unroute("**/api/v1/paypal/orders/*/capture");
   await page.route("**/api/v1/paypal/orders/*/capture", (route) => route.fulfill({
     status: 202,
@@ -378,7 +449,9 @@ test("TC-0006 in-progress capture stays pending and can return to a safe status 
   await expect(page.getByRole("heading", { name: "Preparing your Go workspace" })).toHaveCount(0);
   await captureThemes(page, testInfo, "task-0008-pending", page.getByRole("button", { name: "Check payment status" }));
   await page.getByRole("button", { name: "Check payment status" }).click();
-  await expect(page.getByRole("heading", { name: "Review your newly calculated order" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check payment status" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Confirming your payment" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pay with PayPal" })).toHaveCount(0);
   await expect(page.getByText(/100 units|Go active/i)).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -495,7 +568,7 @@ test("mounted quote and credential replacements invalidate late token and FraudN
     const clientPath = loadedModules.find((name) => /\/react-dom_client\.js\?/.test(name));
     if (!taskRuntime&&(!reactPath || !clientPath)) throw new Error("synthetic_runtime_modules_unavailable");
     const componentPath = "/src/components/checkout/quote-review.tsx";
-    const taskPath="/assets/task0011-runtime.js";
+    const taskPath=taskRuntime === "task0012" ? "/assets/task0012-runtime.js" : "/assets/task0011-runtime.js";
     const runtime=taskRuntime?await import(taskPath):null;
     const React = runtime?.React??(await import(reactPath!)).default;
     const { createRoot } = runtime??(await import(clientPath!)).default;
@@ -509,7 +582,7 @@ test("mounted quote and credential replacements invalidate late token and FraudN
     target.syntheticUpdate = (change) => { props = { ...props, ...change }; root.render(React.createElement(QuoteReview, props)); };
     target.syntheticUnmount = () => root.unmount();
     target.syntheticUpdate({});
-  }, { review, loadedModules,taskRuntime:process.env.TASK0011_LOCAL==="1" });
+  }, { review, loadedModules,taskRuntime:process.env.TASK0012_LOCAL === "1" ? "task0012" : process.env.TASK0011_LOCAL === "1" ? "task0011" : "" });
   await expect.poll(() => tokens.length).toBe(1);
   await page.evaluate(() => (window as unknown as { syntheticUpdate(change: Record<string, unknown>): void }).syntheticUpdate({ accessToken: "synthetic-second" }));
   await expect.poll(() => tokens.length).toBe(2);

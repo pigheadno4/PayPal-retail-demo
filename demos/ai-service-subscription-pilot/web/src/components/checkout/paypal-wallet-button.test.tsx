@@ -119,6 +119,19 @@ function setupPreparation() {
 }
 
 describe("actual preparation lifecycle measurements", () => {
+  it("keeps uncertain creation pending across duplicate SDK rejection callbacks without capture", async () => {
+    const run = setupPreparation(); await run.bootstrap(); const element = run.official(); let options!: PayPalButtonsComponentOptions;
+    vi.stubGlobal("window", { paypal: { Buttons: (value: PayPalButtonsComponentOptions) => { options = value; return { isEligible: () => true, render: async () => {}, close: async () => {} }; } } });
+    const control = componentHarness(); control.render(element); control.attach(); control.flush(); sdk.isResolved = true; control.render(element); control.flush(); await flushPromises();
+    const create = vi.spyOn(demoApi, "createPayPalOrder").mockRejectedValue(new Error("private-canary"));
+    const capture = vi.spyOn(demoApi, "capturePayPalOrder");
+    await expect(options.createOrder!({} as Parameters<NonNullable<typeof options.createOrder>>[0], {} as Parameters<NonNullable<typeof options.createOrder>>[1])).rejects.toThrow("payment_in_progress");
+    options.onError!({ message: "SDK rejection" }); options.onError!({ message: "duplicate rejection" });
+    expect(props.onPending).toHaveBeenCalledWith(expect.objectContaining({ stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested" }));
+    expect(props.onFailure).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledOnce(); expect(capture).not.toHaveBeenCalled();
+    control.cleanup(); run.preparation.cleanup();
+  });
   it("attempts official Subscribe options without changing the capture/vault script boundary", async () => {
     const run = setupPreparation(); await run.bootstrap();
     const official = run.official();
@@ -299,7 +312,7 @@ describe("PayPalWalletButton payment boundary", () => {
     expect(classifyCaptureError(error)).toBe(expected);
   });
 
-  it("maps unresolved create ownership to the existing non-terminal payment status", () => {
+  it("maps unresolved creation to creation-specific unverified status", () => {
     expect(classifyCreateOrderResponse({
       status: "in_progress",
       operationId: "33333333-3333-4333-8333-333333333333",
@@ -308,9 +321,10 @@ describe("PayPalWalletButton payment boundary", () => {
       kind: "pending",
       status: {
         operationId: "33333333-3333-4333-8333-333333333333",
+        stage: "creation_unconfirmed",
         funding: "pending",
-        reusableReadiness: "pending",
-        customerMessage: "Payment verification is still in progress.",
+        reusableReadiness: "not_requested",
+        customerMessage: "PayPal order creation is unconfirmed. Funding has not been verified. No access was granted.",
       },
     });
   });

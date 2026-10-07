@@ -12,7 +12,7 @@ import type {
   PayPalCheckoutStatus,
   PayPalIdTokenResponse,
 } from "../../../shared/src/paypal.js";
-import { paypalWalletResponseSchema, type PayPalWalletResponse } from "../../../shared/src/paypal.js";
+import { paypalWalletResponseSchema, paypalOperationStatusSchema, type PayPalWalletResponse } from "../../../shared/src/paypal.js";
 import { reactivationEntrySchema, reactivationReviewSchema, reactivationOutcomeSchema, type ReactivationConfirm } from "../../../shared/src/reactivation.js";
 import type {
   AccountUsageSummary,
@@ -53,6 +53,11 @@ function bearer(token: string): HeadersInit {
 }
 
 export const demoApi = {
+  readPayPalOperationStatus: async (operationId: string, token: string) => {
+    const status = paypalOperationStatusSchema.parse(await requestJson(`/api/v1/paypal/operations/${encodeURIComponent(operationId)}/status`, { method: "GET", headers: bearer(token), cache: "no-store" }));
+    if (status.operationId !== operationId) throw new Error("invalid_operation_status");
+    return status;
+  },
   readReactivation: async(token:string)=>reactivationEntrySchema.parse(await requestJson("/api/v1/me/reactivation",{headers:bearer(token),cache:"no-store"})),
   reviewReactivation: async(body:{arrangementId:string;currentQuoteId?:string},token:string)=>reactivationReviewSchema.parse(await requestJson("/api/v1/me/reactivation/review",{method:"POST",headers:bearer(token),body:JSON.stringify(body)})),
   confirmReactivation: async(body:ReactivationConfirm,token:string)=>reactivationOutcomeSchema.parse(await requestJson("/api/v1/me/reactivation/confirm",{method:"POST",headers:bearer(token),body:JSON.stringify(body)})),

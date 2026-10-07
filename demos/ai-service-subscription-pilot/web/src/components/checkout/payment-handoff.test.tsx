@@ -6,6 +6,18 @@ import { PaymentHandoff } from "./payment-handoff.js";
 import { operationIdAfterRetry } from "./quote-review.js";
 
 describe("PaymentHandoff", () => {
+  it("contains creation status checking/error while keeping unverified funding and no access", () => {
+    const html = renderToStaticMarkup(createElement(PaymentHandoff, { status: { operationId: "33333333-3333-4333-8333-333333333333", stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "Creation unconfirmed." }, checking: true, statusError: "Status could not be checked. Your last known status is unchanged.", onCheckStatus: () => {} }));
+    expect(html).toContain("PayPal order creation is unconfirmed");
+    expect(html).toContain("Not verified");
+    expect(html).toContain("Not requested / not verified");
+    expect(html).toContain("Checking status…");
+    expect(html).toContain("disabled");
+    expect(html).toContain("role=\"alert\"");
+    expect(html).not.toContain("style=\"");
+    expect(html).toContain("Not granted yet");
+    expect(html).not.toContain("Open Go workspace");
+  });
   it.each([
     ["verified", "Verified", "Preparing your Go workspace"],
     ["pending", "Pending", "Confirming your payment"],

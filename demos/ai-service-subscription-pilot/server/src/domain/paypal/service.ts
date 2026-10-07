@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
-import type { PayPalCheckoutStatus } from "../../../../shared/src/paypal.js";
+import { paypalOperationStatusSchema, type PayPalCheckoutStatus, type PayPalOperationStatus } from "../../../../shared/src/paypal.js";
 import type { DatabaseClient } from "../../db/client.js";
 import type {
   PayPalCaptureEvidence,
@@ -10,6 +10,7 @@ import type {
 } from "./gateway.js";
 import { PayPalDefinitiveError } from "./gateway.js";
 import { buildFraudNetBootstrap, buildInitialPayPalOrder, validateClientMetadataId } from "./payload.js";
+import { observeCreation, type CreationDiagnosticSink } from "./creation-diagnostics.js";
 
 type FundingStatus = "created" | "approved" | "completed" | "failed" | "canceled";
 type VaultStatus = "not_requested" | "pending" | "approved" | "vaulted" | "failed";
@@ -89,6 +90,7 @@ type ServiceDependencies = Readonly<{
     now: Date;
   }>): Promise<CheckoutReview>;
   clock?: () => Date;
+  diagnostic?: CreationDiagnosticSink;
 }>;
 
 export async function issuePayPalUserIdToken(
@@ -126,20 +128,20 @@ export async function createPayPalOrder(
 ) {
   const clientMetadataId = validateClientMetadataId(input.clientMetadataId);
   buildFraudNetBootstrap(dependencies.environment);
-  const review = await dependencies.requireReview({
+  const review = await observeCreation(dependencies.diagnostic, "review", () => dependencies.requireReview({
     accountId: input.accountId,
     intentId: input.intentId,
     quoteId: input.quoteId,
     now: dependencies.clock?.() ?? new Date(),
-  });
-  const claim = await dependencies.repository.claimCreateOperation({
+  }));
+  const claim = await observeCreation(dependencies.diagnostic, "claim", () => dependencies.repository.claimCreateOperation({
     accountId: input.accountId,
     intentId: input.intentId,
     quoteId: input.quoteId,
     operationId: input.operationId,
     merchantId: dependencies.merchantId,
     environment: dependencies.environment,
-  });
+  }));
   if (claim.kind === "ready") {
     return Object.freeze({ status: "ready" as const, operationId: claim.operation.operationId, orderId: claim.orderId });
   }
@@ -154,7 +156,7 @@ export async function createPayPalOrder(
       requestId: claim.operation.createRequestId,
       clientMetadataId,
     });
-    await dependencies.repository.storeCreatedOrder(input.operationId, created.orderId);
+    await observeCreation(dependencies.diagnostic, "persistence", () => dependencies.repository.storeCreatedOrder(input.operationId, created.orderId));
     return Object.freeze({ status: "ready" as const, operationId: input.operationId, orderId: created.orderId });
   } catch (error) {
     if (error instanceof PayPalDefinitiveError) {
@@ -287,6 +289,49 @@ function sameOperation(
 
 export class PostgresPayPalRepository implements PayPalRepository {
   constructor(private readonly sql: DatabaseClient) {}
+
+  async readOwnedOperationStatus(input: Readonly<{ accountId: bigint; operationId: string; merchantId: string; environment: PayPalEnvironment }>): Promise<PayPalOperationStatus> {
+    const sql = this.sql;
+    const rows = await sql<{
+      public_id: string; funding_status: FundingStatus; vault_status: VaultStatus;
+      paypal_order_id: string | null; funding_verified_at: Date | null;
+      arrangement_id: string | null; arrangement_funding: string | null;
+      reusable_readiness: "pending" | "ready" | "failed" | null;
+    }[]>`
+      select o.public_id, o.funding_status, o.vault_status, o.paypal_order_id, o.funding_verified_at,
+        b.public_id as arrangement_id, b.funding_status as arrangement_funding, b.reusable_readiness
+      from app_private.payment_operations o
+      join app_private.checkout_intents i on i.id = o.checkout_intent_id and i.account_id = o.account_id
+      join app_private.quotes q on q.id = o.quote_id and q.checkout_intent_id = i.id
+      left join app_private.billing_arrangements b on b.payment_operation_id = o.id
+        and b.account_id = o.account_id and b.checkout_intent_id = i.id and b.quote_id = q.id
+      where o.public_id = ${input.operationId} and o.account_id = ${input.accountId.toString()}
+        and o.merchant_id = ${input.merchantId} and o.environment = ${input.environment}
+      limit 2
+    `;
+    const row = rows[0];
+    if (!row) throw new Error("payment_not_found");
+    if (rows.length !== 1) throw new Error("payment_state_conflict");
+    let status: Omit<PayPalOperationStatus, "operationId">;
+    if (row.funding_status === "completed") {
+      if (!row.paypal_order_id || !row.funding_verified_at || !row.arrangement_id || row.arrangement_funding !== "verified" || !row.reusable_readiness) throw new Error("payment_state_conflict");
+      status = { stage: "funded", funding: "verified", reusableReadiness: row.reusable_readiness,
+        customerMessage: row.reusable_readiness === "ready" ? "PayPal Wallet is ready for future recurring payments." : row.reusable_readiness === "failed" ? "Payment verified. This saved wallet is not available for future payments." : "Payment verified. Reusable payment setup is finishing." };
+    } else {
+      if (row.funding_verified_at || row.arrangement_id) throw new Error("payment_state_conflict");
+      if (row.funding_status === "created") {
+        if (row.vault_status !== "not_requested") throw new Error("payment_state_conflict");
+        status = { stage: row.paypal_order_id ? "order_created" : "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested",
+          customerMessage: row.paypal_order_id ? "PayPal order was created. Funding has not been verified. No access was granted." : "PayPal order creation is unconfirmed. Funding has not been verified. No access was granted." };
+      } else if (row.funding_status === "approved") {
+        if (!row.paypal_order_id || row.vault_status !== "not_requested") throw new Error("payment_state_conflict");
+        status = { stage: "capture_pending", funding: "pending", reusableReadiness: "pending", customerMessage: "Payment verification is still in progress." };
+      } else {
+        status = { stage: "failed", funding: "failed", reusableReadiness: "failed", customerMessage: "PayPal could not complete this payment. No access was granted." };
+      }
+    }
+    return paypalOperationStatusSchema.parse({ operationId: row.public_id, ...status });
+  }
 
   async findAccountPublicId(accountId: bigint) {
     const sql = this.sql;

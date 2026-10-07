@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
-import type { PayPalCheckoutStatus } from "../../../../shared/src/paypal.js";
+import type { PayPalCheckoutStatus, PayPalOperationStatus } from "../../../../shared/src/paypal.js";
+import { demoApi } from "../../lib/api.js";
 import { PaymentHandoff } from "./payment-handoff.js";
 import { PayPalWalletButton } from "./paypal-wallet-button.js";
 
@@ -45,7 +46,10 @@ export function QuoteReview(props: Readonly<{
     setNow(Date.now);
   }
   const [verifying, setVerifying] = useState(false);
-  const [status, setStatus] = useState<PayPalCheckoutStatus | null>(null);
+  const [status, setStatus] = useState<PayPalCheckoutStatus | PayPalOperationStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [statusError, setStatusError] = useState("");
+  const checkInFlight = useRef(false);
   const [operationId, setOperationId] = useState<string>(() => crypto.randomUUID());
   const [clientMetadataId] = useState(() => crypto.randomUUID().replaceAll("-", ""));
   const expired = !(Date.parse(review.expiresAt) > now);
@@ -59,8 +63,17 @@ export function QuoteReview(props: Readonly<{
   }, [review.expiresAt, now]);
 
   if (status) {
-    return <PaymentHandoff status={status} onRetry={status.funding === "verified" ? undefined : () => {
+    return <PaymentHandoff status={status} checking={checking} statusError={statusError} onCheckStatus={status.funding !== "pending" ? undefined : () => {
+      if (checkInFlight.current) return;
+      checkInFlight.current = true;
+      setChecking(true);
+      setStatusError("");
+      void demoApi.readPayPalOperationStatus(status.operationId, props.accessToken).then(setStatus, () => {
+        setStatusError("Status could not be checked. Your last known status is unchanged.");
+      }).finally(() => { checkInFlight.current = false; setChecking(false); });
+    }} onRetry={status.funding !== "failed" ? undefined : () => {
       setOperationId(operationIdAfterRetry(status.funding, operationId, () => crypto.randomUUID()));
+      setStatusError("");
       setStatus(null);
     }} />;
   }

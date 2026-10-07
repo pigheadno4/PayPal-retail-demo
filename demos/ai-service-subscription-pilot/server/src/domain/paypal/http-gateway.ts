@@ -120,11 +120,14 @@ export function projectPayPalCaptureEvidence(raw: unknown, storedOrderId: string
   });
 }
 
+import { emitCreationDiagnostic, observeCreation, type CreationDiagnosticSink } from "./creation-diagnostics.js";
+
 type HttpGatewayConfig = Readonly<{
   clientId: string;
   clientSecret: string;
   environment: PayPalEnvironment;
   fetch?: typeof globalThis.fetch;
+  diagnostic?: CreationDiagnosticSink;
 }>;
 
 export class HttpPayPalGateway implements PayPalGateway {
@@ -198,8 +201,9 @@ export class HttpPayPalGateway implements PayPalGateway {
   }
 
   async createOrder(input: { payload: PayPalOrderPayload; requestId: string; clientMetadataId: string }) {
-    const { accessToken } = await this.oauthToken();
-    const response = await this.request(`${this.apiBase}/v2/checkout/orders`, {
+    const diagnostic = this.config.diagnostic;
+    const { accessToken } = await observeCreation(diagnostic, "oauth", () => this.oauthToken(), "transport");
+    const response = await observeCreation(diagnostic, "create_request", () => this.request(`${this.apiBase}/v2/checkout/orders`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -210,10 +214,15 @@ export class HttpPayPalGateway implements PayPalGateway {
       },
       body: JSON.stringify(input.payload),
       cache: "no-store",
-    });
+    }), "transport");
+    emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: response.ok ? "success" : "failure", category: response.ok ? "none" : "http", httpStatus: response.status });
     if (!response.ok) await throwForMutationResponse(response, "create_order");
-    const orderId = nonEmptyString(record(await response.json())?.id);
-    if (!orderId) throw new Error("paypal_unavailable");
+    const body = await observeCreation(diagnostic, "json_parse", () => response.json());
+    const orderId = await observeCreation(diagnostic, "id_projection", async () => {
+      const id = nonEmptyString(record(body)?.id);
+      if (!id) throw new Error("paypal_unavailable");
+      return id;
+    });
     return { orderId };
   }
 

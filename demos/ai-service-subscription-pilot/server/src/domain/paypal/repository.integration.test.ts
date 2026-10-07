@@ -41,6 +41,42 @@ const runtimeFixture = {
 };
 
 describe.skipIf(!databaseUrl)("TASK-0003 production PayPal repository", () => {
+  it("TASK-0012 reads owned expired-quote status repeatedly without changing any records or timestamps", async () => {
+    if (!databaseUrl?.includes("127.0.0.1") || !databaseUrl.includes("task0012")) throw new Error("owned_local_fixture_required");
+    const sql = postgres(databaseUrl, { max: 1, prepare: false });
+    try {
+      const userId = randomUUID();
+      const checkout = new PostgresCheckoutRepository(sql);
+      const tokenHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
+      const intentId = await checkout.insertPendingIntent(tokenHash, NOW);
+      await sql`insert into auth.users (id) values (${userId})`;
+      const bound = await checkout.bindVerifiedIdentityAndQuote({ authUserId: userId, identityKind: "persistent", temporaryExpiresAt: null, intentId, sessionTokenHash: tokenHash, demoSessionPublicId: randomUUID(), quote: createGoMonthlyQuote(() => NOW) });
+      const operationId = randomUUID();
+      const repository = new PostgresPayPalRepository(sql);
+      await repository.claimCreateOperation({ accountId: bound.accountId, intentId, quoteId: bound.quote.quoteId, operationId, merchantId: "MERCHANT123", environment: "sandbox" });
+      const input = { accountId: bound.accountId, operationId, merchantId: "MERCHANT123", environment: "sandbox" as const };
+      const snapshot = async () => {
+        const tables = await sql<{ tablename: string }[]>`select tablename from pg_tables where schemaname = 'app_private' order by tablename`;
+        return Promise.all(tables.map(async ({ tablename }) => [tablename, await sql.unsafe(`select row_to_json(t) as row from app_private.${tablename} t order by id`)]));
+      };
+      const before = await snapshot();
+      await sql`set default_transaction_read_only = on`;
+      for (let repeat = 0; repeat < 3; repeat++) {
+        expect(await repository.readOwnedOperationStatus(input)).toEqual({ operationId, stage: "creation_unconfirmed", funding: "pending", reusableReadiness: "not_requested", customerMessage: "PayPal order creation is unconfirmed. Funding has not been verified. No access was granted." });
+        for (const override of [{ accountId: bound.accountId + 1n }, { operationId: randomUUID() }, { merchantId: "OTHER" }, { environment: "live" as const }]) {
+          await expect(repository.readOwnedOperationStatus({ ...input, ...override })).rejects.toThrow("payment_not_found");
+        }
+      }
+      expect(await snapshot()).toEqual(before);
+      await sql`set default_transaction_read_only = off`;
+      await repository.storeCreatedOrder(operationId, "TASK0012-SYNTHETIC-ORDER");
+      expect(await repository.readOwnedOperationStatus(input)).toMatchObject({ stage: "order_created", funding: "pending", reusableReadiness: "not_requested" });
+      await repository.claimCaptureOperation({ ...input, intentId, quoteId: bound.quote.quoteId, orderId: "TASK0012-SYNTHETIC-ORDER" });
+      expect(await repository.readOwnedOperationStatus(input)).toMatchObject({ stage: "capture_pending", funding: "pending" });
+      await sql`update app_private.payment_operations set funding_status = 'completed' where public_id = ${operationId}`;
+      await expect(repository.readOwnedOperationStatus(input)).rejects.toThrow("payment_state_conflict");
+    } finally { await sql.end(); }
+  });
   it("owns one payment per intent and durably reconciles every webhook disposition without granting units", async () => {
     Object.entries(runtimeFixture).forEach(([name, value]) => vi.stubEnv(name, value));
     const fixtureSql = postgres(databaseUrl!, { max: 4, prepare: false });
