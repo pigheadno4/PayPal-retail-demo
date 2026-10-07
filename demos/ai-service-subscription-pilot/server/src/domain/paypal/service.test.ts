@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { CheckoutReview } from "../../../../shared/src/checkout.js";
+import type { DatabaseClient } from "../../db/client.js";
 import type {
   PayPalCaptureEvidence,
   PayPalGateway,
@@ -15,11 +16,46 @@ import {
   captureAndReconcilePayPalOrder,
   createPayPalOrder,
   issuePayPalUserIdToken,
+  PostgresPayPalRepository,
   type PayPalOperationRecord,
   type PayPalRepository,
 } from "./service.js";
 import captureApproved from "../../../../tests/fixtures/paypal/capture-approved.json";
 import captureVaulted from "../../../../tests/fixtures/paypal/capture-vaulted.json";
+
+describe("owned completed operation status consistency", () => {
+  function repository(vaultStatus: string, readiness: string) {
+    const sql = vi.fn().mockResolvedValue([{
+      public_id: "33333333-3333-4333-8333-333333333333",
+      funding_status: "completed", vault_status: vaultStatus,
+      paypal_order_id: "ORDER-SYNTHETIC", funding_verified_at: new Date("2026-07-15T19:05:00.000Z"),
+      arrangement_id: "44444444-4444-4444-8444-444444444444",
+      arrangement_funding: "verified", reusable_readiness: readiness,
+    }]);
+    return { sql, repository: new PostgresPayPalRepository(sql as unknown as DatabaseClient) };
+  }
+
+  const input = { accountId: 2n, operationId: "33333333-3333-4333-8333-333333333333", merchantId: "MERCHANT123", environment: "sandbox" as const };
+
+  it.each(["pending", "not_requested", "failed", "approved"])("rejects ready arrangement while operation vault status is %s", async (vaultStatus) => {
+    const fixture = repository(vaultStatus, "ready");
+    await expect(fixture.repository.readOwnedOperationStatus(input)).rejects.toThrow("payment_state_conflict");
+    expect(fixture.sql).toHaveBeenCalledTimes(1);
+    expect(fixture.sql.mock.calls[0][0].join("?").trim()).toMatch(/^select /);
+  });
+
+  it.each([
+    ["pending", "pending"], ["vaulted", "ready"], ["failed", "failed"],
+    ["vaulted", "failed"], // Removing a saved wallet does not rewrite historical vault evidence.
+  ])("preserves funded status for operation %s and arrangement %s", async (vaultStatus, readiness) => {
+    const fixture = repository(vaultStatus, readiness);
+    await expect(fixture.repository.readOwnedOperationStatus(input)).resolves.toMatchObject({
+      stage: "funded", funding: "verified", reusableReadiness: readiness,
+    });
+    expect(fixture.sql).toHaveBeenCalledTimes(1);
+    expect(fixture.sql.mock.calls[0][0].join("?").trim()).toMatch(/^select /);
+  });
+});
 
 const review: CheckoutReview = {
   intentId: "11111111-1111-4111-8111-111111111111",

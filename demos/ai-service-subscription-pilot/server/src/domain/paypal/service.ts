@@ -315,6 +315,7 @@ export class PostgresPayPalRepository implements PayPalRepository {
     let status: Omit<PayPalOperationStatus, "operationId">;
     if (row.funding_status === "completed") {
       if (!row.paypal_order_id || !row.funding_verified_at || !row.arrangement_id || row.arrangement_funding !== "verified" || !row.reusable_readiness) throw new Error("payment_state_conflict");
+      if (row.reusable_readiness === "ready" && row.vault_status !== "vaulted") throw new Error("payment_state_conflict");
       status = { stage: "funded", funding: "verified", reusableReadiness: row.reusable_readiness,
         customerMessage: row.reusable_readiness === "ready" ? "PayPal Wallet is ready for future recurring payments." : row.reusable_readiness === "failed" ? "Payment verified. This saved wallet is not available for future payments." : "Payment verified. Reusable payment setup is finishing." };
     } else {
