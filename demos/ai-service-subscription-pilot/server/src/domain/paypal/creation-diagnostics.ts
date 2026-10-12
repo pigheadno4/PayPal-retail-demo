@@ -4,10 +4,11 @@ export type CreationDiagnostic = Readonly<{
   category: "none" | "exception" | "transport" | "http";
   httpStatus?: number;
   issues?: readonly string[];
+  issueDiagnostic?: "recognized" | "json_parse_failed" | "details_missing" | "unrecognized_issue";
 }>;
 export type CreationDiagnosticSink = (record: CreationDiagnostic) => void;
 
-// Observational subset of Create order details[].issue, checked 2026-10-08:
+// Observational subset of Create order details[].issue, checked 2026-10-12:
 // https://developer.paypal.com/api/orders/v2/error-messages (Create order section).
 // This list never determines definitive payment failures.
 const creationIssues = new Set([
@@ -21,6 +22,9 @@ const creationIssues = new Set([
   "UNSUPPORTED_PAYMENT_SOURCE_FOR_SUBSCRIPTIONS", "TAX_TOTAL_MISMATCH", "TAX_TOTAL_REQUIRED",
   "UNSUPPORTED_INTENT", "INSTRUMENT_DECLINED", "INCOMPATIBLE_PARAMETER_VALUE",
   "VAULT_INSTRUCTION_DUPLICATED", "VAULT_INSTRUCTION_REQUIRED", "MISMATCHED_VAULT_OWNER_ID", "VAULT_OWNER_ID_NOT_SUPPORTED",
+  "NOT_ENABLED_TO_VAULT_PAYMENT_SOURCE", "MISMATCHED_VAULT_ID_TO_PAYMENT_SOURCE", "MISMATCHED_VAULT_SETUP_TOKEN_TO_PAYMENT_SOURCE",
+  "INVALID_VAULT_ID", "NOT_ENABLED_FOR_PAYMENT_SOURCE", "AGREEMENT_ALREADY_CANCELLED", "BILLING_AGREEMENT_NOT_FOUND",
+  "DUPLICATE_INVOICE_ID", "PAYER_ACCOUNT_LOCKED_OR_CLOSED", "PAYER_ACCOUNT_RESTRICTED", "PAYER_CANNOT_PAY",
 ]);
 
 export function safeCreationIssues(values: unknown): readonly string[] {
@@ -32,12 +36,21 @@ export function safeCreationIssues(values: unknown): readonly string[] {
   return Object.freeze([...safe]);
 }
 
+export function creationIssueDiagnostic(values: readonly unknown[], jsonParsed: boolean): CreationDiagnostic["issueDiagnostic"] {
+  if (!jsonParsed) return "json_parse_failed";
+  if (!values.some(value => typeof value === "string" && value.trim().length > 0)) return "details_missing";
+  return safeCreationIssues(values).includes("unknown_issue") ? "unrecognized_issue" : "recognized";
+}
+
 export function emitCreationDiagnostic(sink: CreationDiagnosticSink | undefined, record: CreationDiagnostic): void {
   // Diagnostics cannot change payment classification, persistence or retry decisions.
   try {
     sink?.(Object.freeze({ stage: record.stage, outcome: record.outcome, category: record.category,
       ...(Number.isInteger(record.httpStatus) && record.httpStatus! >= 100 && record.httpStatus! <= 599 ? { httpStatus: record.httpStatus } : {}),
       ...(record.stage === "create_response" && record.outcome === "failure" && record.issues !== undefined ? { issues: safeCreationIssues(record.issues) } : {}),
+      ...(record.stage === "create_response" && record.outcome === "failure"
+        && (record.issueDiagnostic === "recognized" || record.issueDiagnostic === "json_parse_failed" || record.issueDiagnostic === "details_missing" || record.issueDiagnostic === "unrecognized_issue")
+        ? { issueDiagnostic: record.issueDiagnostic } : {}),
     }));
   } catch { /* Logging is strictly best effort. */ }
 }

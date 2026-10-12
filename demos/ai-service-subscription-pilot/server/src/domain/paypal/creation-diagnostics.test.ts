@@ -1,7 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
-import { emitCreationDiagnostic, type CreationDiagnostic } from "./creation-diagnostics.js";
+import { emitCreationDiagnostic, safeCreationIssues, type CreationDiagnostic } from "./creation-diagnostics.js";
 
 describe("initial creation issue output filtering", () => {
+  const additions = ["NOT_ENABLED_TO_VAULT_PAYMENT_SOURCE", "MISMATCHED_VAULT_ID_TO_PAYMENT_SOURCE", "MISMATCHED_VAULT_SETUP_TOKEN_TO_PAYMENT_SOURCE", "INVALID_VAULT_ID", "NOT_ENABLED_FOR_PAYMENT_SOURCE", "AGREEMENT_ALREADY_CANCELLED", "BILLING_AGREEMENT_NOT_FOUND", "DUPLICATE_INVOICE_ID", "PAYER_ACCOUNT_LOCKED_OR_CLOSED", "PAYER_ACCOUNT_RESTRICTED", "PAYER_CANNOT_PAY"];
+  it.each(additions)("retains documented Create order label %s", issue => {
+    expect(safeCreationIssues([issue, issue])).toEqual([issue]);
+  });
+  it("keeps first-seen order and immutable bounded output", () => {
+    const result = safeCreationIssues([...additions, ...additions, ...Array.from({ length: 1000 }, (_, i) => `private-${i}`)]);
+    expect(result).toEqual([...additions, "unknown_issue"]);
+    expect(result.length).toBeLessThanOrEqual(48);
+    expect(Object.isFrozen(result)).toBe(true);
+  });
+  it.each(["recognized", "json_parse_failed", "details_missing", "unrecognized_issue"])("permits fixed reason %s only on failed create response", issueDiagnostic => {
+    const sink = vi.fn();
+    for (const [stage, outcome] of [["create_response", "failure"], ["create_response", "success"], ["oauth", "failure"]] as const) {
+      emitCreationDiagnostic(sink, { stage, outcome, category: "http", issueDiagnostic } as CreationDiagnostic);
+    }
+    expect(sink.mock.calls[0][0]).toHaveProperty("issueDiagnostic", issueDiagnostic);
+    expect(sink.mock.calls[1][0]).not.toHaveProperty("issueDiagnostic");
+    expect(sink.mock.calls[2][0]).not.toHaveProperty("issueDiagnostic");
+  });
+  it.each(["private-secret", " recognized", null, 1, {}, ["recognized"]])("strips hostile runtime reason %#", issueDiagnostic => {
+    const sink = vi.fn();
+    emitCreationDiagnostic(sink, { stage: "create_response", outcome: "failure", category: "http", issueDiagnostic } as unknown as CreationDiagnostic);
+    expect(sink.mock.calls[0][0]).toEqual({ stage: "create_response", outcome: "failure", category: "http" });
+  });
   it("filters hostile values and deduplicates at the sink boundary", () => {
     const sink = vi.fn();
     emitCreationDiagnostic(sink, { stage: "create_response", outcome: "failure", category: "http", httpStatus: 422,

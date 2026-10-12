@@ -22,16 +22,16 @@ const definitiveMutationIssues: Readonly<Record<MutationEndpoint, ReadonlySet<st
   capture_order: new Set(["INSTRUMENT_DECLINED"]),
 });
 
-async function throwForMutationResponse(response: Response, endpoint: MutationEndpoint, rejected?: (issues: unknown[]) => void): Promise<never> {
+async function throwForMutationResponse(response: Response, endpoint: MutationEndpoint, rejected?: (issues: unknown[], jsonParsed: boolean) => void): Promise<never> {
   let body: JsonRecord | null = null;
   try {
     body = record(await response.json());
   } catch {
-    rejected?.([]);
+    rejected?.([], false);
     throw new Error("paypal_unavailable");
   }
   const rawIssues = array(body?.details).map((detail) => record(detail)?.issue);
-  rejected?.(rawIssues);
+  rejected?.(rawIssues, true);
   const issues = rawIssues.map(nonEmptyString)
     .filter((issue): issue is string => issue !== undefined);
   if (issues.length > 0 && issues.every((issue) => definitiveMutationIssues[endpoint].has(issue))) {
@@ -122,7 +122,7 @@ export function projectPayPalCaptureEvidence(raw: unknown, storedOrderId: string
   });
 }
 
-import { emitCreationDiagnostic, observeCreation, safeCreationIssues, type CreationDiagnosticSink } from "./creation-diagnostics.js";
+import { creationIssueDiagnostic, emitCreationDiagnostic, observeCreation, safeCreationIssues, type CreationDiagnosticSink } from "./creation-diagnostics.js";
 
 type HttpGatewayConfig = Readonly<{
   clientId: string;
@@ -217,8 +217,8 @@ export class HttpPayPalGateway implements PayPalGateway {
       body: JSON.stringify(input.payload),
       cache: "no-store",
     }), "transport");
-    if (!response.ok) await throwForMutationResponse(response, "create_order", issues => {
-      emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: "failure", category: "http", httpStatus: response.status, issues: safeCreationIssues(issues) });
+    if (!response.ok) await throwForMutationResponse(response, "create_order", (issues, jsonParsed) => {
+      emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: "failure", category: "http", httpStatus: response.status, issues: safeCreationIssues(issues), issueDiagnostic: creationIssueDiagnostic(issues, jsonParsed) });
     });
     emitCreationDiagnostic(diagnostic, { stage: "create_response", outcome: "success", category: "none", httpStatus: response.status });
     const body = await observeCreation(diagnostic, "json_parse", () => response.json());
