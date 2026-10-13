@@ -72,6 +72,7 @@ describe("TC-0005 initial PayPal order", () => {
               },
             }, {
               sequence: 2,
+              start_date: "2026-08-15",
               tenure_type: "REGULAR",
               total_cycles: 0,
               frequency: { interval_unit: "MONTH", interval_count: 1 },
@@ -87,6 +88,33 @@ describe("TC-0005 initial PayPal order", () => {
     expect(JSON.stringify(payload)).not.toContain("discount");
     expect(JSON.stringify(payload)).not.toContain("fixed_price");
     expect(JSON.stringify(payload)).not.toContain("stored_credential");
+  });
+
+  it.each([
+    ["2026-11-01T00:30:00Z", "2026-10-31"],
+    ["2028-03-01T00:30:00Z", "2028-02-29"],
+    ["2026-05-01T06:30:00Z", "2026-04-30"],
+    ["2027-01-01T07:30:00Z", "2026-12-31"],
+    ["2026-03-08T09:59:59Z", "2026-03-08"],
+    ["2026-03-08T10:00:00Z", "2026-03-08"],
+    ["2026-11-01T08:59:59Z", "2026-11-01"],
+    ["2026-11-01T09:00:00Z", "2026-11-01"],
+  ])("projects renewal %s into the review time zone as %s without changing money or input", (renewsAt, date) => {
+    const input = { ...review, renewsAt };
+    const before = structuredClone(input);
+    const payload = buildInitialPayPalOrder(input);
+    const units = payload.purchase_units as Array<{ amount: unknown; items: Array<{ unit_amount: unknown; billing_plan: { billing_cycles: Array<Record<string, unknown>> } }> }>;
+    const cycles = units[0].items[0].billing_plan.billing_cycles;
+    expect(cycles[0]).not.toHaveProperty("start_date");
+    expect(cycles[1]).toHaveProperty("start_date", date);
+    expect(units[0].amount).toEqual({ currency_code: "USD", value: "5.53", breakdown: { item_total: { currency_code: "USD", value: "5.00" }, tax_total: { currency_code: "USD", value: "0.53" } } });
+    expect(units[0].items[0].unit_amount).toEqual({ currency_code: "USD", value: "5.00" });
+    expect(cycles.map(cycle => cycle.pricing_scheme)).toEqual([
+      { pricing_model: "FIXED", price: { currency_code: "USD", value: "5.00" } },
+      { pricing_model: "FIXED", price: { currency_code: "USD", value: "10.00" } },
+    ]);
+    expect(buildInitialPayPalOrder(input)).toEqual(payload);
+    expect(input).toEqual(before);
   });
 });
 

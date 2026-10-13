@@ -5,6 +5,19 @@ function decimal(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+function renewalDate(review: CheckoutReview): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: review.timeZone,
+    calendar: "gregory",
+    numberingSystem: "latn",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(review.renewsAt));
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)!.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 export function buildSavedWalletOrder(review: Pick<CheckoutReview,"quoteId"|"dueToday"|"taxableSubtotal"|"tax">,token:string,reference:string):PayPalOrderPayload {
   return Object.freeze({intent:"CAPTURE",payment_source:{paypal:{vault_id:token,stored_credential:{payment_initiator:"CUSTOMER",usage:"SUBSEQUENT"}}},purchase_units:[{reference_id:reference,custom_id:reference,amount:{currency_code:"USD",value:decimal(review.dueToday.cents),breakdown:{item_total:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)},tax_total:{currency_code:"USD",value:decimal(review.tax.cents)}}},items:[{name:"Go Monthly recovery",quantity:"1",category:"DIGITAL_GOODS",unit_amount:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)}}]}]});
 }
@@ -51,6 +64,7 @@ export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayl
             },
           }, {
             sequence: 2,
+            start_date: renewalDate(review),
             tenure_type: "REGULAR",
             total_cycles: 0,
             frequency: { interval_unit: "MONTH", interval_count: 1 },
