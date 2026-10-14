@@ -26,15 +26,20 @@ const review: CheckoutReview = {
   pricingVersion: "go-monthly-intro-v1",
   taxVersion: "us-wa-seattle-digital-ai-q3-2026-v1",
 };
+const appUrl = "https://checkout.example.test";
 
 describe("TC-0005 initial PayPal order", () => {
   it("builds the exact Wallet save-with-purchase and recurring-plan payload from the trusted review", () => {
-    const payload = buildInitialPayPalOrder(review);
+    const payload = buildInitialPayPalOrder(review, appUrl);
 
     expect(payload).toEqual({
       intent: "CAPTURE",
       payment_source: {
         paypal: {
+          experience_context: {
+            return_url: "https://checkout.example.test/checkout/11111111-1111-4111-8111-111111111111",
+            cancel_url: "https://checkout.example.test/checkout/11111111-1111-4111-8111-111111111111",
+          },
           attributes: {
             vault: {
               store_in_vault: "ON_SUCCESS",
@@ -102,7 +107,7 @@ describe("TC-0005 initial PayPal order", () => {
   ])("projects renewal %s into the review time zone as %s without changing money or input", (renewsAt, date) => {
     const input = { ...review, renewsAt };
     const before = structuredClone(input);
-    const payload = buildInitialPayPalOrder(input);
+    const payload = buildInitialPayPalOrder(input, appUrl);
     const units = payload.purchase_units as Array<{ amount: unknown; items: Array<{ unit_amount: unknown; billing_plan: { billing_cycles: Array<Record<string, unknown>> } }> }>;
     const cycles = units[0].items[0].billing_plan.billing_cycles;
     expect(cycles[0]).not.toHaveProperty("start_date");
@@ -113,7 +118,24 @@ describe("TC-0005 initial PayPal order", () => {
       { pricing_model: "FIXED", price: { currency_code: "USD", value: "5.00" } },
       { pricing_model: "FIXED", price: { currency_code: "USD", value: "10.00" } },
     ]);
-    expect(buildInitialPayPalOrder(input)).toEqual(payload);
+    expect(buildInitialPayPalOrder(input, appUrl)).toEqual(payload);
+    expect(input).toEqual(before);
+  });
+
+  it.each([
+    ["https://checkout.example.test/", "https://checkout.example.test"],
+    ["https://checkout.example.test/base?private=query#fragment", "https://checkout.example.test"],
+    ["https://private:secret@checkout.example.test:8443/base?private=query#fragment", "https://checkout.example.test:8443"],
+    ["http://localhost:4175/base?private=query#fragment", "http://localhost:4175"],
+  ])("uses configured origin %s and encoded trusted intent without URL authority from other components", (configured, origin) => {
+    const input = { ...review, intentId: "owned/id?return=evil#fragment" };
+    const before = structuredClone(input);
+    const payload = buildInitialPayPalOrder(input, configured);
+    const expected = `${origin}/checkout/owned%2Fid%3Freturn%3Devil%23fragment`;
+    expect(payload.payment_source).toMatchObject({ paypal: { experience_context: { return_url: expected, cancel_url: expected } } });
+    expect(JSON.stringify(payload)).not.toContain("private=query");
+    expect(JSON.stringify(payload)).not.toContain("private:secret");
+    expect(buildInitialPayPalOrder(input, configured)).toEqual(payload);
     expect(input).toEqual(before);
   });
 });

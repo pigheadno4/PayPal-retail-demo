@@ -22,11 +22,16 @@ export function buildSavedWalletOrder(review: Pick<CheckoutReview,"quoteId"|"due
   return Object.freeze({intent:"CAPTURE",payment_source:{paypal:{vault_id:token,stored_credential:{payment_initiator:"CUSTOMER",usage:"SUBSEQUENT"}}},purchase_units:[{reference_id:reference,custom_id:reference,amount:{currency_code:"USD",value:decimal(review.dueToday.cents),breakdown:{item_total:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)},tax_total:{currency_code:"USD",value:decimal(review.tax.cents)}}},items:[{name:"Go Monthly recovery",quantity:"1",category:"DIGITAL_GOODS",unit_amount:{currency_code:"USD",value:decimal(review.taxableSubtotal.cents)}}]}]});
 }
 
-export function buildInitialPayPalOrder(review: CheckoutReview): PayPalOrderPayload {
+export function buildInitialPayPalOrder(review: CheckoutReview, appUrl: string): PayPalOrderPayload {
+  const checkoutUrl = new URL(`/checkout/${encodeURIComponent(review.intentId)}`, new URL(appUrl).origin).toString();
   return Object.freeze({
     intent: "CAPTURE",
     payment_source: {
       paypal: {
+        experience_context: {
+          return_url: checkoutUrl,
+          cancel_url: checkoutUrl,
+        },
         attributes: {
           vault: {
             store_in_vault: "ON_SUCCESS",

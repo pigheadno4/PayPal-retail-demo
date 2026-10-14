@@ -124,7 +124,7 @@ export async function createPayPalOrder(
     operationId: string;
     clientMetadataId: string;
   }>,
-  dependencies: ServiceDependencies,
+  dependencies: ServiceDependencies & Readonly<{ appUrl: string }>,
 ) {
   const clientMetadataId = validateClientMetadataId(input.clientMetadataId);
   buildFraudNetBootstrap(dependencies.environment);
@@ -152,7 +152,7 @@ export async function createPayPalOrder(
 
   try {
     const created = await dependencies.gateway.createOrder({
-      payload: buildInitialPayPalOrder(review),
+      payload: buildInitialPayPalOrder(review, dependencies.appUrl),
       requestId: claim.operation.createRequestId,
       clientMetadataId,
     });

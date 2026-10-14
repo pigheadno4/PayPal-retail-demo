@@ -197,6 +197,7 @@ apiRouter.use(createPayPalRouter({
     return createPayPalOrder(
       { accountId, ...input },
       {
+        appUrl: config.appUrl,
         repository: new PostgresPayPalRepository(sql),
         gateway: new HttpPayPalGateway({ ...capability, diagnostic: creationDiagnostic }),
         diagnostic: creationDiagnostic,

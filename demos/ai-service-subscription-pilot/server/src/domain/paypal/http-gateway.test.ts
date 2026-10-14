@@ -4,8 +4,9 @@ import { PayPalDefinitiveError } from "./gateway.js";
 import { buildInitialPayPalOrder } from "./payload.js";
 
 describe("TASK-0012 initial-create safe diagnostics", () => {
-  const input = { payload: buildInitialPayPalOrder({ intentId: "11111111-1111-4111-8111-111111111111", quoteId: "22222222-2222-4222-8222-222222222222", tier: "go", cadence: "monthly", base: {currency: "USD", cents: 1000}, promotion: {currency: "USD", cents: -500}, taxableSubtotal: {currency: "USD", cents: 500}, tax: {currency: "USD", cents: 53}, dueToday: {currency: "USD", cents: 553}, taxBasisPoints: 1055, expiresAt: "2026-10-07T00:00:00Z", renewsAt: "2026-11-07T00:00:00Z", allowanceResetsAt: "2026-11-07T00:00:00Z", timeZone: "America/Los_Angeles", pricingVersion: "fixture", taxVersion: "fixture" }), requestId: "private-request-canary", clientMetadataId: "1234567890abcdef1234567890abcdef" };
+  const input = { payload: buildInitialPayPalOrder({ intentId: "11111111-1111-4111-8111-111111111111", quoteId: "22222222-2222-4222-8222-222222222222", tier: "go", cadence: "monthly", base: {currency: "USD", cents: 1000}, promotion: {currency: "USD", cents: -500}, taxableSubtotal: {currency: "USD", cents: 500}, tax: {currency: "USD", cents: 53}, dueToday: {currency: "USD", cents: 553}, taxBasisPoints: 1055, expiresAt: "2026-10-07T00:00:00Z", renewsAt: "2026-11-07T00:00:00Z", allowanceResetsAt: "2026-11-07T00:00:00Z", timeZone: "America/Los_Angeles", pricingVersion: "fixture", taxVersion: "fixture" }, "https://checkout.example.test"), requestId: "private-request-canary", clientMetadataId: "1234567890abcdef1234567890abcdef" };
   it.each([
+    [{ name: "private-canary", debug_id: "private-canary", message: "private-canary", details: [{ issue: "RETURN_URL_REQUIRED", field: "private-canary", description: "private-canary" }, { issue: "CANCEL_URL_REQUIRED", value: "private-canary" }, { issue: "RETURN_URL_REQUIRED" }] }, ["RETURN_URL_REQUIRED", "CANCEL_URL_REQUIRED"], false, "recognized"],
     [{ details: [{ issue: "AMOUNT_MISMATCH" }] }, ["AMOUNT_MISMATCH"], false, "recognized"],
     [{ name: "private-canary", debug_id: "private-canary", message: "private-canary", details: [{ issue: "BILLING_ITEM_AMOUNT_MISMATCH", value: "private-canary", description: "private-canary" }, { issue: "BILLING_ITEM_AMOUNT_MISMATCH" }] }, ["BILLING_ITEM_AMOUNT_MISMATCH"], false, "recognized"],
     [{ details: [{ issue: "INSTRUMENT_DECLINED" }] }, ["INSTRUMENT_DECLINED"], true, "recognized"],
@@ -49,6 +50,16 @@ describe("TASK-0012 initial-create safe diagnostics", () => {
     await expect(gateway.createOrder(input)).rejects.toThrow("paypal_unavailable");
     expect(json).toHaveBeenCalledOnce();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+  it("throwing sink preserves vault URL uncertainty with one response read and no retry", async () => {
+    const response = new Response('{"details":[{"issue":"RETURN_URL_REQUIRED"},{"issue":"CANCEL_URL_REQUIRED"}]}', { status: 422 });
+    const json = vi.spyOn(response, "json");
+    const request = vi.fn().mockResolvedValueOnce(new Response('{"access_token":"synthetic"}')).mockResolvedValueOnce(response);
+    const gateway = new HttpPayPalGateway({ clientId: "synthetic", clientSecret: "synthetic", environment: "sandbox", fetch: request, diagnostic: () => { throw new Error("private-sink-canary"); } });
+    await expect(gateway.createOrder(input)).rejects.toThrow("paypal_unavailable");
+    expect(json).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1].body).toBe(JSON.stringify(input.payload));
   });
   it.each(["NOT_ENABLED_TO_VAULT_PAYMENT_SOURCE", "MISMATCHED_VAULT_ID_TO_PAYMENT_SOURCE", "MISMATCHED_VAULT_SETUP_TOKEN_TO_PAYMENT_SOURCE", "INVALID_VAULT_ID", "NOT_ENABLED_FOR_PAYMENT_SOURCE", "AGREEMENT_ALREADY_CANCELLED", "BILLING_AGREEMENT_NOT_FOUND", "DUPLICATE_INVOICE_ID", "PAYER_ACCOUNT_LOCKED_OR_CLOSED", "PAYER_ACCOUNT_RESTRICTED", "PAYER_CANNOT_PAY"])("new observational label %s never changes create or capture policy", async issue => {
     for (const capture of [false, true]) {

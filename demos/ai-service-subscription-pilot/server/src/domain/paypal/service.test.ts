@@ -145,6 +145,7 @@ function operation(overrides: Partial<PayPalOperationRecord> = {}): PayPalOperat
 
 function dependencies(repository = new MemoryPayPalRepository(), gateway: PayPalGateway = new FakePayPalGateway()) {
   return {
+    appUrl: "https://checkout.example.test/base?private=query#fragment",
     repository,
     gateway,
     merchantId: "MERCHANT123",
@@ -211,6 +212,19 @@ function providerError(name: string, issue: string) {
 }
 
 describe("TC-0005 user token and create ownership", () => {
+  it("forwards configured origin and the owned review intent to initial vault navigation only", async () => {
+    const repository = new MemoryPayPalRepository();
+    const gateway = new FakePayPalGateway();
+    const deps = dependencies(repository, gateway);
+    deps.requireReview = async () => ({ ...review, intentId: "44444444-4444-4444-8444-444444444444" });
+    const input = { accountId: 2n, intentId: review.intentId, quoteId: review.quoteId, operationId: operation().operationId, clientMetadataId: "1234567890abcdef1234567890abcdef" };
+    await expect(createPayPalOrder(input, deps)).resolves.toMatchObject({ status: "ready" });
+    expect(gateway.createInputs).toHaveLength(1);
+    expect(gateway.createInputs[0]).toMatchObject({ requestId: "create-33333333-3333-4333-8333-333333333333", clientMetadataId: input.clientMetadataId,
+      payload: { payment_source: { paypal: { experience_context: { return_url: "https://checkout.example.test/checkout/44444444-4444-4444-8444-444444444444", cancel_url: "https://checkout.example.test/checkout/44444444-4444-4444-8444-444444444444" } } } } });
+    expect(gateway.captureInputs).toEqual([]);
+    expect(repository.funded).toEqual([]);
+  });
   it.each([
     ["2026-09-30T19:00:00.000Z", "2026-10-02T19:00:00.000Z", { expiresAt: "2027-01-02T00:00:00.000Z" }],
     ["2026-10-02T19:00:00.000Z", "2026-10-02T19:01:00.000Z", { taxVersion: "unknown" }],
