@@ -3,6 +3,27 @@ import { HttpPayPalGateway } from "./http-gateway.js";
 import { PayPalDefinitiveError } from "./gateway.js";
 import { buildInitialPayPalOrder } from "./payload.js";
 
+describe("captured-order operator read", () => {
+  it("requests payment_source with one authenticated GET and no financial mutation", async () => {
+    const request = vi.fn().mockResolvedValueOnce(new Response('{"access_token":"synthetic"}')).mockResolvedValueOnce(new Response('{"id":"saved/order"}'));
+    const gateway = new HttpPayPalGateway({ clientId: "synthetic", clientSecret: "synthetic", environment: "sandbox", fetch: request });
+    expect(typeof gateway.readCapturedOrder).toBe("function");
+    expect(await gateway.readCapturedOrder("saved/order")).toEqual({ id: "saved/order" });
+    expect(request.mock.calls.map(([url, init]) => [url, init.method])).toEqual([
+      ["https://api-m.sandbox.paypal.com/v1/oauth2/token", "POST"],
+      ["https://api-m.sandbox.paypal.com/v2/checkout/orders/saved%2Forder?fields=payment_source", "GET"],
+    ]);
+    expect(request.mock.calls[1][1]).toMatchObject({ cache: "no-store", headers: { Authorization: "Bearer synthetic" }, signal: expect.any(AbortSignal) });
+    expect(request.mock.calls[1][1].signal).toBe(request.mock.calls[0][1].signal);
+  });
+  it.each([400, 403, 404, 422, 500, 503])("fails closed without a retry for HTTP %i", async (status) => {
+    const request = vi.fn().mockResolvedValueOnce(new Response('{"access_token":"synthetic"}')).mockResolvedValueOnce(new Response('private', { status }));
+    const gateway = new HttpPayPalGateway({ clientId: "synthetic", clientSecret: "synthetic", environment: "sandbox", fetch: request });
+    await expect(gateway.readCapturedOrder("order")).rejects.toThrow("paypal_unavailable");
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("TASK-0012 initial-create safe diagnostics", () => {
   const input = { payload: buildInitialPayPalOrder({ intentId: "11111111-1111-4111-8111-111111111111", quoteId: "22222222-2222-4222-8222-222222222222", tier: "go", cadence: "monthly", base: {currency: "USD", cents: 1000}, promotion: {currency: "USD", cents: -500}, taxableSubtotal: {currency: "USD", cents: 500}, tax: {currency: "USD", cents: 53}, dueToday: {currency: "USD", cents: 553}, taxBasisPoints: 1055, expiresAt: "2026-10-07T00:00:00Z", renewsAt: "2026-11-07T00:00:00Z", allowanceResetsAt: "2026-11-07T00:00:00Z", timeZone: "America/Los_Angeles", pricingVersion: "fixture", taxVersion: "fixture" }, "https://checkout.example.test"), requestId: "private-request-canary", clientMetadataId: "1234567890abcdef1234567890abcdef" };
   it.each([

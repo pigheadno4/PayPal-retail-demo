@@ -167,7 +167,7 @@ export async function createPayPalOrder(
   }
 }
 
-function assertCaptureMatches(
+export function assertCaptureMatches(
   evidence: PayPalCaptureEvidence,
   operation: PayPalOperationRecord,
   review: CheckoutReview,
@@ -253,7 +253,7 @@ type OperationRow = {
   vault_status: VaultStatus;
 };
 
-function mapOperation(row: OperationRow): PayPalOperationRecord {
+export function mapOperation(row: OperationRow): PayPalOperationRecord {
   return Object.freeze({
     internalId: BigInt(row.id),
     operationId: row.public_id,

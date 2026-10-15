@@ -136,6 +136,16 @@ export class HttpPayPalGateway implements PayPalGateway {
   private readonly request: typeof globalThis.fetch;
   private readonly apiBase: string;
 
+  async readCapturedOrder(orderId: string): Promise<unknown> {
+    const signal = AbortSignal.timeout(15_000);
+    const { accessToken } = await this.oauthToken(undefined, undefined, signal);
+    const response = await this.request(`${this.apiBase}/v2/checkout/orders/${encodeURIComponent(orderId)}?fields=payment_source`, {
+      method: "GET", headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
+    });
+    if (!response.ok) throw new Error("paypal_unavailable");
+    return response.json();
+  }
+
   async createSavedWalletOrder(input:{payload:PayPalOrderPayload;requestId:string;clientMetadataId:string}):Promise<unknown>{
     const signal=AbortSignal.timeout(15_000);const {accessToken}=await this.oauthToken(undefined,undefined,signal);
     const response=await this.request(`${this.apiBase}/v2/checkout/orders`,{method:"POST",headers:{Authorization:`Bearer ${accessToken}`,"Content-Type":"application/json","PayPal-Request-Id":input.requestId,"PayPal-Client-Metadata-Id":input.clientMetadataId,Prefer:"return=representation"},body:JSON.stringify(input.payload),cache:"no-store",signal});
