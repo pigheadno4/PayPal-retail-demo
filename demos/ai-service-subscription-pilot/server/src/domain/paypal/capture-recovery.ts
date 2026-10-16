@@ -5,7 +5,7 @@ import { toCheckoutReview } from "../quote/service.js";
 import type { PayPalCaptureEvidence } from "./gateway.js";
 import { projectPayPalCaptureEvidence } from "./http-gateway.js";
 import { assertCaptureMatches, mapOperation, PostgresPayPalRepository, type PayPalOperationRecord } from "./service.js";
-export type CaptureRecoveryContext = { purpose: string; operation: PayPalOperationRecord; review: CheckoutReview };
+export type CaptureRecoveryContext = { purpose: string; checkoutState: string; operation: PayPalOperationRecord; review: CheckoutReview };
 export type RecoveryTarget = Readonly<{ operationId: string; checkoutId: string; apply?: boolean }>;
 export type RecoveryDependencies = Readonly<{
   merchantId: string; environment: string;
@@ -29,7 +29,9 @@ function assertContext(ctx: CaptureRecoveryContext, input: RecoveryTarget, merch
   if (ctx.purpose !== "initial" || op.operationId !== input.operationId || op.intentId !== input.checkoutId
     || ctx.review.intentId !== op.intentId || ctx.review.quoteId !== op.quoteId || op.environment !== "sandbox"
     || op.merchantId !== merchantId || !op.orderId || op.accountId <= 0n
-    || !["approved", "completed"].includes(op.fundingStatus)) fail();
+    || !["approved", "completed"].includes(op.fundingStatus)
+    || (op.fundingStatus === "approved" && ctx.checkoutState !== "payment_pending")
+    || (op.fundingStatus === "completed" && ctx.checkoutState !== "funded")) fail();
 }
 function checkedEvidence(raw: unknown, ctx: CaptureRecoveryContext) {
   const body = object(raw); const unit = one(body.purchase_units); const payments = object(unit.payments); const capture = one(payments.captures);
@@ -76,10 +78,10 @@ export async function recoverCapturedPayment(input: RecoveryTarget, deps: Recove
 }
 
 async function loadContext(sql: DatabaseClient, target: RecoveryTarget, lock = false): Promise<CaptureRecoveryContext> {
-  type Row = Parameters<typeof mapOperation>[0] & { purpose: string; removal_state: string | null };
+  type Row = Parameters<typeof mapOperation>[0] & { purpose: string; checkout_state: string; removal_state: string | null };
   // Selecting the removal columns is intentional: missing schema fails before any provider call/write.
   const query = sql<Row[]>`
-    select o.*, i.public_id as intent_public_id, q.public_id as quote_public_id, i.purpose
+    select o.*, i.public_id as intent_public_id, q.public_id as quote_public_id, i.purpose, i.state as checkout_state
     from app_private.payment_operations o
     join app_private.checkout_intents i on i.id=o.checkout_intent_id and i.account_id=o.account_id
     join app_private.accounts a on a.id=o.account_id
@@ -93,7 +95,7 @@ async function loadContext(sql: DatabaseClient, target: RecoveryTarget, lock = f
   const op = mapOperation(rows[0]!);
   const quote = await new PostgresQuoteRepository(sql).findOwnedQuote(op.accountId, op.intentId, op.quoteId);
   if (!quote || quote.internalId.toString() !== String((rows[0] as Row & {quote_id: string}).quote_id)) fail();
-  return { operation: op, purpose: rows[0]!.purpose, review: toCheckoutReview(quote) };
+  return { operation: op, purpose: rows[0]!.purpose, checkoutState: rows[0]!.checkout_state, review: toCheckoutReview(quote) };
 }
 
 async function inspect(sql: DatabaseClient, ctx: CaptureRecoveryContext, evidence: PayPalCaptureEvidence, lock = false): Promise<"pending" | "complete"> {

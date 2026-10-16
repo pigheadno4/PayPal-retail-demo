@@ -5,7 +5,7 @@ const operationId = "11111111-1111-4111-8111-111111111111";
 const intentId = "22222222-2222-4222-8222-222222222222";
 const quoteId = "33333333-3333-4333-8333-333333333333";
 function context(): CaptureRecoveryContext {
-  return { purpose: "initial", operation: { internalId: 1n, operationId, accountId: 2n, intentId, quoteId, merchantId: "MERCHANT", environment: "sandbox", orderId: "PRIVATE-ORDER", createRequestId: "create", captureRequestId: "capture", fundingStatus: "approved", vaultStatus: "not_requested" }, review: { intentId, quoteId, tier: "go", cadence: "monthly", base: {currency: "USD", cents: 1000}, promotion: {currency: "USD", cents: -500}, taxableSubtotal: {currency: "USD", cents: 500}, tax: {currency: "USD", cents: 53}, dueToday: {currency: "USD", cents: 553}, taxBasisPoints: 1055, expiresAt: "2026-10-01T00:15:00Z", renewsAt: "2026-11-01T00:00:00Z", allowanceResetsAt: "2026-11-01T00:00:00Z", timeZone: "America/Los_Angeles", pricingVersion: "fixture", taxVersion: "fixture" } };
+  return { purpose: "initial", checkoutState: "payment_pending", operation: { internalId: 1n, operationId, accountId: 2n, intentId, quoteId, merchantId: "MERCHANT", environment: "sandbox", orderId: "PRIVATE-ORDER", createRequestId: "create", captureRequestId: "capture", fundingStatus: "approved", vaultStatus: "not_requested" }, review: { intentId, quoteId, tier: "go", cadence: "monthly", base: {currency: "USD", cents: 1000}, promotion: {currency: "USD", cents: -500}, taxableSubtotal: {currency: "USD", cents: 500}, tax: {currency: "USD", cents: 53}, dueToday: {currency: "USD", cents: 553}, taxBasisPoints: 1055, expiresAt: "2026-10-01T00:15:00Z", renewsAt: "2026-11-01T00:00:00Z", allowanceResetsAt: "2026-11-01T00:00:00Z", timeZone: "America/Los_Angeles", pricingVersion: "fixture", taxVersion: "fixture" } };
 }
 function raw() {
   return { id: "PRIVATE-ORDER", intent: "CAPTURE", status: "COMPLETED", payment_source: { paypal: { attributes: { vault: { status: "VAULTED", id: "PRIVATE-VAULT", customer: { id: "PRIVATE-CUSTOMER" } } } } }, purchase_units: [{ reference_id: quoteId, amount: { currency_code: "USD", value: "5.53" }, payee: { merchant_id: "MERCHANT" }, payments: { captures: [{ id: "PRIVATE-CAPTURE", status: "COMPLETED", final_capture: true, amount: { currency_code: "USD", value: "5.53" }, create_time: "2026-10-01T00:05:00Z", update_time: "2026-10-01T00:05:00Z" }] } }] };
@@ -35,16 +35,36 @@ describe("one-operation capture recovery", () => {
   });
   it("accepts a completed operation only after exact correlated readback and performs no write", async () => {
     const f = fixture(); f.ctx.operation = { ...f.ctx.operation, fundingStatus: "completed" };
+    f.ctx.checkoutState = "funded";
     f.inspectEvidence.mockResolvedValue("complete");
     expect(await recoverCapturedPayment({ ...input, apply: true }, f.dependencies)).toMatchObject({ code: "already_recovered" });
     expect(f.apply).not.toHaveBeenCalled();
   });
   it("concurrent commit is a no-op only after a fresh consistent readback", async () => {
     const f = fixture(); f.apply.mockRejectedValue(new Error("payment_state_conflict"));
+    f.readContext.mockResolvedValueOnce(f.ctx).mockResolvedValueOnce({...f.ctx,checkoutState:"funded",operation:{...f.ctx.operation,fundingStatus:"completed"}});
     f.inspectEvidence.mockResolvedValueOnce("pending").mockResolvedValueOnce("complete");
     expect(await recoverCapturedPayment({ ...input, apply: true }, f.dependencies)).toMatchObject({ code: "already_recovered" });
     expect(f.readContext).toHaveBeenCalledTimes(2); expect(f.inspectEvidence).toHaveBeenCalledTimes(2);
     expect(f.apply).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["approved","selected"],["approved","identity_verified"],["approved","funded"],["approved","expired"],["approved","canceled"],
+    ["completed","selected"],["completed","identity_verified"],["completed","payment_pending"],["completed","expired"],["completed","canceled"],
+  ] as const)("blocks %s operation with %s checkout in both modes before provider read or writes",async(fundingStatus,checkoutState)=>{
+    for(const apply of [false,true]){
+      const f=fixture();f.ctx.operation={...f.ctx.operation,fundingStatus};f.ctx.checkoutState=checkoutState;
+      f.inspectEvidence.mockResolvedValue(fundingStatus==="completed"?"complete":"pending");
+      expect(await recoverCapturedPayment({...input,apply},f.dependencies)).toMatchObject({code:"recovery_blocked",fundingEligible:false,vaultEligible:false});
+      expect(f.readCapturedOrder).not.toHaveBeenCalled();expect(f.apply).not.toHaveBeenCalled();
+    }
+  });
+  it("rejects a canceled completed checkout on fresh conflict readback instead of reporting a no-op",async()=>{
+    const f=fixture();f.apply.mockRejectedValue(new Error("payment_state_conflict"));
+    f.readContext.mockResolvedValueOnce(f.ctx).mockResolvedValueOnce({...f.ctx,checkoutState:"canceled",operation:{...f.ctx.operation,fundingStatus:"completed"}});
+    f.inspectEvidence.mockResolvedValueOnce("pending").mockResolvedValueOnce("complete");
+    expect(await recoverCapturedPayment({...input,apply:true},f.dependencies)).toMatchObject({code:"recovery_blocked"});
+    expect(f.apply).toHaveBeenCalledTimes(1);expect(f.inspectEvidence).toHaveBeenCalledTimes(1);
   });
   const corruptions: [string, (f: ReturnType<typeof fixture>) => void][] = [
     ["wrong order", f => { f.body.id = "OTHER"; }], ["incomplete order", f => { f.body.status = "APPROVED"; }],

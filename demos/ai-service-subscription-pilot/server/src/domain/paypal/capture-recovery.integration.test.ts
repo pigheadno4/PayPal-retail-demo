@@ -33,7 +33,7 @@ async function seed() {
   const readCapturedOrder=vi.fn(async(id:string)=>{expect(id).toBe(orderId);return raw;});
   const deps={merchantId,environment:"sandbox",readCapturedOrder,readContext:repo.readContext.bind(repo),inspectEvidence:repo.inspectEvidence.bind(repo),apply:repo.apply.bind(repo)};
   async function snapshot() {
-    return sql`select o.funding_status,o.vault_status,o.funding_verified_at,o.provider_effective_at,
+    return sql`select o.funding_status,o.vault_status,o.funding_verified_at,o.provider_effective_at,i.state as checkout_state,
       q.issued_at,q.expires_at,q.renews_at,q.allowance_resets_at,
       (select count(*)::int from app_private.provider_events e where e.payment_operation_id=o.id) as events,
       (select count(*)::int from app_private.billing_arrangements b where b.payment_operation_id=o.id) as arrangements,
@@ -41,7 +41,7 @@ async function seed() {
       (select count(*)::int from app_private.usage_operations u where u.account_id=o.account_id) as usage,
       (select count(*)::int from app_private.provider_customers c where c.account_id=o.account_id) as customers,
       (select count(*)::int from app_private.payment_methods m join app_private.provider_customers c on c.id=m.provider_customer_id where c.account_id=o.account_id) as methods
-      from app_private.payment_operations o join app_private.quotes q on q.id=o.quote_id where o.public_id=${target.operationId}`;
+      from app_private.payment_operations o join app_private.quotes q on q.id=o.quote_id join app_private.checkout_intents i on i.id=o.checkout_intent_id where o.public_id=${target.operationId}`;
   }
   return {userId,merchantId,target,raw,deps,repo,claimed,bound,customerId,vaultId,snapshot};
 }
@@ -118,5 +118,32 @@ describe.skipIf(!source)("owned-local capture recovery transaction proof",()=>{
     const f=await seed();expect(await recoverCapturedPayment(f.target,f.deps)).toMatchObject({code:"applied"});
     await sql`insert into app_private.provider_events(public_id,provider,merchant_id,environment,provider_event_id,event_type,raw_payload,signature_valid,correlation_result,payment_operation_id,received_at) values(${randomUUID()},'paypal',${f.merchantId},'sandbox',${`fixture-webhook-${randomUUID()}`},'VAULT.PAYMENT-TOKEN.CREATED','{}',true,'matched',${f.claimed.operation.internalId.toString()},${NOW})`;
     const before=await f.snapshot();expect(await recoverCapturedPayment(f.target,f.deps)).toMatchObject({code:"already_recovered"});expect(await f.snapshot()).toEqual(before);
+  });
+  it.each([
+    ["approved","selected"],["approved","identity_verified"],["approved","funded"],["approved","expired"],["approved","canceled"],
+    ["completed","selected"],["completed","identity_verified"],["completed","payment_pending"],["completed","expired"],["completed","canceled"],
+  ])("does not declare eligible or overwrite unexpected %s/%s state",async(fundingStatus,checkoutState)=>{
+    const f=await seed();if(fundingStatus==="completed")expect(await recoverCapturedPayment(f.target,f.deps)).toMatchObject({code:"applied"});
+    await sql`update app_private.checkout_intents set state=${checkoutState} where public_id=${f.target.checkoutId}`;
+    const before=await f.snapshot();const apply=vi.fn(f.deps.apply);
+    for(const enabled of [false,true])expect(await recoverCapturedPayment({...f.target,apply:enabled},{...f.deps,apply})).toMatchObject({code:"recovery_blocked"});
+    expect(apply).not.toHaveBeenCalled();expect(await f.snapshot()).toEqual(before);
+  });
+  it("rechecks completed checkout state on fresh evidence read",async()=>{
+    const f=await seed();expect(await recoverCapturedPayment(f.target,f.deps)).toMatchObject({code:"applied"});
+    const apply=vi.fn(f.deps.apply);
+    const readCapturedOrder=async()=>{await sql`update app_private.checkout_intents set state='canceled' where public_id=${f.target.checkoutId}`;return f.raw;};
+    const before=await f.snapshot();expect(await recoverCapturedPayment(f.target,{...f.deps,readCapturedOrder,apply})).toMatchObject({code:"recovery_blocked"});
+    expect(apply).not.toHaveBeenCalled();expect(await f.snapshot()).toEqual(before.map(row=>({...row,checkout_state:"canceled"})));
+  });
+  it("locked apply refuses checkout cancellation after successful read-only eligibility",async()=>{
+    const f=await seed();const before=await f.snapshot();
+    const inspectEvidence: typeof f.deps.inspectEvidence=async(ctx,evidence)=>{
+      const result=await f.repo.inspectEvidence(ctx,evidence);
+      await sql`update app_private.checkout_intents set state='canceled' where public_id=${f.target.checkoutId}`;
+      return result;
+    };
+    expect(await recoverCapturedPayment(f.target,{...f.deps,inspectEvidence})).toMatchObject({code:"recovery_blocked"});
+    expect(await f.snapshot()).toEqual(before.map(row=>({...row,checkout_state:"canceled"})));
   });
 });
